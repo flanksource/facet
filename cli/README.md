@@ -74,7 +74,7 @@ export default function MyReport({ data }: { data: ReportData }) {
 **3. Generate PDF**:
 
 ```bash
-flanksource-reports generate pdf --template MyReport.tsx --data report-data.json
+facet generate pdf --template MyReport.tsx --data report-data.json
 ```
 
 Output: `Q4-Report.pdf` ✨
@@ -84,7 +84,7 @@ Output: `Q4-Report.pdf` ✨
 ### Generate PDF
 
 ```bash
-flanksource-reports generate pdf \
+facet generate pdf \
   --template MyReport.tsx \
   --data report-data.json
 ```
@@ -92,7 +92,7 @@ flanksource-reports generate pdf \
 ### Generate HTML
 
 ```bash
-flanksource-reports generate html \
+facet generate html \
   --template MyReport.tsx \
   --data report-data.json \
   --output-dir ./output
@@ -101,7 +101,7 @@ flanksource-reports generate html \
 ### Generate WebComponent (with scoped CSS)
 
 ```bash
-flanksource-reports generate webcomponent \
+facet generate webcomponent \
   --template MyReport.tsx \
   --data report-data.json \
   --css-scope "my-report"
@@ -110,7 +110,7 @@ flanksource-reports generate webcomponent \
 ### Generate All Formats
 
 ```bash
-flanksource-reports generate all \
+facet generate all \
   --template MyReport.tsx \
   --data report-data.json
 ```
@@ -120,7 +120,7 @@ flanksource-reports generate all \
 Start a development server with live preview and data editing:
 
 ```bash
-flanksource-reports serve \
+facet serve \
   --template MyReport.tsx \
   --data report-data.json \
   --port 3000
@@ -133,7 +133,7 @@ Open http://localhost:3000 to see live preview. Edit your template or data, and 
 ### JSON File
 
 ```bash
-flanksource-reports generate pdf --template Report.tsx --data data.json
+facet generate pdf --template Report.tsx --data data.json
 ```
 
 ### TypeScript Module (Static Data)
@@ -148,7 +148,7 @@ export const data = {
 ```
 
 ```bash
-flanksource-reports generate pdf --template Report.tsx --data-loader data-loader.ts
+facet generate pdf --template Report.tsx --data-loader data-loader.ts
 ```
 
 ### TypeScript Module (Async Data)
@@ -162,7 +162,7 @@ export const data = async () => {
 ```
 
 ```bash
-flanksource-reports generate pdf --template Report.tsx --data-loader data-loader.ts
+facet generate pdf --template Report.tsx --data-loader data-loader.ts
 ```
 
 ## Output Naming
@@ -181,7 +181,7 @@ Generates: `Q4-Report-2024.pdf`
 Use a different field:
 
 ```bash
-flanksource-reports generate pdf \
+facet generate pdf \
   --template Report.tsx \
   --data data.json \
   --output-name-field title
@@ -211,7 +211,7 @@ Validate data against a JSON Schema:
 ```
 
 ```bash
-flanksource-reports generate pdf \
+facet generate pdf \
   --template Report.tsx \
   --data data.json \
   --schema schema.json
@@ -220,7 +220,7 @@ flanksource-reports generate pdf \
 Skip validation:
 
 ```bash
-flanksource-reports generate pdf \
+facet generate pdf \
   --template Report.tsx \
   --data data.json \
   --no-validate
@@ -231,7 +231,7 @@ flanksource-reports generate pdf \
 WebComponent mode generates HTML with scoped CSS, perfect for embedding in documentation sites like Docusaurus:
 
 ```bash
-flanksource-reports generate webcomponent \
+facet generate webcomponent \
   --template FeatureDoc.tsx \
   --data features.json \
   --css-scope "flanksource-feature"
@@ -254,7 +254,7 @@ CSS won't conflict with your site styles!
 Enable detailed logging for debugging:
 
 ```bash
-flanksource-reports generate pdf \
+facet generate pdf \
   --template Report.tsx \
   --data data.json \
   --verbose
@@ -426,4 +426,4 @@ Apache-2.0
 
 ## Contributing
 
-Issues and pull requests welcome! See the main [flanksource-reports](https://github.com/flanksource/flanksource-reports) repository.
+Issues and pull requests welcome! See the main [facet](https://github.com/flanksource/facet) repository.

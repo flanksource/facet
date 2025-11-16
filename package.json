@@ -73,8 +73,6 @@
     "src/types/",
     "src/utils/",
     "cli/dist/",
-    "assets/",
-    "plugins/vite-plugin-*.js",
     "README.md"
   ],
   "scripts": {

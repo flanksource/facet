@@ -1,10 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
-import { CarbonLoader } from './plugins/unplugin-carbon/src/index';
-import scorecardPlugin from './plugins/vite-plugin-scorecard.js';
-import securityPlugin from './plugins/vite-plugin-security.js';
-import flanksourceIconsPlugin from './plugins/vite-plugin-flanksource-icons.js';
 
 export default defineConfig(async () => {
   const mdx = await import('@mdx-js/rollup');
@@ -20,30 +16,8 @@ export default defineConfig(async () => {
       },
     },
     plugins: [
-      flanksourceIconsPlugin(),
-      {
-        enforce: 'pre',
-        ...mdx.default({
-          remarkPlugins: [remarkGfm.default]
-        })
-      },
-      scorecardPlugin(),
-      securityPlugin(),
-      // CarbonLoader({
-      //   outputDir: 'assets/carbon-screenshots',
-      //   cacheDir: '.cache/carbon-loader',
-      //   carbonOptions: {
-      //     theme: 'vscode',
-      //     windowTheme: 'none',
-      //     windowControls: true,
-      //     fontFamily: 'Fira Code',
-      //     fontSize: '14px',
-      //     lineNumbers: true,
-      //     dropShadow: false,
-      //     exportSize: '2x',
-      //     watermark: false,
-      //   }
-      // }),
+
+
       react()
     ],
     build: {
