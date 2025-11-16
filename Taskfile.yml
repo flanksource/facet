@@ -1,0 +1,63 @@
+version: "3"
+
+vars:
+  # All available variants
+  VARIANTS: architecture idp mcp gitops jit kitchen-sink security poc-eval billing
+
+  # Default variants for build:datasheet (matches original npm script)
+  DEFAULT_VARIANTS: idp mcp gitops jit
+
+  # Directories
+  DIST_DIR: ./dist
+  PDF_OUTPUT_DIR: ../../../static/pdfs
+
+  # Source patterns for watching and dependency tracking
+  SRC_PATTERN: src/**/*.{tsx,ts,jsx,js,css,mdx}
+  ASSETS_PATTERN: assets/**/*
+  STYLES_FILE: styles.css
+
+tasks:
+  # ============================================================================
+  # Base Tasks (Parameterized)
+  # ============================================================================
+
+  clean:
+    desc: "Clean build outputs"
+    cmds:
+      - rm -rf {{.DIST_DIR}}
+      - mkdir -p {{.DIST_DIR}}
+
+  build:
+    sources:
+      - src/**/*.{tsx,ts,jsx,js,css,mdx}
+      - cli/src/**/*.{tsx,ts,jsx,js,css,mdx}
+    cmds:
+      - npm run build
+
+  install:
+    deps:
+      - build
+    cmds:
+      - cp dist/facet /usr/local/bin
+
+  storybook:
+    desc: "Run Storybook development server on port 6006"
+    cmds:
+      - npm run storybook
+
+  storybook:build:
+    desc: "Build static Storybook for deployment"
+    cmds:
+      - npm run build-storybook
+
+  test:storybook:
+    desc: "Build Storybook and verify all stories load without errors"
+    cmds:
+      - npm run build-storybook
+      - echo "✓ Storybook build completed successfully"
+      - echo "✓ All stories compiled without errors"
+
+  default:
+    desc: "Show available tasks"
+    cmds:
+      - task --list

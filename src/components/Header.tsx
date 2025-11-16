@@ -1,6 +1,5 @@
 import React from 'react';
-import logo from '../../../logos/mission-control-logo.svg';
-import logoDark from '../../../logos/mission-control-logo-white.svg';
+import { MissionControlLogo } from '@flanksource/icons/mi'
 
 interface HeaderProps {
   variant?: 'default' | 'solid' | 'minimal';
@@ -30,18 +29,17 @@ export default function Header({
   subtitle = 'Mission Control Platform'
 }: HeaderProps) {
 
-  const headerClass = `datasheet-header datasheet-header--${variant}  `;
+  const headerClass = `datasheet-header datasheet-header--${variant}
+  `;
 
   return (
     <div className={headerClass}>
       {/* Logo centered with vertical spacing */}
-      <div >
-
-        <img src={logo} alt="Mission Control Logo" className=" w-auto p-0 m-0 filter grayscale brightness-[250] contrast-100 mix-blend-screen "
-
+      <div className=' h-[15mm] w-[70mm]'>
+        <MissionControlLogo height="15mm"
+          className="filter grayscale brightness-[250] contrast-100 mix-blend-screen h-full w-full "
         />
       </div>
-
       {/* Title and subtitle on the right */}
       <div className='header-meta'>
         <p className='text-md font-bold'>{title}</p>

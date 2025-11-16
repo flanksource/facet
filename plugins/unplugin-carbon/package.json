@@ -1,0 +1,19 @@
+{
+  "name": "unplugin-carbon",
+  "version": "1.0.0",
+  "description": "Unplugin loader for generating code screenshots using carbon-now",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "peerDependencies": {
+    "unplugin": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

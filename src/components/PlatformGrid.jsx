@@ -1,5 +1,5 @@
 import React from 'react';
-import IconGithub from '~icons/mdi/github';
+import { IoLogoGithub as IconGithub } from 'react-icons/io5';
 
 /**
  * Grid layout for platform components with shields and GitHub links

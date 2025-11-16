@@ -188,7 +188,7 @@ function renderIcon(
   size: number = 24,
   color?: string
 ) {
-  console.log('Rendering icon:', icon);
+
   if (!icon) return null;
 
   // JSX Icon component (from unplugin-icons or React components)

@@ -1,0 +1,43 @@
+# Exclude build artifacts and caches
+.facet/
+/dist/
+node_modules/
+*.log
+
+# Exclude test files
+*.test.tsx
+*.test.ts
+*.spec.tsx
+*.spec.ts
+__tests__/
+
+# Exclude development files
+.storybook/
+storybook-static/
+src/stories/
+src/examples/
+
+# Exclude unplugin-carbon package (it's a dev dependency with its own node_modules)
+plugins/unplugin-carbon/
+
+# Exclude git
+.git/
+.gitignore
+
+# Exclude IDE
+.vscode/
+.idea/
+
+# Exclude CI
+.github/
+
+# Exclude temp files
+.DS_Store
+*.tmp
+*.temp
+
+# Include CLI dist files (override other rules)
+!cli/dist/
+
+# Keep only necessary plugin files
+# plugins/vite-plugin-*.js files are included via "files" field

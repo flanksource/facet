@@ -1,8 +1,10 @@
 import React from 'react';
-import IconTrendingUp from '~icons/ion/trending-up-outline';
-import IconTrendingDown from '~icons/ion/trending-down-outline';
-import IconArrowUp from '~icons/ion/arrow-up';
-import IconArrowDown from '~icons/ion/arrow-down';
+import {
+  IoTrendingUpOutline as IconTrendingUp,
+  IoTrendingDownOutline as IconTrendingDown,
+  IoArrowUp as IconArrowUp,
+  IoArrowDown as IconArrowDown
+} from 'react-icons/io5';
 
 interface SeverityStatCardProps {
   color: 'red' | 'orange' | 'yellow' | 'blue' | 'green' | 'gray';

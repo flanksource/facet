@@ -1,9 +1,11 @@
 import React from 'react';
 import Shield from './Shield';
-import IconCheck from '~icons/ion/checkmark-circle';
-import IconCheckLight from '~icons/ion/checkmark';
-import IconWarning from '~icons/ion/warning-outline';
-import IconClose from '~icons/ion/close-circle';
+import {
+  IoCheckmarkCircle as IconCheck,
+  IoCheckmark as IconCheckLight,
+  IoWarningOutline as IconWarning,
+  IoCloseCircle as IconClose
+} from 'react-icons/io5';
 
 interface SecurityCheck {
   name: string;

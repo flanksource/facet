@@ -1,9 +1,11 @@
 import React from 'react';
-import IconGithub from '~icons/ion/logo-github';
-import IconLinkedin from '~icons/ion/logo-linkedin';
-import IconGlobe from '~icons/ion/globe-outline';
-import IconDocs from '~icons/ion/document-text-outline';
-import IconMail from '~icons/ion/mail-outline';
+import {
+  IoLogoGithub as IconGithub,
+  IoLogoLinkedin as IconLinkedin,
+  IoGlobeOutline as IconGlobe,
+  IoDocumentTextOutline as IconDocs,
+  IoMailOutline as IconMail
+} from 'react-icons/io5';
 
 
 interface PdfFooterProps {

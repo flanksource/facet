@@ -1,0 +1,23 @@
+# Override .gitignore for npm packaging
+# We WANT to include dist/ in the npm package
+
+# Exclude source files
+src/
+
+# Exclude test files
+*.test.ts
+*.spec.ts
+__tests__/
+
+# Exclude dev files
+tsconfig.json
+tsdown.config.ts
+
+# Exclude dependencies (they're bundled in dist/)
+node_modules/
+
+# Exclude source maps (optional - uncomment to include them)
+# dist/**/*.map
+
+# Include everything else in dist/
+!dist/**/*
