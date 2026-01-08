@@ -81,6 +81,17 @@ export const Metric: Story = {
   },
 };
 
+export const MetricWithIcon: Story = {
+  args: {
+    value: '150',
+    label: 'Total Credits',
+    icon: IoCheckmarkCircleOutline,
+    variant: 'metric',
+    color: 'blue',
+    sublabel: 'credits remaining',
+  },
+};
+
 export const Bordered: Story = {
   args: {
     value: '2000+',

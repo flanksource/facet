@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface MCPToolCall {
   tool: string;
   description: string;
@@ -40,25 +38,25 @@ export default function QueryResponseTerminal({
   compact = false
 }: QueryResponseTerminalProps) {
   return (
-    <div className="query-response-terminal claude-code-terminal">
+    <div className="bg-gray-950 border border-gray-700 rounded p-5 font-mono text-[8pt] leading-[12pt] overflow-x-auto">
       {/* User Query - Claude Code style */}
-      <div className="terminal-line user-query">
-        <span className="terminal-prompt">›</span> {userQuery}
+      <div className="text-white font-medium border-b border-gray-700 mb-3 pb-2">
+        <span className="text-blue-300 font-bold mr-2">›</span> {userQuery}
       </div>
 
       {/* MCP Tool Calls (if not compact) - Claude Code execution style */}
       {!compact && mcpTools && mcpTools.length > 0 && (
-        <div className="terminal-mcp-section claude-code-mcp">
+        <div className="bg-black rounded border-l-2 border-l-cyan-400 my-2 p-2">
           {mcpTools.map((tool, index) => (
-            <div key={index} className="mcp-tool">
-              <div className="mcp-tool-header">
-                <span className="terminal-mcp-icon">⚙</span>
-                <span className="terminal-mcp-label">{tool.tool}</span>
-                <span className="terminal-mcp-status">executing</span>
+            <div key={index} className="text-gray-300 flex flex-col gap-1 mb-2 py-1 px-2">
+              <div className="flex items-center gap-2">
+                <span className="text-blue-300 font-bold w-3 text-center">⚙</span>
+                <span className="text-blue-300 font-bold min-w-[10rem]">{tool.tool}</span>
+                <span className="text-blue-600 bg-blue-950 rounded text-[7pt] px-2 py-0.5">executing</span>
               </div>
-              <div className="terminal-mcp-output">{tool.description}</div>
+              <div className="text-gray-300 ml-7 text-[8pt] leading-[11pt]">{tool.description}</div>
               {tool.result && (
-                <div className="terminal-mcp-result">✓ Success</div>
+                <div className="text-green-500 text-[7pt] mt-1">✓ Success</div>
               )}
             </div>
           ))}
@@ -66,13 +64,13 @@ export default function QueryResponseTerminal({
       )}
 
       {/* AI Response - Claude Code message style */}
-      <div className="terminal-response claude-code-response">
-        <div className="terminal-line response-header">
-          <span className="terminal-response-label">AI Response</span>
+      <div className="mt-3 pt-2 border-t border-gray-700">
+        <div className="mb-2 pb-1 border-b border-gray-700">
+          <span className="text-blue-300 font-bold text-[8pt]">AI Response</span>
         </div>
-        <div className="terminal-output">
+        <div className="text-gray-100 pl-2">
           {aiResponse.split('\n').map((line, index) => (
-            <div key={index} className="terminal-line response-line">
+            <div key={index} className="text-gray-100 mb-1 leading-[12pt]">
               {line}
             </div>
           ))}

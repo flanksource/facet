@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface CTAButton {
   label: string;
   url: string;
@@ -67,17 +65,17 @@ export default function CallToAction({
   const secondaryCTAs = secondary || defaults?.secondary || [];
 
   return (
-    <section className="call-to-action">
-      <div className="cta-content">
-        <h3 className="cta-heading">Ready to Get Started?</h3>
-        <div className="cta-buttons">
+    <section className="border border-gray-200 rounded bg-gradient-to-r from-gray-100 to-gray-50 p-6 my-8 text-center">
+      <div>
+        <h3 className="text-slate-900 font-semibold text-base mb-4">Ready to Get Started?</h3>
+        <div className="flex gap-4 justify-center flex-wrap">
           {primaryCTA && (
-            <a href={primaryCTA.url} className="cta-primary">
+            <a href={primaryCTA.url} className="bg-blue-600 text-white font-semibold rounded py-3 px-8 no-underline text-sm inline-block transition-colors hover:bg-blue-700">
               {primaryCTA.label}
             </a>
           )}
           {secondaryCTAs.map((cta, index) => (
-            <a key={index} href={cta.url} className="cta-secondary">
+            <a key={index} href={cta.url} className="bg-white text-blue-600 border border-blue-600 font-semibold rounded py-3 px-8 no-underline text-sm inline-block transition-all hover:bg-blue-50">
               {cta.label}
             </a>
           ))}

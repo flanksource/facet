@@ -7,8 +7,15 @@ const meta = {
   title: 'Components/FeatureLayout',
   component: FeatureLayout,
   parameters: {
-    layout: 'padded',
+    layout: 'fullscreen',
   },
+  decorators: [
+    (Story) => (
+      <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+        <Story />
+      </div>
+    ),
+  ],
   tags: ['autodocs'],
   argTypes: {
     direction: {
@@ -52,6 +59,7 @@ export const LeftRight: Story = {
         icon: IoSpeedometerOutline,
       },
     ],
+    span: 6,
     direction: 'left-right',
   },
   render: (args) => (
@@ -98,6 +106,7 @@ export const Minimal: Story = {
         label: 'Uptime',
       },
     ],
+    span: 6,
     direction: 'left-right',
   },
   render: (args) => (
@@ -145,6 +154,7 @@ export const WithCustomIcons: Story = {
         icon: IoShieldCheckmarkOutline,
       },
     ],
+    span: 6,
     direction: 'left-right',
   },
   render: (args) => (

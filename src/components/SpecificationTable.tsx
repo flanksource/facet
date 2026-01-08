@@ -1,5 +1,4 @@
 import clsx from 'clsx';
-import React from 'react';
 
 interface Specification {
   category: string;
@@ -46,8 +45,8 @@ export default function SpecificationTable({
   };
 
   return (
-    <section className={clsx("specification-table", className)}>
-      {title && <h3>{title}</h3>}
+    <section className={clsx("my-6", className)}>
+      {title && <h3 className="mb-4">{title}</h3>}
       <table>
         <thead>
           <tr>

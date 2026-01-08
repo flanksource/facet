@@ -203,6 +203,7 @@ export default defineConfig({
   resolve: {
     preserveSymlinks: true,  // Follow symlinks to their real paths
     alias: {
+      '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet/src/components'),
       '@facet': resolve(__dirname, 'node_modules/@flanksource/facet/src/components'),
       '@facet/core': resolve(__dirname, 'node_modules/@flanksource/facet/src/components'),
       '@src': resolve(__dirname, 'src'),

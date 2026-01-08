@@ -24,6 +24,7 @@ export { Gauge } from './Gauge';
 export { default as Glossary } from './Glossary';
 export { default as Header } from './Header';
 export { default as IntegrationGrid } from './IntegrationGrid';
+export { default as LogoGrid } from './LogoGrid';
 export { default as KpiComparison } from './KpiComparison';
 export { default as KPITargetActual } from './KPITargetActual';
 export { default as MetricGrid } from './MetricGrid';

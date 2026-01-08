@@ -1,22 +1,38 @@
-# @facet/core
+# @flanksource/facet
 
 Build beautiful, print-ready datasheets and PDFs from React templates.
 
-**@facet** is a framework for creating professional datasheets, reports, and documentation using React components. It provides a rich component library optimized for print and PDF generation, along with a powerful CLI for building HTML and PDF outputs.
+**@flanksource/facet** is a framework for creating professional datasheets, reports, and documentation using React components. It provides a rich component library optimized for print and PDF generation, along with a powerful CLI for building HTML and PDF outputs.
 
 ## Features
 
 - 📄 **Print-optimized components** - 47+ components designed for professional datasheets
 - 🎨 **React & TypeScript** - Full type safety and modern React patterns
 - 🔧 **Zero-config CLI** - Build HTML and PDF with a single command
-- 🔗 **Component imports** - `import { StatCard } from '@facet'`
+- 🔗 **Component imports** - `import { StatCard } from '@flanksource/facet'`
 - ⚡ **Fast builds** - Powered by Vite with smart caching
 - 📦 **Isolated builds** - `.facet/` build directory (like `.next` in Next.js)
 
 ## Installation
 
+### Option 1: npm Package (Recommended)
+
 ```bash
-npm install @facet/core
+npm install -g @flanksource/facet
+```
+
+### Option 2: Standalone Binary
+
+Download platform-specific binaries from [GitHub Releases](https://github.com/flanksource/facet/releases):
+
+- **Linux**: `facet-linux`
+- **macOS**: `facet-macos`
+- **Windows**: `facet-windows.exe`
+
+Make executable (Linux/macOS):
+```bash
+chmod +x facet-*
+sudo mv facet-* /usr/local/bin/facet
 ```
 
 ## Quick Start
@@ -34,7 +50,7 @@ import {
   StatCard,
   Section,
   BulletList
-} from '@facet';
+} from '@flanksource/facet';
 
 export default function MyDatasheet() {
   return (
@@ -67,21 +83,21 @@ export default function MyDatasheet() {
 }
 ```
 
-### 2. Build Your Datasheet
+### 2. Build HTML Output
 
 ```bash
-npx facet build MyDatasheet.tsx
+facet generate html --template MyDatasheet.tsx --output-dir ./dist
 ```
 
 This creates:
-- `dist/datasheet-MyDatasheet.html` - Print-ready HTML
-- `dist/datasheet-MyDatasheet-scoped.html` - Scoped for embedding in docs
+- Print-ready HTML with embedded styles
+- Scoped HTML for embedding in docs
 - `.facet/` - Build cache directory (can be gitignored)
 
-### 3. Generate PDF (Coming Soon)
+### 3. Generate PDF
 
 ```bash
-npx facet pdf MyDatasheet.tsx
+facet generate pdf --template MyDatasheet.tsx
 ```
 
 ## Available Components

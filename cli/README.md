@@ -1,4 +1,4 @@
-# @flanksource/reports
+# @flanksource/facet
 
 > Generate PDF reports, HTML pages, and embeddable WebComponents from React templates
 
@@ -16,8 +16,24 @@ A zero-setup CLI tool that generates professional PDF reports, static HTML pages
 
 ## Installation
 
+### Option 1: npm Package (Recommended)
+
 ```bash
-npm install -g @flanksource/reports
+npm install -g @flanksource/facet
+```
+
+### Option 2: Standalone Binary
+
+Download platform-specific binaries from [GitHub Releases](https://github.com/flanksource/facet/releases):
+
+- **Linux**: `facet-linux`
+- **macOS**: `facet-macos`
+- **Windows**: `facet-windows.exe`
+
+Make executable (Linux/macOS):
+```bash
+chmod +x facet-*
+sudo mv facet-* /usr/local/bin/facet
 ```
 
 ## Quick Start

@@ -1,6 +1,6 @@
 # Quickstart Example
 
-This example demonstrates the basic usage of `@facet/core` to create a simple datasheet.
+This example demonstrates the basic usage of `@flanksource/facet` to create a simple datasheet.
 
 ## Setup
 
@@ -28,7 +28,7 @@ open dist/datasheet-MyDatasheet.html
 
 ## What's Included
 
-- **MyDatasheet.tsx** - Example template using @facet components
+- **MyDatasheet.tsx** - Example template using @flanksource/facet components
 - Components used:
   - `DatasheetTemplate` - Main wrapper
   - `Header` - Page header with title

@@ -3,22 +3,15 @@ import { scaleLinear } from 'd3-scale';
 import { FC, memo, ReactNode } from 'react';
 
 export interface GaugeProps {
-  /** value of the gauge */
   value: number;
-  /** Units of the value */
   units?: string;
-  /** minimum value of the gauge */
   minValue: number;
-  /** maximum value of the gauge */
   maxValue: number;
-  /** width of the gauge, use rem or em to make it responsive */
   width?: string;
-  /** color of the filled value inside gauge */
   arcColor?: string;
-  /** background color for the gauge arc */
   arcBgColor?: string;
-  /** jsx to be used as a label */
   label?: ReactNode;
+  showMinMax?: boolean;
 }
 
 export const Gauge: FC<GaugeProps> = memo(
@@ -30,7 +23,8 @@ export const Gauge: FC<GaugeProps> = memo(
     arcColor = 'green',
     arcBgColor = '#d4d4d4',
     width = '12em',
-    label
+    label,
+    showMinMax = true
   }) => {
     const backgroundArc = arc()({
       innerRadius: 0.7,
@@ -54,15 +48,24 @@ export const Gauge: FC<GaugeProps> = memo(
 
     return (
       <div className="m-2 inline-block">
-        <svg viewBox="-1 -1 2 1" width={width}>
-          <path d={backgroundArc || ''} fill={arcBgColor} />
-          <path d={filledArc || ''} fill={arcColor} />
-        </svg>
-        {label || (
-          <h3 className="-mt-6 text-center text-2xl font-bold">
-            {value}
-            {units}
-          </h3>
+        <div className="relative" style={{ width }}>
+          <svg viewBox="-1 -1 2 1" width="100%">
+            <path d={backgroundArc || ''} fill={arcBgColor} />
+            <path d={filledArc || ''} fill={arcColor} />
+          </svg>
+          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center">
+            {label || (
+              <span className="text-lg font-semibold">
+                {value}{units}
+              </span>
+            )}
+          </div>
+        </div>
+        {showMinMax && (
+          <div className="flex justify-between items-center mt-1 px-1 text-xs text-gray-500 whitespace-nowrap">
+            <span>{minValue}{units}</span>
+            <span>{maxValue}{units}</span>
+          </div>
         )}
       </div>
     );

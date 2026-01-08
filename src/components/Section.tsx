@@ -210,19 +210,26 @@ export default function Section({
 
   // Two-column variant: Left content + right metric
   if (variant === 'two-column') {
-    // Use layout prop if provided, otherwise fall back to span or default
-    const effectiveSpan = layout ? getSpanFromLayout(layout) : (span || 3);
-    const leftSpan = 12 - effectiveSpan;
-    const rightSpan = effectiveSpan;
+    const effectiveSpan = layout ? getSpanFromLayout(layout) : (span || 6);
+    const colSpanMap: Record<number, { left: string; right: string }> = {
+      2: { left: 'col-span-10', right: 'col-span-2' },
+      3: { left: 'col-span-9', right: 'col-span-3' },
+      4: { left: 'col-span-8', right: 'col-span-4' },
+      5: { left: 'col-span-7', right: 'col-span-5' },
+      6: { left: 'col-span-6', right: 'col-span-6' },
+      7: { left: 'col-span-5', right: 'col-span-7' },
+      8: { left: 'col-span-4', right: 'col-span-8' },
+    };
+    const spans = colSpanMap[effectiveSpan] || { left: 'col-span-6', right: 'col-span-6' };
 
     return (
       <section className={`grid grid-cols-12 gap-[6mm] my-[4mm] items-start ${className}`}>
-        <div className={`col-span-${leftSpan}`}>
+        <div className={spans.left}>
           {renderHeader()}
           {children}
         </div>
         {metric && (
-          <div className={`col-span-${rightSpan} min-w-0`}>
+          <div className={`${spans.right} min-w-0`}>
             {metric}
           </div>
         )}
@@ -232,19 +239,26 @@ export default function Section({
 
   // Two-column-reverse variant: Left metric + right content
   if (variant === 'two-column-reverse') {
-    // Use layout prop if provided, otherwise fall back to span or default
     const effectiveSpan = layout ? getSpanFromLayout(layout) : (span || 6);
-    const leftSpan = effectiveSpan;
-    const rightSpan = 12 - effectiveSpan;
+    const colSpanMap: Record<number, { left: string; right: string }> = {
+      2: { left: 'col-span-2', right: 'col-span-10' },
+      3: { left: 'col-span-3', right: 'col-span-9' },
+      4: { left: 'col-span-4', right: 'col-span-8' },
+      5: { left: 'col-span-5', right: 'col-span-7' },
+      6: { left: 'col-span-6', right: 'col-span-6' },
+      7: { left: 'col-span-7', right: 'col-span-5' },
+      8: { left: 'col-span-8', right: 'col-span-4' },
+    };
+    const spans = colSpanMap[effectiveSpan] || { left: 'col-span-6', right: 'col-span-6' };
 
     return (
       <section className={`grid grid-cols-12 gap-[6mm] my-[4mm] items-start ${className}`}>
         {metric && (
-          <div className={`col-span-${leftSpan} min-w-0 order-1`}>
+          <div className={`${spans.left} min-w-0 order-1`}>
             {metric}
           </div>
         )}
-        <div className={`col-span-${rightSpan} order-2`}>
+        <div className={`${spans.right} order-2`}>
           {renderHeader()}
           {children}
         </div>

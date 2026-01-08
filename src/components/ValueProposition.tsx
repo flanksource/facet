@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface ValuePropositionProps {
   tagline: string;
   description: string;
@@ -31,9 +29,9 @@ export default function ValueProposition({
   children
 }: ValuePropositionProps) {
   return (
-    <section className="value-proposition">
-      <h1 className="product-tagline">{tagline}</h1>
-      <p className="value-description">{description}</p>
+    <section className="mb-8">
+      <h1 className="text-blue-600 font-bold text-2xl leading-8 mb-4">{tagline}</h1>
+      <p className="text-gray-700 text-sm leading-4 mb-6">{description}</p>
       {children}
     </section>
   );

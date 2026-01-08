@@ -3,6 +3,11 @@ import ProjectSummaryCard from '../../components/ProjectSummaryCard';
 import { IoRocketOutline } from 'react-icons/io5';
 
 const sampleSecurity = {
+  repo: {
+    name: 'flanksource/mission-control',
+    org: 'flanksource',
+    repo: 'mission-control',
+  },
   scorecard: {
     score: 8.5,
     checks: [
@@ -22,6 +27,8 @@ const sampleSecurity = {
       low: 1,
     },
     trend: {
+      recentlyAdded: 2,
+      recentlyClosed: 3,
       deltaBySeverity: {
         critical: 0,
         high: -1,
@@ -59,6 +66,11 @@ export const HighScore: Story = {
     name: 'Config DB',
     description: 'Configuration management database with change tracking',
     security: {
+      repo: {
+        name: 'flanksource/config-db',
+        org: 'flanksource',
+        repo: 'config-db',
+      },
       scorecard: {
         score: 9.2,
         checks: Array(10).fill({ score: 9 }),
@@ -77,6 +89,11 @@ export const LowScore: Story = {
     name: 'Legacy Project',
     description: 'Older project with security concerns',
     security: {
+      repo: {
+        name: 'example/legacy',
+        org: 'example',
+        repo: 'legacy',
+      },
       scorecard: {
         score: 4.5,
         checks: Array(8).fill({ score: 5 }),

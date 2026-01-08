@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface CustomerLogo {
   name: string;
   logo: string;
@@ -59,17 +57,17 @@ export default function SocialProof({ logos, testimonial }: SocialProofProps) {
   }
 
   return (
-    <section className="social-proof">
+    <section className="bg-gray-50 rounded my-6 p-5">
       {logos && logos.length > 0 && (
-        <div className="customer-logos">
-          <p className="social-proof-label">Trusted by leading organizations</p>
-          <div className="logo-grid">
+        <div>
+          <p className="text-gray-500 font-semibold uppercase text-xs text-center mb-3 tracking-wide">Trusted by leading organizations</p>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(6rem,1fr))] gap-4 items-center">
             {logos.map((customer, index) => (
               <img
                 key={index}
                 src={customer.logo}
                 alt={customer.name}
-                className="customer-logo"
+                className="max-w-full max-h-8 object-contain opacity-70 grayscale"
               />
             ))}
           </div>
@@ -77,11 +75,11 @@ export default function SocialProof({ logos, testimonial }: SocialProofProps) {
       )}
 
       {testimonial && (
-        <div className="testimonial">
-          <blockquote className="testimonial-quote">"{testimonial.quote}"</blockquote>
-          <p className="testimonial-attribution">— {testimonial.attribution}</p>
+        <div className="p-4">
+          <blockquote className="text-gray-700 italic text-sm leading-4 mb-3">"{testimonial.quote}"</blockquote>
+          <p className="text-gray-500 font-semibold text-xs mb-2">— {testimonial.attribution}</p>
           {testimonial.metric && (
-            <p className="testimonial-metric">{testimonial.metric}</p>
+            <p className="text-blue-600 font-bold text-sm">{testimonial.metric}</p>
           )}
         </div>
       )}

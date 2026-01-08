@@ -52,7 +52,7 @@ export default function ProjectSummaryCard({
       <div className="flex items-center gap-2 mb-1">
         {Icon && <Icon className="w-6 h-6 text-gray-700 flex-shrink-0" />}
         <h3 className="text-lg font-bold text-gray-900 flex-1">{name}</h3>
-        <ScoreGauge score={scorecard.score || 0} size="sm" />
+        <ScoreGauge score={scorecard.score || 0} size="sm" showMinMax={false} />
       </div>
       <p className="text-xs text-gray-600 mb-2">{description}</p>
 

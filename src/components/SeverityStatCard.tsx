@@ -100,7 +100,7 @@ export default function SeverityStatCard({
   };
 
   return (
-    <div className={`${colors.bg} border ${colors.border} rounded p-2 ${className}`}>
+    <div className={`${colors.bg} border ${colors.border} rounded p-2 min-w-[25mm] ${className}`}>
       <div className="flex items-center justify-between mb-1">
         <div className="text-xs text-gray-600">{label}</div>
         {getTrendDisplay()}

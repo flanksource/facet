@@ -1,4 +1,3 @@
-import React from 'react';
 import QueryResponseChat from './QueryResponseChat';
 import QueryResponseTerminal from './QueryResponseTerminal';
 
@@ -47,8 +46,8 @@ export default function QueryResponseExample({
   title
 }: QueryResponseExampleProps) {
   return (
-    <div className="query-response-example">
-      {title && <h3 className="example-title">{title}</h3>}
+    <div className="my-6 p-5 bg-gray-50 border border-gray-200 rounded">
+      {title && <h3 className="text-sm font-semibold text-slate-900 mb-4">{title}</h3>}
 
       {variant === 'chat' && (
         <QueryResponseChat
@@ -69,9 +68,9 @@ export default function QueryResponseExample({
       )}
 
       {variant === 'both' && (
-        <div className="example-both-variants">
-          <div className="example-variant">
-            <h4 className="variant-label">Chat Interface</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="min-w-0">
+            <h4 className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wide">Chat Interface</h4>
             <QueryResponseChat
               userQuery={userQuery}
               mcpTools={mcpTools}
@@ -79,8 +78,8 @@ export default function QueryResponseExample({
               compact={compact}
             />
           </div>
-          <div className="example-variant">
-            <h4 className="variant-label">Terminal/CLI</h4>
+          <div className="min-w-0">
+            <h4 className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wide">Terminal/CLI</h4>
             <QueryResponseTerminal
               userQuery={userQuery}
               mcpTools={mcpTools}
@@ -92,7 +91,7 @@ export default function QueryResponseExample({
       )}
 
       {!compact && mcpTools && mcpTools.length > 0 && (
-        <p className="example-note">
+        <p className="mt-4 text-xs text-gray-500 italic text-center">
           <em>Note: AI agent queries Mission Control via {mcpTools.length} MCP tool call{mcpTools.length > 1 ? 's' : ''} to gather context.</em>
         </p>
       )}

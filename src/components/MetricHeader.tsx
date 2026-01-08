@@ -1,6 +1,5 @@
-import React from 'react';
-
 import ProgressBar from './ProgressBar';
+import { Gauge } from './Gauge';
 /**
  * KPI Value Interface
  */
@@ -24,20 +23,10 @@ interface MetricHeaderBaseProps {
   className?: string;
 }
 
-/**
- * MetricHeaderProps - Gauge Variant
- */
 interface MetricHeaderGaugeProps extends MetricHeaderBaseProps {
-  /** Variant type */
   variant: 'gauge';
-  /** Score value (0-10 scale) */
   score: number;
-  /** Maximum score (default: 10) */
   maxScore?: number;
-  /** Size of the gauge */
-  size?: 'sm' | 'md' | 'lg';
-  /** Optional ScoreGauge component */
-  GaugeComponent?: React.ComponentType<{ score: number; size?: 'sm' | 'md' | 'lg' }>;
 }
 
 /**
@@ -99,7 +88,14 @@ export default function MetricHeader(props: MetricHeaderProps) {
   const { variant, title, subtitle, className = '' } = props;
 
   if (variant === 'gauge') {
-    const { score, maxScore = 10, size = 'md', GaugeComponent } = props;
+    const { score, maxScore = 10 } = props;
+
+    const getArcColor = (s: number, max: number) => {
+      const pct = s / max;
+      if (pct >= 0.7) return '#16a34a';
+      if (pct >= 0.4) return '#eab308';
+      return '#dc2626';
+    };
 
     return (
       <div className={`border border-blue-200 rounded-lg p-4 ${className}`}>
@@ -109,14 +105,14 @@ export default function MetricHeader(props: MetricHeaderProps) {
             {subtitle && <p className="text-zinc-600">{subtitle}</p>}
           </div>
           <div className="flex-shrink-0">
-            {GaugeComponent ? (
-              <GaugeComponent score={score} size={size} />
-            ) : (
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{score}</div>
-                <div className="text-xs text-gray-600">/ {maxScore}</div>
-              </div>
-            )}
+            <Gauge
+              value={score}
+              minValue={0}
+              maxValue={maxScore}
+              width="8em"
+              arcColor={getArcColor(score, maxScore)}
+              showMinMax={false}
+            />
           </div>
         </div>
       </div>

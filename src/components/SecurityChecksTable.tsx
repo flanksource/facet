@@ -354,11 +354,11 @@ export default function SecurityChecksTable({
   return (
     <div className={`overflow-x-auto ${className}`}>
       <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b-2 border-gray-300">
-            <th className="text-left py-1.5 px-2 font-semibold text-gray-700 w-8"></th>
-            <th className="text-left py-1.5 px-2 font-semibold text-gray-700">Check</th>
-            <th className="text-center py-1.5 px-2 font-semibold text-gray-700 w-20">Score</th>
+        <thead className="bg-gray-700">
+          <tr>
+            <th className="text-left py-1.5 px-2 font-semibold text-white w-8"></th>
+            <th className="text-left py-1.5 px-2 font-semibold text-white">Check</th>
+            <th className="text-center py-1.5 px-2 font-semibold text-white w-20">Score</th>
           </tr>
         </thead>
         <tbody>

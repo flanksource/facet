@@ -299,7 +299,7 @@ export default function StatCard({
   // Helper: Render icon with optional className
   const renderIcon = () => {
     if (IconComponent) {
-      return <IconComponent className={iconClassName} style={{ color: iconColor, stroke: iconColor, fill: 'none' }} />;
+      return <IconComponent className={`w-full h-full ${iconClassName}`} style={{ color: iconColor, stroke: iconColor, fill: 'none' }} />;
     }
     return null;
   };
@@ -413,6 +413,7 @@ export default function StatCard({
     const sizeMap = {
       sm: {
         iconSize: 'w-[4mm] h-[4mm]',
+        iconGap: 'gap-[1mm]',
         cardPadding: 'px-[2mm] py-[1.5mm]',
         badgePadding: 'px-[2mm] py-[1mm]',
         gap: 'gap-[1mm]',
@@ -429,6 +430,7 @@ export default function StatCard({
       },
       md: {
         iconSize: 'w-[6mm] h-[6mm]',
+        iconGap: 'gap-[2mm]',
         cardPadding: 'p-[4mm]',
         badgePadding: 'px-[4mm] py-[2mm]',
         gap: 'gap-[2mm]',
@@ -445,6 +447,7 @@ export default function StatCard({
       },
       lg: {
         iconSize: 'w-[8mm] h-[8mm]',
+        iconGap: 'gap-[3mm]',
         cardPadding: 'p-[6mm]',
         badgePadding: 'px-[6mm] py-[3mm]',
         gap: 'gap-[3mm]',
@@ -472,13 +475,15 @@ export default function StatCard({
   if (variant === 'card') {
     return (
       <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} bg-white min-w-[40mm] min-h-[40mm] justify-center`}>
-        {IconComponent && (
-          <div className={sizeClasses.iconSize}>
-            {renderIcon()}
+        <div className={`flex items-center ${sizeClasses.iconGap}`}>
+          {IconComponent && (
+            <div className={sizeClasses.iconSize}>
+              {renderIcon()}
+            </div>
+          )}
+          <div className={`${sizeClasses.valueText} font-bold text-center ${conditionalClasses || valueClassName}`} style={!conditionalClasses ? { color: valueColor } : undefined}>
+            {formattedValue}
           </div>
-        )}
-        <div className={`${sizeClasses.valueText} font-bold text-center ${conditionalClasses || valueClassName}`} style={!conditionalClasses ? { color: valueColor } : undefined}>
-          {formattedValue}
         </div>
         <div className={`${sizeClasses.labelText} text-[#6b7280] text-center font-medium`}>
           {label}
@@ -493,13 +498,15 @@ export default function StatCard({
   if (variant === 'bordered') {
     return (
       <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} border ${colorClasses.border} rounded-[2mm] ${colorClasses.bg} min-w-[40mm] min-h-[40mm] justify-center`}>
-        {IconComponent && (
-          <div className={sizeClasses.iconSize}>
-            {renderIcon()}
+        <div className={`flex items-center ${sizeClasses.iconGap}`}>
+          {IconComponent && (
+            <div className={sizeClasses.iconSize}>
+              {renderIcon()}
+            </div>
+          )}
+          <div className={`${sizeClasses.valueText} font-bold text-center ${conditionalClasses || valueClassName}`} style={!conditionalClasses ? { color: valueColor } : undefined}>
+            {formattedValue}
           </div>
-        )}
-        <div className={`${sizeClasses.valueText} font-bold text-center ${conditionalClasses || valueClassName}`} style={!conditionalClasses ? { color: valueColor } : undefined}>
-          {formattedValue}
         </div>
         <div className={`${sizeClasses.labelText} text-[#6b7280] text-center font-medium`}>
           {label}
@@ -576,7 +583,7 @@ export default function StatCard({
   // Left-aligned variant: Icon on left, value and label stacked on right
   if (variant === 'left-aligned') {
     return (
-      <div className="flex items-center gap-[3mm] p-[2mm]">
+      <div className="flex items-center gap-[3mm] p-[2mm] min-w-[25mm]">
         {IconComponent && (
           <div className={`${sizeClasses.iconSize} flex-shrink-0`}>
             {renderIcon()}
@@ -599,11 +606,18 @@ export default function StatCard({
   // Metric variant: Summary metric card with colored background
   if (variant === 'metric') {
     return (
-      <div className={`${colorClasses.bg} p-4 rounded-lg border ${colorClasses.border}`}>
+      <div className={`${colorClasses.bg} p-4 rounded-lg border ${colorClasses.border} min-w-[25mm]`}>
         <div className="text-xs text-gray-600 mb-1 whitespace-nowrap">{label}</div>
-        <div className="flex items-start justify-between gap-2">
-          <div className={`text-3xl font-bold ${conditionalClasses || colorClasses.text || valueClassName}`}>
-            {formattedValue}
+        <div className="flex items-center justify-between gap-2">
+          <div className={`flex items-center ${sizeClasses.iconGap}`}>
+            {IconComponent && (
+              <div className={`${sizeClasses.iconSize} flex-shrink-0`}>
+                {renderIcon()}
+              </div>
+            )}
+            <div className={`text-3xl font-bold ${conditionalClasses || colorClasses.text || valueClassName}`}>
+              {formattedValue}
+            </div>
           </div>
           {compareVariant && (
             <div className="flex-shrink-0">{renderComparisonIndicator()}</div>
@@ -617,13 +631,15 @@ export default function StatCard({
   // Default fallback to clean card
   return (
     <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} bg-white min-w-[40mm] min-h-[40mm] justify-center`}>
-      {IconComponent && (
-        <div className={sizeClasses.iconSize}>
-          {renderIcon()}
+      <div className={`flex items-center ${sizeClasses.iconGap}`}>
+        {IconComponent && (
+          <div className={sizeClasses.iconSize}>
+            {renderIcon()}
+          </div>
+        )}
+        <div className={`${sizeClasses.valueText} font-bold text-center ${conditionalClasses || valueClassName}`} style={!conditionalClasses ? { color: valueColor } : undefined}>
+          {formattedValue}
         </div>
-      )}
-      <div className={`${sizeClasses.valueText} font-bold text-center ${conditionalClasses || valueClassName}`} style={!conditionalClasses ? { color: valueColor } : undefined}>
-        {formattedValue}
       </div>
       <div className={`${sizeClasses.labelText} text-[#6b7280] text-center font-medium`}>
         {label}

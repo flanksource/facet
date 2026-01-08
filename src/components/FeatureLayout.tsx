@@ -20,7 +20,7 @@ interface FeatureLayoutProps {
   title: string;
   description: string;
   bullets: BulletPoint[];
-  span: number;
+  span?: number;
   stats: Stat[];
   children: React.ReactNode;
   direction?: 'left-right' | 'right-left';

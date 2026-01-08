@@ -2,13 +2,13 @@
   "name": "facet-quickstart-example",
   "version": "1.0.0",
   "private": true,
-  "description": "Quickstart example for @facet/core",
+  "description": "Quickstart example for @flanksource/facet",
   "scripts": {
-    "build": "facet build MyDatasheet.tsx",
-    "pdf": "facet pdf MyDatasheet.tsx"
+    "build": "facet generate html --template MyDatasheet.tsx",
+    "pdf": "facet generate pdf --template MyDatasheet.tsx"
   },
   "dependencies": {
-    "@facet/core": "file:../../..",
+    "@flanksource/facet": "file:../../..",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

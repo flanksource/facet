@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import IntegrationGrid from '../../components/IntegrationGrid';
+import LogoGrid from '../../components/LogoGrid';
 
 const meta = {
-  title: 'Components/IntegrationGrid',
-  component: IntegrationGrid,
+  title: 'Components/LogoGrid',
+  component: LogoGrid,
   parameters: {
     layout: 'padded',
   },
   tags: ['autodocs'],
-} satisfies Meta<typeof IntegrationGrid>;
+} satisfies Meta<typeof LogoGrid>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -49,6 +49,19 @@ export const WithCustomIcons: Story = {
   },
 };
 
+export const Compact: Story = {
+  args: {
+    variant: 'compact',
+    logos: [
+      { name: 'Kubernetes' },
+      { name: 'Prometheus' },
+      { name: 'Flux' },
+      { name: 'ArgoCD' },
+      { name: 'Helm' },
+    ],
+  },
+};
+
 export const Minimal: Story = {
   args: {
     title: 'Monitoring Tools',
@@ -76,26 +89,15 @@ export const WithTitles: Story = {
   },
 };
 
-export const MaximumLogos: Story = {
+export const Table: Story = {
   args: {
-    title: 'All Integrations',
+    variant: 'table',
+    title: 'Integration Capabilities',
     logos: [
-      { name: 'Prometheus' },
-      { name: 'Datadog' },
-      { name: 'ServiceNow' },
-      { name: 'CloudWatch' },
-      { name: 'Azure Monitor' },
-      { name: 'GCP Cloud Logging' },
-      { name: 'Flux' },
-      { name: 'ArgoCD' },
-      { name: 'PagerDuty' },
-      { name: 'Slack' },
-      { name: 'Trivy' },
-      { name: 'Kubernetes' },
-      { name: 'Helm' },
-      { name: 'Terraform' },
-      { name: 'AWS CloudTrail' },
+      { name: 'Prometheus', health: true, configuration: false, change: false, playbooks: true },
+      { name: 'Kubernetes', health: true, configuration: true, change: true, playbooks: true },
+      { name: 'Datadog', health: true, configuration: true, change: true, playbooks: true },
+      { name: 'Flux', health: false, configuration: true, change: true, playbooks: true },
     ],
-    viewAllUrl: '/integrations',
   },
 };

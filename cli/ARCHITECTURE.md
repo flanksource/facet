@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `@flanksource/reports` CLI is a zero-setup tool that generates PDF reports, HTML pages, and WebComponents from React templates. It uses a **hybrid approach** that reuses proven code from the existing `scripts/` directory while adding dynamic template compilation capabilities.
+The `@flanksource/facet` CLI is a zero-setup tool that generates PDF reports, HTML pages, and WebComponents from React templates. It uses a **hybrid approach** that reuses proven code from the existing `scripts/` directory while adding dynamic template compilation capabilities.
 
 ## Design Decisions
 
@@ -247,7 +247,7 @@ facet serve --template Report.tsx --data data.json
 
 ## Comparison with Existing System
 
-| Feature | Existing (`scripts/`) | CLI (`@flanksource/reports`) |
+| Feature | Existing (`scripts/`) | CLI (`@flanksource/facet`) |
 |---------|---------------------|-------------------------------|
 | Template Model | Fixed variants (idp, mcp, etc.) | Dynamic user templates |
 | Data Model | Baked into TSX files | External JSON or TS modules |
@@ -342,9 +342,9 @@ Data moves to external JSON:
 
 ## Distribution
 
-**Package**: `@flanksource/reports`
+**Package**: `@flanksource/facet`
 **Registry**: npm
-**Installation**: `npm install -g @flanksource/reports`
+**Installation**: `npm install -g @flanksource/facet`
 **Size**: ~50-100MB (with bundled dependencies)
 
 ## Development

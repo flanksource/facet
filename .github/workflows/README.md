@@ -14,6 +14,40 @@ The `release.yml` workflow automatically builds and publishes the facet CLI on e
 3. **Creates GitHub Release** - Publishes a new release with all binaries attached
 4. **Publishes to npm** - Publishes the package to npm registry
 
+## Installation
+
+The release workflow creates two installation methods for end users:
+
+### Option 1: npm Package (Recommended)
+
+```bash
+npm install -g @flanksource/facet
+```
+
+After installation, the `facet` CLI command will be available globally.
+
+### Option 2: Standalone Binary
+
+Download platform-specific binaries from [GitHub Releases](https://github.com/flanksource/facet/releases):
+
+- **Linux**: `facet-linux` (x64)
+- **macOS**: `facet-macos` (ARM64/M1/M2)
+- **Windows**: `facet-windows.exe` (x64)
+
+Make executable and install (Linux/macOS):
+```bash
+chmod +x facet-*
+sudo mv facet-* /usr/local/bin/facet
+```
+
+Windows: Place `facet-windows.exe` in a directory on your PATH.
+
+**Benefits of standalone binary:**
+- No Node.js installation required
+- Single executable file
+- Faster startup time
+- Ideal for CI/CD environments
+
 ### Setup Requirements
 
 Before this workflow can run successfully, you need to configure:
@@ -81,6 +115,7 @@ The workflow consists of 4 jobs that run in sequence:
 **Binary build fails**
 - Ensure Bun is installed correctly (the workflow uses `oven-sh/setup-bun@v2`)
 - Check that `npm run build:cli` works locally
+- Verify Node.js 20+ is being used (required by tsdown and rolldown dependencies)
 
 **npm publish fails**
 - Verify `NPM_TOKEN` secret is set correctly

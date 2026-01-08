@@ -26,9 +26,9 @@ export default function TwoColumnSection({
   className
 }: TwoColumnSectionProps) {
   return (
-    <section className={`two-column-section ${className || ''}`}>
-      <div className="column-left">{leftContent}</div>
-      <div className="column-right">{rightContent}</div>
+    <section className={`grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8 ${className || ''}`}>
+      <div className="min-w-0">{leftContent}</div>
+      <div className="min-w-0">{rightContent}</div>
     </section>
   );
 }

@@ -75,13 +75,11 @@ export default function MetricGrid({ metrics, columns = 3, className = '' }: Met
         const Icon = metric.icon;
         return (
           <div key={index} className="border border-gray-200 rounded p-3">
-            {Icon && (
-              <div className="mb-2">
-                <Icon className="w-5 h-5 text-gray-400" />
+            <div className="flex items-center gap-2">
+              {Icon && <Icon className="w-5 h-5 text-gray-400 flex-shrink-0" />}
+              <div className={`text-2xl font-bold ${getValueColorClass(metric.valueColor)}`}>
+                {metric.value}
               </div>
-            )}
-            <div className={`text-2xl font-bold ${getValueColorClass(metric.valueColor)}`}>
-              {metric.value}
             </div>
             <div className="text-xs text-gray-600 mt-1">{metric.label}</div>
           </div>

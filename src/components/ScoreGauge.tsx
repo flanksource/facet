@@ -1,17 +1,16 @@
-import React from 'react';
-
 interface ScoreGaugeProps {
   score: number; // 0-10
   label?: string;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  showMinMax?: boolean;
 }
 
 /**
  * Circular gauge displaying OpenSSF Scorecard score (0-10)
  * Color-coded: 0-4 (red), 4-7 (yellow), 7-10 (green)
  */
-export default function ScoreGauge({ score, label, size = 'md', className = '' }: ScoreGaugeProps) {
+export default function ScoreGauge({ score, label, size = 'md', className = '', showMinMax = true }: ScoreGaugeProps) {
   // Normalize score to 0-10 range
   const normalizedScore = Math.max(0, Math.min(10, score));
   const percentage = (normalizedScore / 10) * 100;
@@ -67,18 +66,22 @@ export default function ScoreGauge({ score, label, size = 'md', className = '' }
 
         {/* Score text in center */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center">
-            <div className={`font-bold ${config.text} ${theme.color}`}>
-              {normalizedScore.toFixed(1)}
-            </div>
-            <div className="text-xs text-gray-500">/ 10</div>
+          <div className={`font-bold ${config.text} ${theme.color}`}>
+            {normalizedScore.toFixed(1)}
           </div>
         </div>
       </div>
 
+      {showMinMax && (
+        <div className="flex justify-between w-full text-xs text-gray-500 whitespace-nowrap px-1">
+          <span>0</span>
+          <span>10</span>
+        </div>
+      )}
+
       {/* Label */}
       {label && (
-        <div className={`mt-2 text-center font-medium text-gray-700 ${config.label}`}>
+        <div className={`mt-1 text-center font-medium text-gray-700 ${config.label}`}>
           {label}
         </div>
       )}
