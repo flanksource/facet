@@ -50,15 +50,15 @@ export default function CapabilitySection({
   icon
 }: CapabilitySectionProps) {
   return (
-    <section className="capability-section">
-      <h3>
-        {icon && <span className="capability-icon">{icon}</span>}
+    <section className="mb-[6mm]">
+      <h3 className="flex items-center gap-[2mm]">
+        {icon && <span className="inline-flex w-[5mm] h-[5mm]">{icon}</span>}
         {outcome}
       </h3>
-      <ul className="capability-features">
+      <ul className="m-[3mm_0_0_8mm] p-0 list-none">
         {features.map((feature, index) => (
-          <li key={index}>
-            {feature.icon && <span className="feature-icon">{feature.icon}</span>}
+          <li key={index} className="relative pl-[5mm] mb-[2mm] before:content-[''] before:absolute before:left-0 before:top-[0.35em] before:w-[3mm] before:h-[3mm] before:bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%203%203%27%3E%3Ccircle%20cx=%271.5%27%20cy=%271.5%27%20r=%271.2%27%20fill=%27none%27%20stroke=%27%233578e5%27%20stroke-width=%270.3%27/%3E%3C/svg%3E')] before:bg-contain before:bg-no-repeat before:bg-center">
+            {feature.icon && <span className="inline-flex align-middle mr-[1mm] text-gray-400">{feature.icon}</span>}
             <strong>{feature.title}</strong> - {feature.description}
           </li>
         ))}

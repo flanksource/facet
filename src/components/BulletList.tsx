@@ -185,8 +185,7 @@ function getSizeClasses(size: 'xs' | 'sm' | 'md') {
  */
 function renderIcon(
   icon?: string | React.ComponentType<{ className?: string; style?: React.CSSProperties }>,
-  size: number = 24,
-  color?: string
+  size: number = 24
 ) {
 
   if (!icon) return null;
@@ -354,16 +353,28 @@ export default function BulletList({
     }
   };
 
+  const BulletIcon = () => (
+    <svg className="inline-block align-middle mr-[2mm] w-[3mm] h-[3mm] flex-shrink-0" viewBox="0 0 3 3" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="1.5" cy="1.5" r="1.2" fill="none" stroke="#3578e5" strokeWidth="0.3" />
+    </svg>
+  );
+
   // Default variant with CSS Grid layout
   if (variant === 'default') {
     if (columns > 1) {
       return (
-        <ul className={`bullet-list grid ${getGridColsClass(columns)} ${sizeClasses.gap} ${sizeClasses.text} ${className}`}>
+        <ul className={`m-[1.5mm_0_1.5mm_4mm] p-0 list-none grid ${getGridColsClass(columns)} ${sizeClasses.gap} ${sizeClasses.text} ${className}`}>
           {items.map((item, index) => (
-            <li key={index} className={item.icon ? 'has-icon' : ''}>
-              {item.icon && <>{renderIcon(item.icon, sizeClasses.iconSize)} </>}
-              <span className={termClass}>{item.term}</span>
-              {item.description && <> - <span className={descriptionClass}>{item.description}</span></>}
+            <li key={index} className="mb-[2mm] text-gray-700 flex items-start">
+              {item.icon ? (
+                <span className="inline-block align-middle mr-[2mm] text-gray-400 flex-shrink-0">{renderIcon(item.icon, sizeClasses.iconSize)}</span>
+              ) : (
+                <BulletIcon />
+              )}
+              <span>
+                <span className={termClass}>{item.term}</span>
+                {item.description && <> - <span className={descriptionClass}>{item.description}</span></>}
+              </span>
             </li>
           ))}
         </ul>
@@ -371,12 +382,18 @@ export default function BulletList({
     }
 
     return (
-      <ul className={`bullet-list ${sizeClasses.itemGap} ${sizeClasses.text} ${className}`}>
+      <ul className={`m-[1.5mm_0_1.5mm_4mm] p-0 list-none ${sizeClasses.itemGap} ${sizeClasses.text} ${className}`}>
         {items.map((item, index) => (
-          <li key={index} className={item.icon ? 'has-icon' : ''}>
-            {item.icon && <>{renderIcon(item.icon, sizeClasses.iconSize)} </>}
-            <span className={termClass}>{item.term}</span>
-            {item.description && <> - <span className={descriptionClass}>{item.description}</span></>}
+          <li key={index} className="mb-[2mm] text-gray-700 flex items-start">
+            {item.icon ? (
+              <span className="inline-block align-middle mr-[2mm] text-gray-400 flex-shrink-0">{renderIcon(item.icon, sizeClasses.iconSize)}</span>
+            ) : (
+              <BulletIcon />
+            )}
+            <span>
+              <span className={termClass}>{item.term}</span>
+              {item.description && <> - <span className={descriptionClass}>{item.description}</span></>}
+            </span>
           </li>
         ))}
       </ul>
