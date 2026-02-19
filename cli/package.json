@@ -1,6 +1,6 @@
 {
   "name": "facet",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Generate PDF reports, HTML pages, and embeddable WebComponents from React templates",
   "main": "dist/index.mjs",
