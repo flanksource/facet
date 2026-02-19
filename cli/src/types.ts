@@ -4,6 +4,7 @@ export interface GenerateOptions {
   dataLoader?: string;
   dataLoaderArgs?: string[];
   outputDir: string;
+  outputName?: string;
   outputNameField: string;
   cssScope?: string;
   schema?: string;
