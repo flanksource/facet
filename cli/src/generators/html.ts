@@ -32,9 +32,8 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     logger,
   });
 
-  // Extract title from rendered HTML to use as output filename
-  const outputName = extractTitleFromHTML(buildResult.html);
-  logger.debug(`Using filename from HTML title: ${outputName}`);
+  const outputName = options.outputName ?? extractTitleFromHTML(buildResult.html);
+  logger.debug(`Using output filename: ${outputName}`);
 
   try {
     // Ensure output directory exists

@@ -23,8 +23,7 @@ export class DataLoader {
       throw new Error('No data source provided');
     }
 
-    // Extract output name from data
-    const outputName = this.extractOutputName(data, options.outputNameField);
+    const outputName = options.outputName ?? this.extractOutputName(data, options.outputNameField);
 
     return { data, outputName };
   }

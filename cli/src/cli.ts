@@ -6,6 +6,7 @@ import { generateHTML } from './generators/html.js';
 import { generateWebComponent } from './generators/webcomponent.js';
 import { startPreviewServer } from './server/preview.js';
 import { Logger } from './utils/logger.js';
+import { resolveOutput } from './utils/resolve-output.js';
 import { basename } from 'path';
 
 /**
@@ -31,7 +32,7 @@ program
   .description('Build HTML datasheet from template')
   .requiredOption('-d, --data <file>', 'Path to JSON data file')
   .option('--data-loader <script>', 'Path to custom data loader script')
-  .option('-o, --output-dir <dir>', 'Output directory', 'dist')
+  .option('-o, --output <path>', 'Output file path or directory', 'dist')
   .option('-v, --verbose', 'Enable verbose logging')
   .option('--css-scope <prefix>', 'CSS scope prefix for scoped HTML generation')
   .action(async (template, options) => {
@@ -42,13 +43,15 @@ program
 
       const variant = basename(template, '.tsx').replace(/^DatasheetApp-/, '');
       const dataLoaderArgs = parseDataLoaderArgs();
+      const { outputDir, outputName } = resolveOutput(options.output);
 
       await generateHTML({
         template,
         data: options.data,
         dataLoader: options.dataLoader,
         dataLoaderArgs,
-        outputDir: options.outputDir,
+        outputDir,
+        outputName,
         outputNameField: variant,
         cssScope: options.cssScope,
         validate: false,
@@ -72,7 +75,7 @@ program
   .description('Generate PDF from template')
   .requiredOption('-d, --data <file>', 'Path to JSON data file')
   .option('--data-loader <script>', 'Path to custom data loader script')
-  .option('-o, --output-dir <dir>', 'Output directory', 'dist')
+  .option('-o, --output <path>', 'Output file path or directory', 'dist')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (template, options) => {
     const logger = new Logger(options.verbose);
@@ -82,13 +85,15 @@ program
 
       const variant = basename(template, '.tsx').replace(/^DatasheetApp-/, '');
       const dataLoaderArgs = parseDataLoaderArgs();
+      const { outputDir, outputName } = resolveOutput(options.output);
 
       await generatePDF({
         template,
         data: options.data,
         dataLoader: options.dataLoader,
         dataLoaderArgs,
-        outputDir: options.outputDir,
+        outputDir,
+        outputName,
         outputNameField: variant,
         validate: false,
         verbose: options.verbose,
@@ -113,7 +118,7 @@ program
   .requiredOption('-t, --template <file>', 'Path to React template file (.tsx)')
   .option('-d, --data <file>', 'Path to JSON data file')
   .option('-l, --data-loader <file>', 'Path to data loader module (.ts or .js)')
-  .option('-o, --output-dir <dir>', 'Output directory', './output')
+  .option('-o, --output <path>', 'Output file path or directory', './output')
   .option('--output-name-field <field>', 'Data field to use for output filename', 'name')
   .option('--css-scope <prefix>', 'CSS scope prefix for webcomponent mode')
   .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
@@ -144,13 +149,15 @@ program
       logger.info(`Generating ${type} from template: ${options.template}`);
 
       const dataLoaderArgs = parseDataLoaderArgs();
+      const { outputDir, outputName } = resolveOutput(options.output);
 
       const generateOptions = {
         template: options.template,
         data: options.data,
         dataLoader: options.dataLoader,
         dataLoaderArgs,
-        outputDir: options.outputDir,
+        outputDir,
+        outputName,
         outputNameField: options.outputNameField,
         cssScope: options.cssScope,
         schema: options.schema,
