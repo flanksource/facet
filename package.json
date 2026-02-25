@@ -1,6 +1,6 @@
 {
   "name": "@flanksource/facet",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Build beautiful datasheets and PDFs from React templates",
   "type": "module",
   "bin": {
