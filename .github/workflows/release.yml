@@ -6,30 +6,13 @@ on:
       - main
 
 permissions:
+  id-token: write
   contents: write
   packages: write
 
 jobs:
-  check-skip:
-    name: Check if should skip
-    runs-on: ubuntu-latest
-    outputs:
-      should_skip: ${{ steps.check.outputs.should_skip }}
-    steps:
-      - name: Check commit message
-        id: check
-        run: |
-          MSG="${{ github.event.head_commit.message }}"
-          if [[ "$MSG" == chore:\ bump\ version* ]]; then
-            echo "should_skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_skip=false" >> $GITHUB_OUTPUT
-          fi
-
   version-bump:
     name: Bump Version
-    needs: check-skip
-    if: needs.check-skip.outputs.should_skip != 'true'
     runs-on: ubuntu-latest
     outputs:
       new_version: ${{ steps.bump.outputs.new_version }}
@@ -41,10 +24,10 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Configure Git
         run: |
@@ -99,7 +82,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -173,7 +157,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
@@ -186,6 +170,4 @@ jobs:
         run: npm run build:cli
 
       - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public

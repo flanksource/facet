@@ -34,6 +34,8 @@ func Run(opts Options) error {
 		os.Setenv("PUPPETEER_EXECUTABLE_PATH", chrome)
 	}
 
+	os.Setenv("FACET_PACKAGE_ROOT", cacheDir)
+
 	cliEntry := filepath.Join(cacheDir, "cli", "src", "cli.ts")
 	argv := append([]string{"bun", "run", cliEntry}, opts.Args...)
 	env := os.Environ()

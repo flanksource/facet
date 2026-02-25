@@ -14,7 +14,7 @@
  */
 
 import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync } from 'fs';
-import { join, relative, basename } from 'path';
+import { join, relative, basename, dirname, resolve } from 'path';
 import type { Logger } from '../utils/logger.js';
 
 // Embed assets at build time using Bun's import with file type
@@ -45,6 +45,12 @@ const SKIP_ITEMS = new Set([
   '.env.local',
   'Thumbs.db',
 ]);
+
+function resolveFileProtocol(version: string, pkgDir: string, facetRoot: string): string {
+  if (!version.startsWith('file:')) return version;
+  const absPath = resolve(pkgDir, version.slice(5));
+  return 'file:' + relative(facetRoot, absPath);
+}
 
 export class FacetDirectory {
   private consumerRoot: string;
@@ -162,11 +168,11 @@ export class FacetDirectory {
   generateEntryWrapper(): void {
     this.logger.debug('Generating entry.tsx wrapper');
 
-    const templateBasename = basename(this.templateFile);
+    const templateRelPath = relative(this.consumerRoot, join(this.consumerRoot, this.templateFile));
 
     const entry = `import React from 'react';
 import './src/styles.css';
-import Template from './src/${templateBasename}';
+import Template from './src/${templateRelPath}';
 
 
 export default Template;
@@ -293,12 +299,11 @@ export default defineConfig({
       if (existsSync(consumerPackagePath)) {
         const consumerPackageText = readFileSync(consumerPackagePath, 'utf-8');
         const consumerPackage = JSON.parse(consumerPackageText);
+        const raw = { ...consumerPackage.dependencies, ...consumerPackage.devDependencies } as Record<string, string>;
 
-        // Merge consumer's dependencies and devDependencies
-        dependencies = {
-          ...consumerPackage.dependencies,
-          ...consumerPackage.devDependencies,
-        };
+        for (const [name, ver] of Object.entries(raw)) {
+          dependencies[name] = resolveFileProtocol(ver, this.consumerRoot, this.facetRoot);
+        }
 
         this.logger.debug(`Loaded ${Object.keys(dependencies).length} dependencies from consumer package.json`);
       }
@@ -333,6 +338,26 @@ export default defineConfig({
       if (allDeps[dep]) {
         dependencies[dep] = allDeps[dep];
       }
+    }
+
+    // Add @flanksource/facet itself so Vite can resolve @facet alias
+    dependencies['@flanksource/facet'] = rootPackage.version;
+
+    // Walk up from template file directory to find nearest package.json
+    // This picks up deps from e.g. quickstart/package.json when cwd is src/examples/
+    const templateDir = dirname(join(this.consumerRoot, this.templateFile));
+    let searchDir = templateDir;
+    while (searchDir.startsWith(this.consumerRoot) && searchDir !== dirname(this.consumerRoot)) {
+      const pkgPath = join(searchDir, 'package.json');
+      if (existsSync(pkgPath) && searchDir !== this.consumerRoot) {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+        for (const [name, ver] of Object.entries({ ...pkg.dependencies, ...pkg.devDependencies } as Record<string, string>)) {
+          dependencies[name] = resolveFileProtocol(ver, searchDir, this.facetRoot);
+        }
+        this.logger.debug(`Merged deps from ${pkgPath}`);
+        break;
+      }
+      searchDir = dirname(searchDir);
     }
 
     // Add lightningcss if not present (optional Vite dependency)

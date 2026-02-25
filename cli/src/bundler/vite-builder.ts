@@ -62,9 +62,11 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   // Install dependencies after all config is generated
   logger.debug('Installing dependencies...');
   try {
-    await $`cd ${facetRoot} && npm install --silent`.quiet(!logger.verbose);
-  } catch (error) {
-    throw new Error(`Failed to install dependencies: ${error instanceof Error ? error.message : String(error)}`);
+    const npmResult = await $`cd ${facetRoot} && npm install 2>&1`.quiet();
+    logger.debug(npmResult.stdout.toString());
+  } catch (error: any) {
+    const output = error?.stdout?.toString?.() || error?.stderr?.toString?.() || error?.message || String(error);
+    throw new Error(`npm install failed in ${facetRoot}:\n${output}`);
   }
   logger.debug('Dependencies installed');
 
@@ -98,12 +100,14 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
         logger.debug('Cleanup complete');
       },
     };
-  } catch (error) {
-    logger.error("result.stderr:", result.stderr?.toString());
-    logger.error("result.stdout:", result.stdout?.toString());
-    logger.error("exit:", result.exitCode);
-    logger.error(error.stderr?.toString() || (error instanceof Error ? error.message : String(error)));
-    // Error details are already printed to stderr by vite-ssr-loader
+  } catch (error: any) {
+    const stderr = result?.stderr?.toString() || error?.stderr?.toString() || '';
+    const stdout = result?.stdout?.toString() || error?.stdout?.toString() || '';
+    const exitCode = result?.exitCode ?? error?.exitCode;
+    if (stderr) logger.error(stderr);
+    if (stdout) logger.debug("stdout:", stdout);
+    if (exitCode != null) logger.debug("exit:", exitCode);
+    if (!stderr) logger.error(error instanceof Error ? error.message : String(error));
     throw new Error(`Vite SSR loader failed (see error above)`);
   }
 }

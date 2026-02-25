@@ -24,16 +24,18 @@ export interface PageConfig {
  * DatasheetTemplate Props
  */
 export interface DatasheetTemplateProps {
-  /** Array of page configurations */
-  pages: PageConfig[];
+  /** Array of page configurations (legacy mode) */
+  pages?: PageConfig[];
   /** Document title */
-  title: string;
+  title?: string;
   /** Inlined CSS string */
-  css: string;
+  css?: string;
   /** Optional subtitle for document */
   subtitle?: string;
-  /** Page component to wrap content */
-  PageComponent: React.ComponentType<any>;
+  /** Page component to wrap content (legacy mode) */
+  PageComponent?: React.ComponentType<any>;
+  /** Children mode: render children directly */
+  children?: React.ReactNode;
 }
 
 /**
@@ -62,7 +64,12 @@ export default function DatasheetTemplate({
   subtitle,
   css,
   PageComponent,
+  children,
 }: DatasheetTemplateProps) {
+  if (children) {
+    return <>{children}</>;
+  }
+
   return (
     <html lang="en">
       <head>
@@ -74,9 +81,9 @@ export default function DatasheetTemplate({
         <style dangerouslySetInnerHTML={{ __html: css }} />
       </head>
       <body>
-        {pages.map((page, index) => (
+        {(pages || []).map((page, index) => (
           <React.Fragment key={index}>
-            <PageComponent
+            {PageComponent && <PageComponent
               title={page.title}
               product={page.product}
               header={page.header}
@@ -84,8 +91,8 @@ export default function DatasheetTemplate({
               margins={page.margins}
             >
               {page.content}
-            </PageComponent>
-            {index < pages.length - 1 && <PageBreak />}
+            </PageComponent>}
+            {index < (pages || []).length - 1 && <PageBreak />}
           </React.Fragment>
         ))}
       </body>
