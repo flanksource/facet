@@ -107,8 +107,7 @@ var _ = Describe("Facet Go Launcher E2E", func() {
 			outputFile := filepath.Join(workDir, "output.html")
 
 			_, stderr, err := runFacet(cacheDir, workDir,
-				"generate", "html",
-				"-t", "SimpleReport.tsx",
+				"html", "SimpleReport.tsx",
 				"-d", "simple-data.json",
 				"-o", "output.html",
 			)
@@ -151,8 +150,7 @@ var _ = Describe("Facet Go Launcher E2E", func() {
 			outputFile := filepath.Join(workDir, "output.pdf")
 
 			_, stderr, err := runFacet(cacheDir, workDir,
-				"generate", "pdf",
-				"-t", "SimpleReport.tsx",
+				"pdf", "SimpleReport.tsx",
 				"-d", "simple-data.json",
 				"-o", "output.pdf",
 			)
@@ -170,8 +168,7 @@ var _ = Describe("Facet Go Launcher E2E", func() {
 		It("should fail gracefully with missing template", func() {
 			workDir := GinkgoT().TempDir()
 			_, _, err := runFacet(cacheDir, workDir,
-				"generate", "html",
-				"-t", "nonexistent.tsx",
+				"html", "nonexistent.tsx",
 				"-d", "nonexistent.json",
 				"-o", "output.html",
 			)

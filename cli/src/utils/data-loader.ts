@@ -20,7 +20,7 @@ export class DataLoader {
       this.logger.debug(`Loading data from module: ${options.dataLoader}`);
       data = await this.loadModule(options.dataLoader, options.dataLoaderArgs || []);
     } else {
-      throw new Error('No data source provided');
+      data = {};
     }
 
     const outputName = options.outputName ?? this.extractOutputName(data, options.outputNameField);
