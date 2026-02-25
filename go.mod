@@ -2,8 +2,6 @@ module github.com/flanksource/facet
 
 go 1.25.1
 
-replace github.com/flanksource/commons => /Users/moshe/go/src/github.com/flanksource/commons/
-
 require (
 	github.com/flanksource/commons v1.46.1
 	github.com/flanksource/deps v1.0.24
