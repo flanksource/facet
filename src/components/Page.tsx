@@ -19,6 +19,7 @@ interface PageProps {
   footer?: React.ReactNode;
   footerHeight?: number;
   debug?: boolean;
+  watermark?: string;
 }
 
 /**
@@ -32,6 +33,7 @@ interface PageProps {
  * - Fixed header/footer positioning
  * - Optional section title bar
  * - Debug mode for margin visualization
+ * - Diagonal watermark overlay (e.g. "DRAFT", "CONFIDENTIAL")
  *
  * Usage:
  * <Page
@@ -53,7 +55,8 @@ export default function Page({
   headerHeight = 0,
   footer,
   footerHeight = 15,
-  debug = false
+  debug = false,
+  watermark,
 }: PageProps) {
   const {
     top: marginTop = 0,
@@ -88,6 +91,29 @@ export default function Page({
     zIndex: 10,
   } : {};
 
+  const watermarkStyle: React.CSSProperties = watermark ? {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+    zIndex: -1,
+  } : {};
+
+  const watermarkTextStyle: React.CSSProperties = watermark ? {
+    transform: 'rotate(-45deg)',
+    fontSize: '60pt',
+    fontWeight: 700,
+    color: 'rgba(200, 200, 200, 0.3)',
+    letterSpacing: '10pt',
+    userSelect: 'none',
+    whiteSpace: 'nowrap',
+  } : {};
+
   const debugMarkerStyle: React.CSSProperties = {
     position: 'fixed',
     border: '1px dashed red',
@@ -97,6 +123,12 @@ export default function Page({
 
   return (
     <div data-page-size={pageSize}>
+
+      {watermark && (
+        <div style={watermarkStyle}>
+          <span style={watermarkTextStyle}>{watermark}</span>
+        </div>
+      )}
 
       {header && (
         <div style={headerStyle}>
