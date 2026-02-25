@@ -158,3 +158,4 @@ src/examples/*/dist/
 .task
 *-cache/
 cli/cli
+cmd/facet/facet-cli.tar.gz
