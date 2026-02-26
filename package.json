@@ -7,9 +7,6 @@
     "type": "git",
     "url": "https://github.com/flanksource/facet.git"
   },
-  "bin": {
-    "facet": "./cli/dist/cli.mjs"
-  },
   "main": "./src/components/index.tsx",
   "types": "./src/components/index.tsx",
   "exports": {
@@ -84,7 +81,7 @@
     "build:cli": "cd cli && npm run build",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "cd cli && npm run build:lib"
   },
   "dependencies": {
     "@flanksource/icons": "^1.0.41",

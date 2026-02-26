@@ -153,8 +153,8 @@ jobs:
           cd cli
           npm install
 
-      - name: Build CLI
-        run: npm run build:cli
+      - name: Build library
+        run: cd cli && npm run build:lib
 
       - name: Publish to npm
         env:

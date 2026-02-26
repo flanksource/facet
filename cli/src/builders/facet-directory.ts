@@ -341,7 +341,9 @@ export default defineConfig({
     }
 
     // Add @flanksource/facet itself so Vite can resolve @facet alias
-    dependencies['@flanksource/facet'] = rootPackage.version;
+    if (!dependencies['@flanksource/facet']) {
+      dependencies['@flanksource/facet'] = rootPackage.version;
+    }
 
     // Walk up from template file directory to find nearest package.json
     // This picks up deps from e.g. quickstart/package.json when cwd is src/examples/
