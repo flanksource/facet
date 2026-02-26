@@ -57,33 +57,6 @@ tasks:
       - echo "✓ Storybook build completed successfully"
       - echo "✓ All stories compiled without errors"
 
-  tarball:
-    desc: "Create platform-specific tarball for Go embedding"
-    cmds:
-      - cd cli && npm install
-      - tar czf cmd/facet/facet-cli.tar.gz
-          --exclude='cli/dist' --exclude='cli/test' --exclude='cli/.git'
-          cli/src cli/vite-ssr-loader.ts cli/package.json cli/node_modules
-          package.json src/styles.css
-
-  build:go:
-    desc: "Build Go launcher binary"
-    deps: [tarball]
-    cmds:
-      - go build -ldflags "-X main.version={{.CLI_VERSION}} -X main.commit={{.GIT_COMMIT}}"
-          -o dist/facet ./cmd/facet
-    vars:
-      CLI_VERSION:
-        sh: node -p "require('./cli/package.json').version"
-      GIT_COMMIT:
-        sh: git rev-parse --short HEAD
-
-  test:e2e:
-    desc: "Run Go launcher e2e tests"
-    deps: [tarball]
-    cmds:
-      - cd e2e && go test -v ./... -count=1 -timeout 5m
-
   default:
     desc: "Show available tasks"
     cmds:
