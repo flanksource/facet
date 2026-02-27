@@ -1,0 +1,65 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# Node artifacts
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Build artifacts
+dist
+build
+.facet
+.task
+*-cache/
+compiled*
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test files
+coverage
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Examples (we'll copy specific ones)
+src/examples
+
+# Storybook
+storybook-static
+.storybook
+
+# Output files
+*.pdf
+pdfs/
+specs/
+data/
+out.*
+
+# Temporary files
+tmp
+temp
+*.tmp
+*.log
+
+# Environment
+.env
+.env.*
