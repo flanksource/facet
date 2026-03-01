@@ -18,7 +18,8 @@ function addSharedOptions(cmd: Command): Command {
     .option('-l, --data-loader <file>', 'Path to data loader module (.ts or .js)')
     .option('-o, --output <path>', 'Output file path or directory', 'dist')
     .option('--output-name-field <field>', 'Data field to use for output filename', 'name')
-    .option('-v, --verbose', 'Enable verbose logging');
+    .option('-v, --verbose', 'Enable verbose logging')
+    .option('--refresh', 'Force re-fetch of remote template (bypass cache)');
 }
 
 const program = new Command();
@@ -54,6 +55,7 @@ addSharedOptions(
       schema: options.schema,
       validate: options.validate,
       verbose: options.verbose,
+      refresh: options.refresh,
     });
 
     logger.success('HTML generated!');
@@ -91,6 +93,7 @@ addSharedOptions(
       schema: options.schema,
       validate: options.validate,
       verbose: options.verbose,
+      refresh: options.refresh,
     });
 
     logger.success('PDF generated!');

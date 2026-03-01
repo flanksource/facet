@@ -1,3 +1,18 @@
+export type RemoteRefType = 'github' | 'https' | 'git+ssh' | 'npm';
+
+export interface RemoteRef {
+  type: RemoteRefType;
+  repoUrl: string;
+  subPath: string;
+  ref: string;
+}
+
+export interface ResolvedTemplate {
+  consumerRoot: string;
+  templateFile: string;
+  resolvedSha?: string;
+}
+
 export interface GenerateOptions {
   template: string;
   data?: string;
@@ -11,6 +26,7 @@ export interface GenerateOptions {
   srcDir?: string;
   validate: boolean;
   verbose: boolean;
+  refresh?: boolean;
 }
 
 export interface PreviewServerOptions {
@@ -20,6 +36,7 @@ export interface PreviewServerOptions {
   dataLoaderArgs?: string[];
   port: number;
   verbose: boolean;
+  refresh?: boolean;
 }
 
 export interface LoadedData {
