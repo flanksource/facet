@@ -71,13 +71,14 @@ COPY cli/examples/simple-data.json /app/examples/
 # Verify Chromium and facet binary are available
 RUN chromium --version && facet --version
 
-# Pack @flanksource/facet as a tarball and pre-install it into /workspace/node_modules.
-# FacetDirectory.symlinkNodeModules() symlinks /workspace/node_modules → .facet/node_modules
-# so npm install in .facet/ sees @flanksource/facet already present and skips registry lookup.
-RUN cd /app && npm pack --pack-destination /app/ 2>/dev/null && \
-    TARBALL=$(ls /app/flanksource-facet-*.tgz | head -1) && \
-    mkdir -p /workspace && \
-    cd /workspace && npm install --no-save "${TARBALL}"
+# Pack @flanksource/facet to a permanent tarball path.
+# FACET_PACKAGE_PATH tells the CLI to use this local tarball instead of
+# fetching from the npm registry (the version may not yet be published).
+RUN cd /app && npm pack --pack-destination /app/ 2>/dev/null
+ENV FACET_PACKAGE_PATH=/app/facet.tgz
+RUN mv /app/flanksource-facet-*.tgz /app/facet.tgz
+
+RUN mkdir -p /workspace
 
 # Set default working directory
 WORKDIR /workspace
