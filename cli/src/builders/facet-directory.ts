@@ -383,9 +383,34 @@ export default defineConfig({
     };
 
     const packagePath = join(this.facetRoot, 'package.json');
-    writeFileSync(packagePath, JSON.stringify(packageJson, null, 2), 'utf-8');
+    const newContent = JSON.stringify(packageJson, null, 2);
 
-    this.logger.debug('Generated package.json');
+    // Only write if changed — avoids npm install on every run when deps haven't changed
+    let existing = '';
+    try { existing = readFileSync(packagePath, 'utf-8'); } catch { /* not yet created */ }
+    if (existing !== newContent) {
+      writeFileSync(packagePath, newContent, 'utf-8');
+      this.logger.debug('Generated package.json (changed)');
+    } else {
+      this.logger.debug('package.json unchanged, skipping write');
+    }
+  }
+
+  /**
+   * Returns true if node_modules needs to be installed.
+   * Compares package.json mtime against node_modules mtime.
+   */
+  needsInstall(): boolean {
+    const packagePath = join(this.facetRoot, 'package.json');
+    const nodeModulesPath = join(this.facetRoot, 'node_modules');
+    if (!existsSync(nodeModulesPath)) return true;
+    try {
+      const pkgStat = statSync(packagePath);
+      const nmStat = statSync(nodeModulesPath);
+      return pkgStat.mtimeMs > nmStat.mtimeMs;
+    } catch {
+      return true;
+    }
   }
 
 

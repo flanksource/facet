@@ -59,16 +59,20 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   facetDir.generatePostCSSConfig();
   facetDir.generateTailwindConfig();
 
-  // Install dependencies after all config is generated
-  logger.debug('Installing dependencies...');
-  try {
-    const npmResult = await $`cd ${facetRoot} && npm install 2>&1`.quiet();
-    logger.debug(npmResult.stdout.toString());
-  } catch (error: any) {
-    const output = error?.stdout?.toString?.() || error?.stderr?.toString?.() || error?.message || String(error);
-    throw new Error(`npm install failed in ${facetRoot}:\n${output}`);
+  // Install dependencies only when package.json changed or node_modules is missing
+  if (facetDir.needsInstall()) {
+    logger.debug('Installing dependencies...');
+    try {
+      const npmResult = await $`cd ${facetRoot} && npm install 2>&1`.quiet();
+      logger.debug(npmResult.stdout.toString());
+    } catch (error: any) {
+      const output = error?.stdout?.toString?.() || error?.stderr?.toString?.() || error?.message || String(error);
+      throw new Error(`npm install failed in ${facetRoot}:\n${output}`);
+    }
+    logger.debug('Dependencies installed');
+  } else {
+    logger.debug('Dependencies up to date, skipping npm install');
   }
-  logger.debug('Dependencies installed');
 
   // Shell out to vite-ssr-loader.ts script
   logger.info('Loading template with Vite SSR...');
@@ -78,7 +82,7 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   try {
     // Run the loader script with Bun
     // Errors are printed directly to stderr, so we don't need to parse them
-    result = await $`npx bun run ${loaderPath} --facet-root=${facetRoot} --data=${dataJson}`.quiet(!logger.verbose);
+    result = await $`bun run ${loaderPath} --facet-root=${facetRoot} --data=${dataJson}`.quiet(!logger.verbose);
 
     if (result.stderr != null && result.stderr.length > 0) {
       console.error(result.stderr.toString());
