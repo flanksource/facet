@@ -68,19 +68,16 @@ COPY --from=builder /app/package-lock.json /app/package-lock.json
 COPY cli/examples/SimpleReport.tsx /app/examples/
 COPY cli/examples/simple-data.json /app/examples/
 
-# Pre-populate npm cache with the locally-built @flanksource/facet package.
-# This means `npm install @flanksource/facet@<version>` inside .facet/ at
-# runtime will resolve from cache rather than fetching from the registry.
-RUN mkdir -p /tmp/facet-pack && \
-    TARBALL=$(cd /app && npm pack --pack-destination /tmp/facet-pack/ 2>/dev/null | tail -1) && \
-    npm cache add /tmp/facet-pack/${TARBALL} && \
-    rm -rf /tmp/facet-pack
-
 # Verify Chromium and facet binary are available
 RUN chromium --version && facet --version
 
-# Create workspace directory for user files
-RUN mkdir -p /workspace
+# Pack @flanksource/facet as a tarball and pre-install it into /workspace/node_modules.
+# FacetDirectory.symlinkNodeModules() symlinks /workspace/node_modules → .facet/node_modules
+# so npm install in .facet/ sees @flanksource/facet already present and skips registry lookup.
+RUN cd /app && npm pack --pack-destination /app/ 2>/dev/null && \
+    TARBALL=$(ls /app/flanksource-facet-*.tgz | head -1) && \
+    mkdir -p /workspace && \
+    cd /workspace && npm install --no-save "${TARBALL}"
 
 # Set default working directory
 WORKDIR /workspace
