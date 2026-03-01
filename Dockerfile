@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for facet CLI with Chromium browser
 # Supports multi-arch builds (amd64, arm64)
 
-FROM node:20-bookworm-slim AS builder
+FROM oven/bun:1 AS builder
 
 # Install system dependencies for building
 RUN apt-get update && apt-get install -y \
@@ -25,8 +25,8 @@ RUN cd cli && npm install
 # Copy source code
 COPY . .
 
-# Build the CLI library
-RUN cd cli && npm run build:lib
+# Build the standalone binary (bun compile) and the lib
+RUN cd cli && npm run build
 
 # Final stage with Chromium browser
 FROM node:20-bookworm-slim
@@ -50,30 +50,20 @@ RUN apt-get update && apt-get install -y \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Set working directory
-WORKDIR /app
+# Copy the compiled standalone binary from builder
+COPY --from=builder /app/dist/facet /usr/local/bin/facet
 
-# Copy built files and dependencies from builder
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/cli/package*.json ./cli/
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/cli/node_modules ./cli/node_modules
-COPY --from=builder /app/cli/dist ./cli/dist
-COPY --from=builder /app/cli/src ./cli/src
-COPY --from=builder /app/src ./src
+# Copy source files needed at runtime (component library + examples)
+COPY --from=builder /app/src /app/src
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/package.json /app/package.json
 
 # Copy example files for demonstration
-COPY cli/examples/SimpleReport.tsx ./examples/
-COPY cli/examples/simple-data.json ./examples/
+COPY cli/examples/SimpleReport.tsx /app/examples/
+COPY cli/examples/simple-data.json /app/examples/
 
-# Create a wrapper script to run facet CLI
-# Note: The CLI has dependencies on bun for some functionality,
-# so we provide it through the node_modules
-RUN echo '#!/bin/sh\ncd /app/cli && NODE_PATH=/app/node_modules:/app/cli/node_modules node dist/index.mjs "$@"' > /usr/local/bin/facet && \
-    chmod +x /usr/local/bin/facet
-
-# Verify Chromium is installed and show version
-RUN chromium --version
+# Verify Chromium and facet binary are available
+RUN chromium --version && facet --version
 
 # Create workspace directory for user files
 RUN mkdir -p /workspace
