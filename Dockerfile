@@ -1,15 +1,20 @@
 # Multi-stage Dockerfile for facet CLI with Chromium browser
 # Supports multi-arch builds (amd64, arm64)
 
-FROM oven/bun:1 AS builder
+FROM node:20-bookworm-slim AS builder
 
-# Install system dependencies for building
+# Install system dependencies and bun
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
     git \
+    curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:$PATH"
 
 # Set working directory
 WORKDIR /app
