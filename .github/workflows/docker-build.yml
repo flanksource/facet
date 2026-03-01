@@ -47,9 +47,10 @@ jobs:
           docker run --rm \
             --security-opt seccomp=unconfined \
             -v /tmp/facet-out:/out \
+            -w /app/examples \
             facet:test \
-            facet pdf /app/examples/SimpleReport.tsx \
-              --data /app/examples/simple-data.json \
+            facet pdf SimpleReport.tsx \
+              --data simple-data.json \
               --output /out/output.pdf
 
       - name: Verify PDF was created and is non-empty
