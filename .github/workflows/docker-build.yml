@@ -17,8 +17,66 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  test-docker:
+    name: Test Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for testing (amd64 only)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: facet:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate PDF from example template
+        run: |
+          mkdir -p /tmp/facet-out
+          docker run --rm \
+            --security-opt seccomp=unconfined \
+            -v /tmp/facet-out:/out \
+            -w /app/examples \
+            facet:test \
+            facet pdf SimpleReport.tsx \
+              --data simple-data.json \
+              --output /out/output.pdf
+
+      - name: Verify PDF was created and is non-empty
+        run: |
+          if [ ! -f /tmp/facet-out/output.pdf ]; then
+            echo "ERROR: output.pdf was not created"
+            exit 1
+          fi
+          SIZE=$(stat -c%s /tmp/facet-out/output.pdf)
+          echo "output.pdf size: ${SIZE} bytes"
+          if [ "$SIZE" -lt 1024 ]; then
+            echo "ERROR: output.pdf is too small (${SIZE} bytes), likely empty or corrupt"
+            exit 1
+          fi
+          echo "PDF generation successful"
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-pdf
+          path: /tmp/facet-out/output.pdf
+          retention-days: 7
+
   build-and-push:
     name: Build and Push Multi-Arch Container
+    needs: test-docker
     runs-on: ubuntu-latest
     permissions:
       contents: read

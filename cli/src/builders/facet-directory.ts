@@ -340,9 +340,15 @@ export default defineConfig({
       }
     }
 
-    // Add @flanksource/facet itself so Vite can resolve @facet alias
+    // Add @flanksource/facet itself so Vite can resolve @facet alias.
+    // FACET_PACKAGE_PATH allows a local tarball/directory to be used instead of
+    // fetching from the registry (used in Docker images where the version may not
+    // yet be published).
     if (!dependencies['@flanksource/facet']) {
-      dependencies['@flanksource/facet'] = rootPackage.version;
+      const localPackagePath = process.env['FACET_PACKAGE_PATH'];
+      dependencies['@flanksource/facet'] = localPackagePath
+        ? resolveFileProtocol(`file:${localPackagePath}`, '/', this.facetRoot)
+        : rootPackage.version;
     }
 
     // Walk up from template file directory to find nearest package.json

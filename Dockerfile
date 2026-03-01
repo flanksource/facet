@@ -3,13 +3,18 @@
 
 FROM node:20-bookworm-slim AS builder
 
-# Install system dependencies for building
+# Install system dependencies and bun
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
     git \
+    curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:$PATH"
 
 # Set working directory
 WORKDIR /app
@@ -25,8 +30,8 @@ RUN cd cli && npm install
 # Copy source code
 COPY . .
 
-# Build the CLI library
-RUN cd cli && npm run build:lib
+# Build the standalone binary (bun compile) and the lib
+RUN cd cli && npm run build
 
 # Final stage with Chromium browser
 FROM node:20-bookworm-slim
@@ -44,38 +49,41 @@ RUN apt-get update && apt-get install -y \
     fonts-kacst \
     fonts-freefont-ttf \
     ca-certificates \
+    curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install bun (needed to run vite-ssr-loader.ts at template build time)
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:$PATH"
 
 # Set Chromium executable path for Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Set working directory
-WORKDIR /app
+# Copy the compiled standalone binary from builder
+COPY --from=builder /app/dist/facet /usr/local/bin/facet
 
-# Copy built files and dependencies from builder
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/cli/package*.json ./cli/
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/cli/node_modules ./cli/node_modules
-COPY --from=builder /app/cli/dist ./cli/dist
-COPY --from=builder /app/cli/src ./cli/src
-COPY --from=builder /app/src ./src
+# Copy source files needed at runtime (component library + examples)
+COPY --from=builder /app/src /app/src
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/package.json /app/package.json
+COPY --from=builder /app/package-lock.json /app/package-lock.json
 
 # Copy example files for demonstration
-COPY cli/examples/SimpleReport.tsx ./examples/
-COPY cli/examples/simple-data.json ./examples/
+COPY cli/examples/SimpleReport.tsx /app/examples/
+COPY cli/examples/simple-data.json /app/examples/
 
-# Create a wrapper script to run facet CLI
-# Note: The CLI has dependencies on bun for some functionality,
-# so we provide it through the node_modules
-RUN echo '#!/bin/sh\ncd /app/cli && NODE_PATH=/app/node_modules:/app/cli/node_modules node dist/index.mjs "$@"' > /usr/local/bin/facet && \
-    chmod +x /usr/local/bin/facet
+# Verify Chromium and facet binary are available
+RUN chromium --version && facet --version
 
-# Verify Chromium is installed and show version
-RUN chromium --version
+# Pack @flanksource/facet to a permanent tarball path.
+# FACET_PACKAGE_PATH tells the CLI to use this local tarball instead of
+# fetching from the npm registry (the version may not yet be published).
+RUN cd /app && npm pack --pack-destination /app/ 2>/dev/null
+ENV FACET_PACKAGE_PATH=/app/facet.tgz
+RUN mv /app/flanksource-facet-*.tgz /app/facet.tgz
 
-# Create workspace directory for user files
 RUN mkdir -p /workspace
 
 # Set default working directory
