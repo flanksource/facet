@@ -8,11 +8,25 @@ import { DataValidator } from '../utils/validator.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { extractTitleFromHTML } from '../utils/extract-title.js';
+import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
 
 export async function generateHTML(options: GenerateOptions): Promise<string> {
   const logger = new Logger(options.verbose);
 
   logger.debug('Starting HTML generation');
+
+  // Resolve remote template if needed
+  let templatePath = options.template;
+  let consumerRoot: string | undefined;
+  const remoteRef = parseRemoteRef(options.template);
+  if (remoteRef) {
+    const resolved = await resolveRemoteRef(remoteRef, { refresh: options.refresh, verbose: options.verbose });
+    consumerRoot = resolved.consumerRoot;
+    templatePath = resolved.templateFile;
+    if (resolved.resolvedSha) {
+      logger.info(`Resolved to ${resolved.resolvedSha}`);
+    }
+  }
 
   // Load data
   const dataLoader = new DataLoader(logger);
@@ -27,8 +41,9 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
   // Build template with Vite (includes rendering)
   logger.info('Compiling and rendering template...');
   const buildResult = await buildTemplate({
-    templatePath: options.template,
+    templatePath,
     data,
+    consumerRoot,
     logger,
   });
 

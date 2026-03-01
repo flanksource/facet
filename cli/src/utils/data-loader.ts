@@ -1,8 +1,9 @@
 import { readFile } from 'fs/promises';
-import { resolve, extname } from 'path';
+import { resolve, extname, join } from 'path';
 import { pathToFileURL } from 'url';
 import { $ } from 'bun';
 import { Logger } from './logger.js';
+import { parseRemoteRef, resolveRemoteRef } from './remote-resolver.js';
 import type { LoadedData, GenerateOptions } from '../types.js';
 
 export class DataLoader {
@@ -16,9 +17,10 @@ export class DataLoader {
       this.logger.debug(`Loading data from JSON file: ${options.data}`);
       data = await this.loadJSON(options.data);
     } else if (options.dataLoader) {
-      // Load from TS/JS module
+      // Load from TS/JS module (local or remote)
       this.logger.debug(`Loading data from module: ${options.dataLoader}`);
-      data = await this.loadModule(options.dataLoader, options.dataLoaderArgs || []);
+      const loaderPath = await this.resolveDataLoaderPath(options.dataLoader, options.refresh);
+      data = await this.loadModule(loaderPath, options.dataLoaderArgs || []);
     } else {
       data = {};
     }
@@ -26,6 +28,13 @@ export class DataLoader {
     const outputName = options.outputName ?? this.extractOutputName(data, options.outputNameField);
 
     return { data, outputName };
+  }
+
+  private async resolveDataLoaderPath(loaderPath: string, refresh?: boolean): Promise<string> {
+    const remoteRef = parseRemoteRef(loaderPath);
+    if (!remoteRef) return loaderPath;
+    const resolved = await resolveRemoteRef(remoteRef, { refresh });
+    return join(resolved.consumerRoot, resolved.templateFile);
   }
 
   private async loadJSON(filePath: string): Promise<Record<string, unknown>> {
