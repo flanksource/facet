@@ -62,10 +62,18 @@ COPY --from=builder /app/dist/facet /usr/local/bin/facet
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/package.json /app/package.json
+COPY --from=builder /app/package-lock.json /app/package-lock.json
 
 # Copy example files for demonstration
 COPY cli/examples/SimpleReport.tsx /app/examples/
 COPY cli/examples/simple-data.json /app/examples/
+
+# Pre-populate npm cache with the locally-built @flanksource/facet package.
+# This means `npm install @flanksource/facet@<version>` inside .facet/ at
+# runtime will resolve from cache rather than fetching from the registry.
+RUN cd /app && npm pack --pack-destination /tmp/facet-pack/ && \
+    npm cache add /tmp/facet-pack/*.tgz && \
+    rm -rf /tmp/facet-pack
 
 # Verify Chromium and facet binary are available
 RUN chromium --version && facet --version
