@@ -86,18 +86,18 @@ export default function MyDatasheet() {
 ### 2. Build HTML Output
 
 ```bash
-facet generate html --template MyDatasheet.tsx --output-dir ./dist
+facet html MyDatasheet.tsx -o ./dist
 ```
 
 This creates:
 - Print-ready HTML with embedded styles
-- Scoped HTML for embedding in docs
+- Scoped HTML for embedding in docs (use `--css-scope` for a custom prefix)
 - `.facet/` - Build cache directory (can be gitignored)
 
 ### 3. Generate PDF
 
 ```bash
-facet generate pdf --template MyDatasheet.tsx
+facet pdf MyDatasheet.tsx
 ```
 
 ## Available Components
@@ -152,42 +152,116 @@ facet generate pdf --template MyDatasheet.tsx
 
 [See full component documentation →](./docs/components.md)
 
+## Page Component API
+
+The `Page` component is the primary layout container for multi-page PDF documents.
+
+```tsx
+<Page
+  title="Section Title"
+  product="Mission Control"
+  header={<Header variant="solid" />}
+  headerHeight={15}
+  footer={<PdfFooter />}
+  footerHeight={15}
+  margins={{ top: 5, right: 0, bottom: 0, left: 0 }}
+  watermark="DRAFT"
+  debug={false}
+>
+  {/* page content */}
+</Page>
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `children` | `ReactNode` | — | Page content |
+| `title` | `string` | — | Section title bar text (renders a blue bar below the header) |
+| `product` | `string` | — | Sub-label shown in the title bar |
+| `header` | `ReactNode` | — | Fixed header rendered at the top of every physical page |
+| `headerHeight` | `number` (mm) | `0` | Height of the header; used to offset content so it doesn't overlap |
+| `footer` | `ReactNode` | — | Fixed footer rendered at the bottom of every physical page |
+| `footerHeight` | `number` (mm) | `15` | Height of the footer; used to add bottom padding to content |
+| `margins` | `PageMargins` | `{}` | Additional content margins `{ top, right, bottom, left }` in mm |
+| `pageSize` | `'a4'` | `'a4'` | Page size (A4 only currently) |
+| `watermark` | `string` | — | Diagonal watermark text (e.g. `"DRAFT"`, `"CONFIDENTIAL"`) |
+| `debug` | `boolean` | `false` | Renders dashed red lines at margin boundaries for layout debugging |
+| `className` | `string` | — | Extra CSS class applied to the `<main>` element |
+
+### Multi-page PDF layout
+
+Fixed headers and footers are rendered using `position: fixed` in Chromium's print engine, which repeats them on every physical page. The `@page` margins are set to `0` so the header renders flush at the physical top of every page — content spacing is handled entirely by `paddingTop`/`paddingBottom` in the `Page` component.
+
+```tsx
+// Pages with a repeating header
+<Page
+  header={<Header variant="solid" />}
+  headerHeight={15}
+  footer={<PdfFooter />}
+  footerHeight={12}
+>
+  {/* Content starts after 15mm header automatically */}
+</Page>
+
+// Cover page — no header, full content area
+<Page>
+  <CoverContent />
+</Page>
+```
+
 ## CLI Commands
 
-### `facet build <template>`
+### `facet html <template>`
 
-Build HTML datasheet from a React template.
+Generate HTML from a React template.
 
-```bash
-facet build MyDatasheet.tsx [options]
+```
+facet html [options] <template>
 
 Options:
-  -o, --output-dir <dir>  Output directory (default: "dist")
-  -v, --verbose           Enable verbose logging
-  --no-scoped            Skip generating scoped version
+  --css-scope <prefix>         CSS scope prefix for scoped HTML generation
+  -s, --schema <file>          Path to JSON Schema file for data validation
+  --no-validate                Skip data validation
+  -d, --data <file>            Path to JSON data file
+  -l, --data-loader <file>     Path to data loader module (.ts or .js)
+  -o, --output <path>          Output file path or directory (default: "dist")
+  --output-name-field <field>  Data field to use for output filename
+  -v, --verbose                Enable verbose logging
 ```
 
 **Example:**
 ```bash
-facet build MyDatasheet.tsx --output-dir ./build --verbose
+facet html MyDatasheet.tsx -o ./dist --verbose
+facet html MyDatasheet.tsx -d data.json -o report.html
 ```
 
 ### `facet pdf <template>`
 
 Generate PDF from a React template.
 
-```bash
-facet pdf MyDatasheet.tsx [options]
+```
+facet pdf [options] <template>
 
 Options:
-  -d, --data <file>       JSON data file
-  -o, --output-dir <dir>  Output directory (default: "dist")
-  -v, --verbose           Enable verbose logging
+  -s, --schema <file>          Path to JSON Schema file for data validation
+  --no-validate                Skip data validation
+  -d, --data <file>            Path to JSON data file
+  -l, --data-loader <file>     Path to data loader module (.ts or .js)
+  -o, --output <path>          Output file path or directory (default: "dist")
+  --output-name-field <field>  Data field to use for output filename
+  -v, --verbose                Enable verbose logging
 ```
 
 **Example:**
 ```bash
-facet pdf MyDatasheet.tsx --data data.json
+facet pdf MyDatasheet.tsx -d data.json -o out.pdf
+```
+
+### `facet serve <template>`
+
+Start a preview server with live editing.
+
+```bash
+facet serve MyDatasheet.tsx -d data.json
 ```
 
 ## How It Works
@@ -237,15 +311,9 @@ dist/
 
 ## Import Patterns
 
-### Default Import (All Components)
+### Named Imports (Recommended)
 ```tsx
-import { StatCard, Header, Page } from '@facet';
-```
-
-### Individual Component Imports
-```tsx
-import StatCard from '@facet/StatCard';
-import Header from '@facet/Header';
+import { StatCard, Header, Page } from '@flanksource/facet';
 ```
 
 ### TypeScript Support
@@ -253,7 +321,7 @@ import Header from '@facet/Header';
 All components include full TypeScript definitions:
 
 ```tsx
-import { StatCard } from '@facet';
+import { StatCard } from '@flanksource/facet';
 
 <StatCard
   label="Response Time"  // string
