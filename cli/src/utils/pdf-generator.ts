@@ -5,8 +5,33 @@
  * Extracted and adapted from scripts/generate-pdfs.js
  */
 
+import { existsSync } from 'fs';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import { Logger } from './logger.js';
+
+const SYSTEM_CHROME_PATHS: Record<string, string[]> = {
+  darwin: [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  ],
+  linux: [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+  ],
+  win32: [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  ],
+};
+
+function resolveChromePath(): string | undefined {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  return (SYSTEM_CHROME_PATHS[process.platform] ?? []).find(existsSync);
+}
 
 export interface PDFOptions {
   html: string;
@@ -22,11 +47,12 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
 
   const log = logger || new Logger(false);
 
-  log.debug('Launching Puppeteer browser');
+  const chromePath = resolveChromePath();
+  log.debug(`Using browser: ${chromePath ?? 'Puppeteer bundled Chromium'}`);
 
-  // Launch browser
   const browser = await puppeteer.launch({
     headless: true,
+    executablePath: chromePath,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
 
@@ -82,6 +108,7 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
 export async function launchBrowser(): Promise<Browser> {
   return puppeteer.launch({
     headless: true,
+    executablePath: resolveChromePath(),
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
 }

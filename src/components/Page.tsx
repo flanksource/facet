@@ -67,7 +67,9 @@ export default function Page({
 
   const mainStyle: React.CSSProperties = {
     overflow: 'hidden',
-    paddingTop: `${marginTop + headerHeight}mm`,
+    paddingTop: title && header
+      ? `${marginTop}mm`
+      : `${marginTop + headerHeight}mm`,
     paddingRight: `${marginRight + 10}mm`,
     paddingBottom: `${marginBottom + footerHeight}mm`,
     paddingLeft: `${marginLeft + 10}mm`,
@@ -137,7 +139,10 @@ export default function Page({
       )}
 
       {title && (
-        <div className="section-header-bar bg-[#3578e5] text-white">
+        <div
+          className="section-header-bar bg-[#3578e5] text-white"
+          style={header ? { marginTop: `${headerHeight}mm` } : undefined}
+        >
           <h2 className="text-[18pt] font-semibold text-white m-0">{title}</h2>
           {product && <div className="text-[10pt] text-white font-normal">{product}</div>}
         </div>
