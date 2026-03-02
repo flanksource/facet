@@ -86,7 +86,7 @@ jobs:
       - name: Setup Bun
         uses: flanksource/deps@v1.0.24
         with:
-          packages: bun@v1.3.10
+          tools: bun@v1.3.10
 
       - name: Install dependencies
         run: |
