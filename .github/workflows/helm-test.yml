@@ -6,12 +6,14 @@ on:
     paths:
       - "chart/**"
       - "ct.yaml"
+      - "Dockerfile"
       - ".github/workflows/helm-test.yml"
   pull_request:
     branches: [main]
     paths:
       - "chart/**"
       - "ct.yaml"
+      - "Dockerfile"
       - ".github/workflows/helm-test.yml"
 
 jobs:
@@ -20,19 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: azure/setup-helm@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - uses: helm/chart-testing-action@v2
-
       - name: Lint chart
-        run: ct lint --config ct.yaml --all
+        run: helm lint chart/
 
   e2e:
     name: Install on Kind
@@ -40,16 +34,8 @@ jobs:
     needs: lint
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: azure/setup-helm@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - uses: helm/chart-testing-action@v2
 
       - uses: helm/kind-action@v1
         with:
@@ -60,7 +46,30 @@ jobs:
           docker build -t ghcr.io/flanksource/facet:test .
           kind load docker-image ghcr.io/flanksource/facet:test --name ct
 
-      - name: Install and test chart
+      - name: Install chart
         run: |
-          ct install --config ct.yaml --all \
-            --helm-extra-set-args="--set image.tag=test --set image.pullPolicy=Never"
+          helm install facet chart/ \
+            --set image.tag=test \
+            --set image.pullPolicy=Never \
+            --set facet.templatesDir=/app/examples \
+            --wait --timeout 120s
+
+      - name: Verify healthz
+        run: |
+          kubectl port-forward svc/facet 3000:3000 &
+          sleep 3
+          curl -sf http://localhost:3000/healthz | tee /dev/stderr | grep -q '"status":"ok"'
+
+      - name: Verify render endpoint
+        run: |
+          curl -sf -X POST http://localhost:3000/render \
+            -H 'Content-Type: application/json' \
+            -d '{"template":"SimpleReport","format":"html","data":{"title":"CI Test","sections":[]}}' \
+            -o /tmp/render-output.html
+          SIZE=$(stat -c%s /tmp/render-output.html)
+          echo "Rendered HTML size: ${SIZE} bytes"
+          if [ "$SIZE" -lt 100 ]; then
+            echo "ERROR: rendered output too small"
+            exit 1
+          fi
+          echo "Render test passed"
