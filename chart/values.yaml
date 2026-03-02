@@ -1,0 +1,29 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/flanksource/facet
+  pullPolicy: IfNotPresent
+  tag: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 3000
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Extra environment variables
+env: []
+
+# facet serve flags
+facet:
+  workers: 2
+  timeout: 60000
+  templatesDir: /templates
+  verbose: false

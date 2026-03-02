@@ -92,10 +92,12 @@ RUN cd /app && npm pack --pack-destination /app/ 2>/dev/null
 ENV FACET_PACKAGE_PATH=/app/facet.tgz
 RUN mv /app/flanksource-facet-*.tgz /app/facet.tgz
 
-RUN mkdir -p /workspace
+RUN mkdir -p /workspace /templates
 
 # Set default working directory
 WORKDIR /workspace
+
+EXPOSE 3000
 
 # Add labels
 LABEL org.opencontainers.image.title="Facet" \
@@ -103,5 +105,4 @@ LABEL org.opencontainers.image.title="Facet" \
       org.opencontainers.image.source="https://github.com/flanksource/facet" \
       org.opencontainers.image.vendor="Flanksource"
 
-# Default command shows help
-CMD ["sh", "-c", "echo 'Facet CLI Container' && echo '' && echo 'Generate PDF:' && echo '  docker run --rm -v $(pwd):/work ghcr.io/flanksource/facet pdf template.tsx --data data.json' && echo '' && echo 'Example:' && echo '  docker run --rm -v $(pwd):/work ghcr.io/flanksource/facet pdf /app/examples/SimpleReport.tsx --data /app/examples/simple-data.json -o /work/output.pdf' && echo '' && chromium --version"]
+CMD ["facet", "serve", "--templates-dir", "/templates"]
