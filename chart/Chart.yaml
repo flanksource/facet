@@ -1,0 +1,12 @@
+apiVersion: v2
+name: facet
+description: Generate beautiful PDFs and datasheets from React templates
+type: application
+version: 0.1.0
+appVersion: "0.1.17"
+home: https://github.com/flanksource/facet
+sources:
+  - https://github.com/flanksource/facet
+maintainers:
+  - name: flanksource
+    url: https://flanksource.com
