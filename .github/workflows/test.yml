@@ -27,15 +27,15 @@ jobs:
           cache-dependency-path: cli/package-lock.json
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: flanksource/deps@v1.0.24
         with:
-          bun-version: latest
+          packages: bun@v1.3.10
 
       - name: Install dependencies
         run: cd cli && npm install
 
       - name: Run tests
-        run: cd cli && npx bun test
+        run: cd cli && bun test
 
       - name: Build
         run: cd cli && npm run build:lib
