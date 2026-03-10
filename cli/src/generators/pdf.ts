@@ -27,6 +27,7 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
     html: finalHTML,
     outputPath: pdfPath,
     logger,
+    debug: options.debug,
   });
 
   logger.success(`PDF generated: ${pdfPath}`);

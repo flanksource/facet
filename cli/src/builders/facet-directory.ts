@@ -209,16 +209,16 @@ export default defineConfig({
   resolve: {
     preserveSymlinks: true,  // Follow symlinks to their real paths
     alias: {
-      '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet/src/components'),
-      '@facet': resolve(__dirname, 'node_modules/@flanksource/facet/src/components'),
-      '@facet/core': resolve(__dirname, 'node_modules/@flanksource/facet/src/components'),
+      '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
+      '@facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
+      '@facet/core': resolve(__dirname, 'node_modules/@flanksource/facet'),
       '@src': resolve(__dirname, 'src'),
       'react-icons': resolve(__dirname, 'node_modules/react-icons'),
     },
     conditions: ['import', 'module', 'browser', 'default'],
   },
   ssr: {
-    noExternal: ['react-icons'],
+    noExternal: ['react-icons', '@flanksource/facet', new RegExp('^@flanksource/')],
     resolve: {
       conditions: ['node', 'import', 'module', 'browser', 'default'],
       externalConditions: ['node'],
@@ -270,8 +270,8 @@ export default defineConfig({
         skipLibCheck: true,
         strict: false,
         paths: {
-          '@facet': ['./node_modules/@flanksource/facet/src/components'],
-          '@facet/*': ['./node_modules/@flanksource/facet/src/components/*'],
+          '@facet': ['./node_modules/@flanksource/facet'],
+          '@facet/*': ['./node_modules/@flanksource/facet/dist/components/*'],
           '@src/*': ['./src/*'],
         },
       },
