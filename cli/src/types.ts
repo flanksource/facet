@@ -27,16 +27,7 @@ export interface GenerateOptions {
   validate: boolean;
   verbose: boolean;
   refresh?: boolean;
-}
-
-export interface PreviewServerOptions {
-  template: string;
-  data?: string;
-  dataLoader?: string;
-  dataLoaderArgs?: string[];
-  port: number;
-  verbose: boolean;
-  refresh?: boolean;
+  debug?: boolean;
 }
 
 export interface LoadedData {
