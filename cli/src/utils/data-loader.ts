@@ -1,5 +1,5 @@
 import { readFile } from 'fs/promises';
-import { resolve, extname, join } from 'path';
+import { resolve, extname, join, basename } from 'path';
 import { pathToFileURL } from 'url';
 import { $ } from 'bun';
 import { Logger } from './logger.js';
@@ -25,7 +25,8 @@ export class DataLoader {
       data = {};
     }
 
-    const outputName = options.outputName ?? this.extractOutputName(data, options.outputNameField);
+    const templateFallback = basename(options.template, extname(options.template));
+    const outputName = options.outputName ?? this.extractOutputName(data, options.outputNameField, templateFallback);
 
     return { data, outputName };
   }
@@ -97,22 +98,20 @@ export class DataLoader {
     return module.data as Record<string, unknown>;
   }
 
-  private extractOutputName(data: Record<string, unknown>, fieldPath: string): string {
+  private extractOutputName(data: Record<string, unknown>, fieldPath: string, fallback: string): string {
     // Support dot notation for nested fields
     const parts = fieldPath.split('.');
     let value: unknown = data;
 
     for (const part of parts) {
       if (typeof value !== 'object' || value === null) {
-        this.logger.warn(`Output name field '${fieldPath}' not found in data, using 'output'`);
-        return 'output';
+        return fallback;
       }
       value = (value as Record<string, unknown>)[part];
     }
 
     if (typeof value !== 'string' || value.length === 0) {
-      this.logger.warn(`Output name field '${fieldPath}' is not a valid string, using 'output'`);
-      return 'output';
+      return fallback;
     }
 
     // Sanitize filename

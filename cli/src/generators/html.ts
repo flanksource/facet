@@ -1,5 +1,5 @@
-import { mkdir, writeFile, readFile } from 'fs/promises';
-import { resolve, join } from 'path';
+import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
+import { resolve, join, basename, extname } from 'path';
 import { $ } from 'bun';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
@@ -7,7 +7,6 @@ import { DataLoader } from '../utils/data-loader.js';
 import { DataValidator } from '../utils/validator.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
-import { extractTitleFromHTML } from '../utils/extract-title.js';
 import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
 
 export async function generateHTML(options: GenerateOptions): Promise<string> {
@@ -47,7 +46,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     logger,
   });
 
-  const outputName = options.outputName ?? extractTitleFromHTML(buildResult.html);
+  const outputName = options.outputName ?? basename(options.template, extname(options.template));
   logger.debug(`Using output filename: ${outputName}`);
 
   try {
@@ -90,6 +89,10 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     // Step 4: Write final HTML file
     const outputPath = join(outputDir, `${outputName}.html`);
     await writeFile(outputPath, finalHTML, 'utf-8');
+
+    // Cleanup intermediate files
+    await unlink(tempHtmlPath).catch(() => {});
+    await unlink(outputCssPath).catch(() => {});
 
     logger.success(`HTML generated: ${outputPath}`);
 
