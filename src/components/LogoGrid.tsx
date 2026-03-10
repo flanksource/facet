@@ -27,6 +27,8 @@ interface LogoGridProps {
   title?: string;
   variant?: 'default' | 'compact' | 'table';
   baseDocsUrl?: string;
+  fontSize?: string;
+  headerFontSize?: string;
 }
 
 const ICON_MAP: Record<string, keyof typeof Icons> = {
@@ -52,7 +54,9 @@ export default function LogoGrid({
   viewAllUrl,
   title = "Integrations",
   variant = 'default',
-  baseDocsUrl = 'https://flanksource.com/docs/guide'
+  baseDocsUrl = 'https://flanksource.com/docs/guide',
+  fontSize,
+  headerFontSize,
 }: LogoGridProps) {
   const getLogoUrl = (logo: Logo): string | undefined => {
     if (logo.url) return logo.url;
@@ -104,14 +108,14 @@ export default function LogoGrid({
     return (
       <section className="my-4">
         {title && <h3>{title}</h3>}
-        <table className="w-full border-collapse text-[9pt] leading-[12pt]">
+        <table className="w-full border-collapse text-[9pt] leading-[12pt]" style={fontSize ? { fontSize } : undefined}>
           <thead className="bg-gray-700">
             <tr>
-              <th className="text-left font-semibold text-white p-[2.5mm] text-[10pt] w-[40%]">Product</th>
-              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]">Health</th>
-              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]">Configuration</th>
-              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]">Change</th>
-              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]">Playbooks</th>
+              <th className="text-left font-semibold text-white p-[2.5mm] text-[10pt] w-[40%]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Product</th>
+              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Health</th>
+              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Configuration</th>
+              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Change</th>
+              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Playbooks</th>
             </tr>
           </thead>
           <tbody>

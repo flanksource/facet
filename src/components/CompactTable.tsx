@@ -37,6 +37,8 @@ interface CompactTableProps {
   title?: string;
   className?: string;
   columns?: string[];
+  fontSize?: string;
+  headerFontSize?: string;
 }
 
 export default function CompactTable({
@@ -44,7 +46,9 @@ export default function CompactTable({
   variant = 'compact',
   title,
   className = '',
-  columns = []
+  columns = [],
+  fontSize,
+  headerFontSize,
 }: CompactTableProps) {
   // Validation: warn if inline variant used with too many rows
   if (variant === 'inline' && data.length > 4) {
@@ -58,12 +62,12 @@ export default function CompactTable({
     const tableData = data as string[][];
     return (
       <div className={`my-4 ${className}`}>
-        {title && <h4 className="text-[10pt] font-semibold text-slate-900 mb-2">{title}</h4>}
-        <table className="w-full border-collapse text-[8pt] leading-[9pt]">
+        {title && <h4 className="text-[10pt] font-semibold text-slate-900 mb-2" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>{title}</h4>}
+        <table className="w-full border-collapse text-[8pt] leading-[9pt]" style={fontSize ? { fontSize } : undefined}>
           <thead>
             <tr>
               {columns.map((col, index) => (
-                <th key={index} className="p-2 font-medium text-[10pt]">{col}</th>
+                <th key={index} className="p-2 font-medium text-[10pt]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>{col}</th>
               ))}
             </tr>
           </thead>
@@ -88,8 +92,8 @@ export default function CompactTable({
   if (variant === 'inline') {
     return (
       <div className={`my-3 ${className}`}>
-        {title && <h4 className="text-[10pt] font-semibold text-slate-900 mb-2">{title}</h4>}
-        <div className="flex flex-wrap gap-x-6 gap-y-4 text-[9pt] leading-3">
+        {title && <h4 className="text-[10pt] font-semibold text-slate-900 mb-2" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>{title}</h4>}
+        <div className="flex flex-wrap gap-x-6 gap-y-4 text-[9pt] leading-3" style={fontSize ? { fontSize } : undefined}>
           {rowData.map((row, index) => (
             <div key={index} className="text-gray-700">
               <strong className="text-slate-900 font-semibold">{row.label}:</strong>{' '}
@@ -104,8 +108,8 @@ export default function CompactTable({
   // Render compact variant (traditional table with tighter spacing)
   return (
     <div className={`my-4 ${className}`}>
-      {title && <h4 className="text-[10pt] font-semibold text-slate-900 mb-2">{title}</h4>}
-      <table className="w-full border-collapse text-[8pt] leading-[9pt]">
+      {title && <h4 className="text-[10pt] font-semibold text-slate-900 mb-2" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>{title}</h4>}
+      <table className="w-full border-collapse text-[8pt] leading-[9pt]" style={fontSize ? { fontSize } : undefined}>
         <tbody>
           {rowData.map((row, index) => (
             <tr key={index} className="border-b border-gray-200 last:border-b-0">

@@ -42,6 +42,16 @@ const meta = {
     layout: 'padded',
   },
   tags: ['autodocs'],
+  argTypes: {
+    fontSize: {
+      control: 'text',
+      description: 'Custom font size for table body (e.g. "8pt", "10pt")',
+    },
+    headerFontSize: {
+      control: 'text',
+      description: 'Custom font size for table headers (e.g. "10pt", "12pt")',
+    },
+  },
 } satisfies Meta<typeof SecurityChecksTable>;
 
 export default meta;
@@ -56,6 +66,14 @@ export const Default: Story = {
 export const AllPassing: Story = {
   args: {
     checks: sampleChecks.filter(c => c.score >= 8),
+  },
+};
+
+export const CustomFontSize: Story = {
+  args: {
+    checks: sampleChecks,
+    fontSize: '8pt',
+    headerFontSize: '10pt',
   },
 };
 
