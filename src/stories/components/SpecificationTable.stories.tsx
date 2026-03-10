@@ -8,6 +8,16 @@ const meta = {
     layout: 'padded',
   },
   tags: ['autodocs'],
+  argTypes: {
+    fontSize: {
+      control: 'text',
+      description: 'Custom font size for table body (e.g. "8pt", "10pt")',
+    },
+    headerFontSize: {
+      control: 'text',
+      description: 'Custom font size for table headers (e.g. "10pt", "12pt")',
+    },
+  },
 } satisfies Meta<typeof SpecificationTable>;
 
 export default meta;
@@ -62,6 +72,19 @@ export const IntegrationVersions: Story = {
       { category: 'Grafana', value: '8.0+' },
       { category: 'Flux', value: '2.0+' },
       { category: 'ArgoCD', value: '2.5+' },
+    ],
+  },
+};
+
+export const CustomFontSize: Story = {
+  args: {
+    title: 'Small Font Specs',
+    fontSize: '8pt',
+    headerFontSize: '10pt',
+    specifications: [
+      { category: 'Kubernetes', value: '1.24+' },
+      { category: 'PostgreSQL', value: '13+' },
+      { category: 'Memory', value: '4GB minimum' },
     ],
   },
 };

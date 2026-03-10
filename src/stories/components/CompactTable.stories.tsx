@@ -14,6 +14,14 @@ const meta = {
       options: ['compact', 'inline', 'reference'],
       description: 'Table layout variant',
     },
+    fontSize: {
+      control: 'text',
+      description: 'Custom font size for table body (e.g. "6pt", "8pt")',
+    },
+    headerFontSize: {
+      control: 'text',
+      description: 'Custom font size for table headers and title (e.g. "8pt", "10pt")',
+    },
   },
 } satisfies Meta<typeof CompactTable>;
 
@@ -55,6 +63,20 @@ export const Reference: Story = {
       ['get_config', 'Get item details', 'Describe deployment nginx'],
       ['run_health_check', 'Execute check', 'Run http-check-api'],
       ['search_health_checks', 'Find checks', 'List all failing checks'],
+    ],
+  },
+};
+
+export const CustomFontSize: Story = {
+  args: {
+    variant: 'compact',
+    title: 'Small Font Table',
+    fontSize: '6pt',
+    headerFontSize: '8pt',
+    data: [
+      { label: 'Kubernetes', value: '1.24+' },
+      { label: 'Memory', value: '4GB minimum' },
+      { label: 'CPU', value: '2 cores minimum' },
     ],
   },
 };

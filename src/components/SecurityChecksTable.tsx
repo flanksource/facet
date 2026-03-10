@@ -26,6 +26,8 @@ interface ParsedDetail {
 interface SecurityChecksTableProps {
   checks: SecurityCheck[];
   className?: string;
+  fontSize?: string;
+  headerFontSize?: string;
 }
 
 // Patterns to ignore across all security checks
@@ -329,7 +331,9 @@ function parseGenericDetails(details: string[]): ParsedDetail[] {
  */
 export default function SecurityChecksTable({
   checks = [],
-  className = ''
+  className = '',
+  fontSize,
+  headerFontSize,
 }: SecurityChecksTableProps) {
   const getCheckIcon = (score: number) => {
     if (score >= 7) return <IconCheck className="w-4 h-4 text-green-600" />;
@@ -353,12 +357,12 @@ export default function SecurityChecksTable({
 
   return (
     <div className={`overflow-x-auto ${className}`}>
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse text-sm" style={fontSize ? { fontSize } : undefined}>
         <thead className="bg-gray-700">
           <tr>
-            <th className="text-left py-1.5 px-2 font-semibold text-white w-8"></th>
-            <th className="text-left py-1.5 px-2 font-semibold text-white">Check</th>
-            <th className="text-center py-1.5 px-2 font-semibold text-white w-20">Score</th>
+            <th className="text-left py-1.5 px-2 font-semibold text-white w-8" style={headerFontSize ? { fontSize: headerFontSize } : undefined}></th>
+            <th className="text-left py-1.5 px-2 font-semibold text-white" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Check</th>
+            <th className="text-center py-1.5 px-2 font-semibold text-white w-20" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Score</th>
           </tr>
         </thead>
         <tbody>

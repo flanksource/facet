@@ -9,6 +9,8 @@ interface SpecificationTableProps {
   title?: string;
   specifications: Specification[];
   className?: string;
+  fontSize?: string;
+  headerFontSize?: string;
 }
 
 /**
@@ -36,6 +38,8 @@ export default function SpecificationTable({
   title,
   specifications,
   className,
+  fontSize,
+  headerFontSize,
 }: SpecificationTableProps) {
   const formatValue = (value: string | string[]) => {
     if (Array.isArray(value)) {
@@ -47,11 +51,11 @@ export default function SpecificationTable({
   return (
     <section className={clsx("my-6", className)}>
       {title && <h3 className="mb-4">{title}</h3>}
-      <table>
+      <table style={fontSize ? { fontSize } : undefined}>
         <thead>
           <tr>
-            <th>Component</th>
-            <th>Requirement</th>
+            <th style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Component</th>
+            <th style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Requirement</th>
           </tr>
         </thead>
         <tbody>
