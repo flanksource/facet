@@ -2,12 +2,31 @@
  * PDF Generation Utilities
  *
  * Uses Puppeteer to convert HTML to PDF.
- * Extracted and adapted from scripts/generate-pdfs.js
+ * Headers/footers are rendered as separate small PDFs and composited
+ * onto content pages using pdf-lib, avoiding position:fixed bleed issues.
  */
 
-import { existsSync } from 'fs';
+import { existsSync, writeFileSync } from 'fs';
+import { PDFDocument } from 'pdf-lib';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import { Logger } from './logger.js';
+import {
+  detectPageTypes,
+  buildPageGroups,
+  renderGroup,
+  assembleGroups,
+  computeMarginsForSize,
+  compositeHeaderFooter,
+  drawDebugOverlay,
+  renderHeaderFooterPdfs,
+  resolvePageSize,
+  overlayKey,
+  mmToPx,
+  type PageTypeInfo,
+  type GroupResult,
+  type PageType,
+  type OverlayPdfs,
+} from './pdf-multipass.js';
 
 const SYSTEM_CHROME_PATHS: Record<string, string[]> = {
   darwin: [
@@ -33,66 +52,219 @@ function resolveChromePath(): string | undefined {
   return (SYSTEM_CHROME_PATHS[process.platform] ?? []).find(existsSync);
 }
 
-async function injectFixedHeaderFooter(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const pageEl = document.querySelector('[data-page-size]');
-    const headerHeight = parseInt(pageEl?.getAttribute('data-header-height') || '0', 10);
-    const footerHeight = parseInt(pageEl?.getAttribute('data-footer-height') || '0', 10);
-    const header = document.querySelector('.datasheet-header');
-    const footer = document.querySelector('.datasheet-footer');
-
-    if (header) {
-      const clone = header.cloneNode(true) as HTMLElement;
-      clone.className = 'fixed-header';
-      Object.assign(clone.style, {
-        position: 'fixed', top: `-${headerHeight}mm`, left: '0', right: '0',
-        zIndex: '10000', width: '100%',
-      });
-      document.body.prepend(clone);
-    }
-
-    if (footer) {
-      const clone = footer.cloneNode(true) as HTMLElement;
-      clone.className = 'fixed-footer';
-      Object.assign(clone.style, {
-        position: 'fixed', bottom: `-${footerHeight}mm`, left: '0', right: '0',
-        zIndex: '10000', width: '100%',
-      });
-      document.body.append(clone);
-    }
-
-    document.querySelectorAll('.datasheet-header, .datasheet-footer').forEach(el => {
-      (el as HTMLElement).style.visibility = 'hidden';
-      (el as HTMLElement).style.height = '0';
-      (el as HTMLElement).style.overflow = 'hidden';
-    });
-  });
+async function loadAndPrepare(browser: Browser, html: string, widthMm?: number): Promise<Page> {
+  const page = await browser.newPage();
+  if (widthMm) {
+    await page.setViewport({ width: mmToPx(widthMm), height: mmToPx(297) });
+  }
+  await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+  await page.evaluateHandle('document.fonts.ready');
+  await new Promise(r => setTimeout(r, 500));
+  return page;
 }
 
-async function extractPageMargins(page: Page): Promise<{ top: number; bottom: number }> {
-  return page.evaluate(() => {
+async function renderMultiPass(
+  browser: Browser,
+  html: string,
+  typeInfo: PageTypeInfo,
+  log: Logger,
+  debug?: boolean,
+  outputPath?: string,
+): Promise<Buffer> {
+  if (typeInfo.heightDetails) {
+    for (const detail of typeInfo.heightDetails) log.debug(`  ${detail}`);
+  }
+
+  const debugBasePath = debug && outputPath ? outputPath.replace(/\.pdf$/, '') : undefined;
+  const overlays = await renderHeaderFooterPdfs(browser, html, typeInfo, typeInfo.pageSizes, debugBasePath);
+  if (debugBasePath) {
+    for (const key of overlays.headers.keys()) log.info(`Debug: wrote ${debugBasePath}.debug-header-${key}.html/.pdf`);
+    for (const key of overlays.footers.keys()) log.info(`Debug: wrote ${debugBasePath}.debug-footer-${key}.html/.pdf`);
+  }
+  const groups = buildPageGroups(typeInfo);
+  log.info(`Multi-pass: ${groups.length} group(s) from ${typeInfo.types.length} element(s)`);
+
+  const results: GroupResult[] = [];
+  for (const group of groups) {
+    const dims = resolvePageSize(group.size);
+    const margins = computeMarginsForSize(typeInfo.definitions, group.size);
+    const page = await loadAndPrepare(browser, html, dims.width);
+    const result = await renderGroup(page, group, dims, margins);
+    await page.close();
+    log.info(`  Group ${group.type}/${group.size}: ${result.pageCount} pages (margins=${margins.top}/${margins.bottom}mm)`);
+    if (debugBasePath) {
+      const contentPath = `${debugBasePath}.debug-content-${group.type}-${group.size}.pdf`;
+      writeFileSync(contentPath, result.buffer);
+      log.info(`Debug: wrote ${contentPath}`);
+    }
+    results.push(result);
+  }
+
+  const { buffer, pageMap, pageSizeMap, pageMarginMap } = await assembleGroups(results, log, typeInfo);
+  const composited = await compositeHeaderFooter(Buffer.from(buffer), overlays, pageMap, typeInfo, pageSizeMap);
+  if (debug) {
+    const debugBuffer = await drawDebugOverlay(composited, pageMap, pageSizeMap, typeInfo, pageMarginMap);
+    return Buffer.from(debugBuffer);
+  }
+  return Buffer.from(composited);
+}
+
+async function renderLegacyElementPdf(
+  browser: Browser,
+  html: string,
+  selector: string,
+  heightMm: number,
+  widthMm: number = 210,
+): Promise<Buffer | null> {
+  const { renderElementPdf } = await import('./pdf-multipass.js');
+  const page = await browser.newPage();
+  try {
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    const exists = await page.evaluate((sel: string) => !!document.querySelector(sel), selector);
+    await page.close();
+    if (!exists) return null;
+  } catch {
+    await page.close().catch(() => {});
+    return null;
+  }
+  return renderElementPdf(browser, html, selector, heightMm, widthMm);
+}
+
+// Single-pass overlay pipeline (no typed headers, uses .datasheet-header/.datasheet-footer)
+async function renderSinglePass(
+  browser: Browser,
+  html: string,
+  page: Page,
+  log: Logger,
+  debug?: boolean,
+  landscape?: boolean,
+  overridePageSize?: string,
+  outputPath?: string,
+): Promise<Buffer> {
+  const pageInfo = await page.evaluate((override: string | null): { top: number; bottom: number; pageSize: string } => {
+    const pxToMm = 25.4 / 96;
     const pages = document.querySelectorAll('[data-page-size]');
+    const header = document.querySelector('.datasheet-header');
+    const footer = document.querySelector('.datasheet-footer');
+    const measuredHeader = header ? Math.ceil(header.getBoundingClientRect().height * pxToMm) : 0;
+    const measuredFooter = footer ? Math.ceil(footer.getBoundingClientRect().height * pxToMm) : 0;
     let maxTop = 0, maxBottom = 0;
+    let pageSize = override ?? 'a4';
     pages.forEach(p => {
-      maxTop = Math.max(maxTop, parseInt(p.getAttribute('data-header-height') || '0', 10));
-      maxBottom = Math.max(maxBottom, parseInt(p.getAttribute('data-footer-height') || '0', 10));
+      const attrH = parseInt(p.getAttribute('data-header-height') || '0', 10);
+      const attrF = parseInt(p.getAttribute('data-footer-height') || '0', 10);
+      maxTop = Math.max(maxTop, attrH || measuredHeader);
+      maxBottom = Math.max(maxBottom, attrF || measuredFooter);
+      pageSize = override ?? (p.getAttribute('data-page-size') || 'a4').toLowerCase();
     });
-    return { top: maxTop, bottom: maxBottom };
+    return { top: maxTop, bottom: maxBottom, pageSize };
+  }, overridePageSize ?? null);
+
+  const dims = resolvePageSize(pageInfo.pageSize);
+  await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
+  await page.addStyleTag({
+    content: `body { max-width: ${dims.width}mm !important; }`,
   });
+
+  if (pageInfo.top === 0 && pageInfo.bottom === 0) {
+    const pdf = await page.pdf({
+      width: `${dims.width}mm`,
+      height: `${dims.height}mm`,
+      landscape: landscape ?? false,
+      margin: { top: 0, bottom: 0, left: 0, right: 0 },
+      omitBackground: false,
+      printBackground: true,
+      displayHeaderFooter: false,
+      preferCSSPageSize: true,
+    });
+    if (debug) {
+      const noHeaderTypeInfo: PageTypeInfo = {
+        types: ['default'], pageSizes: [pageInfo.pageSize], pageMargins: [],
+        definitions: new Map([['default', { type: 'default' as PageType, headerHeight: 0, footerHeight: 0 }]]),
+      };
+      const debugBuf = await drawDebugOverlay(pdf, ['default'], [pageInfo.pageSize], noHeaderTypeInfo);
+      return Buffer.from(debugBuf);
+    }
+    return Buffer.from(pdf);
+  }
+
+  log.info(`Single-pass overlay: header=${pageInfo.top}mm footer=${pageInfo.bottom}mm size=${pageInfo.pageSize}`);
+
+  const debugBasePath = debug && outputPath ? outputPath.replace(/\.pdf$/, '') : undefined;
+  const key = overlayKey('default', pageInfo.pageSize);
+  const overlays: OverlayPdfs = { headers: new Map(), footers: new Map() };
+  if (pageInfo.top > 0) {
+    const buf = await renderLegacyElementPdf(browser, html, '.datasheet-header', pageInfo.top, dims.width);
+    if (buf) {
+      overlays.headers.set(key, buf);
+      if (debugBasePath) {
+        writeFileSync(`${debugBasePath}.debug-header-${key}.pdf`, buf);
+        log.info(`Debug: wrote ${debugBasePath}.debug-header-${key}.pdf`);
+      }
+    }
+  }
+  if (pageInfo.bottom > 0) {
+    const buf = await renderLegacyElementPdf(browser, html, '.datasheet-footer', pageInfo.bottom, dims.width);
+    if (buf) {
+      overlays.footers.set(key, buf);
+      if (debugBasePath) {
+        writeFileSync(`${debugBasePath}.debug-footer-${key}.pdf`, buf);
+        log.info(`Debug: wrote ${debugBasePath}.debug-footer-${key}.pdf`);
+      }
+    }
+  }
+
+  await page.evaluate(() => {
+    document.querySelectorAll('.datasheet-header, .datasheet-footer, [data-header-type], [data-footer-type]').forEach(el => el.remove());
+  });
+
+  const topMm = `${pageInfo.top}mm`;
+  const bottomMm = `${pageInfo.bottom}mm`;
+  await page.addStyleTag({
+    content: `@page { size: ${dims.width}mm ${dims.height}mm; margin-top: ${topMm} !important; margin-bottom: ${bottomMm} !important; margin-left: 0 !important; margin-right: 0 !important; }`,
+  });
+
+  const pdfBytes = await page.pdf({
+    width: `${dims.width}mm`,
+    height: `${dims.height}mm`,
+    landscape: landscape ?? false,
+    margin: { top: topMm, bottom: bottomMm, left: 0, right: 0 },
+    omitBackground: false,
+    printBackground: true,
+    displayHeaderFooter: false,
+    preferCSSPageSize: true,
+  });
+
+  const contentBuffer = Buffer.from(pdfBytes);
+  const doc = await PDFDocument.load(contentBuffer);
+  const pageCount = doc.getPageCount();
+  const pageMap: PageType[] = Array(pageCount).fill('default');
+  const pageSizeMap: string[] = Array(pageCount).fill(pageInfo.pageSize);
+  const singleTypeInfo: PageTypeInfo = {
+    types: ['default'],
+    pageSizes: [pageInfo.pageSize],
+    pageMargins: [],
+    definitions: new Map([['default', { type: 'default' as PageType, headerHeight: pageInfo.top, footerHeight: pageInfo.bottom }]]),
+  };
+
+  const composited = await compositeHeaderFooter(contentBuffer, overlays, pageMap, singleTypeInfo, pageSizeMap);
+  if (debug) {
+    const debugBuf = await drawDebugOverlay(composited, pageMap, pageSizeMap, singleTypeInfo);
+    return Buffer.from(debugBuf);
+  }
+  return Buffer.from(composited);
 }
 
 export interface PDFOptions {
   html: string;
   outputPath: string;
   logger?: Logger;
+  debug?: boolean;
+  defaultPageSize?: string;
 }
 
-/**
- * Generate PDF from HTML content
- */
 export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
-  const { html, outputPath, logger } = options;
-
+  const { html, outputPath, logger, debug, defaultPageSize } = options;
   const log = logger || new Logger(false);
 
   const chromePath = resolveChromePath();
@@ -105,57 +277,40 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
   });
 
   try {
-    log.debug('Creating new page');
     const page = await browser.newPage();
-
-    // Set content directly (no need for file:// URL)
-    log.debug('Setting HTML content');
-    await page.setContent(html, {
-      waitUntil: 'networkidle0',
-      timeout: 30000,
-    });
-
-    // Wait for fonts to load
-    log.debug('Waiting for fonts to load');
+    if (defaultPageSize) {
+      const initDims = resolvePageSize(defaultPageSize);
+      await page.setViewport({ width: mmToPx(initDims.width), height: mmToPx(initDims.height) });
+    }
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    if (defaultPageSize) {
+      const initDims = resolvePageSize(defaultPageSize);
+      await page.addStyleTag({ content: `body { max-width: ${initDims.width}mm !important; }` });
+    }
     await page.evaluateHandle('document.fonts.ready');
-
-    // Additional wait for any dynamic content
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    log.debug('Injecting fixed header/footer');
-    await injectFixedHeaderFooter(page);
+    const typeInfo = await detectPageTypes(page, defaultPageSize);
 
-    log.debug('Generating PDF');
+    let result: Buffer;
+    if (typeInfo && typeInfo.definitions.size > 0) {
+      log.debug(`Multi-pass mode: ${typeInfo.definitions.size} type(s) detected`);
+      await page.close();
+      result = await renderMultiPass(browser, html, typeInfo, log, debug, outputPath);
+    } else {
+      log.info('Single-pass mode (no typed headers/footers)');
+      result = await renderSinglePass(browser, html, page, log, debug, undefined, defaultPageSize, outputPath);
+      await page.close();
+    }
 
-    const margins = await extractPageMargins(page);
-    await page.pdf({
-      path: outputPath,
-      format: 'A4',
-      margin: {
-        top: `${margins.top}mm`,
-        bottom: `${margins.bottom}mm`,
-        left: 0,
-        right: 0,
-      },
-      omitBackground: false,
-      printBackground: true,
-      displayHeaderFooter: false,
-      preferCSSPageSize: true,
-    });
-
+    writeFileSync(outputPath, result);
     log.debug(`PDF saved to: ${outputPath}`);
-
-    await page.close();
   } finally {
     await browser.close();
     log.debug('Browser closed');
   }
 }
 
-/**
- * Launch a browser instance for multiple PDF generations
- * Useful for batch operations
- */
 export async function launchBrowser(): Promise<Browser> {
   return puppeteer.launch({
     headless: true,
@@ -164,67 +319,56 @@ export async function launchBrowser(): Promise<Browser> {
   });
 }
 
-/**
- * Generate PDF from HTML using an existing browser instance
- */
 export async function generatePDFWithBrowser(
   browser: Browser,
   html: string,
   outputPath: string,
-  logger?: Logger
+  logger?: Logger,
+  debug?: boolean,
+  defaultPageSize?: string,
 ): Promise<void> {
   const log = logger || new Logger(false);
-
-  log.debug('Creating new page');
   const page = await browser.newPage();
 
   try {
-    log.debug('Setting HTML content');
-    await page.setContent(html, {
-      waitUntil: 'networkidle0',
-      timeout: 30000,
-    });
-
-    // Wait for fonts to load
+    if (defaultPageSize) {
+      const initDims = resolvePageSize(defaultPageSize);
+      await page.setViewport({ width: mmToPx(initDims.width), height: mmToPx(initDims.height) });
+    }
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    if (defaultPageSize) {
+      const initDims = resolvePageSize(defaultPageSize);
+      await page.addStyleTag({ content: `body { max-width: ${initDims.width}mm !important; }` });
+    }
     await page.evaluateHandle('document.fonts.ready');
-
-    // Additional wait
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    await injectFixedHeaderFooter(page);
+    const typeInfo = await detectPageTypes(page, defaultPageSize);
 
-    log.debug('Generating PDF');
+    let result: Buffer;
+    if (typeInfo && typeInfo.definitions.size > 0) {
+      log.debug(`Multi-pass mode: ${typeInfo.definitions.size} type(s) detected`);
+      await page.close();
+      result = await renderMultiPass(browser, html, typeInfo, log, debug, outputPath);
+    } else {
+      result = await renderSinglePass(browser, html, page, log, debug, undefined, defaultPageSize, outputPath);
+      await page.close();
+    }
 
-    const margins2 = await extractPageMargins(page);
-    await page.pdf({
-      path: outputPath,
-      format: 'A4',
-      margin: {
-        top: `${margins2.top}mm`,
-        bottom: `${margins2.bottom}mm`,
-        left: 0,
-        right: 0,
-      },
-      omitBackground: false,
-      printBackground: true,
-      displayHeaderFooter: false,
-      preferCSSPageSize: true,
-    });
-
+    writeFileSync(outputPath, result);
     log.debug(`PDF saved to: ${outputPath}`);
-  } finally {
-    await page.close();
+  } catch (err) {
+    await page.close().catch(() => {});
+    throw err;
   }
 }
 
 export interface BufferPDFOptions {
-  format?: 'A4' | 'Letter' | 'Legal';
   landscape?: boolean;
+  debug?: boolean;
+  defaultPageSize?: string;
 }
 
-/**
- * Generate PDF from HTML using an existing browser, returning a Buffer
- */
 export async function generatePDFBuffer(
   browser: Browser,
   html: string,
@@ -232,25 +376,30 @@ export async function generatePDFBuffer(
 ): Promise<Buffer> {
   const page = await browser.newPage();
   try {
+    if (options?.defaultPageSize) {
+      const initDims = resolvePageSize(options.defaultPageSize);
+      await page.setViewport({ width: mmToPx(initDims.width), height: mmToPx(initDims.height) });
+    }
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    if (options?.defaultPageSize) {
+      const initDims = resolvePageSize(options.defaultPageSize);
+      await page.addStyleTag({ content: `body { max-width: ${initDims.width}mm !important; }` });
+    }
     await page.evaluateHandle('document.fonts.ready');
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    await injectFixedHeaderFooter(page);
+    const typeInfo = await detectPageTypes(page, options?.defaultPageSize);
 
-    const margins = await extractPageMargins(page);
-    const pdf = await page.pdf({
-      format: options?.format ?? 'A4',
-      landscape: options?.landscape ?? false,
-      margin: { top: `${margins.top}mm`, bottom: `${margins.bottom}mm`, left: 0, right: 0 },
-      omitBackground: false,
-      printBackground: true,
-      displayHeaderFooter: false,
-      preferCSSPageSize: true,
-    });
+    if (typeInfo && typeInfo.definitions.size > 0) {
+      await page.close();
+      return await renderMultiPass(browser, html, typeInfo, new Logger(false), options?.debug);
+    }
 
-    return Buffer.from(pdf);
-  } finally {
+    const result = await renderSinglePass(browser, html, page, new Logger(false), options?.debug, options?.landscape, options?.defaultPageSize);
     await page.close();
+    return result;
+  } catch (err) {
+    await page.close().catch(() => {});
+    throw err;
   }
 }
