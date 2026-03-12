@@ -72,14 +72,24 @@ jobs:
 
       - name: Verify render endpoint
         run: |
-          curl -sf -X POST http://localhost:3000/render \
+          HTTP_CODE=$(curl -s -w '%{http_code}' -X POST http://localhost:3000/render \
             -H 'Content-Type: application/json' \
             -d '{"template":"SimpleReport","format":"html","data":{"title":"CI Test","sections":[]}}' \
-            -o /tmp/render-output.html
+            -o /tmp/render-output.html)
+          echo "HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "ERROR: render failed with HTTP $HTTP_CODE"
+            cat /tmp/render-output.html
+            echo ""
+            echo "=== Pod logs ==="
+            kubectl logs -l app.kubernetes.io/name=facet --tail=50 || true
+            exit 1
+          fi
           SIZE=$(stat -c%s /tmp/render-output.html)
           echo "Rendered HTML size: ${SIZE} bytes"
           if [ "$SIZE" -lt 100 ]; then
             echo "ERROR: rendered output too small"
+            cat /tmp/render-output.html
             exit 1
           fi
           echo "Render test passed"
