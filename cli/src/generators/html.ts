@@ -1,5 +1,6 @@
 import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
-import { resolve, join, basename, extname } from 'path';
+import { resolve, join, basename, extname, relative, dirname } from 'path';
+import { existsSync } from 'fs';
 import { $ } from 'bun';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
@@ -8,6 +9,31 @@ import { DataValidator } from '../utils/validator.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
+
+function findProjectRoot(templatePath: string): string | undefined {
+  const absTemplate = resolve(templatePath);
+  const gitRoot = findGitRoot(dirname(absTemplate));
+  const stopAt = gitRoot ?? process.cwd();
+  let dir = dirname(absTemplate);
+  while (dir.length >= stopAt.length) {
+    if (existsSync(join(dir, 'package.json'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return undefined;
+}
+
+function findGitRoot(from: string): string | undefined {
+  let dir = from;
+  while (true) {
+    if (existsSync(join(dir, '.git'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return undefined;
+}
 
 export async function generateHTML(options: GenerateOptions): Promise<string> {
   const logger = new Logger(options.verbose);
@@ -24,6 +50,13 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     templatePath = resolved.templateFile;
     if (resolved.resolvedSha) {
       logger.info(`Resolved to ${resolved.resolvedSha}`);
+    }
+  } else {
+    const projectRoot = findProjectRoot(templatePath);
+    if (projectRoot) {
+      consumerRoot = projectRoot;
+      templatePath = relative(projectRoot, resolve(templatePath));
+      logger.debug(`Using project root: ${projectRoot}`);
     }
   }
 
@@ -63,7 +96,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     // Step 2: Run Tailwind CLI to generate CSS from the HTML
     logger.info('Generating CSS with Tailwind CLI...');
     const outputCssPath = join(outputDir, `${outputName}.css`);
-    const facetRoot = join(process.cwd(), '.facet');
+    const facetRoot = join(consumerRoot ?? process.cwd(), '.facet');
     const stylesInput = join(facetRoot, 'src/styles.css');
 
     try {

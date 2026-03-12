@@ -79,6 +79,7 @@ addSharedOptions(
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
     .option('--debug', 'Add colored debug overlay lines for header/footer zones')
+    .option('--page-size <size>', 'Default page size (a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k)', 'a4')
 ).action(async (templates: string[], options: any) => {
   const logger = new Logger(options.verbose);
   try {
@@ -99,6 +100,7 @@ addSharedOptions(
         verbose: options.verbose,
         refresh: options.refresh,
         debug: options.debug,
+        pageSize: options.pageSize,
       });
     }
 

@@ -158,7 +158,6 @@ async function parseGzipRequest(
 function parsePDFOptions(raw?: Record<string, unknown>): BufferPDFOptions | undefined {
   if (!raw) return undefined;
   return {
-    format: raw.format as BufferPDFOptions['format'],
     landscape: raw.landscape as boolean | undefined,
   };
 }

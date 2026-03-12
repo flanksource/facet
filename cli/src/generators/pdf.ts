@@ -1,4 +1,4 @@
-import { readFile } from 'fs/promises';
+import { readFile, unlink } from 'fs/promises';
 import { resolve, join } from 'path';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
@@ -10,16 +10,13 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
 
   logger.debug('Starting PDF generation');
 
-  // Step 1: Generate HTML first (this handles all rendering + Tailwind CSS generation)
   logger.info('Generating HTML...');
   const outputName = await generateHTML(options);
 
-  // Step 2: Read the generated HTML file
   const outputDir = resolve(process.cwd(), options.outputDir);
   const htmlPath = join(outputDir, `${outputName}.html`);
   const finalHTML = await readFile(htmlPath, 'utf-8');
 
-  // Step 4: Generate PDF from the HTML
   logger.info('Converting HTML to PDF...');
   const pdfPath = join(outputDir, `${outputName}.pdf`);
 
@@ -28,7 +25,15 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
     outputPath: pdfPath,
     logger,
     debug: options.debug,
+    defaultPageSize: options.pageSize,
   });
+
+  if (!options.debug) {
+    await unlink(htmlPath).catch(() => {});
+    logger.debug(`Cleaned up intermediate HTML: ${htmlPath}`);
+  } else {
+    logger.info(`Debug: keeping intermediate HTML: ${htmlPath}`);
+  }
 
   logger.success(`PDF generated: ${pdfPath}`);
 }

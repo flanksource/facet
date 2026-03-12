@@ -7,13 +7,13 @@
  * Runs outside the CLI bundle to avoid embedding Vite.
  *
  * Usage:
- *   bun run vite-ssr-loader.ts --facet-root=/path/to/.facet --data='{"key":"value"}' [--verbose]
+ *   bun run vite-ssr-loader.ts --facet-root=/path/to/.facet --data-file=/path/to/data.json [--verbose]
  */
 
 import { build } from 'vite';
 import { renderToString } from 'react-dom/server';
 import { join } from 'path';
-import { readFileSync, readdirSync, rmSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, rmSync } from 'fs';
 
 import { Console } from 'console';
 
@@ -21,6 +21,7 @@ import { Console } from 'console';
 interface LoaderArgs {
   facetRoot: string;
   data: Record<string, unknown>;
+  outputFile: string;
   verbose: boolean;
 }
 
@@ -37,11 +38,20 @@ function parseArgs(): LoaderArgs {
   const args = process.argv.slice(2);
   let facetRoot = '';
   let data: Record<string, unknown> = {};
+  let outputFile = '';
   let verbose = false;
 
   for (const arg of args) {
     if (arg.startsWith('--facet-root=')) {
       facetRoot = arg.substring('--facet-root='.length);
+    } else if (arg.startsWith('--data-file=')) {
+      const filePath = arg.substring('--data-file='.length);
+      try {
+        data = JSON.parse(readFileSync(filePath, 'utf-8'));
+      } catch (error) {
+        console.error(`Failed to parse data file ${filePath}:`, error);
+        process.exit(1);
+      }
     } else if (arg.startsWith('--data=')) {
       const dataStr = arg.substring('--data='.length);
       try {
@@ -50,6 +60,8 @@ function parseArgs(): LoaderArgs {
         console.error('Failed to parse --data JSON:', error);
         process.exit(1);
       }
+    } else if (arg.startsWith('--output-file=')) {
+      outputFile = arg.substring('--output-file='.length);
     } else if (arg === '--verbose') {
       verbose = true;
     }
@@ -60,7 +72,7 @@ function parseArgs(): LoaderArgs {
     process.exit(1);
   }
 
-  return { facetRoot, data, verbose };
+  return { facetRoot, data, outputFile, verbose };
 }
 
 /**
@@ -159,7 +171,12 @@ async function main() {
     const args = parseArgs();
     const result = await load(args);
 
-    process.stdout.write(JSON.stringify(result));
+    const json = JSON.stringify(result);
+    if (args.outputFile) {
+      writeFileSync(args.outputFile, json);
+    } else {
+      process.stdout.write(json);
+    }
     process.exit(0);
   } catch (error) {
     // Print error directly to stderr for readability
