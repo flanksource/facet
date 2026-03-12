@@ -1,5 +1,6 @@
 import React from 'react';
 import * as Icons from '@flanksource/icons/mi';
+import type { TableSize } from './CompactTable';
 
 interface FeatureSupport {
   enabled: boolean;
@@ -27,8 +28,7 @@ interface LogoGridProps {
   title?: string;
   variant?: 'default' | 'compact' | 'table';
   baseDocsUrl?: string;
-  fontSize?: string;
-  headerFontSize?: string;
+  size?: TableSize;
 }
 
 const ICON_MAP: Record<string, keyof typeof Icons> = {
@@ -49,14 +49,20 @@ const ICON_MAP: Record<string, keyof typeof Icons> = {
   'Terraform': 'Terraform',
 };
 
+const sizeClassMap: Record<TableSize, string> = {
+  xs: 'text-xs',
+  sm: 'text-sm',
+  base: 'text-base',
+  md: 'text-md',
+};
+
 export default function LogoGrid({
   logos,
   viewAllUrl,
   title = "Integrations",
   variant = 'default',
   baseDocsUrl = 'https://flanksource.com/docs/guide',
-  fontSize,
-  headerFontSize,
+  size = 'sm',
 }: LogoGridProps) {
   const getLogoUrl = (logo: Logo): string | undefined => {
     if (logo.url) return logo.url;
@@ -108,14 +114,14 @@ export default function LogoGrid({
     return (
       <section className="my-4">
         {title && <h3>{title}</h3>}
-        <table className="w-full border-collapse text-[9pt] leading-[12pt]" style={fontSize ? { fontSize } : undefined}>
+        <table className={`w-full border-collapse ${sizeClassMap[size]}`}>
           <thead className="bg-gray-700">
             <tr>
-              <th className="text-left font-semibold text-white p-[2.5mm] text-[10pt] w-[40%]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Product</th>
-              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Health</th>
-              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Configuration</th>
-              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Change</th>
-              <th className="text-center font-semibold text-white p-[2.5mm] text-[10pt] w-[15%]" style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Playbooks</th>
+              <th className="text-left font-semibold text-white w-[40%]">Product</th>
+              <th className="text-center font-semibold text-white w-[15%]">Health</th>
+              <th className="text-center font-semibold text-white w-[15%]">Configuration</th>
+              <th className="text-center font-semibold text-white w-[15%]">Change</th>
+              <th className="text-center font-semibold text-white w-[15%]">Playbooks</th>
             </tr>
           </thead>
           <tbody>

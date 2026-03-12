@@ -43,13 +43,10 @@ const meta = {
   },
   tags: ['autodocs'],
   argTypes: {
-    fontSize: {
-      control: 'text',
-      description: 'Custom font size for table body (e.g. "8pt", "10pt")',
-    },
-    headerFontSize: {
-      control: 'text',
-      description: 'Custom font size for table headers (e.g. "10pt", "12pt")',
+    size: {
+      control: 'select',
+      options: ['xs', 'sm', 'base', 'md'],
+      description: 'Table size — controls text size and padding via CSS',
     },
   },
 } satisfies Meta<typeof SecurityChecksTable>;
@@ -69,11 +66,10 @@ export const AllPassing: Story = {
   },
 };
 
-export const CustomFontSize: Story = {
+export const ExtraSmall: Story = {
   args: {
     checks: sampleChecks,
-    fontSize: '8pt',
-    headerFontSize: '10pt',
+    size: 'xs',
   },
 };
 

@@ -14,13 +14,10 @@ const meta = {
       options: ['compact', 'inline', 'reference'],
       description: 'Table layout variant',
     },
-    fontSize: {
-      control: 'text',
-      description: 'Custom font size for table body (e.g. "6pt", "8pt")',
-    },
-    headerFontSize: {
-      control: 'text',
-      description: 'Custom font size for table headers and title (e.g. "8pt", "10pt")',
+    size: {
+      control: 'select',
+      options: ['xs', 'sm', 'base', 'md'],
+      description: 'Table size — controls text size and padding via CSS',
     },
   },
 } satisfies Meta<typeof CompactTable>;
@@ -67,12 +64,11 @@ export const Reference: Story = {
   },
 };
 
-export const CustomFontSize: Story = {
+export const ExtraSmall: Story = {
   args: {
     variant: 'compact',
-    title: 'Small Font Table',
-    fontSize: '6pt',
-    headerFontSize: '8pt',
+    title: 'Extra Small Table',
+    size: 'xs',
     data: [
       { label: 'Kubernetes', value: '1.24+' },
       { label: 'Memory', value: '4GB minimum' },

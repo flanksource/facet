@@ -6,9 +6,7 @@
 @tailwind utilities;
 
 
-@source '../src/components/'
 
-@plugin "@tailwindcss/typography";
 
 /* Remove max-width from prose class */
 .prose {
@@ -160,9 +158,8 @@
   box-sizing: border-box;
 }
 
-/* Page Setup - A4 Format (210mm × 297mm) */
+/* Page Setup */
 @page {
-  size: a4;
   margin: 0;
   padding: 0;
 }
@@ -186,13 +183,11 @@ body {
 @media print {
 
   @page :first {
-    size: a4;
     margin: 0;
     padding: 0;
   }
 
   @page {
-    size: a4;
     margin: 0;
     padding: 0;
   }
@@ -267,7 +262,7 @@ body {
 
   /* Print header and footer adjustments */
   .datasheet-header {
-    margin: 0 0 10mm;
+    margin: 0;
     padding: 5mm 10mm;
   }
 
@@ -409,9 +404,8 @@ thead {
 thead th {
   @apply bg-blue-600 text-white border border-blue-500 font-semibold;
 
-  padding: 3mm;
+  padding: 2mm;
   text-align: left;
-  font-size: 10pt;
 }
 
 tbody tr:nth-child(odd) {
@@ -425,13 +419,23 @@ tbody tr:nth-child(even) {
 tbody td {
   @apply border border-gray-300 text-gray-700;
 
-  padding: 3mm 2mm;
+  padding: 2mm 1.5mm;
   vertical-align: top;
 }
 
 tbody td:first-child {
   font-weight: 600;
 }
+
+/* Table size-based padding — apply text-{size} class on <table> */
+table.text-xs th { padding: 1mm; }
+table.text-xs td { padding: 0.5mm 1mm; }
+
+table.text-sm th { padding: 1.5mm; }
+table.text-sm td { padding: 1mm 1.5mm; }
+
+table.text-md th { padding: 2.5mm; }
+table.text-md td { padding: 2mm 2.5mm; }
 
 /* Section Spacing */
 section {
@@ -482,7 +486,7 @@ article {
 }
 
 .header-meta p {
-  margin: 0;
+  margin: 0 !important;
 }
 
 /* CTA Footer */
@@ -518,7 +522,7 @@ article {
   font-size: 18pt;
   font-weight: 600;
   color: #fff;
-  margin: 0;
+  margin: 0 !important;
 }
 
 .section-header-bar .product-name {
@@ -542,7 +546,7 @@ article {
 }
 
 .datasheet-footer p {
-  margin: 0 0 1mm;
+  margin: 0 0 1mm !important;
   font-size: 7pt;
   line-height: 9pt;
 }
@@ -583,7 +587,7 @@ article {
   background: #3578e5;
   border: none;
   color: #fff;
-  margin: 0 0 10mm;
+  margin: 0;
   padding: 4mm 10mm;
 }
 
@@ -608,7 +612,7 @@ article {
 /* Header Minimal Variant */
 .datasheet-header--minimal {
   border: none;
-  margin: 0 0 8mm;
+  margin: 0;
   padding: 3mm 10mm;
   background: transparent;
 }
@@ -672,7 +676,7 @@ article {
 }
 
 .datasheet-footer--minimal p {
-  margin: 0;
+  margin: 0 !important;
 }
 
 /* Project links - Utility Class */
