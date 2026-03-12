@@ -51,7 +51,11 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
     unzip \
+    imagemagick \
     && rm -rf /var/lib/apt/lists/*
+
+# Allow ImageMagick to read/write PDFs (blocked by default policy)
+RUN sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
 
 # Install bun (needed to run vite-ssr-loader.ts at template build time)
 RUN curl -fsSL https://bun.sh/install | bash

@@ -93,3 +93,51 @@ jobs:
             exit 1
           fi
           echo "Render test passed"
+
+      - name: Verify inline template PDF render
+        run: |
+          # Create a minimal inline template
+          TMPDIR=$(mktemp -d)
+          cat > "${TMPDIR}/Template.tsx" <<'TEMPLATE'
+          import React from 'react';
+          export default function Template({ data }: { data: any }) {
+            return (
+              <html>
+                <body>
+                  <h1 style={{ color: '#2563eb' }}>{data.title || 'Inline Test'}</h1>
+                  <p>Rendered from an inline template archive.</p>
+                </body>
+              </html>
+            );
+          }
+          TEMPLATE
+
+          # Package as tar.gz and send via multipart upload
+          tar -czf "${TMPDIR}/template.tar.gz" -C "${TMPDIR}" Template.tsx
+
+          HTTP_CODE=$(curl -s -w '%{http_code}' -X POST http://localhost:3000/render \
+            -F "archive=@${TMPDIR}/template.tar.gz" \
+            -F 'data={"title":"CI Inline PDF Test"}' \
+            -F 'options={"format":"pdf"}' \
+            -o /tmp/inline-output.pdf)
+          echo "HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "ERROR: inline PDF render failed with HTTP $HTTP_CODE"
+            cat /tmp/inline-output.pdf
+            echo ""
+            kubectl logs -l app.kubernetes.io/name=facet --tail=50 || true
+            exit 1
+          fi
+
+          # Validate PDF with ImageMagick (runs inside the pod since magick is in the image)
+          kubectl cp /tmp/inline-output.pdf $(kubectl get pod -l app.kubernetes.io/name=facet -o jsonpath='{.items[0].metadata.name}'):/tmp/test.pdf
+          POD=$(kubectl get pod -l app.kubernetes.io/name=facet -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec "$POD" -- identify /tmp/test.pdf
+
+          SIZE=$(stat -c%s /tmp/inline-output.pdf)
+          echo "Inline PDF size: ${SIZE} bytes"
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "ERROR: PDF too small, likely invalid"
+            exit 1
+          fi
+          echo "Inline template PDF render test passed"
