@@ -8,6 +8,8 @@
 
 import { $ } from 'bun';
 import { join } from 'path';
+import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
 
@@ -77,24 +79,21 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   // Shell out to vite-ssr-loader.ts script
   logger.info('Loading template with Vite SSR...');
   const loaderPath = join(facetRoot, 'vite-ssr-loader.ts');
-  const dataJson = JSON.stringify(data);
+  const tmpDir = mkdtempSync(join(tmpdir(), 'facet-'));
+  const dataFilePath = join(tmpDir, 'data.json');
+  const resultFilePath = join(tmpDir, 'result.json');
+  writeFileSync(dataFilePath, JSON.stringify(data));
   let result;
   try {
-    // Run the loader script with Bun
-    // Errors are printed directly to stderr, so we don't need to parse them
-    result = await $`bun run ${loaderPath} --facet-root=${facetRoot} --data=${dataJson}`.quiet(!logger.verbose);
+    result = await $`bun run ${loaderPath} --facet-root=${facetRoot} --data-file=${dataFilePath} --output-file=${resultFilePath}`.quiet();
 
     if (result.stderr != null && result.stderr.length > 0) {
       console.error(result.stderr.toString());
     }
-    const stdout = result.stdout.toString();
-    logger.debug(`Loader output (${stdout.length} chars): ${stdout.substring(0, 200)}...`);
 
-    // Parse result JSON from stdout
-    const loaderResult: LoaderResult = JSON.parse(stdout);
+    const loaderResult: LoaderResult = JSON.parse(readFileSync(resultFilePath, 'utf-8'));
 
-    logger.debug(`Rendered HTML: ${loaderResult.html.length} bytes`);
-    logger.debug(`Collected CSS: ${loaderResult.css.length} bytes`);
+    logger.debug(`Rendered HTML: ${loaderResult.html.length} bytes, CSS: ${loaderResult.css.length} bytes`);
 
     return {
       html: loaderResult.html,
@@ -109,9 +108,11 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
     const stdout = result?.stdout?.toString() || error?.stdout?.toString() || '';
     const exitCode = result?.exitCode ?? error?.exitCode;
     if (stderr) logger.error(stderr);
-    if (stdout) logger.debug("stdout:", stdout);
-    if (exitCode != null) logger.debug("exit:", exitCode);
+    if (stdout) logger.debug(`stdout: ${stdout.length} bytes`);
+    if (exitCode != null) logger.debug(`exit: ${exitCode}`);
     if (!stderr) logger.error(error instanceof Error ? error.message : String(error));
     throw new Error(`Vite SSR loader failed (see error above)`);
+  } finally {
+    try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   }
 }
