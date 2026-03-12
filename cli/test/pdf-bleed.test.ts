@@ -253,8 +253,11 @@ describe('PDF bleed analysis', () => {
   let browser: Browser;
 
   beforeAll(async () => {
-    try { execSync('magick --version', { stdio: 'pipe' }); }
-    catch { throw new Error('ImageMagick (magick) is required'); }
+    try { execSync('magick -version', { stdio: 'pipe' }); }
+    catch {
+      try { execSync('convert -version', { stdio: 'pipe' }); }
+      catch { throw new Error('ImageMagick (magick or convert) is required'); }
+    }
     browser = await launchBrowser();
   }, 30000);
 
