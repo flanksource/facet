@@ -39,7 +39,9 @@ jobs:
           magick -version || convert -version
 
       - name: Install dependencies
-        run: cd cli && npm install
+        run: |
+          npm install
+          cd cli && npm install
 
       - name: Run tests
         run: cd cli && bun test

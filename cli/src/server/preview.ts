@@ -1,22 +1,27 @@
 import { resolve } from 'path';
 import { Logger } from '../utils/logger.js';
-import { loadConfig, type ServerCLIFlags } from './config.js';
+import { loadConfig, type ServerCLIFlags, type ServerConfig } from './config.js';
 import { checkAuth } from './auth.js';
 import { errorResponse } from './errors.js';
 import { WorkerPool } from './worker-pool.js';
-import { discoverTemplates } from './templates.js';
+import { discoverTemplates, type TemplateInfo } from './templates.js';
 import { S3Uploader } from './s3.js';
 import { handleHealthz, handleTemplates, handleRender } from './routes.js';
 
-export async function startServer(flags: ServerCLIFlags): Promise<void> {
-  const config = loadConfig(flags);
+export interface ServerHandle {
+  port: number;
+  url: string;
+  stop: () => Promise<void>;
+}
+
+export async function createServer(config: ServerConfig): Promise<ServerHandle> {
   const logger = new Logger(config.verbose);
 
   const templatesDir = resolve(process.cwd(), config.templatesDir);
   logger.info(`Templates directory: ${templatesDir}`);
 
   const templates = await discoverTemplates(templatesDir);
-  logger.info(`Discovered ${templates.length} templates: ${templates.map((t) => t.name).join(', ') || '(none)'}`);
+  logger.info(`Discovered ${templates.length} templates: ${templates.map((t: TemplateInfo) => t.name).join(', ') || '(none)'}`);
 
   const pool = new WorkerPool(config.workers, config.verbose);
   await pool.start();
@@ -50,10 +55,22 @@ export async function startServer(flags: ServerCLIFlags): Promise<void> {
 
   logger.success(`Server listening on http://localhost:${server.port}`);
 
+  return {
+    port: server.port,
+    url: `http://localhost:${server.port}`,
+    stop: async () => {
+      server.stop();
+      await pool.shutdown();
+    },
+  };
+}
+
+export async function startServer(flags: ServerCLIFlags): Promise<void> {
+  const config = loadConfig(flags);
+  const handle = await createServer(config);
+
   const shutdown = async () => {
-    logger.info('Shutting down...');
-    server.stop();
-    await pool.shutdown();
+    await handle.stop();
     process.exit(0);
   };
 
