@@ -1,49 +1,41 @@
 import React from 'react';
-import { MissionControlLogo } from '@flanksource/icons/mi'
+
+export type PageType = 'first' | 'default' | 'last';
 
 interface HeaderProps {
   variant?: 'default' | 'solid' | 'minimal';
+  logo?: React.ReactNode;
   title?: string;
   subtitle?: string;
+  type?: PageType;
+  height?: number;
+  children?: React.ReactNode;
 }
 
-/**
- * Header Component
- *
- * Renders the datasheet header with configurable styling variants.
- * Automatically loads and switches between light and dark logos based on variant.
- *
- * Variants:
- * - 'default': Border-bottom style with white background (light logo)
- * - 'solid': Solid brand blue background with white text (dark/white logo)
- * - 'minimal': Logo only, no metadata or background (light logo)
- *
- * Usage:
- * <Header variant="default" />
- * <Header variant="solid" />
- * <Header variant="minimal" />
- */
 export default function Header({
   variant = 'default',
-  title = 'Technical Datasheet',
-  subtitle = 'Mission Control Platform'
+  logo,
+  title = '',
+  subtitle = '',
+  type = 'default',
+  height = 18,
+  children,
 }: HeaderProps) {
+  const dataAttrs: Record<string, string | number> = { 'data-header-type': type };
+  if (height != null) dataAttrs['data-header-height'] = height;
 
-  const headerClass = `datasheet-header datasheet-header--${variant}
-  `;
+  if (children) {
+    return <div {...dataAttrs}>{children}</div>;
+  }
 
+  const headerClass = `datasheet-header datasheet-header--${variant}`;
+  const headerStyle: React.CSSProperties = height != null ? { height: `${height}mm`, overflow: 'hidden' } : {};
   return (
-    <div className={headerClass}>
-      {/* Logo centered with vertical spacing */}
-      <div className=' h-[15mm] w-[70mm]'>
-        <MissionControlLogo height="15mm"
-          className="filter grayscale brightness-[250] contrast-100 mix-blend-screen h-full w-full "
-        />
-      </div>
-      {/* Title and subtitle on the right */}
-      <div className='header-meta'>
-        <p className='text-md font-bold'>{title}</p>
-        <p className='text-sm'>{subtitle}</p>
+    <div className={headerClass} style={headerStyle} {...dataAttrs}>
+      {logo && <div className="h-[15mm] w-[70mm]">{logo}</div>}
+      <div className="header-meta">
+        {title && <p className="text-md font-bold">{title}</p>}
+        {subtitle && <p className="text-sm">{subtitle}</p>}
       </div>
     </div>
   );

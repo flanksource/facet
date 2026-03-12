@@ -1,4 +1,6 @@
 import clsx from 'clsx';
+import CompactTable from './CompactTable';
+import type { TableSize } from './CompactTable';
 
 interface Specification {
   category: string;
@@ -9,64 +11,18 @@ interface SpecificationTableProps {
   title?: string;
   specifications: Specification[];
   className?: string;
-  fontSize?: string;
-  headerFontSize?: string;
+  size?: TableSize;
 }
 
-/**
- * SpecificationTable Component (DS-18, DS-20)
- *
- * Pre-formatted table for technical specifications.
- * Groups technical details (versions, ports, protocols) in dedicated section.
- *
- * DS-18: Group technical details
- * DS-20: Must include deployment models, platforms, auth methods, data residency
- *
- * Usage:
- * <SpecificationTable
- *   title="System Requirements"
- *   specifications={[
- *     { category: "Kubernetes", value: "1.24+" },
- *     { category: "PostgreSQL", value: "13+" },
- *     { category: "Memory", value: "4GB minimum" },
- *     { category: "Deployment Models", value: ["SaaS", "Self-hosted", "Hybrid"] },
- *     { category: "Authentication", value: ["SSO", "SAML", "OIDC"] }
- *   ]}
- * />
- */
-export default function SpecificationTable({
-  title,
-  specifications,
-  className,
-  fontSize,
-  headerFontSize,
-}: SpecificationTableProps) {
-  const formatValue = (value: string | string[]) => {
-    if (Array.isArray(value)) {
-      return value.join(', ');
-    }
-    return value;
-  };
-
+export default function SpecificationTable({ title, specifications, className, size }: SpecificationTableProps) {
+  const data = specifications.map(s => [
+    s.category,
+    Array.isArray(s.value) ? s.value.join(', ') : s.value,
+  ]);
   return (
     <section className={clsx("my-6", className)}>
       {title && <h3 className="mb-4">{title}</h3>}
-      <table style={fontSize ? { fontSize } : undefined}>
-        <thead>
-          <tr>
-            <th style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Component</th>
-            <th style={headerFontSize ? { fontSize: headerFontSize } : undefined}>Requirement</th>
-          </tr>
-        </thead>
-        <tbody>
-          {specifications.map((spec, index) => (
-            <tr key={index}>
-              <td>{spec.category}</td>
-              <td>{formatValue(spec.value)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <CompactTable variant="reference" columns={["Component", "Requirement"]} data={data} size={size} />
     </section>
   );
 }
