@@ -14,23 +14,23 @@ export default function LogoGridTableExample() {
       <h1 className="text-2xl font-bold">LogoGrid (table variant) Examples</h1>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">Default Sizes</h2>
+        <h2 className="text-lg font-semibold mb-2">Default (sm)</h2>
         <LogoGrid variant="table" title="Integration Capabilities" logos={logos} />
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">fontSize=7pt, headerFontSize=9pt</h2>
-        <LogoGrid variant="table" title="Integration Capabilities" logos={logos} fontSize="7pt" headerFontSize="9pt" />
+        <h2 className="text-lg font-semibold mb-2">size=xs</h2>
+        <LogoGrid variant="table" title="Integration Capabilities" logos={logos} size="xs" />
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">fontSize=6pt, headerFontSize=7pt</h2>
-        <LogoGrid variant="table" title="Integration Capabilities" logos={logos} fontSize="6pt" headerFontSize="7pt" />
+        <h2 className="text-lg font-semibold mb-2">size=base</h2>
+        <LogoGrid variant="table" title="Integration Capabilities" logos={logos} size="base" />
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">fontSize=12pt, headerFontSize=14pt</h2>
-        <LogoGrid variant="table" title="Integration Capabilities" logos={logos} fontSize="12pt" headerFontSize="14pt" />
+        <h2 className="text-lg font-semibold mb-2">size=md</h2>
+        <LogoGrid variant="table" title="Integration Capabilities" logos={logos} size="md" />
       </section>
     </div>
   );

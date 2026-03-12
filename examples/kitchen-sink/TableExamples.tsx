@@ -1,126 +1,70 @@
-import {
-  DatasheetTemplate,
-  Page,
-  Header,
-  Footer,
-  PageBreak,
-  CompactTable,
-  SecurityChecksTable,
-  SpecificationTable,
-  LogoGrid,
-} from '@flanksource/facet';
+import { DatasheetTemplate, Page, CompactTable } from '@flanksource/facet';
+import type { PageSize } from '@flanksource/facet';
+import FlanksourceHeader from './FlanksourceHeader';
+import FlanksourceFooter from './FlanksourceFooter';
 
-const compactData = [
-  { label: 'Kubernetes', value: '1.24+' },
-  { label: 'Memory', value: '4GB minimum' },
-  { label: 'CPU', value: '2 cores minimum' },
-  { label: 'Storage', value: '20GB SSD' },
+const PAGE_SIZES: PageSize[] = ['a4', 'a3', 'letter', 'legal', 'fhd', 'qhd', 'wqhd', '4k', '5k', '16k'];
+
+const gridData = [
+  ['search_catalog', 'Find config items by name, type, or label', 'search_catalog("unhealthy pods")'],
+  ['get_config', 'Retrieve full details for a config item', 'get_config("deployment/nginx")'],
+  ['run_health_check', 'Execute a health check by name or ID', 'run_health_check("http-api")'],
+  ['list_changes', 'Show recent changes for a config item', 'list_changes("node/worker-1")'],
+  ['get_topology', 'Retrieve topology tree for a component', 'get_topology("cluster/prod")'],
+  ['create_playbook', 'Create and run an automated playbook', 'create_playbook("restart-pod")'],
+  ['list_incidents', 'List open incidents with severity filter', 'list_incidents(severity="high")'],
+  ['get_metrics', 'Fetch metric timeseries for a resource', 'get_metrics("cpu", "pod/api")'],
 ];
 
-const referenceData = [
-  ['search_catalog', 'Find config items', 'Show all unhealthy pods'],
-  ['get_config', 'Get item details', 'Describe deployment nginx'],
-  ['run_health_check', 'Execute check', 'Run http-check-api'],
+const pricingTiers = [
+  { label: 'Tier', value: 'Starter' },
+  { label: 'Price', value: '$0/month' },
+  { label: 'Users', value: 'Up to 5' },
+  { label: 'Checks', value: '100' },
+  { label: 'Retention', value: '7 days' },
+  { label: 'Support', value: 'Community' },
 ];
 
-const securityChecks = [
-  { name: 'Code-Review', score: 10, reason: 'All commits require review', details: ['Info: Branch protection enabled'], documentation: { url: 'https://github.com/ossf/scorecard/blob/main/docs/checks.md#code-review' } },
-  { name: 'Vulnerabilities', score: 8, reason: '2 vulnerabilities found', details: ['Warn: 1 medium severity'] },
-  { name: 'Dependency-Update-Tool', score: 0, reason: 'No tool detected', details: ['Warn: Consider Dependabot'] },
+const pricingPro = [
+  { label: 'Tier', value: 'Professional' },
+  { label: 'Price', value: '$499/month' },
+  { label: 'Users', value: 'Up to 25' },
+  { label: 'Checks', value: '1,000' },
+  { label: 'Retention', value: '90 days' },
+  { label: 'Support', value: 'Email + Slack' },
 ];
 
-const specifications = [
-  { category: 'Kubernetes', value: '1.24+' },
-  { category: 'PostgreSQL', value: '13+' },
-  { category: 'Memory', value: '4GB minimum' },
-  { category: 'Deployment Models', value: ['SaaS', 'Self-hosted', 'Hybrid'] },
+const pricingEnterprise = [
+  { label: 'Tier', value: 'Enterprise' },
+  { label: 'Price', value: 'Custom' },
+  { label: 'Users', value: 'Unlimited' },
+  { label: 'Checks', value: 'Unlimited' },
+  { label: 'Retention', value: '1 year' },
+  { label: 'Support', value: '24/7 dedicated' },
 ];
-
-const logos = [
-  { name: 'Prometheus', health: true, configuration: false, change: false, playbooks: true },
-  { name: 'Kubernetes', health: true, configuration: true, change: true, playbooks: true },
-  { name: 'Datadog', health: true, configuration: true, change: true, playbooks: true },
-  { name: 'Flux', health: false, configuration: true, change: true, playbooks: true },
-];
-
-function TableSection({ title, fontSize, headerFontSize }: {
-  title: string;
-  fontSize?: string;
-  headerFontSize?: string;
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="border-b border-gray-200 pb-1">
-        <h2 className="text-base font-bold">{title}</h2>
-        <p className="text-xs text-gray-500">
-          fontSize={fontSize ?? 'default'}, headerFontSize={headerFontSize ?? 'default'}
-        </p>
-      </div>
-      <CompactTable variant="compact" title="System Requirements" data={compactData} fontSize={fontSize} headerFontSize={headerFontSize} />
-      <CompactTable
-        variant="inline"
-        title="Quick Stats"
-        data={[
-          { label: 'Version', value: '2.0.0' },
-          { label: 'Release', value: 'Jan 2025' },
-          { label: 'License', value: 'Apache 2.0' },
-        ]}
-        fontSize={fontSize}
-        headerFontSize={headerFontSize}
-      />
-      <CompactTable variant="reference" title="MCP Tools" columns={['Tool Name', 'Purpose', 'Example']} data={referenceData} fontSize={fontSize} headerFontSize={headerFontSize} />
-      <SecurityChecksTable checks={securityChecks} fontSize={fontSize} headerFontSize={headerFontSize} />
-      <SpecificationTable title="Technical Specs" specifications={specifications} fontSize={fontSize} headerFontSize={headerFontSize} />
-      <LogoGrid variant="table" title="Integrations" logos={logos} fontSize={fontSize} headerFontSize={headerFontSize} />
-    </div>
-  );
-}
 
 export default function TableExamples() {
   return (
-    <DatasheetTemplate title="Table Font Size Examples" css="">
-      {/* Page 1: Default + Small */}
-      <Page
-        title="Tables — Default & Small"
-        header={<Header variant="solid" title="Component Showcase" subtitle="Tables" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
-        margins={{ top: 5, bottom: 5 }}
-      >
-        <div className="space-y-8">
-          <TableSection title="Default Sizes" />
-          <TableSection title="Small (6pt / 8pt)" fontSize="6pt" headerFontSize="8pt" />
-        </div>
-      </Page>
-
-      <PageBreak />
-
-      {/* Page 2: Medium — multi-page table content */}
-      <Page
-        title="Tables — Medium"
-        header={<Header variant="default" title="Component Showcase" subtitle="Tables" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
-        margins={{ top: 5, bottom: 5 }}
-      >
-        <TableSection title="Medium (8pt / 10pt)" fontSize="8pt" headerFontSize="10pt" />
-      </Page>
-
-      <PageBreak />
-
-      {/* Page 3: Large */}
-      <Page
-        title="Tables — Large"
-        header={<Header variant="minimal" />}
-        headerHeight={18}
-        footer={<Footer variant="default" />}
-        footerHeight={15}
-        margins={{ top: 5, bottom: 5 }}
-      >
-        <TableSection title="Large (12pt / 14pt)" fontSize="12pt" headerFontSize="14pt" />
-      </Page>
+    <DatasheetTemplate title="Table Examples" css="">
+      <FlanksourceHeader variant="solid" title="Component Showcase" subtitle="Tables" />
+      <FlanksourceFooter variant="compact" />
+      {PAGE_SIZES.map(size => (
+        <Page key={size} pageSize={size} title={`Tables — ${size.toUpperCase()}`} margins={{ top: 5, bottom: 5 }}>
+          <div className="space-y-6">
+            <CompactTable
+              variant="reference"
+              title="API Reference"
+              columns={['Command', 'Description', 'Example']}
+              data={gridData}
+            />
+            <div className="grid grid-cols-3 gap-4">
+              <CompactTable variant="compact" title="Starter" data={pricingTiers} />
+              <CompactTable variant="compact" title="Professional" data={pricingPro} />
+              <CompactTable variant="compact" title="Enterprise" data={pricingEnterprise} />
+            </div>
+          </div>
+        </Page>
+      ))}
     </DatasheetTemplate>
   );
 }

@@ -1,9 +1,6 @@
 import {
   DatasheetTemplate,
   Page,
-  Header,
-  Footer,
-  PageBreak,
   StatCard,
   MetricGrid,
   Badge,
@@ -34,6 +31,8 @@ import {
   IoCube,
   IoSpeedometer,
 } from 'react-icons/io5';
+import FlanksourceHeader from './FlanksourceHeader';
+import FlanksourceFooter from './FlanksourceFooter';
 
 const compactData = [
   { label: 'Kubernetes', value: '1.24+' },
@@ -72,16 +71,10 @@ const logos = [
 export default function UberKitchenSink() {
   return (
     <DatasheetTemplate title="Facet Kitchen Sink" css="">
-      {/* Page 1: First page — solid header, stats overview */}
-      <Page
-        title="Overview"
-        product="Mission Control"
-        header={<Header variant="solid" title="Kitchen Sink" subtitle="Component Showcase" />}
-        headerHeight={18}
-        footer={<Footer variant="default" />}
-        footerHeight={15}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <FlanksourceHeader variant="solid" title="Kitchen Sink" subtitle="Component Showcase" />
+      <FlanksourceFooter variant="default" />
+
+      <Page title="Overview" product="Mission Control" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div className="grid grid-cols-4 gap-3">
             <StatCard variant="bordered" value="99.9%" label="Uptime" icon={IoCloudDone} color="green" size="sm" />
@@ -98,17 +91,7 @@ export default function UberKitchenSink() {
         </div>
       </Page>
 
-      <PageBreak />
-
-      {/* Page 2: StatCards & MetricGrid */}
-      <Page
-        title="Stats & Metrics"
-        header={<Header variant="default" title="Kitchen Sink" subtitle="Stats & Metrics" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <Page title="Stats & Metrics" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">StatCard variants</h3>
@@ -140,17 +123,7 @@ export default function UberKitchenSink() {
         </div>
       </Page>
 
-      <PageBreak />
-
-      {/* Page 3: Badges & Icons */}
-      <Page
-        title="Badges & Icons"
-        header={<Header variant="minimal" />}
-        headerHeight={18}
-        footer={<Footer variant="default" />}
-        footerHeight={15}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <Page title="Badges & Icons" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2">
             <Badge variant="status" status="success" label="Healthy" icon={IoCheckmarkCircle} />
@@ -210,17 +183,7 @@ export default function UberKitchenSink() {
         </div>
       </Page>
 
-      <PageBreak />
-
-      {/* Page 4: Gauges & Progress */}
-      <Page
-        title="Gauges & Progress"
-        header={<Header variant="solid" title="Kitchen Sink" subtitle="Gauges & Progress" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <Page title="Gauges & Progress" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div className="flex flex-wrap gap-4 items-end">
             <Gauge value={85} minValue={0} maxValue={100} units="%" arcColor="#16a34a" width="8em" />
@@ -245,48 +208,26 @@ export default function UberKitchenSink() {
         </div>
       </Page>
 
-      <PageBreak />
-
-      {/* Page 5: Multi-page table content */}
-      <Page
-        title="Tables — Default & Small"
-        header={<Header variant="default" title="Kitchen Sink" subtitle="Tables" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <Page title="Tables — Default & Small" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <CompactTable variant="compact" title="System Requirements" data={compactData} />
           <CompactTable variant="reference" title="MCP Tools" columns={['Tool Name', 'Purpose', 'Example']} data={referenceData} />
           <SecurityChecksTable checks={securityChecks} />
           <LogoGrid variant="table" title="Integrations" logos={logos} />
-          <CompactTable variant="compact" title="Small (6pt/8pt)" data={compactData} fontSize="6pt" headerFontSize="8pt" />
-          <SecurityChecksTable checks={securityChecks} fontSize="6pt" headerFontSize="8pt" />
+          <CompactTable variant="compact" title="Small (xs)" data={compactData} size="xs" />
+          <SecurityChecksTable checks={securityChecks} size="xs" />
         </div>
       </Page>
 
-      <PageBreak />
-
-      {/* Page 6: Last page — watermark, summary */}
-      <Page
-        title="Summary"
-        product="Mission Control"
-        header={<Header variant="solid" title="Kitchen Sink" subtitle="Summary" />}
-        headerHeight={18}
-        footer={<Footer variant="default" />}
-        footerHeight={15}
-        watermark="DRAFT"
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <Page title="Summary" product="Mission Control" watermark="DRAFT" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-4">
           <CompactTable variant="inline" title="Document Info" data={[
             { label: 'Version', value: '2.0.0' },
             { label: 'Date', value: 'March 2026' },
             { label: 'Classification', value: 'Draft' },
           ]} />
-          <CompactTable variant="compact" title="Large (12pt/14pt)" data={compactData} fontSize="12pt" headerFontSize="14pt" />
-          <SpecificationTable title="Technical Specs (10pt)" specifications={specifications} fontSize="10pt" headerFontSize="12pt" />
+          <CompactTable variant="compact" title="Large (md)" data={compactData} size="md" />
+          <SpecificationTable title="Technical Specs (base)" specifications={specifications} size="base" />
         </div>
       </Page>
     </DatasheetTemplate>

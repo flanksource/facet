@@ -1,14 +1,13 @@
 import {
   DatasheetTemplate,
   Page,
-  Header,
-  Footer,
-  PageBreak,
   CompactTable,
   SpecificationTable,
   StatCard,
 } from '@flanksource/facet';
 import { IoServer, IoCloudDone, IoCheckmarkCircle } from 'react-icons/io5';
+import FlanksourceHeader from './FlanksourceHeader';
+import FlanksourceFooter from './FlanksourceFooter';
 
 const specs = [
   { category: 'Kubernetes', value: '1.24+' },
@@ -20,13 +19,11 @@ const specs = [
 export default function HeaderDefault() {
   return (
     <DatasheetTemplate title="Header: Default" css="">
+      <FlanksourceHeader variant="default" />
+      <FlanksourceFooter variant="default" />
       <Page
-        title="Default + Default Footer"
+        title="Default Header + Default Footer"
         product="Mission Control"
-        header={<Header variant="default" title="Technical Datasheet" subtitle="Mission Control Platform" />}
-        headerHeight={18}
-        footer={<Footer variant="default" />}
-        footerHeight={15}
         margins={{ top: 5, bottom: 5 }}
       >
         <div className="space-y-4">
@@ -39,16 +36,7 @@ export default function HeaderDefault() {
         </div>
       </Page>
 
-      <PageBreak />
-
-      <Page
-        title="Default + Compact Footer"
-        header={<Header variant="default" title="Technical Datasheet" subtitle="Compact Footer" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <Page title="Infrastructure Details" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-4">
           <CompactTable variant="compact" title="Infrastructure" data={[
             { label: 'Kubernetes', value: '1.24+' },
@@ -60,38 +48,6 @@ export default function HeaderDefault() {
             { label: 'Version', value: '2.0.0' },
             { label: 'Date', value: 'March 2026' },
             { label: 'License', value: 'Apache 2.0' },
-          ]} />
-        </div>
-      </Page>
-
-      <PageBreak />
-
-      <Page
-        title="Default + Minimal Footer"
-        header={<Header variant="default" title="Technical Datasheet" subtitle="Minimal Footer" />}
-        headerHeight={18}
-        footer={<Footer variant="minimal" />}
-        footerHeight={8}
-        margins={{ top: 5, bottom: 5 }}
-      >
-        <div className="space-y-4">
-          <SpecificationTable title="Technical Specs" specifications={specs} />
-        </div>
-      </Page>
-
-      <PageBreak />
-
-      <Page
-        title="Default + No Footer"
-        header={<Header variant="default" title="Technical Datasheet" subtitle="No Footer" />}
-        headerHeight={18}
-        margins={{ top: 5, bottom: 5 }}
-      >
-        <div className="space-y-4">
-          <CompactTable variant="compact" title="Summary" data={[
-            { label: 'Pages', value: '4' },
-            { label: 'Header', value: 'Default' },
-            { label: 'Footer', value: 'None' },
           ]} />
         </div>
       </Page>

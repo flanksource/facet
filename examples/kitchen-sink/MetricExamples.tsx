@@ -1,27 +1,21 @@
 import {
   DatasheetTemplate,
   Page,
-  Header,
-  Footer,
-  PageBreak,
   Gauge,
   ScoreGauge,
   ProgressBar,
   MetricHeader,
 } from '@flanksource/facet';
+import FlanksourceHeader from './FlanksourceHeader';
+import FlanksourceFooter from './FlanksourceFooter';
 
 export default function MetricExamples() {
   return (
     <DatasheetTemplate title="Metric Examples" css="">
-      {/* Page 1: Gauges */}
-      <Page
-        title="Gauges"
-        header={<Header variant="solid" title="Component Showcase" subtitle="Gauges & Scores" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <FlanksourceHeader variant="solid" title="Component Showcase" subtitle="Gauges & Scores" />
+      <FlanksourceFooter variant="compact" />
+
+      <Page title="Gauges" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">Gauge</h3>
@@ -32,7 +26,6 @@ export default function MetricExamples() {
               <Gauge value={7.8} minValue={0} maxValue={10} arcColor="#16a34a" width="8em" />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">ScoreGauge (sm / md / lg)</h3>
             <div className="flex flex-wrap gap-6 items-end">
@@ -43,12 +36,10 @@ export default function MetricExamples() {
               <ScoreGauge score={7.4} label="Code Review" size="lg" />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">MetricHeader — gauge</h3>
             <MetricHeader variant="gauge" title="Security Score" subtitle="OpenSSF Scorecard" score={8.5} />
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">MetricHeader — comparison</h3>
             <MetricHeader
@@ -62,17 +53,7 @@ export default function MetricExamples() {
         </div>
       </Page>
 
-      <PageBreak />
-
-      {/* Page 2: ProgressBars */}
-      <Page
-        title="Progress Bars"
-        header={<Header variant="default" title="Component Showcase" subtitle="Progress Bars" />}
-        headerHeight={18}
-        footer={<Footer variant="minimal" />}
-        footerHeight={8}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <Page title="Progress Bars" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">variants</h3>
@@ -85,7 +66,6 @@ export default function MetricExamples() {
               <ProgressBar title="Queue Depth" percentage={30} variant="gray" />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">sizes (sm / md / lg)</h3>
             <div className="space-y-3">
@@ -94,7 +74,6 @@ export default function MetricExamples() {
               <ProgressBar title="Large" percentage={70} variant="primary" size="lg" />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">custom display values</h3>
             <div className="space-y-3">
