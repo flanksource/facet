@@ -1,14 +1,13 @@
 import {
   DatasheetTemplate,
   Page,
-  Header,
-  Footer,
-  PageBreak,
   CompactTable,
   SpecificationTable,
   StatCard,
 } from '@flanksource/facet';
 import { IoServer, IoCloudDone, IoCheckmarkCircle } from 'react-icons/io5';
+import FlanksourceHeader from './FlanksourceHeader';
+import FlanksourceFooter from './FlanksourceFooter';
 
 const specs = [
   { category: 'Kubernetes', value: '1.24+' },
@@ -19,12 +18,16 @@ const specs = [
 
 export default function HeaderSolid() {
   return (
-    <DatasheetTemplate title="Header: Solid" >
+    <DatasheetTemplate>
+      <FlanksourceHeader type="first" variant="solid" title="Solid" subtitle="First Header" />
+      <FlanksourceHeader type="default" variant="solid" title="Solid" subtitle="Default Header" />
+      <FlanksourceFooter type="default" variant="minimal" />
+      <FlanksourceFooter type="first" variant="default" />
       <Page
-        title="Solid + Default Footer"
+        title="First Page"
         product="Mission Control"
-        header={<Header variant="solid" title="Technical Datasheet" subtitle="Mission Control Platform" />}
-        footer={<Footer variant="default" />}
+        type="first"
+        margins={{ top: 10, bottom: 5, left: 10, right: 10 }}
       >
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
@@ -36,14 +39,8 @@ export default function HeaderSolid() {
         </div>
       </Page>
 
-      <PageBreak />
-
       <Page
         title="Solid + Compact Footer"
-        header={<Header variant="solid" title="Technical Datasheet" subtitle="Compact Footer" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
         margins={{ top: 5, bottom: 5 }}
       >
         <div className="space-y-4">
@@ -61,14 +58,8 @@ export default function HeaderSolid() {
         </div>
       </Page>
 
-      <PageBreak />
-
       <Page
         title="Solid + Minimal Footer"
-        header={<Header variant="solid" title="Technical Datasheet" subtitle="Minimal Footer" />}
-        headerHeight={18}
-        footer={<Footer variant="minimal" />}
-        footerHeight={8}
         margins={{ top: 5, bottom: 5 }}
       >
         <div className="space-y-4">
@@ -76,12 +67,9 @@ export default function HeaderSolid() {
         </div>
       </Page>
 
-      <PageBreak />
-
       <Page
-        title="Solid + No Footer"
-        header={<Header variant="solid" title="Technical Datasheet" subtitle="No Footer" />}
-        headerHeight={18}
+        title="Last Page"
+        type="last"
         margins={{ top: 5, bottom: 5 }}
       >
         <div className="space-y-4">

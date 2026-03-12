@@ -1,9 +1,6 @@
 import {
   DatasheetTemplate,
   Page,
-  Header,
-  Footer,
-  PageBreak,
   Badge,
   Status,
 } from '@flanksource/facet';
@@ -23,19 +20,16 @@ import {
   IoFlash,
   IoCube,
 } from 'react-icons/io5';
+import FlanksourceHeader from './FlanksourceHeader';
+import FlanksourceFooter from './FlanksourceFooter';
 
 export default function BadgeExamples() {
   return (
     <DatasheetTemplate title="Badge & Icon Examples" css="">
-      {/* Page 1: Badge variants */}
-      <Page
-        title="Badge Variants"
-        header={<Header variant="solid" title="Component Showcase" subtitle="Badges" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <FlanksourceHeader variant="solid" title="Component Showcase" subtitle="Badges" />
+      <FlanksourceFooter variant="compact" />
+
+      <Page title="Badge Variants" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">status</h3>
@@ -46,7 +40,6 @@ export default function BadgeExamples() {
               <Badge variant="status" status="info" label="Pending" icon={IoInformationCircle} />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">metric (label + value)</h3>
             <div className="flex flex-wrap gap-2">
@@ -56,7 +49,6 @@ export default function BadgeExamples() {
               <Badge variant="metric" label="Latency" value="12ms" icon={IoTime} />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">custom colors</h3>
             <div className="flex flex-wrap gap-2">
@@ -66,7 +58,6 @@ export default function BadgeExamples() {
               <Badge variant="custom" color="#fffbeb" textColor="#92400e" label="Beta" icon={IoFlash} />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">outlined</h3>
             <div className="flex flex-wrap gap-2">
@@ -79,17 +70,7 @@ export default function BadgeExamples() {
         </div>
       </Page>
 
-      <PageBreak />
-
-      {/* Page 2: Sizes, shapes, status, icons */}
-      <Page
-        title="Sizes, Shapes & Icons"
-        header={<Header variant="default" title="Component Showcase" subtitle="Badges & Icons" />}
-        headerHeight={18}
-        footer={<Footer variant="default" />}
-        footerHeight={15}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <Page title="Sizes, Shapes & Icons" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">sizes (xs / sm / md / lg)</h3>
@@ -100,7 +81,6 @@ export default function BadgeExamples() {
               <Badge variant="status" status="success" label="lg" size="lg" icon={IoCheckmarkCircle} />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">shapes (pill / rounded / square)</h3>
             <div className="flex flex-wrap gap-2">
@@ -109,7 +89,6 @@ export default function BadgeExamples() {
               <Badge variant="status" status="info" label="square" shape="square" icon={IoShieldCheckmark} />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">Status indicators</h3>
             <div className="flex flex-wrap gap-4">
@@ -119,7 +98,6 @@ export default function BadgeExamples() {
               <Status status="unknown" />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">Icons at different sizes</h3>
             <div className="flex flex-wrap items-end gap-4">

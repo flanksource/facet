@@ -1,9 +1,6 @@
 import {
   DatasheetTemplate,
   Page,
-  Header,
-  Footer,
-  PageBreak,
   StatCard,
   MetricGrid,
 } from '@flanksource/facet';
@@ -15,19 +12,16 @@ import {
   IoCloudDone,
   IoPulse,
 } from 'react-icons/io5';
+import FlanksourceHeader from './FlanksourceHeader';
+import FlanksourceFooter from './FlanksourceFooter';
 
 export default function StatCardExamples() {
   return (
     <DatasheetTemplate title="StatCard Examples" css="">
-      {/* Page 1: Card & Badge variants */}
-      <Page
-        title="StatCard Variants"
-        header={<Header variant="solid" title="Component Showcase" subtitle="StatCard" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <FlanksourceHeader variant="solid" title="Component Showcase" subtitle="StatCard" />
+      <FlanksourceFooter variant="compact" />
+
+      <Page title="StatCard Variants" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">card (sm / md / lg)</h3>
@@ -37,7 +31,6 @@ export default function StatCardExamples() {
               <StatCard value="99.9%" label="Uptime" icon={IoCloudDone} size="lg" />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">badge</h3>
             <div className="flex flex-wrap gap-2">
@@ -47,7 +40,6 @@ export default function StatCardExamples() {
               <StatCard variant="badge" value="12" label="Nodes" icon={IoServer} color="purple" />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">hero</h3>
             <div className="grid grid-cols-3 gap-4">
@@ -56,7 +48,6 @@ export default function StatCardExamples() {
               <StatCard variant="hero" value="4.8" label="DORA Score" color="purple" size="sm" />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">bordered</h3>
             <div className="grid grid-cols-4 gap-3">
@@ -69,17 +60,7 @@ export default function StatCardExamples() {
         </div>
       </Page>
 
-      <PageBreak />
-
-      {/* Page 2: More variants & comparisons */}
-      <Page
-        title="StatCard Layouts & Comparisons"
-        header={<Header variant="default" title="Component Showcase" subtitle="StatCard" />}
-        headerHeight={18}
-        footer={<Footer variant="compact" />}
-        footerHeight={10}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <Page title="StatCard Layouts & Comparisons" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">left-aligned</h3>
@@ -88,7 +69,6 @@ export default function StatCardExamples() {
               <StatCard variant="left-aligned" value="45s" label="Mean Time to Resolve" icon={IoTime} color="green" />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">metric</h3>
             <div className="grid grid-cols-3 gap-3">
@@ -97,7 +77,6 @@ export default function StatCardExamples() {
               <StatCard variant="metric" value="12ms" label="Avg Latency" icon={IoSpeedometer} color="gray" />
             </div>
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">with comparison</h3>
             <div className="grid grid-cols-3 gap-3">
@@ -109,52 +88,31 @@ export default function StatCardExamples() {
         </div>
       </Page>
 
-      <PageBreak />
-
-      {/* Page 3: MetricGrid */}
-      <Page
-        title="MetricGrid"
-        header={<Header variant="minimal" />}
-        headerHeight={18}
-        footer={<Footer variant="minimal" />}
-        footerHeight={8}
-        margins={{ top: 5, bottom: 5 }}
-      >
+      <Page title="MetricGrid" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">4 columns</h3>
-            <MetricGrid
-              columns={4}
-              metrics={[
-                { value: '99.9%', label: 'Uptime', icon: IoCloudDone, valueColor: 'green' },
-                { value: '45ms', label: 'P95 Latency', icon: IoSpeedometer, valueColor: 'blue' },
-                { value: '2.1K', label: 'Requests/s', icon: IoPulse },
-                { value: 0, label: 'Errors', icon: IoShieldCheckmark, valueColor: 'green' },
-              ]}
-            />
+            <MetricGrid columns={4} metrics={[
+              { value: '99.9%', label: 'Uptime', icon: IoCloudDone, valueColor: 'green' },
+              { value: '45ms', label: 'P95 Latency', icon: IoSpeedometer, valueColor: 'blue' },
+              { value: '2.1K', label: 'Requests/s', icon: IoPulse },
+              { value: 0, label: 'Errors', icon: IoShieldCheckmark, valueColor: 'green' },
+            ]} />
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">3 columns</h3>
-            <MetricGrid
-              columns={3}
-              metrics={[
-                { value: 156, label: 'Kubernetes Resources', valueColor: 'blue' },
-                { value: 42, label: 'Health Checks Passing', valueColor: 'green' },
-                { value: 3, label: 'Critical Alerts', valueColor: 'red' },
-              ]}
-            />
+            <MetricGrid columns={3} metrics={[
+              { value: 156, label: 'Kubernetes Resources', valueColor: 'blue' },
+              { value: 42, label: 'Health Checks Passing', valueColor: 'green' },
+              { value: 3, label: 'Critical Alerts', valueColor: 'red' },
+            ]} />
           </div>
-
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-2">2 columns</h3>
-            <MetricGrid
-              columns={2}
-              metrics={[
-                { value: '24/7', label: 'Support Coverage', valueColor: 'blue' },
-                { value: '< 1h', label: 'Response Time SLA', valueColor: 'green' },
-              ]}
-            />
+            <MetricGrid columns={2} metrics={[
+              { value: '24/7', label: 'Support Coverage', valueColor: 'blue' },
+              { value: '< 1h', label: 'Response Time SLA', valueColor: 'green' },
+            ]} />
           </div>
         </div>
       </Page>

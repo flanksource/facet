@@ -40,23 +40,23 @@ export default function SecurityChecksTableExample() {
       <h1 className="text-2xl font-bold">SecurityChecksTable Examples</h1>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">Default Sizes</h2>
+        <h2 className="text-lg font-semibold mb-2">Default (sm)</h2>
         <SecurityChecksTable checks={checks} />
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">fontSize=8pt, headerFontSize=10pt</h2>
-        <SecurityChecksTable checks={checks} fontSize="8pt" headerFontSize="10pt" />
+        <h2 className="text-lg font-semibold mb-2">size=xs</h2>
+        <SecurityChecksTable checks={checks} size="xs" />
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">fontSize=6pt, headerFontSize=7pt</h2>
-        <SecurityChecksTable checks={checks} fontSize="6pt" headerFontSize="7pt" />
+        <h2 className="text-lg font-semibold mb-2">size=base</h2>
+        <SecurityChecksTable checks={checks} size="base" />
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">fontSize=12pt, headerFontSize=14pt</h2>
-        <SecurityChecksTable checks={checks} fontSize="12pt" headerFontSize="14pt" />
+        <h2 className="text-lg font-semibold mb-2">size=md</h2>
+        <SecurityChecksTable checks={checks} size="md" />
       </section>
     </div>
   );
