@@ -50,6 +50,16 @@ tasks:
     cmds:
       - npm run build-storybook
 
+  test:
+    deps:
+      - test:unit
+      # - test:storybook
+  test:unit:
+    desc: "Run unit tests with Jest"
+    dir: cli
+    cmds:
+      - bun run jest
+
   test:storybook:
     desc: "Build Storybook and verify all stories load without errors"
     cmds:

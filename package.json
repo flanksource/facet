@@ -42,12 +42,14 @@
   "dependencies": {
     "@flanksource/icons": "^1.0.41",
     "@iconify/react": "^5.1.0",
+    "@testing-library/react": "^16.3.2",
     "@xyflow/react": "^12.0.0",
     "clsx": "^2.1.1",
     "d3-scale": "^4.0.2",
     "d3-shape": "^3.2.0",
     "dagre": "^0.8.5",
     "dayjs": "^1.11.13",
+    "pdf-lib": "^1.17.1",
     "react-icons": "^5.4.0",
     "shiki": "^1.0.0"
   },
@@ -66,6 +68,7 @@
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.16",
+    "baseline-browser-mapping": "^2.10.0",
     "chalk": "^5.6.2",
     "juice": "^11.0.3",
     "ora": "^8.2.0",

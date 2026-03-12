@@ -1,8 +1,11 @@
 module.exports = {
   content: [
-    "./src/**/*.{html,js,jsx,ts,tsx,mdx}",
+    "./src/components/**/*.{js,jsx,ts,tsx}",
+    "./src/stories/**/*.{js,jsx,ts,tsx}",
+    "./src/utils/**/*.{js,jsx,ts,tsx}",
+    "./src/icons/**/*.{js,jsx,ts,tsx}",
     "./src/content/**/*.mdx",
-    "./node_modules/@flanksource/facet/src/**/*.{js,jsx,ts,tsx}"
+    "./src/types/**/*.{ts,tsx}"
   ],
   theme: {
     extend: {
