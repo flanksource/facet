@@ -1,4 +1,5 @@
 import { resolveOutput } from '../src/utils/resolve-output.js';
+import { describe, it, expect } from '@jest/globals';
 
 describe('resolveOutput', () => {
   it('treats path with extension as file path', () => {
