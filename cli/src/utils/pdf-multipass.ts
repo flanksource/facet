@@ -1,0 +1,604 @@
+import { writeFileSync } from 'fs';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import type { Browser, Page } from 'puppeteer';
+import type { Logger } from './logger.js';
+
+export type PageType = 'first' | 'default' | 'last';
+
+export type PageSize = 'a4' | 'a3' | 'letter' | 'legal' | 'fhd' | 'qhd' | 'wqhd' | '4k' | '5k' | '16k';
+
+export interface PageSizeDimensions {
+  width: number;
+  height: number;
+}
+
+export const PAGE_SIZES: Record<PageSize, PageSizeDimensions> = {
+  a4: { width: 210, height: 297 },
+  a3: { width: 297, height: 420 },
+  letter: { width: 215.9, height: 279.4 },
+  legal: { width: 215.9, height: 355.6 },
+  fhd: { width: 508, height: 285.75 },
+  qhd: { width: 677.33, height: 381 },
+  wqhd: { width: 846.67, height: 381 },
+  '4k': { width: 1016, height: 571.5 },
+  '5k': { width: 1354.67, height: 762 },
+  '16k': { width: 406.4, height: 304.8 },
+};
+
+export function resolvePageSize(name: string): PageSizeDimensions {
+  return PAGE_SIZES[name.toLowerCase() as PageSize] ?? PAGE_SIZES.a4;
+}
+
+export function mmToPx(mm: number): number {
+  return Math.round(mm * 96 / 25.4);
+}
+
+export interface TypeDefinition {
+  type: PageType;
+  headerHeight: number;
+  footerHeight: number;
+}
+
+export interface PageMargins {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export interface PageTypeInfo {
+  types: PageType[];
+  pageSizes: string[];
+  pageMargins: PageMargins[];
+  definitions: Map<PageType, TypeDefinition>;
+  heightDetails?: string[];
+}
+
+interface RawDetectResult {
+  types: string[];
+  pageSizes: string[];
+  pageMargins: PageMargins[];
+  definitions: Record<string, {
+    type: string;
+    headerHeight: number;
+    footerHeight: number;
+    headerSource: string;
+    footerSource: string;
+  }>;
+}
+
+export async function detectPageTypes(page: Page, overridePageSize?: string): Promise<PageTypeInfo | null> {
+  return page.evaluate((override: string | null): RawDetectResult | null => {
+    const headerEls = document.querySelectorAll('[data-header-type]');
+    const footerEls = document.querySelectorAll('[data-footer-type]');
+    if (headerEls.length === 0 && footerEls.length === 0) return null;
+
+    const pageEls = document.querySelectorAll('[data-page-size]');
+    const types: string[] = [];
+    const pageSizes: string[] = [];
+    const pageMargins: { top: number; right: number; bottom: number; left: number }[] = [];
+    pageEls.forEach(el => {
+      types.push(el.getAttribute('data-page-type') || 'default');
+      pageSizes.push(override ?? (el.getAttribute('data-page-size') || 'a4').toLowerCase());
+      pageMargins.push({
+        top: parseInt(el.getAttribute('data-margin-top') || '0', 10),
+        right: parseInt(el.getAttribute('data-margin-right') || '0', 10),
+        bottom: parseInt(el.getAttribute('data-margin-bottom') || '0', 10),
+        left: parseInt(el.getAttribute('data-margin-left') || '0', 10),
+      });
+    });
+
+    const defs: RawDetectResult['definitions'] = {};
+    const pxToMm = 25.4 / 96;
+
+    headerEls.forEach(el => {
+      const t = el.getAttribute('data-header-type') || 'default';
+      if (!defs[t]) defs[t] = { type: t, headerHeight: 0, footerHeight: 0, headerSource: 'none', footerSource: 'none' };
+      const explicit = el.getAttribute('data-header-height');
+      const measured = Math.ceil((el as HTMLElement).getBoundingClientRect().height * pxToMm);
+      defs[t].headerHeight = explicit ? parseInt(explicit, 10) : measured;
+      defs[t].headerSource = explicit ? `attr=${explicit}mm` : `measured=${measured}mm`;
+    });
+
+    footerEls.forEach(el => {
+      const t = el.getAttribute('data-footer-type') || 'default';
+      if (!defs[t]) defs[t] = { type: t, headerHeight: 0, footerHeight: 0, headerSource: 'none', footerSource: 'none' };
+      const explicit = el.getAttribute('data-footer-height');
+      const measured = Math.ceil((el as HTMLElement).getBoundingClientRect().height * pxToMm);
+      defs[t].footerHeight = explicit ? parseInt(explicit, 10) : measured;
+      defs[t].footerSource = explicit ? `attr=${explicit}mm` : `measured=${measured}mm`;
+    });
+
+    return { types, pageSizes, pageMargins, definitions: defs };
+  }, overridePageSize ?? null).then(raw => {
+    if (!raw) return null;
+    const definitions = new Map<PageType, TypeDefinition>();
+    const details: string[] = [];
+    for (const [k, v] of Object.entries(raw.definitions)) {
+      definitions.set(k as PageType, v as TypeDefinition);
+      details.push(`${k}: header=${v.headerHeight}mm(${v.headerSource}) footer=${v.footerHeight}mm(${v.footerSource})`);
+    }
+    return {
+      types: raw.types as PageType[],
+      pageSizes: raw.pageSizes,
+      pageMargins: raw.pageMargins,
+      definitions,
+      heightDetails: details,
+    };
+  });
+}
+
+// --- Page Groups ---
+
+export interface PageGroup {
+  type: PageType;
+  size: string;
+  elementIndices: number[];
+}
+
+export function buildPageGroups(typeInfo: PageTypeInfo): PageGroup[] {
+  const groups: PageGroup[] = [];
+  for (let i = 0; i < typeInfo.types.length; i++) {
+    const type = typeInfo.types[i];
+    const size = typeInfo.pageSizes[i] ?? 'a4';
+    const last = groups[groups.length - 1];
+    if (last && last.type === type && last.size === size) {
+      last.elementIndices.push(i);
+    } else {
+      groups.push({ type, size, elementIndices: [i] });
+    }
+  }
+  if (groups.length === 0) {
+    groups.push({ type: 'default', size: 'a4', elementIndices: [0] });
+  }
+  return groups;
+}
+
+export interface RenderMargins {
+  top: number;
+  bottom: number;
+}
+
+export function computeMarginsForSize(
+  definitions: Map<PageType, TypeDefinition>,
+  sizeName: string,
+): RenderMargins {
+  const scale = areaScale(resolvePageSize(sizeName));
+  let top = 0, bottom = 0;
+  for (const def of definitions.values()) {
+    top = Math.max(top, scaledHeight(def.headerHeight, scale));
+    bottom = Math.max(bottom, scaledHeight(def.footerHeight, scale));
+  }
+  return { top, bottom };
+}
+
+// --- Phase 1: Element-to-PDF rendering ---
+
+const REF_AREA = 210 * 297; // A4 reference area in mm²
+
+export function areaScale(dims: PageSizeDimensions): number {
+  return Math.sqrt((dims.width * dims.height) / REF_AREA);
+}
+
+export async function renderElementPdf(
+  browser: Browser,
+  html: string,
+  selector: string,
+  heightMm: number,
+  widthMm: number = 210,
+  debugOutputPath?: string,
+): Promise<Buffer> {
+  const page = await browser.newPage();
+  try {
+    await page.setViewport({ width: mmToPx(widthMm), height: mmToPx(heightMm) });
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.evaluateHandle('document.fonts.ready');
+    await new Promise(r => setTimeout(r, 300));
+
+    await page.evaluate((sel: string, hMm: number, wMm: number) => {
+      const target = document.querySelector(sel) as HTMLElement | null;
+      if (!target) return;
+
+      document.body.innerHTML = '';
+      document.body.appendChild(target);
+
+      Object.assign(document.body.style, {
+        margin: '0', padding: '0', overflow: 'hidden',
+        width: `${wMm}mm`, height: `${hMm}mm`,
+      });
+
+      Object.assign(target.style, {
+        width: '100%', height: '100%', margin: '0',
+        boxSizing: 'border-box', overflow: 'hidden',
+      });
+    }, selector, heightMm, widthMm);
+
+    if (debugOutputPath) {
+      writeFileSync(`${debugOutputPath}.html`, await page.content());
+    }
+
+    await page.addStyleTag({
+      content: `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; } body { max-width: ${widthMm}mm !important; }`,
+    });
+
+    const pdfBytes = await page.pdf({
+      width: `${widthMm}mm`,
+      height: `${heightMm}mm`,
+      margin: { top: 0, bottom: 0, left: 0, right: 0 },
+      printBackground: true,
+      displayHeaderFooter: false,
+      preferCSSPageSize: true,
+    });
+
+    if (debugOutputPath) {
+      writeFileSync(`${debugOutputPath}.pdf`, pdfBytes);
+    }
+    return Buffer.from(pdfBytes);
+  } finally {
+    await page.close();
+  }
+}
+
+export function overlayKey(type: PageType, sizeName: string): string {
+  return `${type}:${sizeName}`;
+}
+
+export function scaledHeight(baseMm: number, scale: number): number {
+  return Math.ceil(baseMm * scale);
+}
+
+export interface OverlayPdfs {
+  headers: Map<string, Buffer>;
+  footers: Map<string, Buffer>;
+}
+
+export async function renderHeaderFooterPdfs(
+  browser: Browser,
+  html: string,
+  typeInfo: PageTypeInfo,
+  pageSizes: string[],
+  debugBasePath?: string,
+): Promise<OverlayPdfs> {
+  const headers = new Map<string, Buffer>();
+  const footers = new Map<string, Buffer>();
+
+  const uniqueSizes = [...new Set(pageSizes.length > 0 ? pageSizes : ['a4'])];
+
+  for (const [type, def] of typeInfo.definitions) {
+    for (const sizeName of uniqueSizes) {
+      const dims = resolvePageSize(sizeName);
+      const scale = areaScale(dims);
+      const key = overlayKey(type, sizeName);
+      if (def.headerHeight > 0) {
+        const h = scaledHeight(def.headerHeight, scale);
+        const debugPath = debugBasePath ? `${debugBasePath}.debug-header-${key}` : undefined;
+        headers.set(key, await renderElementPdf(
+          browser, html, `[data-header-type="${type}"]`, h, dims.width, debugPath,
+        ));
+      }
+      if (def.footerHeight > 0) {
+        const h = scaledHeight(def.footerHeight, scale);
+        const debugPath = debugBasePath ? `${debugBasePath}.debug-footer-${key}` : undefined;
+        footers.set(key, await renderElementPdf(
+          browser, html, `[data-footer-type="${type}"]`, h, dims.width, debugPath,
+        ));
+      }
+    }
+  }
+
+  return { headers, footers };
+}
+
+// --- Phase 2: Per-group content rendering ---
+
+export interface GroupResult {
+  group: PageGroup;
+  buffer: Buffer;
+  pageCount: number;
+}
+
+export async function renderGroup(
+  page: Page,
+  group: PageGroup,
+  dims: PageSizeDimensions,
+  margins: RenderMargins,
+): Promise<GroupResult> {
+  const indices = group.elementIndices;
+  await page.evaluate((visibleIndices: number[]) => {
+    document.querySelectorAll('[data-header-type], [data-footer-type]').forEach(el => el.remove());
+    document.querySelectorAll('.fixed-header, .fixed-footer').forEach(el => el.remove());
+
+    const visible = new Set(visibleIndices);
+    const pages = document.querySelectorAll('[data-page-size]');
+    const keepSet = new Set<Element>();
+    pages.forEach((el, i) => {
+      if (visible.has(i)) keepSet.add(el);
+    });
+    // Remove all non-kept [data-page-size] elements and page-break divs
+    pages.forEach((el, i) => {
+      if (!visible.has(i)) el.remove();
+    });
+    document.querySelectorAll('.page-break').forEach(el => {
+      // Keep page-break only if it's between two kept elements
+      const prev = el.previousElementSibling;
+      const next = el.nextElementSibling;
+      if (!prev || !next || !keepSet.has(prev) || !keepSet.has(next)) {
+        el.remove();
+      }
+    });
+  }, indices);
+
+  const topMm = `${margins.top}mm`;
+  const bottomMm = `${margins.bottom}mm`;
+  await page.addStyleTag({
+    content: `@page { size: ${dims.width}mm ${dims.height}mm; margin-top: ${topMm} !important; margin-bottom: ${bottomMm} !important; margin-left: 0 !important; margin-right: 0 !important; } body { max-width: ${dims.width}mm !important; }`,
+  });
+
+  const pdfBytes = await page.pdf({
+    width: `${dims.width}mm`,
+    height: `${dims.height}mm`,
+    margin: { top: topMm, bottom: bottomMm, left: 0, right: 0 },
+    omitBackground: false,
+    printBackground: true,
+    displayHeaderFooter: false,
+    preferCSSPageSize: true,
+  });
+
+  const buffer = Buffer.from(pdfBytes);
+  const doc = await PDFDocument.load(buffer);
+  return { group, buffer, pageCount: doc.getPageCount() };
+}
+
+// --- Phase 3: Compositing ---
+
+function mmToPt(mm: number): number {
+  return mm * 72 / 25.4;
+}
+
+export async function compositeHeaderFooter(
+  contentBuffer: Buffer,
+  overlays: OverlayPdfs,
+  pageMap: PageType[],
+  typeInfo: PageTypeInfo,
+  pageSizeMap?: string[],
+): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(contentBuffer);
+  const embeddedHeaders = new Map<string, Awaited<ReturnType<typeof doc.embedPages>>[0]>();
+  const embeddedFooters = new Map<string, Awaited<ReturnType<typeof doc.embedPages>>[0]>();
+
+  for (const [key, buf] of overlays.headers) {
+    const srcDoc = await PDFDocument.load(buf);
+    const [embedded] = await doc.embedPages(srcDoc.getPages());
+    embeddedHeaders.set(key, embedded);
+  }
+  for (const [key, buf] of overlays.footers) {
+    const srcDoc = await PDFDocument.load(buf);
+    const [embedded] = await doc.embedPages(srcDoc.getPages());
+    embeddedFooters.set(key, embedded);
+  }
+
+  const pages = doc.getPages();
+  for (let i = 0; i < pages.length; i++) {
+    const type = pageMap[i] || 'default';
+    const def = typeInfo.definitions.get(type);
+    const page = pages[i];
+    const { width: pageWidth, height: pageHeight } = page.getSize();
+    const sizeName = pageSizeMap?.[i] ?? 'a4';
+    const dims = resolvePageSize(sizeName);
+    const scale = areaScale(dims);
+    const key = overlayKey(type, sizeName);
+
+    const headerEmbed = embeddedHeaders.get(key);
+    if (headerEmbed && def) {
+      const headerHeightPt = mmToPt(scaledHeight(def.headerHeight, scale));
+      page.drawPage(headerEmbed, {
+        x: 0,
+        y: pageHeight - headerHeightPt,
+        width: pageWidth,
+        height: headerHeightPt,
+      });
+    }
+
+    const footerEmbed = embeddedFooters.get(key);
+    if (footerEmbed && def) {
+      const footerHeightPt = mmToPt(scaledHeight(def.footerHeight, scale));
+      page.drawPage(footerEmbed, {
+        x: 0,
+        y: 0,
+        width: pageWidth,
+        height: footerHeightPt,
+      });
+    }
+  }
+
+  return doc.save();
+}
+
+// --- Assembly ---
+
+export async function assembleGroups(
+  results: GroupResult[],
+  log: Logger,
+  typeInfo?: PageTypeInfo,
+): Promise<{ buffer: Uint8Array; pageMap: PageType[]; pageSizeMap: string[]; pageMarginMap: PageMargins[] }> {
+  const merged = await PDFDocument.create();
+  const pageMap: PageType[] = [];
+  const pageSizeMap: string[] = [];
+  const pageMarginMap: PageMargins[] = [];
+  const defaultMargin: PageMargins = { top: 0, right: 0, bottom: 0, left: 0 };
+
+  for (const { group, buffer, pageCount } of results) {
+    const srcDoc = await PDFDocument.load(buffer);
+    const indices = Array.from({ length: pageCount }, (_, i) => i);
+    const copiedPages = await merged.copyPages(srcDoc, indices);
+    const elemMargin = typeInfo?.pageMargins?.[group.elementIndices[0]] ?? defaultMargin;
+    for (const copiedPage of copiedPages) {
+      merged.addPage(copiedPage);
+      pageMap.push(group.type);
+      pageSizeMap.push(group.size);
+      pageMarginMap.push(elemMargin);
+    }
+    const { width, height } = copiedPages[0].getSize();
+    log.info(`  Group ${group.type}/${group.size} (${group.elementIndices.length} elements): ${pageCount} pages (${width.toFixed(0)}x${height.toFixed(0)}pt)`);
+  }
+
+  log.info(`Assembled PDF: ${merged.getPageCount()} pages from ${results.length} groups`);
+  return { buffer: await merged.save(), pageMap, pageSizeMap, pageMarginMap };
+}
+
+// --- Debug Overlay (pdf-lib) ---
+
+interface DebugLine {
+  yPt: number;
+  color: { r: number; g: number; b: number };
+  label: string;
+  labelAbove: boolean;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return { r: ((n >> 16) & 0xff) / 255, g: ((n >> 8) & 0xff) / 255, b: (n & 0xff) / 255 };
+}
+
+const COLORS = {
+  headerTop: hexToRgb('#e53e3e'),
+  headerBottom: hexToRgb('#dd6b20'),
+  footerTop: hexToRgb('#3182ce'),
+  footerBottom: hexToRgb('#805ad5'),
+  margin: hexToRgb('#38a169'),
+};
+
+export async function drawDebugOverlay(
+  pdfBuffer: Buffer | Uint8Array,
+  pageMap: PageType[],
+  pageSizeMap: string[],
+  typeInfo: PageTypeInfo,
+  pageMarginMap?: PageMargins[],
+): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(pdfBuffer);
+  const font = await doc.embedFont(StandardFonts.Courier);
+  const fontSize = 6;
+  const pages = doc.getPages();
+
+  for (let i = 0; i < pages.length; i++) {
+    const page = pages[i];
+    const { width: pw, height: ph } = page.getSize();
+    const type = pageMap[i] || 'default';
+    const sizeName = pageSizeMap[i] ?? 'a4';
+    const def = typeInfo.definitions.get(type);
+    const dims = resolvePageSize(sizeName);
+    const scale = areaScale(dims);
+    const headerHMm = def ? scaledHeight(def.headerHeight, scale) : 0;
+    const footerHMm = def ? scaledHeight(def.footerHeight, scale) : 0;
+    const headerHPt = mmToPt(headerHMm);
+    const footerHPt = mmToPt(footerHMm);
+    const margins = computeMarginsForSize(typeInfo.definitions, sizeName);
+    const marginTopPt = mmToPt(margins.top);
+    const marginBottomPt = mmToPt(margins.bottom);
+
+    const lines: DebugLine[] = [
+      { yPt: ph - 0.5, color: COLORS.headerTop, label: `header-top 0mm`, labelAbove: false },
+      { yPt: ph - headerHPt, color: COLORS.headerBottom, label: `header-bottom ${headerHMm}mm`, labelAbove: false },
+      { yPt: ph - marginTopPt, color: COLORS.margin, label: `margin-top ${margins.top.toFixed(1)}mm`, labelAbove: true },
+      { yPt: marginBottomPt, color: COLORS.margin, label: `margin-bottom ${margins.bottom.toFixed(1)}mm`, labelAbove: false },
+      { yPt: footerHPt, color: COLORS.footerTop, label: `footer-top`, labelAbove: true },
+      { yPt: 0.5, color: COLORS.footerBottom, label: `footer-bottom`, labelAbove: true },
+    ];
+
+    const dashLen = 3;
+    const gapLen = 3;
+    for (const { yPt, color, label, labelAbove } of lines) {
+      // Draw dashed line
+      let x = 0;
+      while (x < pw) {
+        const end = Math.min(x + dashLen, pw);
+        page.drawLine({
+          start: { x, y: yPt },
+          end: { x: end, y: yPt },
+          thickness: 0.5,
+          color: rgb(color.r, color.g, color.b),
+        });
+        x += dashLen + gapLen;
+      }
+      // Draw label
+      const tw = font.widthOfTextAtSize(label, fontSize);
+      const labelY = labelAbove ? yPt + 2 : yPt - fontSize - 2;
+      const textY = labelAbove ? yPt + 4 : yPt - fontSize;
+      page.drawRectangle({
+        x: pw - tw - 8,
+        y: labelY,
+        width: tw + 6,
+        height: fontSize + 4,
+        color: rgb(1, 1, 1),
+        opacity: 0.85,
+      });
+      page.drawText(label, {
+        x: pw - tw - 5,
+        y: textY,
+        size: fontSize,
+        font,
+        color: rgb(color.r, color.g, color.b),
+      });
+    }
+
+    // Draw vertical margin lines (left/right)
+    const pm = pageMarginMap?.[i] ?? { top: 0, right: 0, bottom: 0, left: 0 };
+    const leftPt = mmToPt(pm.left + 10);
+    const rightPt = pw - mmToPt(pm.right + 10);
+    const verticals = [
+      { xPt: leftPt, label: `margin-left ${pm.left + 10}mm` },
+      { xPt: rightPt, label: `margin-right ${pm.right + 10}mm` },
+    ];
+    for (const { xPt, label: vLabel } of verticals) {
+      let y = 0;
+      while (y < ph) {
+        const end = Math.min(y + dashLen, ph);
+        page.drawLine({
+          start: { x: xPt, y },
+          end: { x: xPt, y: end },
+          thickness: 0.5,
+          color: rgb(COLORS.margin.r, COLORS.margin.g, COLORS.margin.b),
+        });
+        y += dashLen + gapLen;
+      }
+      const tw = font.widthOfTextAtSize(vLabel, fontSize);
+      const labelX = xPt + 2;
+      page.drawRectangle({
+        x: labelX,
+        y: ph / 2 - (fontSize + 4) / 2,
+        width: tw + 6,
+        height: fontSize + 4,
+        color: rgb(1, 1, 1),
+        opacity: 0.85,
+      });
+      page.drawText(vLabel, {
+        x: labelX + 3,
+        y: ph / 2 - fontSize / 2,
+        size: fontSize,
+        font,
+        color: rgb(COLORS.margin.r, COLORS.margin.g, COLORS.margin.b),
+      });
+    }
+
+    // Badge at bottom
+    const badge = `${sizeName.toUpperCase()} | type=${type} | header=${headerHMm}mm footer=${footerHMm}mm | margins=${margins.top}/${margins.bottom}mm | page ${i + 1}`;
+    const bw = font.widthOfTextAtSize(badge, fontSize);
+    page.drawRectangle({
+      x: 4,
+      y: 4,
+      width: bw + 8,
+      height: fontSize + 6,
+      color: rgb(1, 1, 1),
+      opacity: 0.85,
+    });
+    page.drawText(badge, {
+      x: 8,
+      y: 7,
+      size: fontSize,
+      font,
+      color: rgb(COLORS.footerBottom.r, COLORS.footerBottom.g, COLORS.footerBottom.b),
+    });
+  }
+
+  return doc.save();
+}
