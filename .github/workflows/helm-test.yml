@@ -54,6 +54,16 @@ jobs:
             --set facet.templatesDir=/app/examples \
             --wait --timeout 120s
 
+      - name: Debug pod logs on failure
+        if: failure()
+        run: |
+          echo "=== Pod status ==="
+          kubectl get pods -l app.kubernetes.io/name=facet -o wide
+          echo "=== Pod describe ==="
+          kubectl describe pods -l app.kubernetes.io/name=facet
+          echo "=== Pod logs ==="
+          kubectl logs -l app.kubernetes.io/name=facet --tail=100 || true
+
       - name: Verify healthz
         run: |
           kubectl port-forward svc/facet 3000:3000 &
