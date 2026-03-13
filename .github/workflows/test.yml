@@ -4,8 +4,8 @@ on:
   push:
     branches:
       - main
-      - 'feature/**'
-      - 'fix/**'
+      - "feature/**"
+      - "fix/**"
   pull_request:
     branches:
       - main
@@ -30,6 +30,7 @@ jobs:
         uses: flanksource/deps@v1.0.24
         with:
           tools: bun@v1.3.10
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install ImageMagick
         run: |
