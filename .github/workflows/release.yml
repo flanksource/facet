@@ -137,9 +137,6 @@ jobs:
     name: Publish to npm
     needs: [version-bump, build-binaries]
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -149,8 +146,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Update npm
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: |
