@@ -137,6 +137,9 @@ jobs:
     name: Publish to npm
     needs: [version-bump, build-binaries]
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -159,6 +162,4 @@ jobs:
         run: cd cli && npm run build:lib
 
       - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+        run: npm publish --access public --provenance
