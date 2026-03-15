@@ -1,7 +1,7 @@
 import { mkdtemp, cp, writeFile, readFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { tmpdir } from 'os';
-import { rmSync } from 'fs';
+import { rmSync, lstatSync } from 'fs';
 import { $ } from 'bun';
 
 import type { ServerConfig } from './config.js';
@@ -19,6 +19,7 @@ import { buildTemplate } from '../bundler/vite-builder.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { generatePDFBuffer } from '../utils/pdf-generator.js';
 import { Logger } from '../utils/logger.js';
+import { RenderProgress } from './render-stream.js';
 
 export function handleHealthz(pool: WorkerPool): Response {
   return Response.json({ status: 'ok', workers: pool.stats() });
@@ -62,6 +63,64 @@ export async function handleRender(
   }
 }
 
+export function handleRenderStream(
+  request: Request,
+  config: ServerConfig,
+  pool: WorkerPool,
+  templates: TemplateInfo[],
+  s3?: S3Uploader,
+): Response {
+  const { progress, stream } = RenderProgress.create();
+
+  // Run the render pipeline asynchronously, streaming progress
+  (async () => {
+    const logger = new Logger(config.verbose);
+    let parsed: ParsedRenderRequest;
+    try {
+      progress.emit('parsing', 'Parsing request...');
+      parsed = await parseRenderRequest(request, config.maxUploadSize);
+    } catch (err) {
+      const msg = err instanceof RenderError ? err.message : String(err);
+      progress.emitError(msg);
+      progress.close();
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      progress.emitError('Render timed out');
+      progress.close();
+    }, config.renderTimeout);
+
+    try {
+      const result = await doRenderStreamed(parsed, config, pool, templates, s3, logger, progress);
+      clearTimeout(timeout);
+
+      if (typeof result === 'string') {
+        progress.emitResult('text/html', result);
+      } else {
+        // PDF: base64 encode for SSE transport
+        progress.emitResult('application/pdf', Buffer.from(result).toString('base64'));
+      }
+      progress.emit('done', 'Render complete');
+    } catch (err) {
+      clearTimeout(timeout);
+      const msg = err instanceof RenderError ? err.message : err instanceof Error ? err.message : String(err);
+      progress.emitError(msg);
+    } finally {
+      progress.close();
+    }
+  })();
+
+  return new Response(stream, {
+    headers: {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache',
+      'connection': 'keep-alive',
+      'access-control-allow-origin': '*',
+    },
+  });
+}
+
 async function doRender(
   parsed: ParsedRenderRequest,
   config: ServerConfig,
@@ -94,7 +153,53 @@ async function doRender(
     }
   } finally {
     archiveCleanup?.();
-    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+    if (tempDir) cleanupTempDir(tempDir);
+  }
+}
+
+async function doRenderStreamed(
+  parsed: ParsedRenderRequest,
+  config: ServerConfig,
+  pool: WorkerPool,
+  templates: TemplateInfo[],
+  s3: S3Uploader | undefined,
+  logger: Logger,
+  progress: RenderProgress,
+): Promise<string | Buffer> {
+  let tempDir: string | undefined;
+  let archiveCleanup: (() => void) | undefined;
+
+  try {
+    progress.emit('resolving', `Resolving template (${parsed.source.kind})...`);
+    const resolved = await resolveTemplateSource(parsed, templates, config);
+    tempDir = resolved.tempDir;
+    archiveCleanup = resolved.archiveCleanup;
+
+    progress.emit('building', 'Building template with Vite SSR...');
+    const html = await renderHTMLStreamed(resolved.consumerRoot, resolved.entryFile, parsed.data, logger, progress);
+
+    if (parsed.format === 'html') {
+      progress.emit('done', 'HTML render complete');
+      return html;
+    }
+
+    progress.emit('rendering-pdf', 'Acquiring browser worker...');
+    const worker = await pool.acquire();
+    try {
+      progress.emit('rendering-pdf', 'Generating PDF with Puppeteer...');
+      const pdfBuffer = await generatePDFBuffer(worker.browser, html, parsed.pdfOptions);
+
+      if (parsed.output === 's3' && s3) {
+        progress.emit('uploading', 'Uploading to S3...');
+      }
+
+      return pdfBuffer;
+    } finally {
+      await pool.release(worker);
+    }
+  } finally {
+    archiveCleanup?.();
+    if (tempDir) cleanupTempDir(tempDir);
   }
 }
 
@@ -112,6 +217,23 @@ async function resolveTemplateSource(
   config: ServerConfig,
 ): Promise<ResolvedSource> {
   const { source } = parsed;
+
+  if (source.kind === 'inline') {
+    const tempDir = await mkdtemp(join(tmpdir(), 'facet-inline-'));
+    await writeFile(join(tempDir, 'Template.tsx'), source.code, 'utf-8');
+    if (parsed.dependencies) {
+      await writeFile(join(tempDir, 'package.json'), JSON.stringify({
+        name: 'facet-inline',
+        dependencies: parsed.dependencies,
+      }), 'utf-8');
+    }
+    return {
+      consumerRoot: tempDir,
+      entryFile: 'Template.tsx',
+      templateName: 'inline',
+      tempDir,
+    };
+  }
 
   if (source.kind === 'archive') {
     const extracted = await extractArchive(source.data, source.entryFile, config.maxUploadSize);
@@ -158,6 +280,21 @@ async function copyToTempDir(sourceDir: string): Promise<string> {
   return tempDir;
 }
 
+/**
+ * Safely remove a temp render directory without following symlinks
+ * into the cached node_modules. Unlinks .facet/node_modules first
+ * if it's a symlink, then removes the rest of the tree.
+ */
+function cleanupTempDir(tempDir: string): void {
+  const nmPath = join(tempDir, '.facet', 'node_modules');
+  try {
+    if (lstatSync(nmPath).isSymbolicLink()) {
+      rmSync(nmPath, { force: true });
+    }
+  } catch {}
+  rmSync(tempDir, { recursive: true, force: true });
+}
+
 async function renderHTML(
   consumerRoot: string,
   entryFile: string,
@@ -174,25 +311,56 @@ async function renderHTML(
   });
 
   try {
-    const facetRoot = join(consumerRoot, '.facet');
-    const tempHtmlPath = join(consumerRoot, '_render.temp.html');
-    await writeFile(tempHtmlPath, buildResult.html, 'utf-8');
-
-    const stylesInput = join(facetRoot, 'src/styles.css');
-    const outputCssPath = join(consumerRoot, '_render.css');
-
-    let css = buildResult.css;
-    try {
-      await $`cd ${facetRoot} && npx tailwindcss -i ${stylesInput} --content ${tempHtmlPath} -o ${outputCssPath}`.quiet();
-      css = await readFile(outputCssPath, 'utf-8');
-    } catch {
-      logger.debug('Tailwind CSS failed, using Vite CSS fallback');
-    }
-
-    return combineHTMLAndCSS(buildResult.html, css);
+    return await applyTailwind(consumerRoot, buildResult.html, buildResult.css, logger);
   } finally {
     await buildResult.cleanup();
   }
+}
+
+async function renderHTMLStreamed(
+  consumerRoot: string,
+  entryFile: string,
+  data: Record<string, unknown>,
+  logger: Logger,
+  progress: RenderProgress,
+): Promise<string> {
+  progress.emit('building', 'Compiling template with Vite SSR...');
+  const buildResult = await buildTemplate({
+    templatePath: entryFile,
+    data,
+    consumerRoot,
+    logger,
+  });
+
+  try {
+    progress.emit('tailwind', 'Processing Tailwind CSS...');
+    return await applyTailwind(consumerRoot, buildResult.html, buildResult.css, logger);
+  } finally {
+    await buildResult.cleanup();
+  }
+}
+
+async function applyTailwind(
+  consumerRoot: string,
+  html: string,
+  css: string,
+  logger: Logger,
+): Promise<string> {
+  const facetRoot = join(consumerRoot, '.facet');
+  const tempHtmlPath = join(consumerRoot, '_render.temp.html');
+  await writeFile(tempHtmlPath, html, 'utf-8');
+
+  const stylesInput = join(facetRoot, 'src/styles.css');
+  const outputCssPath = join(consumerRoot, '_render.css');
+
+  try {
+    await $`cd ${facetRoot} && npx tailwindcss -i ${stylesInput} --content ${tempHtmlPath} -o ${outputCssPath}`.quiet();
+    css = await readFile(outputCssPath, 'utf-8');
+  } catch {
+    logger.debug('Tailwind CSS failed, using Vite CSS fallback');
+  }
+
+  return combineHTMLAndCSS(html, css);
 }
 
 async function respondWithOutput(

@@ -160,3 +160,5 @@ src/examples/*/dist/
 cli/cli
 cmd/facet/facet-cli.tar.gz
 facet
+hack/
+*.png

@@ -122,7 +122,7 @@ addSharedOptions(
 program
   .command('serve')
   .description('Start API server for rendering templates')
-  .option('-p, --port <number>', 'Server port', '3000')
+  .option('-p, --port <number>', 'Server port', '3010')
   .option('--templates-dir <dir>', 'Directory containing templates', '.')
   .option('--workers <count>', 'Number of browser workers', '2')
   .option('--timeout <ms>', 'Render timeout in milliseconds', '60000')

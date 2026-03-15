@@ -12,6 +12,7 @@ import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
+import { depHash, linkCachedNodeModules, promoteToCacheAfterInstall } from '../server/facet-cache.js';
 
 export interface BuildResult {
   html: string;
@@ -68,8 +69,15 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   facetDir.generatePostCSSConfig();
   facetDir.generateTailwindConfig();
 
-  // Install dependencies only when package.json changed or node_modules is missing
-  if (facetDir.needsInstall()) {
+  // Try to reuse cached node_modules based on dependency hash
+  let pkgDeps: Record<string, string> | undefined;
+  try {
+    const pkg = JSON.parse(readFileSync(join(facetRoot, 'package.json'), 'utf-8'));
+    pkgDeps = pkg.dependencies;
+  } catch {}
+  const hash = depHash(pkgDeps);
+
+  if (!linkCachedNodeModules(facetRoot, hash, logger) && facetDir.needsInstall()) {
     logger.debug('Installing dependencies...');
     try {
       const npmResult = await $`cd ${facetRoot} && npm install --ignore-scripts 2>&1`.quiet();
@@ -78,6 +86,7 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
       const output = error?.stdout?.toString?.() || error?.stderr?.toString?.() || error?.message || String(error);
       throw new Error(`npm install failed in ${facetRoot}:\n${output}`);
     }
+    promoteToCacheAfterInstall(facetRoot, hash, logger);
     logger.debug('Dependencies installed');
   } else {
     logger.debug('Dependencies up to date, skipping npm install');

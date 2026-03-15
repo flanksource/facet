@@ -57,9 +57,8 @@ async function loadAndPrepare(browser: Browser, html: string, widthMm?: number):
   if (widthMm) {
     await page.setViewport({ width: mmToPx(widthMm), height: mmToPx(297) });
   }
-  await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+  await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.evaluateHandle('document.fonts.ready');
-  await new Promise(r => setTimeout(r, 500));
   return page;
 }
 
@@ -119,7 +118,7 @@ async function renderLegacyElementPdf(
   const { renderElementPdf } = await import('./pdf-multipass.js');
   const page = await browser.newPage();
   try {
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
     const exists = await page.evaluate((sel: string) => !!document.querySelector(sel), selector);
     await page.close();
     if (!exists) return null;
@@ -278,17 +277,15 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
 
   try {
     const page = await browser.newPage();
-    if (defaultPageSize) {
-      const initDims = resolvePageSize(defaultPageSize);
-      await page.setViewport({ width: mmToPx(initDims.width), height: mmToPx(initDims.height) });
+    const dims = defaultPageSize ? resolvePageSize(defaultPageSize) : undefined;
+    if (dims) {
+      await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
     }
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-    if (defaultPageSize) {
-      const initDims = resolvePageSize(defaultPageSize);
-      await page.addStyleTag({ content: `body { max-width: ${initDims.width}mm !important; }` });
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    if (dims) {
+      await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
     }
     await page.evaluateHandle('document.fonts.ready');
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
     const typeInfo = await detectPageTypes(page, defaultPageSize);
 
@@ -331,17 +328,15 @@ export async function generatePDFWithBrowser(
   const page = await browser.newPage();
 
   try {
-    if (defaultPageSize) {
-      const initDims = resolvePageSize(defaultPageSize);
-      await page.setViewport({ width: mmToPx(initDims.width), height: mmToPx(initDims.height) });
+    const dims = defaultPageSize ? resolvePageSize(defaultPageSize) : undefined;
+    if (dims) {
+      await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
     }
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-    if (defaultPageSize) {
-      const initDims = resolvePageSize(defaultPageSize);
-      await page.addStyleTag({ content: `body { max-width: ${initDims.width}mm !important; }` });
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    if (dims) {
+      await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
     }
     await page.evaluateHandle('document.fonts.ready');
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
     const typeInfo = await detectPageTypes(page, defaultPageSize);
 
@@ -376,17 +371,15 @@ export async function generatePDFBuffer(
 ): Promise<Buffer> {
   const page = await browser.newPage();
   try {
-    if (options?.defaultPageSize) {
-      const initDims = resolvePageSize(options.defaultPageSize);
-      await page.setViewport({ width: mmToPx(initDims.width), height: mmToPx(initDims.height) });
+    const dims = options?.defaultPageSize ? resolvePageSize(options.defaultPageSize) : undefined;
+    if (dims) {
+      await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
     }
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-    if (options?.defaultPageSize) {
-      const initDims = resolvePageSize(options.defaultPageSize);
-      await page.addStyleTag({ content: `body { max-width: ${initDims.width}mm !important; }` });
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    if (dims) {
+      await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
     }
     await page.evaluateHandle('document.fonts.ready');
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
     const typeInfo = await detectPageTypes(page, options?.defaultPageSize);
 
