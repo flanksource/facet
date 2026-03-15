@@ -29,11 +29,16 @@ jobs:
         run: helm lint chart/
 
   e2e:
-    name: Install on Kind
+    name: E2E Tests
     runs-on: ubuntu-latest
     needs: lint
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: chart/test/go.sum
 
       - uses: azure/setup-helm@v4
 
@@ -46,98 +51,18 @@ jobs:
           docker build -t ghcr.io/flanksource/facet:test .
           kind load docker-image ghcr.io/flanksource/facet:test --name ct
 
-      - name: Install chart
-        run: |
-          helm install facet chart/ \
-            --set image.tag=test \
-            --set image.pullPolicy=Never \
-            --set facet.templatesDir=/app/examples \
-            --wait --timeout 120s
+      - name: Run e2e tests
+        working-directory: chart/test
+        env:
+          IMAGE_TAG: test
+        run: go test -v -timeout 15m ./...
 
       - name: Debug pod logs on failure
         if: failure()
         run: |
           echo "=== Pod status ==="
-          kubectl get pods -l app.kubernetes.io/name=facet -o wide
+          kubectl get pods -A -o wide
           echo "=== Pod describe ==="
-          kubectl describe pods -l app.kubernetes.io/name=facet
+          kubectl describe pods -l app.kubernetes.io/name=facet -A
           echo "=== Pod logs ==="
-          kubectl logs -l app.kubernetes.io/name=facet --tail=100 || true
-
-      - name: Verify healthz
-        run: |
-          kubectl port-forward svc/facet 3000:3000 &
-          sleep 3
-          curl -sf http://localhost:3000/healthz | tee /dev/stderr | grep -q '"status":"ok"'
-
-      - name: Verify render endpoint
-        run: |
-          HTTP_CODE=$(curl -s -w '%{http_code}' -X POST http://localhost:3000/render \
-            -H 'Content-Type: application/json' \
-            -d '{"template":"SimpleReport","format":"html","data":{"title":"CI Test","sections":[]}}' \
-            -o /tmp/render-output.html)
-          echo "HTTP status: $HTTP_CODE"
-          if [ "$HTTP_CODE" -ge 400 ]; then
-            echo "ERROR: render failed with HTTP $HTTP_CODE"
-            cat /tmp/render-output.html
-            echo ""
-            echo "=== Pod logs ==="
-            kubectl logs -l app.kubernetes.io/name=facet --tail=50 || true
-            exit 1
-          fi
-          SIZE=$(stat -c%s /tmp/render-output.html)
-          echo "Rendered HTML size: ${SIZE} bytes"
-          if [ "$SIZE" -lt 100 ]; then
-            echo "ERROR: rendered output too small"
-            cat /tmp/render-output.html
-            exit 1
-          fi
-          echo "Render test passed"
-
-      - name: Verify inline template PDF render
-        run: |
-          # Create a minimal inline template
-          TMPDIR=$(mktemp -d)
-          cat > "${TMPDIR}/Template.tsx" <<'TEMPLATE'
-          import React from 'react';
-          export default function Template({ data }: { data: any }) {
-            return (
-              <html>
-                <body>
-                  <h1 style={{ color: '#2563eb' }}>{data.title || 'Inline Test'}</h1>
-                  <p>Rendered from an inline template archive.</p>
-                </body>
-              </html>
-            );
-          }
-          TEMPLATE
-
-          # Package as tar.gz and send via multipart upload
-          tar -czf "${TMPDIR}/template.tar.gz" -C "${TMPDIR}" Template.tsx
-
-          HTTP_CODE=$(curl -s -w '%{http_code}' -X POST http://localhost:3000/render \
-            -F "archive=@${TMPDIR}/template.tar.gz" \
-            -F 'data={"title":"CI Inline PDF Test"}' \
-            -F 'options={"format":"pdf"}' \
-            -o /tmp/inline-output.pdf)
-          echo "HTTP status: $HTTP_CODE"
-          if [ "$HTTP_CODE" -ge 400 ]; then
-            echo "ERROR: inline PDF render failed with HTTP $HTTP_CODE"
-            cat /tmp/inline-output.pdf
-            echo ""
-            kubectl logs -l app.kubernetes.io/name=facet --tail=50 || true
-            exit 1
-          fi
-
-          # Validate PDF with ImageMagick (runs inside the pod since magick is in the image)
-          kubectl cp /tmp/inline-output.pdf $(kubectl get pod -l app.kubernetes.io/name=facet -o jsonpath='{.items[0].metadata.name}'):/tmp/test.pdf
-          POD=$(kubectl get pod -l app.kubernetes.io/name=facet -o jsonpath='{.items[0].metadata.name}')
-          kubectl exec "$POD" -- identify /tmp/test.pdf
-
-          SIZE=$(stat -c%s /tmp/inline-output.pdf)
-          echo "Inline PDF size: ${SIZE} bytes"
-          if [ "$SIZE" -lt 1000 ]; then
-            echo "ERROR: PDF too small, likely invalid"
-            exit 1
-          fi
-          echo "Inline template PDF render test passed"
+          kubectl logs -l app.kubernetes.io/name=facet -A --tail=100 || true
