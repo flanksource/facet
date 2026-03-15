@@ -37,7 +37,7 @@ export interface ServerCLIFlags {
 
 export function loadConfig(flags: ServerCLIFlags): ServerConfig {
   const config: ServerConfig = {
-    port: parseInt(flags.port ?? process.env['FACET_PORT'] ?? '3000', 10),
+    port: parseInt(flags.port ?? process.env['FACET_PORT'] ?? '3010', 10),
     templatesDir: flags.templatesDir ?? process.env['FACET_TEMPLATES_DIR'] ?? '.',
     workers: parseInt(flags.workers ?? process.env['FACET_WORKERS'] ?? '2', 10),
     renderTimeout: parseInt(flags.timeout ?? process.env['FACET_RENDER_TIMEOUT'] ?? '60000', 10),

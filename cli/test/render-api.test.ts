@@ -204,6 +204,87 @@ export default function InlineTemplate({ data }: { data: any }) {
     expect(nonWhiteCount / totalPixels).toBeGreaterThan(0.001);
   }, 60000);
 
+  test('GET / returns playground HTML', async () => {
+    const res = await fetch(`${server.url}/`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const html = await res.text();
+    expect(html).toContain('monaco');
+    expect(html).toContain('Facet Playground');
+  });
+
+  test('POST /render with inline code returns valid HTML', async () => {
+    const code = `
+import React from 'react';
+export default function Template({ data }: { data: any }) {
+  return (
+    <html>
+      <body>
+        <h1>{data.title || 'Inline Test'}</h1>
+      </body>
+    </html>
+  );
+}`;
+    const res = await fetch(`${server.url}/render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, format: 'html', data: { title: 'Hello Inline' } }),
+    });
+    if (res.status !== 200) console.error('Inline render error:', await res.text());
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const html = await res.text();
+    expect(html).toContain('Hello Inline');
+  }, 120000);
+
+  test('POST /render with inline code returns valid PDF', async () => {
+    const code = `
+import React from 'react';
+export default function Template({ data }: { data: any }) {
+  return (
+    <html>
+      <body>
+        <h1>{data.title || 'PDF Inline'}</h1>
+      </body>
+    </html>
+  );
+}`;
+    const res = await fetch(`${server.url}/render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, format: 'pdf', data: { title: 'Inline PDF' } }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/pdf');
+    const pdfBytes = Buffer.from(await res.arrayBuffer());
+    expect(pdfBytes.length).toBeGreaterThan(1000);
+    const doc = await PDFDocument.load(pdfBytes);
+    expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
+  }, 60000);
+
+  test('POST /render/stream returns SSE with progress and result', async () => {
+    const code = `
+import React from 'react';
+export default function Template({ data }: { data: any }) {
+  return <html><body><h1>{data.msg}</h1></body></html>;
+}`;
+    const res = await fetch(`${server.url}/render/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, format: 'html', data: { msg: 'Stream Test' } }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('text/event-stream');
+
+    const text = await res.text();
+    // Should contain progress events
+    expect(text).toContain('"stage"');
+    expect(text).toContain('"building"');
+    // Should contain the final result event
+    expect(text).toContain('event: result');
+    expect(text).toContain('Stream Test');
+  }, 120000);
+
   test('POST /render with unknown template returns 404', async () => {
     const res = await fetch(`${server.url}/render`, {
       method: 'POST',

@@ -6,7 +6,13 @@ import { errorResponse } from './errors.js';
 import { WorkerPool } from './worker-pool.js';
 import { discoverTemplates, type TemplateInfo } from './templates.js';
 import { S3Uploader } from './s3.js';
-import { handleHealthz, handleTemplates, handleRender } from './routes.js';
+import { handleHealthz, handleTemplates, handleRender, handleRenderStream } from './routes.js';
+import { playgroundHtml } from './playground-html.js';
+import { facetTypes } from './facet-types.js';
+import { readFileSync } from 'fs';
+import rootPackageJson from '../../../package.json' with { type: 'file' };
+
+const facetVersion: string = JSON.parse(readFileSync(rootPackageJson, 'utf-8')).version;
 
 export interface ServerHandle {
   port: number;
@@ -34,6 +40,14 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
     async fetch(request: Request): Promise<Response> {
       const url = new URL(request.url);
 
+      if (url.pathname === '/' && request.method === 'GET') {
+        return new Response(playgroundHtml(facetVersion), { headers: { 'content-type': 'text/html; charset=utf-8' } });
+      }
+
+      if (url.pathname === '/types' && request.method === 'GET') {
+        return new Response(facetTypes, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+      }
+
       if (url.pathname === '/healthz' && request.method === 'GET') {
         return handleHealthz(pool);
       }
@@ -43,6 +57,10 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
 
       if (url.pathname === '/templates' && request.method === 'GET') {
         return handleTemplates(templates);
+      }
+
+      if (url.pathname === '/render/stream' && request.method === 'POST') {
+        return handleRenderStream(request, config, pool, templates, s3);
       }
 
       if (url.pathname === '/render' && request.method === 'POST') {

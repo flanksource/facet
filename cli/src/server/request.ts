@@ -5,7 +5,8 @@ import type { BufferPDFOptions } from '../utils/pdf-generator.js';
 export type TemplateSource =
   | { kind: 'local'; name: string }
   | { kind: 'remote'; template: string }
-  | { kind: 'archive'; data: Buffer; entryFile?: string };
+  | { kind: 'archive'; data: Buffer; entryFile?: string }
+  | { kind: 'inline'; code: string };
 
 export interface ParsedRenderRequest {
   source: TemplateSource;
@@ -15,6 +16,7 @@ export interface ParsedRenderRequest {
   s3Key?: string;
   filename?: string;
   pdfOptions?: BufferPDFOptions;
+  dependencies?: Record<string, string>;
 }
 
 export async function parseRenderRequest(
@@ -44,18 +46,22 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     throw new RenderError('INVALID_REQUEST', 'Invalid JSON body', 400);
   }
 
+  const code = body.code;
   const template = body.template;
-  if (typeof template !== 'string' || !template) {
-    throw new RenderError('INVALID_REQUEST', 'Missing required field: template', 400);
+
+  if (typeof code !== 'string' && (typeof template !== 'string' || !template)) {
+    throw new RenderError('INVALID_REQUEST', 'Missing required field: template or code', 400);
   }
 
   const data = (body.data ?? {}) as Record<string, unknown>;
   const format = (body.format as string) === 'html' ? 'html' as const : 'pdf' as const;
   const output = (body.output as string) === 's3' ? 's3' as const : 'direct' as const;
 
-  const source: TemplateSource = parseRemoteRef(template)
-    ? { kind: 'remote', template }
-    : { kind: 'local', name: template };
+  const source: TemplateSource = typeof code === 'string'
+    ? { kind: 'inline', code }
+    : parseRemoteRef(template as string)
+      ? { kind: 'remote', template: template as string }
+      : { kind: 'local', name: template as string };
 
   return {
     source,
@@ -65,7 +71,17 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     s3Key: body.s3Key as string | undefined,
     filename: body.filename as string | undefined,
     pdfOptions: parsePDFOptions(body.pdfOptions as Record<string, unknown> | undefined),
+    dependencies: parseDependencies(body.dependencies),
   };
+}
+
+function parseDependencies(raw: unknown): Record<string, string> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const deps: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'string') deps[k] = v;
+  }
+  return Object.keys(deps).length > 0 ? deps : undefined;
 }
 
 async function parseMultipartRequest(
@@ -159,5 +175,7 @@ function parsePDFOptions(raw?: Record<string, unknown>): BufferPDFOptions | unde
   if (!raw) return undefined;
   return {
     landscape: raw.landscape as boolean | undefined,
+    debug: raw.debug as boolean | undefined,
+    defaultPageSize: raw.defaultPageSize as string | undefined,
   };
 }
