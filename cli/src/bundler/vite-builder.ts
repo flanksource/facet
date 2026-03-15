@@ -24,6 +24,7 @@ export interface BuildOptions {
   data: Record<string, unknown>;
   consumerRoot?: string;
   logger: Logger;
+  sandbox?: string | boolean;
 }
 
 interface LoaderResult {
@@ -35,6 +36,12 @@ interface LoaderResult {
  * Build template using Vite SSR mode (via external script)
  * Errors will point to original source files with full stack traces
  */
+function srtPrefix(sandbox?: string | boolean): string {
+  if (!sandbox) return '';
+  const settings = typeof sandbox === 'string' ? sandbox : '/etc/facet/srt-settings.json';
+  return `srt --settings ${settings} `;
+}
+
 export async function buildTemplate(options: BuildOptions): Promise<BuildResult> {
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
 
@@ -65,7 +72,7 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   if (facetDir.needsInstall()) {
     logger.debug('Installing dependencies...');
     try {
-      const npmResult = await $`cd ${facetRoot} && npm install 2>&1`.quiet();
+      const npmResult = await $`cd ${facetRoot} && npm install --ignore-scripts 2>&1`.quiet();
       logger.debug(npmResult.stdout.toString());
     } catch (error: any) {
       const output = error?.stdout?.toString?.() || error?.stderr?.toString?.() || error?.message || String(error);
@@ -85,7 +92,8 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   writeFileSync(dataFilePath, JSON.stringify(data));
   let result;
   try {
-    result = await $`bun run ${loaderPath} --facet-root=${facetRoot} --data-file=${dataFilePath} --output-file=${resultFilePath}`.quiet();
+    const prefix = srtPrefix(options.sandbox);
+    result = await $`${{ raw: prefix }}bun run ${loaderPath} --facet-root=${facetRoot} --data-file=${dataFilePath} --output-file=${resultFilePath}`.quiet();
 
     if (result.stderr != null && result.stderr.length > 0) {
       console.error(result.stderr.toString());

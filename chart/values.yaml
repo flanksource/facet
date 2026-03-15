@@ -27,3 +27,8 @@ facet:
   timeout: 60000
   templatesDir: /templates
   verbose: false
+
+sandbox:
+  enabled: true
+  settingsPath: /etc/facet/srt-settings.json
+  extraAllowedDomains: []

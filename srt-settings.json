@@ -1,0 +1,10 @@
+{
+  "enableWeakerNestedSandbox": true,
+  "network": {
+    "allowedDomains": []
+  },
+  "filesystem": {
+    "allowWrite": ["/tmp", "/workspace", "/templates"],
+    "denyRead": ["/etc/shadow", "/root/.ssh"]
+  }
+}

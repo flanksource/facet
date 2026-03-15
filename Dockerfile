@@ -52,7 +52,13 @@ RUN apt-get update && apt-get install -y \
     curl \
     unzip \
     imagemagick \
+    bubblewrap \
+    socat \
+    ripgrep \
     && rm -rf /var/lib/apt/lists/*
+
+# Install sandbox-runtime for template execution isolation
+RUN npm install -g @anthropic-ai/sandbox-runtime
 
 # Allow ImageMagick to read/write PDFs (blocked by default policy)
 RUN sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
@@ -96,7 +102,8 @@ RUN cd /app && npm pack --pack-destination /app/ 2>/dev/null
 ENV FACET_PACKAGE_PATH=/app/facet.tgz
 RUN mv /app/flanksource-facet-*.tgz /app/facet.tgz
 
-RUN mkdir -p /workspace /templates
+RUN mkdir -p /workspace /templates /etc/facet
+COPY srt-settings.json /etc/facet/srt-settings.json
 
 # Set default working directory
 WORKDIR /workspace
