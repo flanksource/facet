@@ -19,7 +19,8 @@ function addSharedOptions(cmd: Command): Command {
     .option('-o, --output <path>', 'Output file path or directory', '.')
     .option('--output-name-field <field>', 'Data field to use for output filename', 'name')
     .option('-v, --verbose', 'Enable verbose logging')
-    .option('--refresh', 'Force re-fetch of remote template (bypass cache)');
+    .option('--refresh', 'Force re-fetch of remote template (bypass cache)')
+    .option('--sandbox [settings]', 'Enable sandbox via srt (optionally specify settings file path)');
 }
 
 const program = new Command();
@@ -57,6 +58,7 @@ addSharedOptions(
         validate: options.validate,
         verbose: options.verbose,
         refresh: options.refresh,
+        sandbox: options.sandbox,
       });
     }
 
@@ -101,6 +103,7 @@ addSharedOptions(
         refresh: options.refresh,
         debug: options.debug,
         pageSize: options.pageSize,
+        sandbox: options.sandbox,
       });
     }
 
@@ -130,6 +133,7 @@ program
   .option('--s3-region <region>', 'S3 region', 'us-east-1')
   .option('--s3-prefix <prefix>', 'S3 key prefix')
   .option('-v, --verbose', 'Enable verbose logging')
+  .option('--sandbox [settings]', 'Enable sandbox via srt (optionally specify settings file path)')
   .action(async (options: any) => {
     const logger = new Logger(options.verbose);
     try {
@@ -145,6 +149,7 @@ program
         s3Bucket: options.s3Bucket,
         s3Region: options.s3Region,
         s3Prefix: options.s3Prefix,
+        sandbox: options.sandbox,
       });
     } catch (error) {
       logger.error(`Server failed: ${error instanceof Error ? error.message : String(error)}`);

@@ -78,7 +78,7 @@ async function doRender(
     tempDir = resolved.tempDir;
     archiveCleanup = resolved.archiveCleanup;
 
-    const html = await renderHTML(resolved.consumerRoot, resolved.entryFile, parsed.data, logger);
+    const html = await renderHTML(resolved.consumerRoot, resolved.entryFile, parsed.data, logger, config.sandbox);
     const templateName = resolved.templateName;
 
     if (parsed.format === 'html') {
@@ -163,12 +163,14 @@ async function renderHTML(
   entryFile: string,
   data: Record<string, unknown>,
   logger: Logger,
+  sandbox?: string | boolean,
 ): Promise<string> {
   const buildResult = await buildTemplate({
     templatePath: entryFile,
     data,
     consumerRoot,
     logger,
+    sandbox,
   });
 
   try {

@@ -29,6 +29,7 @@ export interface GenerateOptions {
   refresh?: boolean;
   debug?: boolean;
   pageSize?: string;
+  sandbox?: string | boolean;
 }
 
 export interface LoadedData {

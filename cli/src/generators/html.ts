@@ -77,6 +77,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     data,
     consumerRoot,
     logger,
+    sandbox: options.sandbox,
   });
 
   const outputName = options.outputName ?? basename(options.template, extname(options.template));

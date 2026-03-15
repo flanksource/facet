@@ -17,6 +17,7 @@ export interface ServerConfig {
   maxUploadSize: number;
   verbose: boolean;
   s3?: S3Config;
+  sandbox?: string | boolean;
 }
 
 export interface ServerCLIFlags {
@@ -31,6 +32,7 @@ export interface ServerCLIFlags {
   s3Bucket?: string;
   s3Region?: string;
   s3Prefix?: string;
+  sandbox?: string | boolean;
 }
 
 export function loadConfig(flags: ServerCLIFlags): ServerConfig {
@@ -42,6 +44,7 @@ export function loadConfig(flags: ServerCLIFlags): ServerConfig {
     apiKey: flags.apiKey ?? process.env['FACET_API_KEY'],
     maxUploadSize: parseInt(flags.maxUpload ?? process.env['FACET_MAX_UPLOAD'] ?? '52428800', 10),
     verbose: flags.verbose ?? false,
+    sandbox: flags.sandbox,
   };
 
   const s3Endpoint = flags.s3Endpoint ?? process.env['FACET_S3_ENDPOINT'];
