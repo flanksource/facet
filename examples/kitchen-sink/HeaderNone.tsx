@@ -7,13 +7,7 @@ import {
 } from '@flanksource/facet';
 import { IoServer, IoCloudDone, IoCheckmarkCircle } from 'react-icons/io5';
 import FlanksourceFooter from './FlanksourceFooter';
-
-const specs = [
-  { category: 'Kubernetes', value: '1.24+' },
-  { category: 'PostgreSQL', value: '13+' },
-  { category: 'Memory', value: '4GB minimum' },
-  { category: 'Deployment', value: ['SaaS', 'Self-hosted', 'Hybrid'] },
-];
+import { specifications as specs, infrastructureData } from './data';
 
 export default function HeaderNone() {
   return (
@@ -35,12 +29,7 @@ export default function HeaderNone() {
 
       <Page title="Infrastructure Details" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-4">
-          <CompactTable variant="compact" title="Infrastructure" data={[
-            { label: 'Kubernetes', value: '1.24+' },
-            { label: 'Memory', value: '4GB minimum' },
-            { label: 'CPU', value: '2 cores' },
-            { label: 'Storage', value: '20GB SSD' },
-          ]} />
+          <CompactTable variant="compact" title="Infrastructure" data={infrastructureData} />
         </div>
       </Page>
     </DatasheetTemplate>

@@ -162,3 +162,5 @@ cmd/facet/facet-cli.tar.gz
 facet
 hack/
 *.png
+.claude/
+*.html

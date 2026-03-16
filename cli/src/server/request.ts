@@ -1,6 +1,7 @@
 import { RenderError } from './errors.js';
 import { parseRemoteRef } from '../utils/remote-resolver.js';
-import type { BufferPDFOptions } from '../utils/pdf-generator.js';
+import type { BufferPDFOptions, PDFMargins } from '../utils/pdf-generator.js';
+import type { PDFEncryptionOptions, PDFSignatureOptions } from '../utils/pdf-security.js';
 
 export type TemplateSource =
   | { kind: 'local'; name: string }
@@ -17,6 +18,10 @@ export interface ParsedRenderRequest {
   filename?: string;
   pdfOptions?: BufferPDFOptions;
   dependencies?: Record<string, string>;
+  headerCode?: string;
+  footerCode?: string;
+  encryption?: PDFEncryptionOptions;
+  signature?: PDFSignatureOptions;
 }
 
 export async function parseRenderRequest(
@@ -72,6 +77,10 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     filename: body.filename as string | undefined,
     pdfOptions: parsePDFOptions(body.pdfOptions as Record<string, unknown> | undefined),
     dependencies: parseDependencies(body.dependencies),
+    headerCode: typeof body.headerCode === 'string' ? body.headerCode : undefined,
+    footerCode: typeof body.footerCode === 'string' ? body.footerCode : undefined,
+    encryption: parseEncryptionOptions(body.encryption),
+    signature: parseSignatureOptions(body.signature),
   };
 }
 
@@ -171,11 +180,57 @@ async function parseGzipRequest(
   };
 }
 
+function parseMargins(raw: unknown): PDFMargins | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const m = raw as Record<string, unknown>;
+  const margins: PDFMargins = {};
+  if (typeof m.top === 'number') margins.top = m.top;
+  if (typeof m.bottom === 'number') margins.bottom = m.bottom;
+  if (typeof m.left === 'number') margins.left = m.left;
+  if (typeof m.right === 'number') margins.right = m.right;
+  return Object.keys(margins).length > 0 ? margins : undefined;
+}
+
 function parsePDFOptions(raw?: Record<string, unknown>): BufferPDFOptions | undefined {
   if (!raw) return undefined;
   return {
     landscape: raw.landscape as boolean | undefined,
     debug: raw.debug as boolean | undefined,
     defaultPageSize: raw.defaultPageSize as string | undefined,
+    margins: parseMargins(raw.margins),
+  };
+}
+
+function parseEncryptionOptions(raw: unknown): PDFEncryptionOptions | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.ownerPassword !== 'string') return undefined;
+  const perms = r.permissions as Record<string, unknown> | undefined;
+  return {
+    ownerPassword: r.ownerPassword,
+    userPassword: typeof r.userPassword === 'string' ? r.userPassword : undefined,
+    permissions: perms ? {
+      print: typeof perms.print === 'boolean' ? perms.print : undefined,
+      modify: typeof perms.modify === 'boolean' ? perms.modify : undefined,
+      copy: typeof perms.copy === 'boolean' ? perms.copy : undefined,
+      annotate: typeof perms.annotate === 'boolean' ? perms.annotate : undefined,
+    } : undefined,
+  };
+}
+
+function parseSignatureOptions(raw: unknown): PDFSignatureOptions | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const selfSigned = r.selfSigned === true;
+  const hasTimestamp = typeof r.timestampUrl === 'string';
+  if (!selfSigned && !hasTimestamp && (typeof r.certPath !== 'string' || typeof r.certPassword !== 'string')) return undefined;
+  return {
+    certPath: typeof r.certPath === 'string' ? r.certPath : undefined,
+    certPassword: typeof r.certPassword === 'string' ? r.certPassword : undefined,
+    selfSigned,
+    reason: typeof r.reason === 'string' ? r.reason : undefined,
+    name: typeof r.name === 'string' ? r.name : undefined,
+    location: typeof r.location === 'string' ? r.location : undefined,
+    timestampUrl: typeof r.timestampUrl === 'string' ? r.timestampUrl : undefined,
   };
 }

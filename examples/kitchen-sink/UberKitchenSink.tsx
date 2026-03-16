@@ -33,40 +33,14 @@ import {
 } from 'react-icons/io5';
 import FlanksourceHeader from './FlanksourceHeader';
 import FlanksourceFooter from './FlanksourceFooter';
-
-const compactData = [
-  { label: 'Kubernetes', value: '1.24+' },
-  { label: 'Memory', value: '4GB minimum' },
-  { label: 'CPU', value: '2 cores minimum' },
-  { label: 'Storage', value: '20GB SSD' },
-];
-
-const referenceData = [
-  ['search_catalog', 'Find config items', 'Show all unhealthy pods'],
-  ['get_config', 'Get item details', 'Describe deployment nginx'],
-  ['run_health_check', 'Execute check', 'Run http-check-api'],
-];
-
-const securityChecks = [
-  { name: 'Code-Review', score: 10, reason: 'All commits require review', details: ['Info: Branch protection enabled'] },
-  { name: 'Vulnerabilities', score: 8, reason: '2 vulnerabilities found', details: ['Warn: 1 medium severity'] },
-  { name: 'Dependency-Update-Tool', score: 0, reason: 'No tool detected', details: ['Warn: Consider Dependabot'] },
-  { name: 'Signed-Releases', score: 5, reason: 'Releases partially signed', details: [] },
-];
-
-const specifications = [
-  { category: 'Kubernetes', value: '1.24+' },
-  { category: 'PostgreSQL', value: '13+' },
-  { category: 'Memory', value: '4GB minimum' },
-  { category: 'Deployment Models', value: ['SaaS', 'Self-hosted', 'Hybrid'] },
-];
-
-const logos = [
-  { name: 'Prometheus', health: true, configuration: false, change: false, playbooks: true },
-  { name: 'Kubernetes', health: true, configuration: true, change: true, playbooks: true },
-  { name: 'Datadog', health: true, configuration: true, change: true, playbooks: true },
-  { name: 'Flux', health: false, configuration: true, change: true, playbooks: true },
-];
+import {
+  compactData,
+  referenceData,
+  securityChecks,
+  specifications,
+  logos,
+  releaseData,
+} from './data';
 
 export default function UberKitchenSink() {
   return (
@@ -83,11 +57,7 @@ export default function UberKitchenSink() {
             <StatCard variant="bordered" value="3" label="Alerts" icon={IoShieldCheckmark} color="red" size="sm" />
           </div>
           <SpecificationTable title="System Requirements" specifications={specifications} />
-          <CompactTable variant="inline" title="Release Info" data={[
-            { label: 'Version', value: '2.0.0' },
-            { label: 'Date', value: 'March 2026' },
-            { label: 'License', value: 'Apache 2.0' },
-          ]} />
+          <CompactTable variant="inline" title="Release Info" data={releaseData} />
         </div>
       </Page>
 
@@ -221,11 +191,7 @@ export default function UberKitchenSink() {
 
       <Page title="Summary" product="Mission Control" watermark="DRAFT" margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-4">
-          <CompactTable variant="inline" title="Document Info" data={[
-            { label: 'Version', value: '2.0.0' },
-            { label: 'Date', value: 'March 2026' },
-            { label: 'Classification', value: 'Draft' },
-          ]} />
+          <CompactTable variant="inline" title="Document Info" data={releaseData} />
           <CompactTable variant="compact" title="Large (md)" data={compactData} size="md" />
           <SpecificationTable title="Technical Specs (base)" specifications={specifications} size="base" />
         </div>

@@ -127,9 +127,27 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
     if (stderr) logger.error(stderr);
     if (stdout) logger.debug(`stdout: ${stdout.length} bytes`);
     if (exitCode != null) logger.debug(`exit: ${exitCode}`);
-    if (!stderr) logger.error(error instanceof Error ? error.message : String(error));
-    throw new Error(`Vite SSR loader failed (see error above)`);
+    const raw = stderr || (error instanceof Error ? error.message : String(error));
+    throw new Error(`Vite SSR build failed:\n${deduplicateOutput(raw)}`);
   } finally {
     try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   }
+}
+
+function deduplicateOutput(text: string): string {
+  // Bun shell errors sometimes contain stderr twice back-to-back.
+  // Check if the output is two identical halves and return just one.
+  const trimmed = text.trim();
+  const len = trimmed.length;
+  if (len < 40) return trimmed;
+  const mid = Math.ceil(len / 2);
+  // Try splitting at a newline near the midpoint
+  for (let i = mid - 5; i <= mid + 5 && i < len; i++) {
+    if (trimmed[i] === '\n') {
+      const first = trimmed.substring(0, i).trim();
+      const second = trimmed.substring(i + 1).trim();
+      if (first === second) return first;
+    }
+  }
+  return trimmed;
 }

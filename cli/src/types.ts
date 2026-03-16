@@ -29,7 +29,12 @@ export interface GenerateOptions {
   refresh?: boolean;
   debug?: boolean;
   pageSize?: string;
-  sandbox?: string | boolean;
+  landscape?: boolean;
+  margins?: { top?: number; bottom?: number; left?: number; right?: number };
+  header?: string;
+  footer?: string;
+  encryption?: import('./utils/pdf-security.js').PDFEncryptionOptions;
+  signature?: import('./utils/pdf-security.js').PDFSignatureOptions;
 }
 
 export interface LoadedData {

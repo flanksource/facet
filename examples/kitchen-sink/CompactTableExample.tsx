@@ -1,21 +1,9 @@
 import { CompactTable } from '@facet';
-
-const kvData = [
-  { label: 'Kubernetes', value: '1.24+' },
-  { label: 'Memory', value: '4GB minimum' },
-  { label: 'CPU', value: '2 cores minimum' },
-  { label: 'Storage', value: '20GB SSD' },
-];
+import { compactData as kvData, referenceData } from './data';
 
 const arrayData = [
   { label: 'Cloud Providers', value: ['AWS', 'Azure', 'GCP'] },
   { label: 'Kubernetes', value: ['EKS', 'AKS', 'GKE', 'OpenShift'] },
-];
-
-const referenceData = [
-  ['search_catalog', 'Find config items', 'Show all unhealthy pods'],
-  ['get_config', 'Get item details', 'Describe deployment nginx'],
-  ['run_health_check', 'Execute check', 'Run http-check-api'],
 ];
 
 export default function CompactTableExample() {

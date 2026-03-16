@@ -1,10 +1,8 @@
 import { SpecificationTable } from '@facet';
+import { specifications as baseSpecs } from './data';
 
 const specifications = [
-  { category: 'Kubernetes', value: '1.24+' },
-  { category: 'PostgreSQL', value: '13+' },
-  { category: 'Memory', value: '4GB minimum' },
-  { category: 'Deployment Models', value: ['SaaS', 'Self-hosted', 'Hybrid'] },
+  ...baseSpecs,
   { category: 'Authentication', value: ['SSO', 'SAML', 'OIDC'] },
 ];
 
