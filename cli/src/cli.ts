@@ -6,10 +6,45 @@ import { generateHTML } from './generators/html.js';
 import { startServer } from './server/preview.js';
 import { Logger } from './utils/logger.js';
 import { resolveOutput } from './utils/resolve-output.js';
+import type { PDFMargins } from './utils/pdf-generator.js';
+import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
 
 function parseDataLoaderArgs(): string[] {
   const dashIndex = process.argv.indexOf('--');
   return dashIndex !== -1 ? process.argv.slice(dashIndex + 1) : [];
+}
+
+function buildMargins(options: any): PDFMargins | undefined {
+  const m: PDFMargins = {};
+  if (options.marginTop != null) m.top = options.marginTop;
+  if (options.marginBottom != null) m.bottom = options.marginBottom;
+  if (options.marginLeft != null) m.left = options.marginLeft;
+  if (options.marginRight != null) m.right = options.marginRight;
+  return Object.keys(m).length > 0 ? m : undefined;
+}
+
+function buildEncryption(options: any): PDFEncryptionOptions | undefined {
+  if (!options.ownerPassword) return undefined;
+  return {
+    ownerPassword: options.ownerPassword,
+    userPassword: options.userPassword,
+    permissions: {
+      print: options.print ?? true,
+      copy: options.copy ?? true,
+    },
+  };
+}
+
+function buildSignature(options: any): PDFSignatureOptions | undefined {
+  if (!options.signCert && !options.selfSigned && !options.timestampUrl) return undefined;
+  return {
+    certPath: options.signCert,
+    certPassword: options.signPassword ?? '',
+    selfSigned: options.selfSigned ?? false,
+    reason: options.signReason,
+    name: options.signName,
+    timestampUrl: options.timestampUrl,
+  };
 }
 
 function addSharedOptions(cmd: Command): Command {
@@ -82,6 +117,23 @@ addSharedOptions(
     .option('--no-validate', 'Skip data validation')
     .option('--debug', 'Add colored debug overlay lines for header/footer zones')
     .option('--page-size <size>', 'Default page size (a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k)', 'a4')
+    .option('--landscape', 'Use landscape orientation')
+    .option('--margin-top <mm>', 'Top margin in mm', parseFloat)
+    .option('--margin-bottom <mm>', 'Bottom margin in mm', parseFloat)
+    .option('--margin-left <mm>', 'Left margin in mm', parseFloat)
+    .option('--margin-right <mm>', 'Right margin in mm', parseFloat)
+    .option('--header <file>', 'Header template file (.tsx)')
+    .option('--footer <file>', 'Footer template file (.tsx)')
+    .option('--user-password <password>', 'PDF password required to open')
+    .option('--owner-password <password>', 'PDF owner password (controls permissions)')
+    .option('--no-print', 'Disable printing permission')
+    .option('--no-copy', 'Disable copy permission')
+    .option('--sign-cert <path>', 'Path to PKCS#12 (.p12/.pfx) certificate')
+    .option('--sign-password <password>', 'Certificate password')
+    .option('--self-signed', 'Auto-generate a self-signed certificate for signing')
+    .option('--sign-reason <reason>', 'Signature reason text')
+    .option('--sign-name <name>', 'Signer name')
+    .option('--timestamp-url <url>', 'RFC 3161 Timestamp Authority URL')
 ).action(async (templates: string[], options: any) => {
   const logger = new Logger(options.verbose);
   try {
@@ -103,7 +155,12 @@ addSharedOptions(
         refresh: options.refresh,
         debug: options.debug,
         pageSize: options.pageSize,
-        sandbox: options.sandbox,
+        landscape: options.landscape,
+        margins: buildMargins(options),
+        header: options.header,
+        footer: options.footer,
+        encryption: buildEncryption(options),
+        signature: buildSignature(options),
       });
     }
 
@@ -128,6 +185,7 @@ program
   .option('--timeout <ms>', 'Render timeout in milliseconds', '60000')
   .option('--api-key <key>', 'API key for authentication')
   .option('--max-upload <bytes>', 'Max upload size in bytes', '52428800')
+  .option('--cache-max-size <bytes>', 'Max render cache size in bytes', '104857600')
   .option('--s3-endpoint <url>', 'S3 endpoint URL')
   .option('--s3-bucket <name>', 'S3 bucket name')
   .option('--s3-region <region>', 'S3 region', 'us-east-1')
@@ -144,6 +202,7 @@ program
         timeout: options.timeout,
         apiKey: options.apiKey,
         maxUpload: options.maxUpload,
+        cacheMaxSize: options.cacheMaxSize,
         verbose: options.verbose,
         s3Endpoint: options.s3Endpoint,
         s3Bucket: options.s3Bucket,

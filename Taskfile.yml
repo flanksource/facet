@@ -31,6 +31,8 @@ tasks:
     sources:
       - src/**/*.{tsx,ts,jsx,js,css,mdx}
       - cli/src/**/*.{tsx,ts,jsx,js,css,mdx}
+    generates:
+      - dist/facet
     cmds:
       - npm run build
 

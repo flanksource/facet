@@ -256,13 +256,56 @@ Options:
 facet pdf MyDatasheet.tsx -d data.json -o out.pdf
 ```
 
-### `facet serve <template>`
+### `facet serve`
 
-Start a preview server with live editing.
+Start an API server with a built-in playground for interactive template development.
+
+```
+facet serve [options]
+
+Options:
+  -p, --port <number>          Server port (default: 3010)
+  --templates-dir <dir>        Directory containing templates (default: ".")
+  --workers <count>            Number of browser workers (default: 2)
+  --timeout <ms>               Render timeout in milliseconds (default: 60000)
+  --api-key <key>              API key for authentication
+  --max-upload <bytes>         Max upload size in bytes (default: 52428800)
+  --cache-max-size <bytes>     Max render cache size in bytes (default: 104857600)
+  --s3-endpoint <url>          S3 endpoint URL
+  --s3-bucket <name>           S3 bucket name
+  --s3-region <region>         S3 region (default: us-east-1)
+  --s3-prefix <prefix>         S3 key prefix
+  -v, --verbose                Enable verbose logging
+```
+
+**Example:**
+```bash
+facet serve --templates-dir ./templates --port 3010
+
+# With authentication
+facet serve --api-key my-secret-key
+
+# With S3 upload
+facet serve --s3-endpoint https://s3.amazonaws.com --s3-bucket my-bucket
+```
+
+The playground is available at `http://localhost:3010/` with a Monaco editor, live preview, and render logs.
+
+See [openapi.yaml](openapi.yaml) for the full API specification.
+
+### Docker
 
 ```bash
-facet serve MyDatasheet.tsx -d data.json
+docker run -p 3000:3000 -v ./templates:/templates ghcr.io/flanksource/facet
 ```
+
+### Helm
+
+```bash
+helm install facet ./chart
+```
+
+See [chart/values.yaml](chart/values.yaml) for configuration options.
 
 ## How It Works
 

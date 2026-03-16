@@ -7,9 +7,21 @@
  */
 
 import { existsSync, writeFileSync } from 'fs';
+import { createRequire } from 'module';
 import { PDFDocument } from 'pdf-lib';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import { Logger } from './logger.js';
+
+const require = createRequire(import.meta.url);
+const { version } = require('../../package.json');
+const FACET_CREATOR = `Facet v${version}`;
+
+async function stampPDFMetadata(buffer: Buffer): Promise<Buffer> {
+  const doc = await PDFDocument.load(buffer);
+  doc.setCreator(FACET_CREATOR);
+  doc.setProducer(FACET_CREATOR);
+  return Buffer.from(await doc.save());
+}
 import {
   detectPageTypes,
   buildPageGroups,
@@ -139,6 +151,7 @@ async function renderSinglePass(
   landscape?: boolean,
   overridePageSize?: string,
   outputPath?: string,
+  overrideMargins?: PDFMargins,
 ): Promise<Buffer> {
   const pageInfo = await page.evaluate((override: string | null): { top: number; bottom: number; pageSize: string } => {
     const pxToMm = 25.4 / 96;
@@ -165,7 +178,13 @@ async function renderSinglePass(
     content: `body { max-width: ${dims.width}mm !important; }`,
   });
 
-  if (pageInfo.top === 0 && pageInfo.bottom === 0) {
+  // Apply explicit margin overrides
+  const marginTop = overrideMargins?.top ?? pageInfo.top;
+  const marginBottom = overrideMargins?.bottom ?? pageInfo.bottom;
+  const marginLeft = overrideMargins?.left ?? 0;
+  const marginRight = overrideMargins?.right ?? 0;
+
+  if (marginTop === 0 && marginBottom === 0 && marginLeft === 0 && marginRight === 0) {
     const pdf = await page.pdf({
       width: `${dims.width}mm`,
       height: `${dims.height}mm`,
@@ -187,7 +206,7 @@ async function renderSinglePass(
     return Buffer.from(pdf);
   }
 
-  log.info(`Single-pass overlay: header=${pageInfo.top}mm footer=${pageInfo.bottom}mm size=${pageInfo.pageSize}`);
+  log.info(`Single-pass overlay: header=${marginTop}mm footer=${marginBottom}mm left=${marginLeft}mm right=${marginRight}mm size=${pageInfo.pageSize}`);
 
   const debugBasePath = debug && outputPath ? outputPath.replace(/\.pdf$/, '') : undefined;
   const key = overlayKey('default', pageInfo.pageSize);
@@ -217,17 +236,19 @@ async function renderSinglePass(
     document.querySelectorAll('.datasheet-header, .datasheet-footer, [data-header-type], [data-footer-type]').forEach(el => el.remove());
   });
 
-  const topMm = `${pageInfo.top}mm`;
-  const bottomMm = `${pageInfo.bottom}mm`;
+  const topMm = `${marginTop}mm`;
+  const bottomMm = `${marginBottom}mm`;
+  const leftMm = `${marginLeft}mm`;
+  const rightMm = `${marginRight}mm`;
   await page.addStyleTag({
-    content: `@page { size: ${dims.width}mm ${dims.height}mm; margin-top: ${topMm} !important; margin-bottom: ${bottomMm} !important; margin-left: 0 !important; margin-right: 0 !important; }`,
+    content: `@page { size: ${dims.width}mm ${dims.height}mm; margin-top: ${topMm} !important; margin-bottom: ${bottomMm} !important; margin-left: ${leftMm} !important; margin-right: ${rightMm} !important; }`,
   });
 
   const pdfBytes = await page.pdf({
     width: `${dims.width}mm`,
     height: `${dims.height}mm`,
     landscape: landscape ?? false,
-    margin: { top: topMm, bottom: bottomMm, left: 0, right: 0 },
+    margin: { top: topMm, bottom: bottomMm, left: leftMm, right: rightMm },
     omitBackground: false,
     printBackground: true,
     displayHeaderFooter: false,
@@ -260,10 +281,12 @@ export interface PDFOptions {
   logger?: Logger;
   debug?: boolean;
   defaultPageSize?: string;
+  margins?: PDFMargins;
+  landscape?: boolean;
 }
 
 export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
-  const { html, outputPath, logger, debug, defaultPageSize } = options;
+  const { html, outputPath, logger, debug, defaultPageSize, margins, landscape } = options;
   const log = logger || new Logger(false);
 
   const chromePath = resolveChromePath();
@@ -296,10 +319,11 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
       result = await renderMultiPass(browser, html, typeInfo, log, debug, outputPath);
     } else {
       log.info('Single-pass mode (no typed headers/footers)');
-      result = await renderSinglePass(browser, html, page, log, debug, undefined, defaultPageSize, outputPath);
+      result = await renderSinglePass(browser, html, page, log, debug, landscape, defaultPageSize, outputPath, margins);
       await page.close();
     }
 
+    result = await stampPDFMetadata(result);
     writeFileSync(outputPath, result);
     log.debug(`PDF saved to: ${outputPath}`);
   } finally {
@@ -350,6 +374,7 @@ export async function generatePDFWithBrowser(
       await page.close();
     }
 
+    result = await stampPDFMetadata(result);
     writeFileSync(outputPath, result);
     log.debug(`PDF saved to: ${outputPath}`);
   } catch (err) {
@@ -358,10 +383,18 @@ export async function generatePDFWithBrowser(
   }
 }
 
+export interface PDFMargins {
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
+}
+
 export interface BufferPDFOptions {
   landscape?: boolean;
   debug?: boolean;
   defaultPageSize?: string;
+  margins?: PDFMargins;
 }
 
 export async function generatePDFBuffer(
@@ -385,12 +418,12 @@ export async function generatePDFBuffer(
 
     if (typeInfo && typeInfo.definitions.size > 0) {
       await page.close();
-      return await renderMultiPass(browser, html, typeInfo, new Logger(false), options?.debug);
+      return stampPDFMetadata(await renderMultiPass(browser, html, typeInfo, new Logger(false), options?.debug));
     }
 
-    const result = await renderSinglePass(browser, html, page, new Logger(false), options?.debug, options?.landscape, options?.defaultPageSize);
+    const result = await renderSinglePass(browser, html, page, new Logger(false), options?.debug, options?.landscape, options?.defaultPageSize, undefined, options?.margins);
     await page.close();
-    return result;
+    return stampPDFMetadata(result);
   } catch (err) {
     await page.close().catch(() => {});
     throw err;

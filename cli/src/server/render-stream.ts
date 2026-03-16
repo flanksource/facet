@@ -13,6 +13,7 @@ export type RenderStage =
   | 'rendering-html'
   | 'rendering-pdf'
   | 'uploading'
+  | 'securing'
   | 'done'
   | 'error';
 
@@ -20,11 +21,13 @@ export interface ProgressEvent {
   stage: RenderStage;
   message: string;
   elapsed?: number;
+  duration?: number;
 }
 
 export class RenderProgress {
   private controller: ReadableStreamDefaultController<string> | null = null;
   private startTime = Date.now();
+  private lastEmitTime = Date.now();
 
   static create(): { progress: RenderProgress; stream: ReadableStream<Uint8Array> } {
     let ctrl!: ReadableStreamDefaultController<string>;
@@ -59,11 +62,14 @@ export class RenderProgress {
 
   emit(stage: RenderStage, message: string): void {
     if (!this.controller) return;
+    const now = Date.now();
     const event: ProgressEvent = {
       stage,
       message,
-      elapsed: Date.now() - this.startTime,
+      elapsed: now - this.startTime,
+      duration: now - this.lastEmitTime,
     };
+    this.lastEmitTime = now;
     try {
       this.controller.enqueue(`data: ${JSON.stringify(event)}\n\n`);
     } catch {
@@ -71,11 +77,11 @@ export class RenderProgress {
     }
   }
 
-  emitResult(contentType: string, data: string): void {
+  emitResult(contentType: string, data: string, url?: string): void {
     if (!this.controller) return;
     try {
       this.controller.enqueue(
-        `event: result\ndata: ${JSON.stringify({ contentType, data })}\n\n`,
+        `event: result\ndata: ${JSON.stringify({ contentType, data, url })}\n\n`,
       );
     } catch {}
   }

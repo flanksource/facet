@@ -1,37 +1,12 @@
 import { SecurityChecksTable } from '@facet';
+import { securityChecks as baseChecks } from './data';
 
 const checks = [
-  {
-    name: 'Code-Review',
-    score: 10,
-    reason: 'All commits require code review',
-    details: ['Info: Branch protection enabled', 'Info: CODEOWNERS file present'],
-    documentation: { url: 'https://github.com/ossf/scorecard/blob/main/docs/checks.md#code-review' },
-  },
-  {
-    name: 'Maintained',
-    score: 10,
-    reason: 'Project is actively maintained with recent commits',
-    details: ['Info: 47 commits in last 90 days'],
-  },
-  {
-    name: 'Vulnerabilities',
-    score: 8,
-    reason: '2 vulnerabilities found',
-    details: ['Warn: 1 medium severity vulnerability in dependencies'],
-  },
-  {
-    name: 'Dependency-Update-Tool',
-    score: 0,
-    reason: 'No dependency update tool detected',
-    details: ['Warn: Consider using Dependabot or Renovate'],
-  },
-  {
-    name: 'Signed-Releases',
-    score: 5,
-    reason: 'Releases are not signed',
-    details: ['Warn: No cryptographic signatures found on releases'],
-  },
+  { ...baseChecks[0], reason: 'All commits require code review', details: ['Info: Branch protection enabled', 'Info: CODEOWNERS file present'], documentation: { url: 'https://github.com/ossf/scorecard/blob/main/docs/checks.md#code-review' } },
+  { name: 'Maintained', score: 10, reason: 'Project is actively maintained with recent commits', details: ['Info: 47 commits in last 90 days'] },
+  { ...baseChecks[1], details: ['Warn: 1 medium severity vulnerability in dependencies'] },
+  { ...baseChecks[2], reason: 'No dependency update tool detected', details: ['Warn: Consider using Dependabot or Renovate'] },
+  { ...baseChecks[3], reason: 'Releases are not signed', details: ['Warn: No cryptographic signatures found on releases'] },
 ];
 
 export default function SecurityChecksTableExample() {

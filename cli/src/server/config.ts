@@ -16,6 +16,7 @@ export interface ServerConfig {
   apiKey?: string;
   maxUploadSize: number;
   verbose: boolean;
+  cacheMaxSize: number;
   s3?: S3Config;
   sandbox?: string | boolean;
 }
@@ -27,6 +28,7 @@ export interface ServerCLIFlags {
   timeout?: string;
   apiKey?: string;
   maxUpload?: string;
+  cacheMaxSize?: string;
   verbose?: boolean;
   s3Endpoint?: string;
   s3Bucket?: string;
@@ -43,6 +45,7 @@ export function loadConfig(flags: ServerCLIFlags): ServerConfig {
     renderTimeout: parseInt(flags.timeout ?? process.env['FACET_RENDER_TIMEOUT'] ?? '60000', 10),
     apiKey: flags.apiKey ?? process.env['FACET_API_KEY'],
     maxUploadSize: parseInt(flags.maxUpload ?? process.env['FACET_MAX_UPLOAD'] ?? '52428800', 10),
+    cacheMaxSize: parseInt(flags.cacheMaxSize ?? process.env['FACET_CACHE_MAX_SIZE'] ?? '104857600', 10),
     verbose: flags.verbose ?? false,
     sandbox: flags.sandbox,
   };

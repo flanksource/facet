@@ -6,13 +6,16 @@ import { errorResponse } from './errors.js';
 import { WorkerPool } from './worker-pool.js';
 import { discoverTemplates, type TemplateInfo } from './templates.js';
 import { S3Uploader } from './s3.js';
-import { handleHealthz, handleTemplates, handleRender, handleRenderStream } from './routes.js';
+import { handleHealthz, handleTemplates, handleRender, handleRenderStream, handleResultsRoute } from './routes.js';
 import { playgroundHtml } from './playground-html.js';
+import { RenderCache } from './render-cache.js';
 import { facetTypes } from './facet-types.js';
 import { readFileSync } from 'fs';
 import rootPackageJson from '../../../package.json' with { type: 'file' };
+import openapiPath from '../../../openapi.yaml' with { type: 'file' };
 
 const facetVersion: string = JSON.parse(readFileSync(rootPackageJson, 'utf-8')).version;
+const openapiSpec: string = readFileSync(openapiPath, 'utf-8');
 
 export interface ServerHandle {
   port: number;
@@ -35,8 +38,13 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   const s3 = config.s3 ? new S3Uploader(config.s3) : undefined;
   if (s3) logger.info(`S3 upload enabled: ${config.s3!.bucket}`);
 
+  const cacheDir = resolve(process.cwd(), '.facet');
+  const cache = new RenderCache(cacheDir, config.cacheMaxSize);
+  logger.info(`Render cache: ${cacheDir}/render-cache (max ${(config.cacheMaxSize / 1048576).toFixed(0)}MB)`);
+
   const server = Bun.serve({
     port: config.port,
+    idleTimeout: 120,
     async fetch(request: Request): Promise<Response> {
       const url = new URL(request.url);
 
@@ -46,6 +54,10 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
 
       if (url.pathname === '/types' && request.method === 'GET') {
         return new Response(facetTypes, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+      }
+
+      if (url.pathname === '/openapi.yaml' && request.method === 'GET') {
+        return new Response(openapiSpec, { headers: { 'content-type': 'text/yaml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
       }
 
       if (url.pathname === '/healthz' && request.method === 'GET') {
@@ -59,12 +71,17 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
         return handleTemplates(templates);
       }
 
+      const resultsMatch = url.pathname.match(/^\/results\/([a-f0-9]{16})$/);
+      if (resultsMatch && request.method === 'GET') {
+        return handleResultsRoute(resultsMatch[1], cache);
+      }
+
       if (url.pathname === '/render/stream' && request.method === 'POST') {
-        return handleRenderStream(request, config, pool, templates, s3);
+        return handleRenderStream(request, config, pool, templates, cache, s3);
       }
 
       if (url.pathname === '/render' && request.method === 'POST') {
-        return handleRender(request, config, pool, templates, s3);
+        return handleRender(request, config, pool, templates, cache, s3);
       }
 
       return Response.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 });

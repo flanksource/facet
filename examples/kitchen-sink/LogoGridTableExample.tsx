@@ -1,10 +1,8 @@
 import { LogoGrid } from '@facet';
+import { logos as baseLogos } from './data';
 
 const logos = [
-  { name: 'Prometheus', health: true, configuration: false, change: false, playbooks: true },
-  { name: 'Kubernetes', health: true, configuration: true, change: true, playbooks: true },
-  { name: 'Datadog', health: true, configuration: true, change: true, playbooks: true },
-  { name: 'Flux', health: false, configuration: true, change: true, playbooks: true },
+  ...baseLogos,
   { name: 'ArgoCD', health: true, configuration: true, change: false, playbooks: false },
 ];
 

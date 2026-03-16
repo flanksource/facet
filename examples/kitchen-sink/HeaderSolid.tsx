@@ -8,13 +8,7 @@ import {
 import { IoServer, IoCloudDone, IoCheckmarkCircle } from 'react-icons/io5';
 import FlanksourceHeader from './FlanksourceHeader';
 import FlanksourceFooter from './FlanksourceFooter';
-
-const specs = [
-  { category: 'Kubernetes', value: '1.24+' },
-  { category: 'PostgreSQL', value: '13+' },
-  { category: 'Memory', value: '4GB minimum' },
-  { category: 'Deployment', value: ['SaaS', 'Self-hosted', 'Hybrid'] },
-];
+import { specifications as specs, infrastructureData, releaseData } from './data';
 
 export default function HeaderSolid() {
   return (
@@ -44,17 +38,8 @@ export default function HeaderSolid() {
         margins={{ top: 5, bottom: 5 }}
       >
         <div className="space-y-4">
-          <CompactTable variant="compact" title="Infrastructure" data={[
-            { label: 'Kubernetes', value: '1.24+' },
-            { label: 'Memory', value: '4GB minimum' },
-            { label: 'CPU', value: '2 cores' },
-            { label: 'Storage', value: '20GB SSD' },
-          ]} />
-          <CompactTable variant="inline" title="Release" data={[
-            { label: 'Version', value: '2.0.0' },
-            { label: 'Date', value: 'March 2026' },
-            { label: 'License', value: 'Apache 2.0' },
-          ]} />
+          <CompactTable variant="compact" title="Infrastructure" data={infrastructureData} />
+          <CompactTable variant="inline" title="Release" data={releaseData} />
         </div>
       </Page>
 
