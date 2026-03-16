@@ -6,15 +6,23 @@
  * onto content pages using pdf-lib, avoiding position:fixed bleed issues.
  */
 
-import { existsSync, writeFileSync } from 'fs';
-import { createRequire } from 'module';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { PDFDocument } from 'pdf-lib';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import { Logger } from './logger.js';
 
-const require = createRequire(import.meta.url);
-const { version } = require('../../package.json');
-const FACET_CREATOR = `Facet v${version}`;
+function readVersion(): string {
+  try {
+    const dir = typeof __dirname !== 'undefined' ? __dirname : dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(readFileSync(join(dir, '../../package.json'), 'utf-8'));
+    return pkg.version;
+  } catch {
+    return 'unknown';
+  }
+}
+const FACET_CREATOR = `Facet v${readVersion()}`;
 
 async function stampPDFMetadata(buffer: Buffer): Promise<Buffer> {
   const doc = await PDFDocument.load(buffer);

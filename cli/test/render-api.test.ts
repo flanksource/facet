@@ -100,9 +100,14 @@ describe('Render API', () => {
       }),
     });
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('application/pdf');
+    const json = await res.json() as { url: string };
+    expect(json.url).toMatch(/^\/results\//);
 
-    const pdfBytes = Buffer.from(await res.arrayBuffer());
+    const pdfRes = await fetch(`${server.url}${json.url}`);
+    expect(pdfRes.status).toBe(200);
+    expect(pdfRes.headers.get('content-type')).toContain('application/pdf');
+
+    const pdfBytes = Buffer.from(await pdfRes.arrayBuffer());
     expect(pdfBytes.length).toBeGreaterThan(1000);
 
     const doc = await PDFDocument.load(pdfBytes);
@@ -143,9 +148,14 @@ export default function InlineTemplate({ data }: { data: any }) {
       body: formData,
     });
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('application/pdf');
+    const json = await res.json() as { url: string };
+    expect(json.url).toMatch(/^\/results\//);
 
-    const pdfBytes = Buffer.from(await res.arrayBuffer());
+    const pdfRes = await fetch(`${server.url}${json.url}`);
+    expect(pdfRes.status).toBe(200);
+    expect(pdfRes.headers.get('content-type')).toContain('application/pdf');
+
+    const pdfBytes = Buffer.from(await pdfRes.arrayBuffer());
     expect(pdfBytes.length).toBeGreaterThan(1000);
 
     const doc = await PDFDocument.load(pdfBytes);
@@ -166,7 +176,10 @@ export default function InlineTemplate({ data }: { data: any }) {
       }),
     });
     expect(res.status).toBe(200);
-    const pdfBytes = Buffer.from(await res.arrayBuffer());
+    const json = await res.json() as { url: string };
+    const pdfRes = await fetch(`${server.url}${json.url}`);
+    expect(pdfRes.status).toBe(200);
+    const pdfBytes = Buffer.from(await pdfRes.arrayBuffer());
 
     const tmpDir = await mkdtemp(join(tmpdir(), 'facet-magick-'));
     const pdfPath = join(tmpDir, 'output.pdf');
@@ -255,8 +268,13 @@ export default function Template({ data }: { data: any }) {
       body: JSON.stringify({ code, format: 'pdf', data: { title: 'Inline PDF' } }),
     });
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('application/pdf');
-    const pdfBytes = Buffer.from(await res.arrayBuffer());
+    const json = await res.json() as { url: string };
+    expect(json.url).toMatch(/^\/results\//);
+
+    const pdfRes = await fetch(`${server.url}${json.url}`);
+    expect(pdfRes.status).toBe(200);
+    expect(pdfRes.headers.get('content-type')).toContain('application/pdf');
+    const pdfBytes = Buffer.from(await pdfRes.arrayBuffer());
     expect(pdfBytes.length).toBeGreaterThan(1000);
     const doc = await PDFDocument.load(pdfBytes);
     expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
