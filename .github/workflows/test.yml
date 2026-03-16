@@ -32,12 +32,14 @@ jobs:
           tools: bun@v1.3.10
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install ImageMagick
+      - name: Install system dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -y imagemagick
+          sudo apt-get update && sudo apt-get install -y imagemagick poppler-utils libnss3-tools
           sudo ln -sf /usr/bin/convert /usr/local/bin/magick
           sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
           magick -version || convert -version
+          pdfinfo -v 2>&1 || true
+          certutil --version 2>&1 || true
 
       - name: Install dependencies
         run: |
