@@ -18,8 +18,23 @@ import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { generatePDFBuffer } from '../utils/pdf-generator.js';
+import { applyPDFSecurity } from '../utils/pdf-security.js';
 import { Logger } from '../utils/logger.js';
 import { RenderProgress } from './render-stream.js';
+import { computeCacheKey, RenderCache } from './render-cache.js';
+
+export function handleResultsRoute(id: string, cache: RenderCache): Response {
+  const cached = cache.get(id);
+  if (!cached) return Response.json({ error: { code: 'NOT_FOUND', message: 'Result not found or expired' } }, { status: 404 });
+  const ext = cached.contentType === 'application/pdf' ? 'pdf' : 'html';
+  return new Response(cached.data, {
+    headers: {
+      'content-type': cached.contentType,
+      'content-disposition': `inline; filename="render.${ext}"`,
+      'cache-control': 'private, max-age=600',
+    },
+  });
+}
 
 export function handleHealthz(pool: WorkerPool): Response {
   return Response.json({ status: 'ok', workers: pool.stats() });
@@ -41,6 +56,7 @@ export async function handleRender(
   config: ServerConfig,
   pool: WorkerPool,
   templates: TemplateInfo[],
+  cache: RenderCache,
   s3?: S3Uploader,
 ): Promise<Response> {
   const logger = new Logger(config.verbose);
@@ -51,7 +67,7 @@ export async function handleRender(
     return errorResponse(err);
   }
 
-  const renderPromise = doRender(parsed, config, pool, templates, s3, logger);
+  const renderPromise = doRender(parsed, config, pool, templates, cache, s3, logger);
   const timeoutPromise = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new RenderError('RENDER_TIMEOUT', 'Render timed out', 504)), config.renderTimeout),
   );
@@ -68,11 +84,11 @@ export function handleRenderStream(
   config: ServerConfig,
   pool: WorkerPool,
   templates: TemplateInfo[],
+  cache: RenderCache,
   s3?: S3Uploader,
 ): Response {
   const { progress, stream } = RenderProgress.create();
 
-  // Run the render pipeline asynchronously, streaming progress
   (async () => {
     const logger = new Logger(config.verbose);
     let parsed: ParsedRenderRequest;
@@ -82,6 +98,20 @@ export function handleRenderStream(
     } catch (err) {
       const msg = err instanceof RenderError ? err.message : String(err);
       progress.emitError(msg);
+      progress.close();
+      return;
+    }
+
+    const cacheKey = cacheKeyForRequest(parsed);
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      progress.emit('done', 'Cache hit');
+      const resultUrl = `/results/${cacheKey}`;
+      if (cached.contentType === 'text/html') {
+        progress.emitResult(cached.contentType, cached.data.toString('utf-8'), resultUrl);
+      } else {
+        progress.emitResult(cached.contentType, '', resultUrl);
+      }
       progress.close();
       return;
     }
@@ -96,10 +126,13 @@ export function handleRenderStream(
       clearTimeout(timeout);
 
       if (typeof result === 'string') {
-        progress.emitResult('text/html', result);
+        const buf = Buffer.from(result);
+        cache.set(cacheKey, 'text/html', buf);
+        progress.emitResult('text/html', result, `/results/${cacheKey}`);
       } else {
-        // PDF: base64 encode for SSE transport
-        progress.emitResult('application/pdf', Buffer.from(result).toString('base64'));
+        const buf = Buffer.from(result);
+        cache.set(cacheKey, 'application/pdf', buf);
+        progress.emitResult('application/pdf', '', `/results/${cacheKey}`);
       }
       progress.emit('done', 'Render complete');
     } catch (err) {
@@ -121,14 +154,43 @@ export function handleRenderStream(
   });
 }
 
+function cacheKeyForRequest(parsed: ParsedRenderRequest): string {
+  return computeCacheKey({
+    source: parsed.source,
+    data: parsed.data,
+    dependencies: parsed.dependencies,
+    headerCode: parsed.headerCode,
+    footerCode: parsed.footerCode,
+    format: parsed.format,
+    pdfOptions: parsed.pdfOptions,
+    encryption: parsed.encryption,
+    signature: parsed.signature,
+  });
+}
+
 async function doRender(
   parsed: ParsedRenderRequest,
   config: ServerConfig,
   pool: WorkerPool,
   templates: TemplateInfo[],
+  cache: RenderCache,
   s3: S3Uploader | undefined,
   logger: Logger,
 ): Promise<Response> {
+  const cacheKey = cacheKeyForRequest(parsed);
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    if (cached.contentType === 'application/pdf') {
+      return Response.json({ url: `/results/${cacheKey}` });
+    }
+    return new Response(cached.data, {
+      headers: {
+        'content-type': cached.contentType,
+        'content-disposition': `inline; filename="render.html"`,
+      },
+    });
+  }
+
   let tempDir: string | undefined;
   let archiveCleanup: (() => void) | undefined;
 
@@ -137,17 +199,29 @@ async function doRender(
     tempDir = resolved.tempDir;
     archiveCleanup = resolved.archiveCleanup;
 
-    const html = await renderHTML(resolved.consumerRoot, resolved.entryFile, parsed.data, logger, config.sandbox);
+    let html = await renderHTML(resolved.consumerRoot, resolved.entryFile, parsed.data, logger);
+    html = await injectHeaderFooter(html, parsed, resolved.consumerRoot, logger);
     const templateName = resolved.templateName;
 
     if (parsed.format === 'html') {
+      cache.set(cacheKey, 'text/html', Buffer.from(html));
       return respondWithOutput(html, 'text/html', 'html', templateName, parsed, s3, logger);
     }
 
     const worker = await pool.acquire();
     try {
-      const pdfBuffer = await generatePDFBuffer(worker.browser, html, parsed.pdfOptions);
-      return respondWithOutput(pdfBuffer, 'application/pdf', 'pdf', templateName, parsed, s3, logger);
+      let pdfBuffer = await generatePDFBuffer(worker.browser, html, parsed.pdfOptions);
+      if (parsed.encryption || parsed.signature) {
+        pdfBuffer = await applyPDFSecurity(Buffer.from(pdfBuffer), {
+          encryption: parsed.encryption,
+          signature: parsed.signature,
+        }, logger);
+      }
+      cache.set(cacheKey, 'application/pdf', Buffer.from(pdfBuffer));
+      if (parsed.output === 's3') {
+        return respondWithOutput(pdfBuffer, 'application/pdf', 'pdf', templateName, parsed, s3, logger);
+      }
+      return Response.json({ url: `/results/${cacheKey}` });
     } finally {
       await pool.release(worker);
     }
@@ -176,7 +250,8 @@ async function doRenderStreamed(
     archiveCleanup = resolved.archiveCleanup;
 
     progress.emit('building', 'Building template with Vite SSR...');
-    const html = await renderHTMLStreamed(resolved.consumerRoot, resolved.entryFile, parsed.data, logger, progress);
+    let html = await renderHTMLStreamed(resolved.consumerRoot, resolved.entryFile, parsed.data, logger, progress);
+    html = await injectHeaderFooter(html, parsed, resolved.consumerRoot, logger, progress);
 
     if (parsed.format === 'html') {
       progress.emit('done', 'HTML render complete');
@@ -187,7 +262,15 @@ async function doRenderStreamed(
     const worker = await pool.acquire();
     try {
       progress.emit('rendering-pdf', 'Generating PDF with Puppeteer...');
-      const pdfBuffer = await generatePDFBuffer(worker.browser, html, parsed.pdfOptions);
+      let pdfBuffer = await generatePDFBuffer(worker.browser, html, parsed.pdfOptions);
+
+      if (parsed.encryption || parsed.signature) {
+        progress.emit('securing', 'Applying PDF security...');
+        pdfBuffer = await applyPDFSecurity(Buffer.from(pdfBuffer), {
+          encryption: parsed.encryption,
+          signature: parsed.signature,
+        }, logger);
+      }
 
       if (parsed.output === 's3' && s3) {
         progress.emit('uploading', 'Uploading to S3...');
@@ -338,6 +421,63 @@ async function renderHTMLStreamed(
   } finally {
     await buildResult.cleanup();
   }
+}
+
+async function buildFragment(
+  consumerRoot: string,
+  filename: string,
+  code: string,
+  data: Record<string, unknown>,
+  logger: Logger,
+): Promise<string> {
+  await writeFile(join(consumerRoot, filename), code, 'utf-8');
+  const result = await buildTemplate({
+    templatePath: filename,
+    data,
+    consumerRoot,
+    logger,
+  });
+  try {
+    return result.html;
+  } finally {
+    await result.cleanup();
+  }
+}
+
+function extractBodyContent(html: string): string {
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  return bodyMatch ? bodyMatch[1].trim() : html.replace(/<!DOCTYPE[^>]*>/i, '').trim();
+}
+
+function insertBeforeBodyClose(mainHtml: string, fragment: string): string {
+  if (mainHtml.includes('</body>')) {
+    return mainHtml.replace('</body>', `${fragment}</body>`);
+  }
+  return mainHtml + fragment;
+}
+
+async function injectHeaderFooter(
+  html: string,
+  parsed: ParsedRenderRequest,
+  consumerRoot: string,
+  logger: Logger,
+  progress?: RenderProgress,
+): Promise<string> {
+  if (!parsed.headerCode && !parsed.footerCode) return html;
+
+  if (parsed.headerCode) {
+    progress?.emit('building', 'Building header template...');
+    const headerHtml = await buildFragment(consumerRoot, '_Header.tsx', parsed.headerCode, parsed.data, logger);
+    html = insertBeforeBodyClose(html, extractBodyContent(headerHtml));
+  }
+
+  if (parsed.footerCode) {
+    progress?.emit('building', 'Building footer template...');
+    const footerHtml = await buildFragment(consumerRoot, '_Footer.tsx', parsed.footerCode, parsed.data, logger);
+    html = insertBeforeBodyClose(html, extractBodyContent(footerHtml));
+  }
+
+  return html;
 }
 
 async function applyTailwind(
