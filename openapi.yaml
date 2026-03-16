@@ -1,0 +1,456 @@
+openapi: 3.1.0
+info:
+  title: Facet Render API
+  description: API for rendering React templates to HTML and PDF.
+  version: 0.1.23
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://localhost:3010
+    description: Local development server
+
+security: []
+
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      summary: Health check
+      description: Returns server health and worker pool status.
+      responses:
+        "200":
+          description: Server is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  workers:
+                    type: object
+                    description: Worker pool statistics.
+
+  /templates:
+    get:
+      operationId: listTemplates
+      summary: List available templates
+      description: Returns templates discovered in the configured templates directory.
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of templates.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TemplateInfo"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /render:
+    post:
+      operationId: render
+      summary: Render a template
+      description: |
+        Renders a template to HTML or PDF synchronously. The response body is
+        the rendered output (HTML or PDF binary), or a JSON object with S3 URLs
+        when `output: "s3"` is used.
+
+        Supports three input modes:
+        - **JSON** with inline code or template name
+        - **Multipart** with an uploaded archive
+        - **Gzip** body with a tar.gz archive
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenderRequest"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/MultipartRenderRequest"
+          application/gzip:
+            schema:
+              type: string
+              format: binary
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [html, pdf]
+          description: Output format (gzip mode only).
+        - name: output
+          in: query
+          schema:
+            type: string
+            enum: [direct, s3]
+          description: Output destination (gzip mode only).
+        - name: entryFile
+          in: query
+          schema:
+            type: string
+          description: Entry file within archive (gzip mode only).
+        - name: X-Facet-Data
+          in: header
+          schema:
+            type: string
+          description: Base64-encoded JSON data (gzip mode only).
+      responses:
+        "200":
+          description: |
+            Rendered output. For HTML format, returns raw HTML. For PDF format,
+            returns JSON with a `url` field pointing to `/results/{id}` where the
+            cached PDF can be fetched. When `output: "s3"`, returns S3 upload details.
+          content:
+            text/html:
+              schema:
+                type: string
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PDFRenderResult"
+                  - $ref: "#/components/schemas/S3UploadResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "504":
+          $ref: "#/components/responses/Timeout"
+
+  /render/stream:
+    post:
+      operationId: renderStream
+      summary: Render with streaming progress
+      description: |
+        Same as `/render` but returns a Server-Sent Events stream with progress
+        updates followed by the final result. Used by the playground.
+
+        **Event types:**
+        - `data: {...}` — progress event with `stage`, `message`, `elapsed`, `duration`
+        - `event: result` — final output with `contentType`, `data`, and `url`. For PDFs, `data` is empty and `url` points to `/results/{id}`. For HTML, `data` contains the rendered HTML.
+        - `event: error` — render error with `message`
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenderRequest"
+      responses:
+        "200":
+          description: SSE stream of progress events and final result.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /results/{id}:
+    get:
+      operationId: getResult
+      summary: Get cached render result
+      description: |
+        Serves a previously rendered result from the disk cache. The `id` is a
+        16-character hex cache key returned in the `url` field of streaming
+        render results.
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-f0-9]{16}$"
+          description: Cache key (16 hex characters).
+      responses:
+        "200":
+          description: Cached render output.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: private, max-age=600
+          content:
+            text/html:
+              schema:
+                type: string
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /types:
+    get:
+      operationId: getTypes
+      summary: TypeScript type definitions
+      description: Returns the `@flanksource/facet` TypeScript declarations for use in the Monaco editor playground.
+      responses:
+        "200":
+          description: TypeScript declaration file content.
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    RenderRequest:
+      type: object
+      description: JSON render request. Provide either `code` (inline) or `template` (named/remote).
+      properties:
+        code:
+          type: string
+          description: Inline TSX template code.
+        template:
+          type: string
+          description: Template name (local) or remote ref (e.g. `github.com/org/repo/path`).
+        data:
+          type: object
+          additionalProperties: true
+          description: Data passed to the template as props.
+          default: {}
+        format:
+          type: string
+          enum: [html, pdf]
+          default: pdf
+        output:
+          type: string
+          enum: [direct, s3]
+          default: direct
+        s3Key:
+          type: string
+          description: "Custom S3 key (when output is s3)."
+        filename:
+          type: string
+          description: Custom filename for Content-Disposition header.
+        dependencies:
+          type: object
+          additionalProperties:
+            type: string
+          description: "npm dependencies to install, e.g. react-icons: ^5.4.0."
+        headerCode:
+          type: string
+          description: Inline TSX for a header component.
+        footerCode:
+          type: string
+          description: Inline TSX for a footer component.
+        pdfOptions:
+          $ref: "#/components/schemas/PDFOptions"
+        encryption:
+          $ref: "#/components/schemas/PDFEncryptionOptions"
+        signature:
+          $ref: "#/components/schemas/PDFSignatureOptions"
+
+    PDFOptions:
+      type: object
+      properties:
+        defaultPageSize:
+          type: string
+          description: Page size name.
+          enum: [a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k]
+        landscape:
+          type: boolean
+          default: false
+        debug:
+          type: boolean
+          description: Add debug overlay lines for header/footer zones.
+          default: false
+        margins:
+          type: object
+          properties:
+            top:
+              type: number
+              description: Top margin in mm.
+            bottom:
+              type: number
+              description: Bottom margin in mm.
+            left:
+              type: number
+              description: Left margin in mm.
+            right:
+              type: number
+              description: Right margin in mm.
+
+    PDFEncryptionOptions:
+      type: object
+      required: [ownerPassword]
+      properties:
+        userPassword:
+          type: string
+          description: Password required to open the PDF.
+        ownerPassword:
+          type: string
+          description: Owner password that controls permissions.
+        permissions:
+          type: object
+          properties:
+            print:
+              type: boolean
+              default: true
+            modify:
+              type: boolean
+              default: false
+            copy:
+              type: boolean
+              default: false
+            annotate:
+              type: boolean
+              default: false
+
+    PDFSignatureOptions:
+      type: object
+      properties:
+        certPath:
+          type: string
+          description: Path to PKCS#12 (.p12/.pfx) certificate file.
+        certPassword:
+          type: string
+          description: Certificate password.
+        selfSigned:
+          type: boolean
+          description: Auto-generate a self-signed certificate for signing.
+          default: false
+        reason:
+          type: string
+          description: Signature reason text.
+        name:
+          type: string
+          description: Signer name.
+        location:
+          type: string
+          description: Signing location.
+        timestampUrl:
+          type: string
+          description: RFC 3161 Timestamp Authority URL.
+
+    MultipartRenderRequest:
+      type: object
+      required: [archive]
+      properties:
+        archive:
+          type: string
+          format: binary
+          description: Archive file (tar.gz or zip) containing the template.
+        data:
+          type: string
+          description: JSON string of template data.
+        options:
+          type: string
+          description: JSON string with `format`, `output`, `entryFile`, `pdfOptions`, etc.
+
+    TemplateInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        entryFile:
+          type: string
+        description:
+          type: string
+        hasSchema:
+          type: boolean
+
+    PDFRenderResult:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: URL path to fetch the cached PDF (e.g. `/results/{id}`).
+          example: /results/a1b2c3d4e5f67890
+
+    S3UploadResult:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Public S3 URL.
+        presignedUrl:
+          type: string
+          description: Pre-signed URL with expiry.
+        key:
+          type: string
+          description: S3 object key.
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - TEMPLATE_NOT_FOUND
+                - VALIDATION_ERROR
+                - RENDER_TIMEOUT
+                - RENDER_FAILED
+                - S3_UPLOAD_FAILED
+                - QUEUE_FULL
+                - AUTH_REQUIRED
+                - INVALID_REQUEST
+                - ARCHIVE_ERROR
+            message:
+              type: string
+            details:
+              description: Additional error context.
+
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing or invalid API key.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Template or resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Timeout:
+      description: Render timed out.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
