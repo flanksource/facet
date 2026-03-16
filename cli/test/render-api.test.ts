@@ -35,6 +35,7 @@ describe('Render API', () => {
       workers: 1,
       renderTimeout: 60000,
       maxUploadSize: 52428800,
+      cacheMaxSize: 104857600,
       verbose: false,
     });
   }, 30000);
