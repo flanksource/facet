@@ -36,6 +36,8 @@ RUN cd cli && npm run build
 # Final stage with Chromium browser
 FROM node:20-bookworm-slim
 
+ARG VERSION=dev
+
 # Install Chromium browser and dependencies for Puppeteer
 # Using Chromium from Debian repos for better multi-arch support
 RUN apt-get update && apt-get install -y \
@@ -114,6 +116,12 @@ EXPOSE 3000
 LABEL org.opencontainers.image.title="Facet" \
       org.opencontainers.image.description="Generate beautiful PDFs and datasheets from React templates with Chrome" \
       org.opencontainers.image.source="https://github.com/flanksource/facet" \
-      org.opencontainers.image.vendor="Flanksource"
+      org.opencontainers.image.vendor="Flanksource" \
+      org.opencontainers.image.version="${VERSION}"
+
+# Warm the node_modules / .facet cache by rendering the playground sample
+RUN cd /app/examples && \
+    facet pdf SimpleReport.tsx --data simple-data.json --output /tmp/warmup.pdf && \
+    rm -f /tmp/warmup.pdf
 
 CMD ["facet", "serve", "--templates-dir", "/templates"]
