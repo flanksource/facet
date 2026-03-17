@@ -78,7 +78,8 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   const hash = depHash(pkgDeps);
 
   if (!linkCachedNodeModules(facetRoot, hash, logger) && facetDir.needsInstall()) {
-    logger.debug('Installing dependencies...');
+    logger.info('npm install...');
+    const npmStart = Date.now();
     try {
       const npmResult = await $`cd ${facetRoot} && npm install --ignore-scripts 2>&1`.quiet();
       logger.debug(npmResult.stdout.toString());
@@ -86,8 +87,8 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
       const output = error?.stdout?.toString?.() || error?.stderr?.toString?.() || error?.message || String(error);
       throw new Error(`npm install failed in ${facetRoot}:\n${output}`);
     }
+    logger.info(`npm install completed in ${Date.now() - npmStart}ms`);
     promoteToCacheAfterInstall(facetRoot, hash, logger);
-    logger.debug('Dependencies installed');
   } else {
     logger.debug('Dependencies up to date, skipping npm install');
   }

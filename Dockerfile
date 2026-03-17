@@ -124,4 +124,7 @@ RUN cd /app/examples && \
     facet pdf SimpleReport.tsx --data simple-data.json --output /tmp/warmup.pdf && \
     rm -f /tmp/warmup.pdf
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:3010/healthz || exit 1
+
 CMD ["facet", "serve", "--templates-dir", "/templates"]
