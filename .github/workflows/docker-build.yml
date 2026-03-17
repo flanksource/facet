@@ -30,6 +30,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Get package version
+        id: pkg
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Build image for testing (amd64 only)
         uses: docker/build-push-action@v5
         with:
@@ -40,6 +44,8 @@ jobs:
           tags: facet:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.pkg.outputs.version }}
 
       - name: Generate PDF from example template
         run: |
@@ -118,6 +124,10 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Get package version
+        id: pkg
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
@@ -131,3 +141,4 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+            VERSION=${{ steps.pkg.outputs.version }}
