@@ -39,7 +39,12 @@ export async function discoverTemplates(dir: string): Promise<TemplateInfo[]> {
   for (const name of entries) {
     if (name.startsWith('.') || name === 'node_modules') continue;
     const fullPath = join(dir, name);
-    const s = await stat(fullPath);
+    let s;
+    try {
+      s = await stat(fullPath);
+    } catch {
+      continue;
+    }
 
     if (s.isFile() && ENTRY_EXTENSIONS.some(ext => name.endsWith(ext))) {
       const templateName = name.replace(/\.[^.]+$/, '');
