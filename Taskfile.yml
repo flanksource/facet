@@ -69,6 +69,13 @@ tasks:
       - echo "✓ Storybook build completed successfully"
       - echo "✓ All stories compiled without errors"
 
+  serve:
+    desc: "Build and start the playground server"
+    deps:
+      - build
+    cmds:
+      - ./dist/facet serve --templates-dir examples
+
   default:
     desc: "Show available tasks"
     cmds:

@@ -104,10 +104,15 @@ const HTML = `<!DOCTYPE html>
       <select id="pageSize">
         <option value="">Default</option>
         <option value="A4">A4</option>
-        <option value="Letter">Letter</option>
         <option value="A3">A3</option>
+        <option value="Letter">Letter</option>
         <option value="Legal">Legal</option>
-        <option value="Tabloid">Tabloid</option>
+        <option value="16K">16K</option>
+        <option value="FHD">FHD (1920×1080)</option>
+        <option value="QHD">QHD (2560×1440)</option>
+        <option value="WQHD">WQHD (3440×1440)</option>
+        <option value="4K">4K (3840×2160)</option>
+        <option value="5K">5K (5120×2880)</option>
       </select>
     </label>
     <label><input type="checkbox" id="landscape"> Landscape</label>
@@ -120,6 +125,10 @@ const HTML = `<!DOCTYPE html>
       <input type="number" id="marginLeft" placeholder="L" min="0" value="10" title="Left margin (mm)">
       <input type="number" id="marginRight" placeholder="R" min="0" value="10" title="Right margin (mm)">
     </div>
+    <div class="sep"></div>
+    <label><input type="checkbox" id="timestampEnabled" onchange="toggleTimestamp()"> Timestamp</label>
+    <input type="text" id="timestampUrl" value="http://timestamp.digicert.com"
+           style="display:none;width:220px" placeholder="TSA URL">
     <div class="spacer"></div>
     <button class="logs-btn" id="logsBtn" onclick="openLogs()" title="View render log">
       Logs <span class="dot" id="logsDot"></span>
@@ -453,6 +462,11 @@ export default function MyFooter() {
 
     document.addEventListener('click', closeRenderMenu);
 
+    function toggleTimestamp() {
+      document.getElementById('timestampUrl').style.display =
+        document.getElementById('timestampEnabled').checked ? '' : 'none';
+    }
+
     /* Log dialog */
     function openLogs() {
       document.getElementById('logOverlay').classList.add('open');
@@ -659,6 +673,9 @@ export default function MyFooter() {
       if (!isNaN(ml)) margins.left = ml;
       if (!isNaN(mr)) margins.right = mr;
 
+      const tsEnabled = document.getElementById('timestampEnabled').checked;
+      const timestampUrl = tsEnabled ? document.getElementById('timestampUrl').value.trim() : '';
+
       const body = { code, format, data, pdfOptions: {} };
       if (pageSize) body.pdfOptions.defaultPageSize = pageSize;
       if (landscape) body.pdfOptions.landscape = true;
@@ -666,6 +683,7 @@ export default function MyFooter() {
       if (Object.keys(margins).length) body.pdfOptions.margins = margins;
       if (!Object.keys(body.pdfOptions).length) delete body.pdfOptions;
       if (Object.keys(deps).length) body.dependencies = deps;
+      if (timestampUrl) body.signature = { timestampUrl };
 
       const hdr = headerEditor.getValue().trim();
       const ftr = footerEditor.getValue().trim();
