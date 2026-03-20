@@ -5,14 +5,14 @@ import type { Logger } from './logger.js';
 
 export type PageType = 'first' | 'default' | 'last';
 
-export type PageSize = 'a4' | 'a3' | 'letter' | 'legal' | 'fhd' | 'qhd' | 'wqhd' | '4k' | '5k' | '16k';
+export type PageSize = string;
 
 export interface PageSizeDimensions {
   width: number;
   height: number;
 }
 
-export const PAGE_SIZES: Record<PageSize, PageSizeDimensions> = {
+export const PAGE_SIZES: Record<string, PageSizeDimensions> = {
   a4: { width: 210, height: 297 },
   a3: { width: 297, height: 420 },
   letter: { width: 215.9, height: 279.4 },
@@ -26,7 +26,9 @@ export const PAGE_SIZES: Record<PageSize, PageSizeDimensions> = {
 };
 
 export function resolvePageSize(name: string): PageSizeDimensions {
-  return PAGE_SIZES[name.toLowerCase() as PageSize] ?? PAGE_SIZES.a4;
+  const wxh = name.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
+  if (wxh) return { width: parseFloat(wxh[1]), height: parseFloat(wxh[2]) };
+  return PAGE_SIZES[name.toLowerCase()] ?? PAGE_SIZES.a4;
 }
 
 export function mmToPx(mm: number): number {
@@ -71,7 +73,14 @@ export async function detectPageTypes(page: Page, overridePageSize?: string): Pr
   return page.evaluate((override: string | null): RawDetectResult | null => {
     const headerEls = document.querySelectorAll('[data-header-type]');
     const footerEls = document.querySelectorAll('[data-footer-type]');
-    if (headerEls.length === 0 && footerEls.length === 0) return null;
+    const hasTypedHeaders = headerEls.length > 0 || footerEls.length > 0;
+
+    if (!hasTypedHeaders) {
+      const allPages = document.querySelectorAll('[data-page-size]');
+      const sizes = new Set<string>();
+      allPages.forEach(el => sizes.add((override ?? (el.getAttribute('data-page-size') || 'a4')).toLowerCase()));
+      if (sizes.size <= 1) return null;
+    }
 
     const pageEls = document.querySelectorAll('[data-page-size]');
     const types: string[] = [];
