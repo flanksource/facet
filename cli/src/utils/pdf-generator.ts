@@ -321,7 +321,7 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
     const typeInfo = await detectPageTypes(page, defaultPageSize);
 
     let result: Buffer;
-    if (typeInfo && typeInfo.definitions.size > 0) {
+    if (typeInfo != null) {
       log.debug(`Multi-pass mode: ${typeInfo.definitions.size} type(s) detected`);
       await page.close();
       result = await renderMultiPass(browser, html, typeInfo, log, debug, outputPath);
@@ -373,7 +373,7 @@ export async function generatePDFWithBrowser(
     const typeInfo = await detectPageTypes(page, defaultPageSize);
 
     let result: Buffer;
-    if (typeInfo && typeInfo.definitions.size > 0) {
+    if (typeInfo != null) {
       log.debug(`Multi-pass mode: ${typeInfo.definitions.size} type(s) detected`);
       await page.close();
       result = await renderMultiPass(browser, html, typeInfo, log, debug, outputPath);
@@ -424,7 +424,7 @@ export async function generatePDFBuffer(
 
     const typeInfo = await detectPageTypes(page, options?.defaultPageSize);
 
-    if (typeInfo && typeInfo.definitions.size > 0) {
+    if (typeInfo != null) {
       await page.close();
       return stampPDFMetadata(await renderMultiPass(browser, html, typeInfo, new Logger(false), options?.debug));
     }

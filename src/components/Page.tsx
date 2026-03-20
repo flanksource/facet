@@ -1,7 +1,7 @@
 import React from 'react';
 import type { PageType } from './Header';
 
-export type PageSize = 'a4' | 'a3' | 'letter' | 'legal' | 'fhd' | 'qhd' | 'wqhd' | '4k' | '5k' | '16k';
+export type PageSize = string;
 
 interface PageMargins {
   top?: number;
