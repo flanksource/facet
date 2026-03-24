@@ -1,0 +1,259 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1120 590" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#94a3b8"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#7c3aed"/>
+    </marker>
+    <linearGradient id="grad-input" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#eff6ff"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="grad-build" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f0f9ff"/>
+      <stop offset="100%" stop-color="#e0f2fe"/>
+    </linearGradient>
+    <linearGradient id="grad-output" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ecfdf5"/>
+      <stop offset="100%" stop-color="#d1fae5"/>
+    </linearGradient>
+    <linearGradient id="grad-server" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#faf5ff"/>
+      <stop offset="100%" stop-color="#f3e8ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="116%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000" flood-opacity="0.06"/>
+    </filter>
+    <image id="chrome-logo" width="24" height="24" href="data:image/png;base64,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"/>
+    <image id="pdf-logo" width="28" height="34" href="data:image/png;base64,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"/>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1120" height="590" rx="12" fill="#fafbfc"/>
+
+  <!-- Title -->
+  <text x="560" y="36" text-anchor="middle" font-size="18" font-weight="700" fill="#0f172a">How It Works</text>
+
+  <!-- ═══════════════════ CLI FLOW ═══════════════════ -->
+  <text x="28" y="72" font-size="11" font-weight="600" fill="#2563eb" letter-spacing="0.08em">CLI MODE</text>
+  <text x="108" y="72" font-size="11" fill="#64748b">facet html / facet pdf</text>
+  <line x1="28" y1="80" x2="1092" y2="80" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Input: Template.tsx -->
+  <g filter="url(#shadow)">
+    <rect x="28" y="96" width="130" height="68" rx="8" fill="url(#grad-input)" stroke="#bfdbfe" stroke-width="1"/>
+  </g>
+  <g transform="translate(80, 100) scale(0.28)">
+    <circle cx="50" cy="50" r="8" fill="#61dafb"/>
+    <ellipse cx="50" cy="50" rx="45" ry="17" fill="none" stroke="#61dafb" stroke-width="3"/>
+    <ellipse cx="50" cy="50" rx="45" ry="17" fill="none" stroke="#61dafb" stroke-width="3" transform="rotate(60 50 50)"/>
+    <ellipse cx="50" cy="50" rx="45" ry="17" fill="none" stroke="#61dafb" stroke-width="3" transform="rotate(120 50 50)"/>
+  </g>
+  <text x="93" y="140" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">Template.tsx</text>
+  <text x="93" y="154" text-anchor="middle" font-size="9" fill="#64748b">React + TypeScript</text>
+
+  <!-- Input: Data -->
+  <g filter="url(#shadow)">
+    <rect x="28" y="176" width="130" height="68" rx="8" fill="url(#grad-input)" stroke="#bfdbfe" stroke-width="1"/>
+  </g>
+  <text x="93" y="201" text-anchor="middle" font-size="20">📊</text>
+  <text x="93" y="220" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">Data</text>
+  <text x="93" y="234" text-anchor="middle" font-size="9" fill="#64748b">JSON / TS loader</text>
+
+  <!-- Arrows: inputs → .facet -->
+  <line x1="158" y1="130" x2="196" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="158" y1="210" x2="196" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- .facet/ Build box: x=196 y=102 w=160 h=136 -->
+  <g filter="url(#shadow)">
+    <rect x="196" y="102" width="160" height="136" rx="8" fill="url(#grad-build)" stroke="#bae6fd" stroke-width="1"/>
+  </g>
+  <text x="276" y="126" text-anchor="middle" font-size="12" font-weight="700" fill="#0369a1">.facet/ Build</text>
+  <line x1="210" y1="134" x2="342" y2="134" stroke="#bae6fd" stroke-width="0.5"/>
+  <text x="214" y="152" font-size="9" fill="#475569">1. Symlink sources</text>
+  <text x="214" y="167" font-size="9" fill="#475569">2. Generate configs</text>
+  <text x="214" y="182" font-size="9" fill="#475569">3. npm install (cached)</text>
+  <text x="214" y="197" font-size="9" fill="#475569">4. Vite SSR compile</text>
+  <text x="214" y="212" font-size="9" fill="#475569">5. React SSR render</text>
+  <!-- Vite logo -->
+  <g transform="translate(330, 182) scale(0.035)">
+    <path d="M475.3 3.3L289.4 436.5c-2.5 5.8-10.6 6.2-13.6.6L3.9 40.1C.7 34.2 4.4 26.7 11.2 26l228-24.3c1-.1 2 .1 2.9.5l224.6 99.3c6.5 2.9 10.8-6.6 5.6-11z" fill="#41d1ff"/>
+    <path d="M359 0L183.3 32c-2.3.4-4 2.3-4.2 4.7l-11 154.4c-.2 3.2 2.8 5.6 5.9 4.8l45.8-12.1c3.4-.9 6.4 2.2 5.4 5.6l-13.6 48.6c-1 3.5 2.1 6.7 5.6 5.7l28.3-7.9c3.5-1 6.7 2.2 5.6 5.7L579.3 390c-1.6 5.4 5.8 8.7 9 4.1l2.1-3L411.2 14.4c-1.3-2.7-5-3.4-7.3-1.4L359 0z" fill="#bd34fe"/>
+  </g>
+
+  <!-- Arrow: .facet → Tailwind -->
+  <line x1="356" y1="170" x2="398" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Tailwind CSS: x=398 y=132 w=120 h=76 -->
+  <g filter="url(#shadow)">
+    <rect x="398" y="132" width="120" height="76" rx="8" fill="url(#grad-build)" stroke="#bae6fd" stroke-width="1"/>
+  </g>
+  <g transform="translate(434, 139) scale(1.45)">
+    <path fill="#38bdf8" d="M12 6C9.6 6 8.1 7.2 7.5 9.6c.9-1.2 1.95-1.65 3.15-1.35.685.172 1.174.672 1.716 1.23C13.266 10.5 14.25 11.5 16.5 11.5c2.4 0 3.9-1.2 4.5-3.6-.9 1.2-1.95 1.65-3.15 1.35-.685-.172-1.174-.672-1.716-1.23C15.234 7 14.25 6 12 6zM7.5 11.5C5.1 11.5 3.6 12.7 3 15.1c.9-1.2 1.95-1.65 3.15-1.35.685.172 1.174.672 1.716 1.23C8.766 16 9.75 17 12 17c2.4 0 3.9-1.2 4.5-3.6-.9 1.2-1.95 1.65-3.15 1.35-.685-.172-1.174-.672-1.716-1.23C10.734 12.5 9.75 11.5 7.5 11.5z"/>
+  </g>
+  <text x="458" y="178" text-anchor="middle" font-size="11" font-weight="600" fill="#0369a1">Tailwind CSS</text>
+  <text x="458" y="198" text-anchor="middle" font-size="9" fill="#64748b">Extract used styles</text>
+
+  <!-- Arrow: Tailwind → HTML -->
+  <line x1="518" y1="170" x2="560" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- HTML Output: x=560 y=132 w=110 h=76 -->
+  <g filter="url(#shadow)">
+    <rect x="560" y="132" width="110" height="76" rx="8" fill="url(#grad-output)" stroke="#a7f3d0" stroke-width="1"/>
+  </g>
+  <g transform="translate(603, 140) scale(0.6)">
+    <path d="M2 0l2 22 8 3 8-3 2-22H2z" fill="#e44d26"/>
+    <path d="M12 2v21l6.5-2.3L20.2 2H12z" fill="#f16529"/>
+    <text x="12" y="17" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" font-family="sans-serif">&lt;/&gt;</text>
+  </g>
+  <text x="615" y="178" text-anchor="middle" font-size="11" font-weight="600" fill="#047857">HTML</text>
+  <text x="615" y="198" text-anchor="middle" font-size="9" fill="#64748b">Inlined CSS + markup</text>
+
+  <!-- Arrow: HTML → Puppeteer -->
+  <line x1="670" y1="170" x2="712" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Puppeteer: x=712 y=132 w=110 h=76 -->
+  <g filter="url(#shadow)">
+    <rect x="712" y="132" width="110" height="76" rx="8" fill="url(#grad-build)" stroke="#bae6fd" stroke-width="1"/>
+  </g>
+  <use href="#chrome-logo" x="755" y="138"/>
+  <text x="767" y="178" text-anchor="middle" font-size="11" font-weight="600" fill="#0369a1">Puppeteer</text>
+  <text x="767" y="198" text-anchor="middle" font-size="9" fill="#64748b">Chrome print-to-PDF</text>
+
+  <!-- Arrow: Puppeteer → PDF -->
+  <line x1="822" y1="170" x2="864" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- PDF Output: x=864 y=116 w=78 h=72 -->
+  <g filter="url(#shadow)">
+    <rect x="864" y="116" width="78" height="72" rx="8" fill="#2563eb" stroke="#1d4ed8" stroke-width="1"/>
+  </g>
+  <use href="#pdf-logo" x="889" y="119"/>
+  <text x="903" y="176" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">PDF</text>
+
+  <!-- Arrow: PDF → LRU Cache -->
+  <line x1="942" y1="152" x2="974" y2="152" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- LRU Cache (CLI row): x=974 y=126 w=100 h=52 -->
+  <g filter="url(#shadow)">
+    <rect x="974" y="126" width="100" height="52" rx="8" fill="url(#grad-output)" stroke="#a7f3d0" stroke-width="1"/>
+  </g>
+  <text x="1024" y="148" text-anchor="middle" font-size="16">💾</text>
+  <text x="1024" y="167" text-anchor="middle" font-size="10" font-weight="600" fill="#047857">LRU Cache</text>
+
+  <!-- Optional: PDF Security branch (below PDF) -->
+  <line x1="903" y1="188" x2="903" y2="226" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <g filter="url(#shadow)">
+    <rect x="844" y="226" width="118" height="48" rx="8" fill="#fefce8" stroke="#fde68a" stroke-width="1"/>
+  </g>
+  <text x="903" y="248" text-anchor="middle" font-size="10" font-weight="600" fill="#92400e">🔒 PDF Security</text>
+  <text x="903" y="264" text-anchor="middle" font-size="9" fill="#a16207">Encrypt &amp; Sign</text>
+  <text x="895" y="218" text-anchor="end" font-size="8" fill="#94a3b8" font-style="italic">optional</text>
+
+  <!-- ═══════════════════ SERVER FLOW ═══════════════════ -->
+  <text x="28" y="308" font-size="11" font-weight="600" fill="#7c3aed" letter-spacing="0.08em">SERVER MODE</text>
+  <text x="130" y="308" font-size="11" fill="#64748b">facet serve</text>
+  <line x1="28" y1="316" x2="1092" y2="316" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Input mode 1: JSON -->
+  <g filter="url(#shadow)">
+    <rect x="28" y="330" width="148" height="46" rx="7" fill="url(#grad-server)" stroke="#d8b4fe" stroke-width="1"/>
+  </g>
+  <text x="40" y="349" font-size="9" font-weight="600" fill="#6d28d9">{ } JSON</text>
+  <text x="40" y="363" font-size="8" fill="#64748b">inline code or template name</text>
+  <text x="165" y="363" font-size="8" fill="#a78bfa">+data</text>
+
+  <!-- Input mode 2: Multipart -->
+  <g filter="url(#shadow)">
+    <rect x="28" y="384" width="148" height="46" rx="7" fill="url(#grad-server)" stroke="#d8b4fe" stroke-width="1"/>
+  </g>
+  <text x="40" y="403" font-size="9" font-weight="600" fill="#6d28d9">📦 Multipart</text>
+  <text x="40" y="417" font-size="8" fill="#64748b">archive (zip/tar.gz)</text>
+  <text x="148" y="417" font-size="8" fill="#a78bfa">+data</text>
+
+  <!-- Input mode 3: Gzip body -->
+  <g filter="url(#shadow)">
+    <rect x="28" y="438" width="148" height="46" rx="7" fill="url(#grad-server)" stroke="#d8b4fe" stroke-width="1"/>
+  </g>
+  <text x="40" y="457" font-size="9" font-weight="600" fill="#6d28d9">🗜 Gzip Body</text>
+  <text x="40" y="462" font-size="8" fill="#64748b">tar.gz stream</text>
+  <text x="40" y="474" font-size="8" fill="#64748b">X-Facet-Data header</text>
+
+  <!-- Fan-in arrows → Auth -->
+  <line x1="176" y1="353" x2="218" y2="393" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="176" y1="407" x2="218" y2="407" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="176" y1="461" x2="218" y2="421" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Auth: x=218 y=382 w=90 h=50 -->
+  <g filter="url(#shadow)">
+    <rect x="218" y="382" width="90" height="50" rx="8" fill="url(#grad-server)" stroke="#d8b4fe" stroke-width="1"/>
+  </g>
+  <text x="263" y="403" text-anchor="middle" font-size="14">🔑</text>
+  <text x="263" y="422" text-anchor="middle" font-size="10" font-weight="600" fill="#6d28d9">Auth</text>
+
+  <!-- Arrow: Auth → Worker Pool -->
+  <line x1="308" y1="407" x2="340" y2="407" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Worker Pool: x=340 y=378 w=120 h=58, bottom=436, center-x=400 -->
+  <g filter="url(#shadow)">
+    <rect x="340" y="378" width="120" height="58" rx="8" fill="url(#grad-server)" stroke="#d8b4fe" stroke-width="1"/>
+  </g>
+  <use href="#chrome-logo" x="388" y="382"/>
+  <text x="400" y="418" text-anchor="middle" font-size="10" font-weight="600" fill="#6d28d9">Worker Pool</text>
+  <text x="400" y="430" text-anchor="middle" font-size="8" fill="#64748b">Browser instances</text>
+
+  <!-- Server → full CLI pipeline: elbow from Worker Pool bottom (400,436) down to y=510,
+       left to x=276 (center of .facet/Build), up to bottom of .facet/Build (276,238) -->
+  <polyline points="400,436 400,510 276,510 276,238"
+    fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5,3"
+    marker-end="url(#arrow-blue)"/>
+  <text x="408" y="482" font-size="8" fill="#7c3aed" font-style="italic">runs full CLI pipeline</text>
+
+  <!-- Return path: exit bottom of HTML box (615,208), down to y=510,
+       right to x=1024 (cache center), up to cache bottom (974+52=178... cache is at y=126 h=52 → bottom=178 in CLI row).
+       Cache bottom y=178. Go up from 510 to 178. -->
+  <polyline points="615,208 615,510 1024,510 1024,178"
+    fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5,3"
+    marker-end="url(#arrow-blue)"/>
+  <text x="623" y="482" font-size="8" fill="#7c3aed" font-style="italic">result</text>
+
+  <!-- Arrow: Cache → Response (server) -->
+  <!-- Response stays in server row, reads from cache. Draw arrow from cache right edge down to Response -->
+  <!-- Response: x=786 y=378 w=100 h=58 center-x=836 -->
+  <!-- Cache CLI row right edge: x=1074, center-y=152. Arrow from cache down-right to Response -->
+  <!-- Simpler: Response box reads "from cache" label, arrow from cache bottom to Response top -->
+  <!-- Cache bottom: y=178, center-x=1024. Response top: y=378, center-x=836 -->
+  <polyline points="1024,178 1024,350 836,350 836,378"
+    fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3,2"
+    marker-end="url(#arrow)"/>
+  <text x="1028" y="268" font-size="8" fill="#94a3b8" font-style="italic">serve</text>
+
+  <!-- Response: x=786 y=378 w=100 h=58 -->
+  <g filter="url(#shadow)">
+    <rect x="786" y="378" width="100" height="58" rx="8" fill="#7c3aed" stroke="#6d28d9" stroke-width="1"/>
+  </g>
+  <text x="836" y="400" text-anchor="middle" font-size="14">📤</text>
+  <text x="836" y="418" text-anchor="middle" font-size="10" font-weight="600" fill="#fff">Response</text>
+  <text x="836" y="430" text-anchor="middle" font-size="8" fill="#e9d5ff">HTML / PDF / S3</text>
+
+  <!-- Playground callout -->
+  <g filter="url(#shadow)">
+    <rect x="28" y="530" width="200" height="48" rx="8" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+  </g>
+  <text x="48" y="552" font-size="14">🎮</text>
+  <text x="70" y="552" font-size="11" font-weight="600" fill="#334155">Interactive Playground</text>
+  <text x="48" y="567" font-size="9" fill="#64748b">Live editor at localhost:3010</text>
+
+  <!-- Legend -->
+  <g transform="translate(800, 538)">
+    <text x="0" y="12" font-size="9" font-weight="600" fill="#64748b" letter-spacing="0.06em">LEGEND</text>
+    <rect x="0" y="20" width="12" height="12" rx="2" fill="url(#grad-input)" stroke="#bfdbfe" stroke-width="0.5"/>
+    <text x="18" y="30" font-size="9" fill="#64748b">Input</text>
+    <rect x="60" y="20" width="12" height="12" rx="2" fill="url(#grad-build)" stroke="#bae6fd" stroke-width="0.5"/>
+    <text x="78" y="30" font-size="9" fill="#64748b">Processing</text>
+    <rect x="145" y="20" width="12" height="12" rx="2" fill="url(#grad-output)" stroke="#a7f3d0" stroke-width="0.5"/>
+    <text x="163" y="30" font-size="9" fill="#64748b">Output</text>
+    <rect x="210" y="20" width="12" height="12" rx="2" fill="url(#grad-server)" stroke="#d8b4fe" stroke-width="0.5"/>
+    <text x="228" y="30" font-size="9" fill="#64748b">Server</text>
+  </g>
+</svg>
