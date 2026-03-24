@@ -100,57 +100,27 @@ This creates:
 facet pdf MyDatasheet.tsx
 ```
 
-## Available Components
+## How It Works
 
-### Layout Components
-- `DatasheetTemplate` - Main template wrapper with print styles
-- `Page` - Single page container
-- `Section` - Section with optional title
-- `Header` - Title header with subtitle and logo support
-- `Footer` - Page footer with customizable content
+![](assets/how-it-works.svg)
 
-### Data Display
-- `StatCard` - Key metric display with label and value
-- `MetricGrid` - Grid of metrics with icons
-- `CompactTable` - Dense data tables
-- `SpecificationTable` - Technical specification tables
-- `ComparisonTable` - Side-by-side comparisons
 
-### Content Components
-- `BulletList` - Styled bullet point lists
-- `CalloutBox` - Highlighted callout sections
-- `TwoColumnSection` - Two-column layouts
-- `ValueProposition` - Value prop with icon and description
-- `CapabilitySection` - Feature capabilities display
 
-### Interactive Elements
-- `IntegrationGrid` - Integration logos and descriptions
-- `SocialProof` - Customer logos and testimonials
-- `CallToAction` - CTA buttons and links
+### Build Process
 
-### Visualizations
-- `ProgressBar` - Progress indicators
-- `ScoreGauge` - Circular score gauges
-- `KPITargetActual` - Target vs actual KPI displays
+**CLI mode** — `facet html` and `facet pdf` run the full pipeline locally:
 
-### Code & Terminal
-- `SyntaxHighlighter` - Syntax-highlighted code blocks
-- `TerminalOutput` - Terminal-style output
-- `QueryResponseExample` - Query/response examples
+1. **Setup `.facet/`** — Creates an isolated build directory with symlinks to your sources
+2. **Generate configs** — Auto-generates `vite.config.ts`, `tsconfig.json`, `entry.tsx`
+3. **Vite SSR compile** — Compiles React + TypeScript + MDX via Vite
+4. **React SSR render** — Renders components to static HTML with `ReactDOMServer`
+5. **Tailwind CSS** — Extracts only the styles your template uses
+6. **HTML output** — Combines markup + inlined CSS into a self-contained HTML file
+7. **PDF output** *(optional)* — Puppeteer prints the HTML to PDF, with optional encryption and digital signatures
 
-### Project Management
-- `ProjectSummaryCard` - Project summary displays
-- `TaskSummarySection` - Task status summaries
-- `StageIndicator` - Multi-stage progress indicators
-- `StageSection` - Stage-based content sections
+**Server mode** — `facet serve` wraps the same pipeline behind an HTTP API with a worker pool, LRU cache, optional S3 upload, and an interactive playground at `localhost:3010`.
 
-### Security & Compliance
-- `SecurityChecksTable` - Security check results
-- `VulnerabilityBreakdown` - Vulnerability statistics
-- `SeverityStatCard` - Severity-based stats
-- `AlertsTable` - Alert listings
 
-[See full component documentation →](./docs/components.md)
 
 ## Page Component API
 
@@ -182,31 +152,45 @@ The `Page` component is the primary layout container for multi-page PDF document
 | `footer` | `ReactNode` | — | Fixed footer rendered at the bottom of every physical page |
 | `footerHeight` | `number` (mm) | `15` | Height of the footer; used to add bottom padding to content |
 | `margins` | `PageMargins` | `{}` | Additional content margins `{ top, right, bottom, left }` in mm |
-| `pageSize` | `'a4'` | `'a4'` | Page size (A4 only currently) |
+| `pageSize` | `string` | `'a4'` | Page size — `a4`, `a3`, `letter`, `legal`, `fhd`, `a4-landscape`, or custom `WxH` in mm |
+| `type` | `string` | `'default'` | Page type — groups pages for header/footer extraction (e.g. `cover`, `default`) |
 | `watermark` | `string` | — | Diagonal watermark text (e.g. `"DRAFT"`, `"CONFIDENTIAL"`) |
 | `debug` | `boolean` | `false` | Renders dashed red lines at margin boundaries for layout debugging |
 | `className` | `string` | — | Extra CSS class applied to the `<main>` element |
 
 ### Multi-page PDF layout
 
-Fixed headers and footers are rendered using `position: fixed` in Chromium's print engine, which repeats them on every physical page. The `@page` margins are set to `0` so the header renders flush at the physical top of every page — content spacing is handled entirely by `paddingTop`/`paddingBottom` in the `Page` component.
+A single React document with mixed page sizes (e.g. `<Page size="a4" type="cover">`, `<Page size="a4">`, `<Page size="a4-landscape">`) is compiled into a final PDF via a 4-phase multi-pass pipeline:
+
+1. **DOM Scan** — Puppeteer renders to DOM, measures header/footer heights per type×size group (e.g. `cover:a4`, `default:a4`, `default:a4-landscape`)
+2. **Extract** — Each unique type×size group's header and footer are rendered as isolated PDFs using a dedicated Puppeteer pass, loaded into pdf-lib
+3. **Content Render** — Decorators are stripped from the DOM; `@page` margins are set to the measured header/footer heights; Puppeteer prints content-only PDFs per group
+4. **Composite** — pdf-lib `page.drawPage()` overlays the correct header at the top and footer at the bottom of every physical page, producing a single merged PDF
 
 ```tsx
-// Pages with a repeating header
-<Page
-  header={<Header variant="solid" />}
-  headerHeight={15}
-  footer={<PdfFooter />}
-  footerHeight={12}
->
-  {/* Content starts after 15mm header automatically */}
-</Page>
+  {/* Cover page with unique header/footer */}
+  <Page pageSize="a4" type="cover">
+    <Header height={20} />
+    <CoverContent />
+    <Footer height={10} />
+  </Page>
 
-// Cover page — no header, full content area
-<Page>
-  <CoverContent />
-</Page>
+  {/* Standard A4 page */}
+  <Page pageSize="a4">
+    <Header height={18} />
+    {/* Content starts after header automatically */}
+    <Footer height={8} />
+  </Page>
+
+  {/* Landscape page for wide content */}
+  <Page pageSize="a4-landscape">
+    <Header height={18} />
+    <WideTableContent />
+    <Footer height={8} />
+  </Page>
 ```
+
+![](assets/pdf-layout.svg)
 
 ## CLI Commands
 
@@ -307,37 +291,6 @@ helm install facet ./chart
 
 See [chart/values.yaml](chart/values.yaml) for configuration options.
 
-## How It Works
-
-### Build Process
-
-When you run `facet build MyDatasheet.tsx`:
-
-1. **Setup `.facet/` directory** - Creates build working directory
-2. **Symlink your files** - Symlinks your templates and assets into `.facet/src/`
-3. **Symlink node_modules** - Links dependencies for fast access
-4. **Generate configs** - Creates `vite.config.ts`, `tsconfig.json`, `entry.tsx`
-5. **Run Vite build** - Compiles React + TypeScript + MDX to static bundle
-6. **Server-side render** - Renders React to static HTML
-7. **Output files** - Writes HTML to your `dist/` directory
-
-```
-your-project/
-├── MyDatasheet.tsx          # Your template
-├── node_modules/
-│   └── @facet/             # Installed package
-├── .facet/                  # Build cache (auto-generated)
-│   ├── src/                 # Symlinks to your files
-│   │   └── MyDatasheet.tsx -> ../../MyDatasheet.tsx
-│   ├── node_modules/        # Symlink to ../node_modules
-│   ├── entry.tsx            # Generated entry point
-│   ├── vite.config.ts       # Generated Vite config
-│   └── dist/                # Vite build output
-└── dist/                    # Final output
-    ├── datasheet-MyDatasheet.html
-    └── datasheet-MyDatasheet-scoped.html
-```
-
 ### Why `.facet/`?
 
 Similar to Next.js (`.next/`) or Nuxt (`.nuxt/`), the `.facet/` directory:
@@ -347,6 +300,7 @@ Similar to Next.js (`.next/`) or Nuxt (`.nuxt/`), the `.facet/` directory:
 - **Simplifies debugging** - All build files in one place
 
 **Add to `.gitignore`:**
+
 ```gitignore
 .facet/
 dist/
