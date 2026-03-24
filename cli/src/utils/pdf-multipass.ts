@@ -73,14 +73,7 @@ export async function detectPageTypes(page: Page, overridePageSize?: string): Pr
   return page.evaluate((override: string | null): RawDetectResult | null => {
     const headerEls = document.querySelectorAll('[data-header-type]');
     const footerEls = document.querySelectorAll('[data-footer-type]');
-    const hasTypedHeaders = headerEls.length > 0 || footerEls.length > 0;
-
-    if (!hasTypedHeaders) {
-      const allPages = document.querySelectorAll('[data-page-size]');
-      const sizes = new Set<string>();
-      allPages.forEach(el => sizes.add((override ?? (el.getAttribute('data-page-size') || 'a4')).toLowerCase()));
-      if (sizes.size <= 1) return null;
-    }
+    if (headerEls.length === 0 && footerEls.length === 0) return null;
 
     const pageEls = document.querySelectorAll('[data-page-size]');
     const types: string[] = [];
