@@ -82,6 +82,33 @@ async function loadAndPrepare(browser: Browser, html: string, widthMm?: number):
   return page;
 }
 
+async function detectMixedSizes(page: Page): Promise<PageTypeInfo | null> {
+  const raw = await page.evaluate(() => {
+    const pages = document.querySelectorAll('[data-page-size]');
+    const sizes: string[] = [];
+    const types: string[] = [];
+    const margins: {top: number; right: number; bottom: number; left: number}[] = [];
+    pages.forEach(el => {
+      sizes.push((el.getAttribute('data-page-size') || 'a4').toLowerCase());
+      types.push(el.getAttribute('data-page-type') || 'default');
+      margins.push({
+        top: parseInt(el.getAttribute('data-margin-top') || '0', 10),
+        right: parseInt(el.getAttribute('data-margin-right') || '0', 10),
+        bottom: parseInt(el.getAttribute('data-margin-bottom') || '0', 10),
+        left: parseInt(el.getAttribute('data-margin-left') || '0', 10),
+      });
+    });
+    return { sizes, types, margins };
+  });
+  if (new Set(raw.sizes).size <= 1) return null;
+  return {
+    types: raw.types as PageType[],
+    pageSizes: raw.sizes,
+    pageMargins: raw.margins,
+    definitions: new Map(),
+  };
+}
+
 async function renderMultiPass(
   browser: Browser,
   html: string,
@@ -318,11 +345,11 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
     }
     await page.evaluateHandle('document.fonts.ready');
 
-    const typeInfo = await detectPageTypes(page, defaultPageSize);
+    const typeInfo = await detectPageTypes(page, defaultPageSize) ?? await detectMixedSizes(page);
 
     let result: Buffer;
     if (typeInfo != null) {
-      log.debug(`Multi-pass mode: ${typeInfo.definitions.size} type(s) detected`);
+      log.info(`Multi-pass mode: ${typeInfo.definitions.size} type(s), ${typeInfo.pageSizes.length} pages`);
       await page.close();
       result = await renderMultiPass(browser, html, typeInfo, log, debug, outputPath);
     } else {
@@ -370,7 +397,7 @@ export async function generatePDFWithBrowser(
     }
     await page.evaluateHandle('document.fonts.ready');
 
-    const typeInfo = await detectPageTypes(page, defaultPageSize);
+    const typeInfo = await detectPageTypes(page, defaultPageSize) ?? await detectMixedSizes(page);
 
     let result: Buffer;
     if (typeInfo != null) {
@@ -422,7 +449,7 @@ export async function generatePDFBuffer(
     }
     await page.evaluateHandle('document.fonts.ready');
 
-    const typeInfo = await detectPageTypes(page, options?.defaultPageSize);
+    const typeInfo = await detectPageTypes(page, options?.defaultPageSize) ?? await detectMixedSizes(page);
 
     if (typeInfo != null) {
       await page.close();
