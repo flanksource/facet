@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { version } from '../package.json';
 import { generatePDF } from './generators/pdf.js';
 import { generateHTML } from './generators/html.js';
 import { startServer } from './server/preview.js';
@@ -63,7 +64,7 @@ const program = new Command();
 program
   .name('facet')
   .description('Build beautiful datasheets and PDFs from React templates')
-  .version('1.0.1');
+  .version(version);
 
 // html command
 addSharedOptions(
