@@ -27,7 +27,6 @@ export const GaugeDefault: Story = {
     subtitle: 'OpenSSF Scorecard',
     score: 8.5,
     maxScore: 10,
-    size: 'md',
   },
 };
 
@@ -37,7 +36,6 @@ export const GaugeSmall: Story = {
     title: 'Compliance Score',
     score: 7,
     maxScore: 10,
-    size: 'sm',
   },
 };
 
@@ -48,7 +46,6 @@ export const GaugeLarge: Story = {
     subtitle: 'System Status',
     score: 9.2,
     maxScore: 10,
-    size: 'lg',
   },
 };
 

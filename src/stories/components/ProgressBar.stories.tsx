@@ -38,6 +38,7 @@ export const Default: Story = {
 
 export const AllVariants: Story = {
   name: 'All Color Variants',
+  args: { title: 'Primary', percentage: 75 },
   render: () => (
     <div className="space-y-3 w-96">
       <ProgressBar title="Primary" percentage={75} variant="primary" />

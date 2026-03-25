@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   IoTrendingUpOutline as IconTrendingUp,
   IoTrendingDownOutline as IconTrendingDown,
@@ -60,7 +59,6 @@ export default function SeverityStatCard({
   value,
   label,
   trend,
-  downIsGood = true,
   className = ''
 }: SeverityStatCardProps) {
   const colors = colorClasses[color];

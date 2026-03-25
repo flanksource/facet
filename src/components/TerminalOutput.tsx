@@ -1,37 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 interface TerminalOutputProps {
-  command: string;
   children?: React.ReactNode;
 }
 
-function CopyButton({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="text-white/50 hover:text-white transition-colors"
-      style={{
-        background: 'none',
-        border: 'none',
-        cursor: 'pointer',
-        fontSize: '12px',
-        padding: '4px 8px'
-      }}
-    >
-      {copied ? '✓ Copied' : 'Copy'}
-    </button>
-  );
-}
-
-export default function TerminalOutput({ command, children }: TerminalOutputProps) {
+export default function TerminalOutput({ children }: TerminalOutputProps) {
   // Extract text from children if it's a React element
   let output = '';
   if (typeof children === 'string') {

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import StatCard, { TimeUnitValue, DataUnitValue, NumberUnitValue } from './StatCard';
 
@@ -38,7 +39,7 @@ describe('StatCard', () => {
     });
 
     it('should render hero variant with larger text', () => {
-      const { container } = render(
+      render(
         <StatCard
           value="50x"
           label="Hero Metric"
@@ -207,7 +208,7 @@ describe('StatCard', () => {
     });
 
     it('should normalize progress bars to max value', () => {
-      const { container } = render(
+      render(
         <StatCard
           value={100}
           compareFrom={50}
@@ -241,7 +242,7 @@ describe('StatCard', () => {
   // Test conditional styling
   describe('Conditional Styling', () => {
     it('should apply red-green preset for negative value', () => {
-      const { container } = render(
+      render(
         <StatCard
           value={-50}
           label="Negative"
@@ -255,7 +256,7 @@ describe('StatCard', () => {
     });
 
     it('should apply red-green preset for positive value', () => {
-      const { container } = render(
+      render(
         <StatCard
           value={50}
           label="Positive"
@@ -269,7 +270,7 @@ describe('StatCard', () => {
     });
 
     it('should apply green-red preset (inverted)', () => {
-      const { container } = render(
+      render(
         <StatCard
           value={-10}
           label="Error Count"
@@ -283,7 +284,7 @@ describe('StatCard', () => {
     });
 
     it('should apply custom function condition', () => {
-      const { container } = render(
+      render(
         <StatCard
           value={150}
           label="High Value"
@@ -303,7 +304,7 @@ describe('StatCard', () => {
     });
 
     it('should not apply condition when threshold not met', () => {
-      const { container } = render(
+      render(
         <StatCard
           value={50}
           label="Low Value"
@@ -322,7 +323,7 @@ describe('StatCard', () => {
     });
 
     it('should apply first matching condition', () => {
-      const { container } = render(
+      render(
         <StatCard
           value={75}
           label="Multiple Conditions"
@@ -568,7 +569,7 @@ describe('StatCard', () => {
         <div className={className} data-testid="icon">Icon</div>
       );
 
-      const { container } = render(
+      render(
         <StatCard
           value={100}
           label="Custom Classes"
@@ -590,7 +591,7 @@ describe('StatCard', () => {
         <div style={style} data-testid="colored-icon">Icon</div>
       );
 
-      const { container } = render(
+      render(
         <StatCard
           value={100}
           label="Custom Colors"
@@ -620,7 +621,7 @@ describe('StatCard', () => {
     });
 
     it('should prioritize conditional styles over inline valueColor', () => {
-      const { container } = render(
+      render(
         <StatCard
           value={-50}
           label="Priority Test"

@@ -308,7 +308,7 @@ export default function StatCard({
   const renderComparisonIndicator = () => {
     if (!compareFrom || !compareVariant) return null;
 
-    const { delta, percent, isPositive } = calculateDelta();
+    const { delta, isPositive } = calculateDelta();
     const formattedValue = formatValue(value);
     const formattedCompareFrom = formatValue(compareFrom);
 

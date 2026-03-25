@@ -32,7 +32,7 @@ export function Age({
   if (isEmpty(to)) {
     return (
       <span className={className} title={_from.format('YYYY-MM-DD HH:mm:ssZ')}>
-        {_from.local().fromNow(!suffix)}
+        {_from.fromNow(!suffix)}
       </span>
     );
   }
@@ -58,7 +58,7 @@ export function Age({
       className={clsx(className, 'whitespace-nowrap')}
       title={`${_from.format('YYYY-MM-DD HH:mm:ssZ')} - ${_to.format('YYYY-MM-DD HH:mm:ssZ')}`}
     >
-      {_from.local().to(_to, !suffix)}
+      {_from.to(_to, !suffix)}
     </span>
   );
 }

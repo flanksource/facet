@@ -37,7 +37,7 @@ export default function DatasheetTemplate({
         <title>
           {title + (subtitle ? ` - ${subtitle}` : '')}
         </title>
-        <style dangerouslySetInnerHTML={{ __html: css }} />
+        {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
       </head>
       <body>
         {(pages || []).map((page, index) => (

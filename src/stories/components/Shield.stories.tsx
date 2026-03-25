@@ -37,6 +37,7 @@ export const ValueOnly: Story = {
 };
 
 export const Themes: Story = {
+  args: { value: 'passing' },
   render: () => (
     <div className="flex flex-wrap gap-3">
       <Shield label="build" value="passing" theme="success" />
@@ -51,6 +52,7 @@ export const Themes: Story = {
 };
 
 export const Sizes: Story = {
+  args: { value: '1.0.0' },
   render: () => (
     <div className="flex flex-col gap-3">
       {(['h-3', 'h-4', 'h-5', 'h-6'] as const).map((size) => (
@@ -64,6 +66,7 @@ export const Sizes: Story = {
 };
 
 export const WithIcons: Story = {
+  args: { value: 'passing' },
   render: () => (
     <div className="flex flex-wrap gap-3">
       <Shield label="status" value="passing" theme="success" icon={<IoCheckmarkCircle />} />

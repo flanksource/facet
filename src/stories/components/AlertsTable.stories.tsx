@@ -18,7 +18,7 @@ const sampleAlerts: Alert[] = [
     references: [{ label: 'Details', url: '#' }],
   },
   {
-    type: 'dependency',
+    type: 'dependabot',
     severity: 'medium',
     title: 'Vulnerable package: lodash@4.17.0',
     location: 'package.json',

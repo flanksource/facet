@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import DatasheetTemplate from '../../components/DatasheetTemplate';
 import Page from '../../components/Page';
-import Header from '../../components/Header';
 
 const meta = {
   title: 'Components/DatasheetTemplate',
@@ -49,12 +48,12 @@ export const MultiPage: Story = {
     pages: [
       {
         content: <div><h2>Page 1</h2><p>Introduction content</p></div>,
-        header: <Header variant="solid" title="Introduction" />,
+        title: 'Introduction',
         margins: true,
       },
       {
         content: <div><h2>Page 2</h2><p>Features content</p></div>,
-        header: <Header variant="minimal" title="Features" />,
+        title: 'Features',
         margins: true,
       },
       {
