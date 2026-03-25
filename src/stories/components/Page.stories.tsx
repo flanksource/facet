@@ -81,3 +81,34 @@ export const WithWatermark: Story = {
     ),
   },
 };
+
+export const CustomPageSize: Story = {
+  args: {
+    title: 'Custom Size Page',
+    product: 'Mission Control',
+    pageSize: '297x210',
+    children: (
+      <div>
+        <h3>Custom WxH Page Size</h3>
+        <p>This page uses a custom "297x210" (landscape A4) page size string.</p>
+      </div>
+    ),
+  },
+};
+
+export const PageTypes: Story = {
+  args: { children: null },
+  render: () => (
+    <div className="space-y-4">
+      <Page title="First Page" type="first" pageSize="a4">
+        <p>type="first" — used for the first page of a document</p>
+      </Page>
+      <Page title="Default Page" type="default" pageSize="a4">
+        <p>type="default" — standard page type</p>
+      </Page>
+      <Page title="Last Page" type="last" pageSize="a4">
+        <p>type="last" — used for the final page of a document</p>
+      </Page>
+    </div>
+  ),
+};
