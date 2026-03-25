@@ -110,8 +110,7 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   require('module').Module._initPaths();
 
   const viteConfigPath = join(facetRoot, 'vite.config.ts');
-  const distDir = join(facetRoot, 'dist');
-
+  const outDir = join(facetRoot, `dist-${crypto.randomUUID()}`);
 
   console = new Console(process.stderr, process.stderr);
 
@@ -122,21 +121,21 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
     logLevel: verbose ? 'info' : 'error',
     build: {
       ssr: true,
-      outDir: distDir,
+      outDir: outDir,
       emptyOutDir: true,
     },
   });
 
   try {
     // Find the built SSR bundle (could be bundle.cjs or entry.cjs)
-    const files = readdirSync(distDir);
+    const files = readdirSync(outDir);
     const cjsFile = files.find(f => f.endsWith('.cjs'));
 
     if (!cjsFile) {
       throw new Error('No .cjs bundle found in build output');
     }
 
-    const bundlePath = join(distDir, cjsFile);
+    const bundlePath = join(outDir, cjsFile);
     const module = require(bundlePath);
 
     // Handle both ESM default export and CommonJS module.exports
@@ -150,13 +149,13 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
     const html = renderToString(Component({ data }));
 
     // Extract CSS from build output
-    const css = extractCSS(distDir);
+    const css = extractCSS(outDir);
 
     return { html, css };
   } finally {
     // Clean up build output
     try {
-      rmSync(distDir, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
     } catch (error) {
       // Ignore cleanup errors
     }
