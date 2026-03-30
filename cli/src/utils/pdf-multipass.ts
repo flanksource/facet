@@ -14,9 +14,13 @@ export interface PageSizeDimensions {
 
 export const PAGE_SIZES: Record<string, PageSizeDimensions> = {
   a4: { width: 210, height: 297 },
+  'a4-landscape': { width: 297, height: 210 },
   a3: { width: 297, height: 420 },
+  'a3-landscape': { width: 420, height: 297 },
   letter: { width: 215.9, height: 279.4 },
+  'letter-landscape': { width: 279.4, height: 215.9 },
   legal: { width: 215.9, height: 355.6 },
+  'legal-landscape': { width: 355.6, height: 215.9 },
   fhd: { width: 508, height: 285.75 },
   qhd: { width: 677.33, height: 381 },
   wqhd: { width: 846.67, height: 381 },
@@ -159,6 +163,8 @@ export function buildPageGroups(typeInfo: PageTypeInfo): PageGroup[] {
 export interface RenderMargins {
   top: number;
   bottom: number;
+  left: number;
+  right: number;
 }
 
 export function computeMarginsForSize(
@@ -171,7 +177,7 @@ export function computeMarginsForSize(
     top = Math.max(top, scaledHeight(def.headerHeight, scale));
     bottom = Math.max(bottom, scaledHeight(def.footerHeight, scale));
   }
-  return { top, bottom };
+  return { top, bottom, left: 0, right: 0 };
 }
 
 // --- Phase 1: Element-to-PDF rendering ---
@@ -332,14 +338,16 @@ export async function renderGroup(
 
   const topMm = `${margins.top}mm`;
   const bottomMm = `${margins.bottom}mm`;
+  const leftMm = `${margins.left}mm`;
+  const rightMm = `${margins.right}mm`;
   await page.addStyleTag({
-    content: `@page { size: ${dims.width}mm ${dims.height}mm; margin-top: ${topMm} !important; margin-bottom: ${bottomMm} !important; margin-left: 0 !important; margin-right: 0 !important; } body { max-width: ${dims.width}mm !important; }`,
+    content: `@page { size: ${dims.width}mm ${dims.height}mm; margin-top: ${topMm} !important; margin-bottom: ${bottomMm} !important; margin-left: ${leftMm} !important; margin-right: ${rightMm} !important; } body { max-width: ${dims.width}mm !important; }`,
   });
 
   const pdfBytes = await page.pdf({
     width: `${dims.width}mm`,
     height: `${dims.height}mm`,
-    margin: { top: topMm, bottom: bottomMm, left: 0, right: 0 },
+    margin: { top: topMm, bottom: bottomMm, left: leftMm, right: rightMm },
     omitBackground: false,
     printBackground: true,
     displayHeaderFooter: false,
@@ -545,11 +553,11 @@ export async function drawDebugOverlay(
 
     // Draw vertical margin lines (left/right)
     const pm = pageMarginMap?.[i] ?? { top: 0, right: 0, bottom: 0, left: 0 };
-    const leftPt = mmToPt(pm.left + 10);
-    const rightPt = pw - mmToPt(pm.right + 10);
+    const leftPt = mmToPt(pm.left);
+    const rightPt = pw - mmToPt(pm.right);
     const verticals = [
-      { xPt: leftPt, label: `margin-left ${pm.left + 10}mm` },
-      { xPt: rightPt, label: `margin-right ${pm.right + 10}mm` },
+      { xPt: leftPt, label: `margin-left ${pm.left}mm` },
+      { xPt: rightPt, label: `margin-right ${pm.right}mm` },
     ];
     for (const { xPt, label: vLabel } of verticals) {
       let y = 0;

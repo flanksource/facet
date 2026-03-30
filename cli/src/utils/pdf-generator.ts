@@ -134,10 +134,15 @@ async function renderMultiPass(
   for (const group of groups) {
     const dims = resolvePageSize(group.size);
     const margins = computeMarginsForSize(typeInfo.definitions, group.size);
+    const elemMargin = typeInfo.pageMargins[group.elementIndices[0]];
+    if (elemMargin) {
+      margins.left = elemMargin.left;
+      margins.right = elemMargin.right;
+    }
     const page = await loadAndPrepare(browser, html, dims.width);
     const result = await renderGroup(page, group, dims, margins);
     await page.close();
-    log.info(`  Group ${group.type}/${group.size}: ${result.pageCount} pages (margins=${margins.top}/${margins.bottom}mm)`);
+    log.info(`  Group ${group.type}/${group.size}: ${result.pageCount} pages (margins=${margins.top}/${margins.bottom}/${margins.left}/${margins.right}mm)`);
     if (debugBasePath) {
       const contentPath = `${debugBasePath}.debug-content-${group.type}-${group.size}.pdf`;
       writeFileSync(contentPath, result.buffer);

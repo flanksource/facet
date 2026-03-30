@@ -41,9 +41,9 @@ export default function Page({
   const mainStyle: React.CSSProperties = {
     overflow: 'hidden',
     paddingTop: `${marginTop}mm`,
-    paddingRight: `${marginRight + 10}mm`,
+    paddingRight: `${marginRight}mm`,
     paddingBottom: `${marginBottom}mm`,
-    paddingLeft: `${marginLeft + 10}mm`,
+    paddingLeft: `${marginLeft}mm`,
   };
 
   return (

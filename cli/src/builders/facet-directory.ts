@@ -335,7 +335,7 @@ export default defineConfig({
     ];
 
     for (const dep of requiredDeps) {
-      if (allDeps[dep]) {
+      if (allDeps[dep] && !dependencies[dep]) {
         dependencies[dep] = allDeps[dep];
       }
     }
