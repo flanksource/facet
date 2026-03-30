@@ -11,6 +11,7 @@ A zero-setup CLI tool that generates professional PDF reports, static HTML pages
 - **React Templates**: Write templates in TypeScript with full React support
 - **Dynamic Data**: Load data from JSON files or TypeScript modules with async support
 - **Schema Validation**: Validate data against JSON Schema before generation
+- **Style Linting**: Catch styling issues, page structure problems, and CSS conflicts
 - **Preview Server**: Live preview with data editing and hot reload
 - **Self-Contained**: All dependencies bundled - no local package.json needed
 
@@ -53,10 +54,6 @@ export default function MyReport({ data }: { data: ReportData }) {
     <html>
       <head>
         <title>{data.title}</title>
-        <style>{`
-          body { font-family: sans-serif; padding: 2rem; }
-          h1 { color: #2563eb; }
-        `}</style>
       </head>
       <body>
         <h1>{data.title}</h1>
@@ -90,66 +87,59 @@ export default function MyReport({ data }: { data: ReportData }) {
 **3. Generate PDF**:
 
 ```bash
-facet generate pdf --template MyReport.tsx --data report-data.json
+facet pdf MyReport.tsx --data report-data.json
 ```
 
-Output: `Q4-Report.pdf` ✨
+Output: `Q4-Report.pdf`
 
 ## Usage
 
 ### Generate PDF
 
 ```bash
-facet generate pdf \
-  --template MyReport.tsx \
-  --data report-data.json
+facet pdf MyReport.tsx --data report-data.json
 ```
 
 ### Generate HTML
 
 ```bash
-facet generate html \
-  --template MyReport.tsx \
-  --data report-data.json \
-  --output-dir ./output
-```
-
-### Generate WebComponent (with scoped CSS)
-
-```bash
-facet generate webcomponent \
-  --template MyReport.tsx \
-  --data report-data.json \
-  --css-scope "my-report"
-```
-
-### Generate All Formats
-
-```bash
-facet generate all \
-  --template MyReport.tsx \
-  --data report-data.json
+facet html MyReport.tsx --data report-data.json --output ./output
 ```
 
 ### Preview Server
 
-Start a development server with live preview and data editing:
+Start an API server for rendering templates:
 
 ```bash
-facet serve \
-  --template MyReport.tsx \
-  --data report-data.json \
-  --port 3000
+facet serve --templates-dir ./templates --port 3010
 ```
 
-Open http://localhost:3000 to see live preview. Edit your template or data, and see changes instantly.
+### Lint Templates
+
+Scan TSX files for styling, CSS, and page layout issues:
+
+```bash
+facet lint src/components/
+```
+
+Run a specific rule only:
+
+```bash
+facet lint --rule inline-hex-colors src/
+```
+
+Show only errors (skip warnings):
+
+```bash
+facet lint --severity error .
+```
 
 ## Data Loading
 
 ### JSON File
 
 ```bash
-facet generate pdf --template Report.tsx --data data.json
+facet pdf Report.tsx --data data.json
 ```
 
 ### TypeScript Module (Static Data)
@@ -164,7 +154,7 @@ export const data = {
 ```
 
 ```bash
-facet generate pdf --template Report.tsx --data-loader data-loader.ts
+facet pdf Report.tsx --data-loader data-loader.ts
 ```
 
 ### TypeScript Module (Async Data)
@@ -178,7 +168,7 @@ export const data = async () => {
 ```
 
 ```bash
-facet generate pdf --template Report.tsx --data-loader data-loader.ts
+facet pdf Report.tsx --data-loader data-loader.ts
 ```
 
 ## Output Naming
@@ -197,10 +187,7 @@ Generates: `Q4-Report-2024.pdf`
 Use a different field:
 
 ```bash
-facet generate pdf \
-  --template Report.tsx \
-  --data data.json \
-  --output-name-field title
+facet pdf Report.tsx --data data.json --output-name-field title
 ```
 
 Supports dot notation for nested fields:
@@ -213,108 +200,106 @@ Supports dot notation for nested fields:
 
 Validate data against a JSON Schema:
 
-**schema.json**:
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": ["name", "title"],
-  "properties": {
-    "name": { "type": "string" },
-    "title": { "type": "string" }
-  }
-}
-```
-
 ```bash
-facet generate pdf \
-  --template Report.tsx \
-  --data data.json \
-  --schema schema.json
+facet pdf Report.tsx --data data.json --schema schema.json
 ```
 
 Skip validation:
 
 ```bash
-facet generate pdf \
-  --template Report.tsx \
-  --data data.json \
-  --no-validate
+facet pdf Report.tsx --data data.json --no-validate
 ```
-
-## WebComponent Mode
-
-WebComponent mode generates HTML with scoped CSS, perfect for embedding in documentation sites like Docusaurus:
-
-```bash
-facet generate webcomponent \
-  --template FeatureDoc.tsx \
-  --data features.json \
-  --css-scope "flanksource-feature"
-```
-
-Output: `feature-doc-wc.html` with all CSS selectors prefixed with `.flanksource-feature`
-
-Embed in your site:
-
-```html
-<div class="flanksource-feature">
-  <!-- Contents of feature-doc-wc.html -->
-</div>
-```
-
-CSS won't conflict with your site styles!
-
-## Verbose Logging
-
-Enable detailed logging for debugging:
-
-```bash
-facet generate pdf \
-  --template Report.tsx \
-  --data data.json \
-  --verbose
-```
-
-Shows:
-- Data loading details
-- Template compilation steps
-- Timing information
-- Full stack traces on errors
 
 ## CLI Reference
 
 ### Commands
 
-- `generate <type>` - Generate output (type: pdf, html, webcomponent, all)
-- `serve` - Start preview server
+| Command | Description |
+|---------|-------------|
+| `facet pdf <templates...>` | Generate PDF from one or more templates |
+| `facet html <templates...>` | Generate HTML from one or more templates |
+| `facet serve` | Start API server for rendering templates |
+| `facet lint [paths...]` | Scan TSX files for styling and layout issues |
 
-### Options
+### pdf / html Options
 
-#### generate command
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-d, --data <file>` | Path to JSON data file | |
+| `-l, --data-loader <file>` | Path to data loader module (.ts or .js) | |
+| `-o, --output <path>` | Output file path or directory | `.` |
+| `--output-name-field <field>` | Data field to use for output filename | `name` |
+| `-s, --schema <file>` | JSON Schema file for validation | |
+| `--no-validate` | Skip data validation | |
+| `-v, --verbose` | Enable verbose logging | |
+| `--refresh` | Force re-fetch of remote template (bypass cache) | |
+| `--sandbox [settings]` | Enable sandbox (optionally specify settings file) | |
 
-- `-t, --template <file>` - Path to React template file (.tsx) **[required]**
-- `-d, --data <file>` - Path to JSON data file
-- `-l, --data-loader <file>` - Path to data loader module (.ts or .js)
-- `-o, --output-dir <dir>` - Output directory (default: ./output)
-- `--output-name-field <field>` - Data field for filename (default: name)
-- `--css-scope <prefix>` - CSS scope prefix for webcomponent mode
-- `-s, --schema <file>` - JSON Schema file for validation
-- `--no-validate` - Skip data validation
-- `-v, --verbose` - Enable verbose logging
+### pdf-only Options
 
-#### serve command
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--page-size <size>` | Page size (a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k) | `a4` |
+| `--landscape` | Use landscape orientation | |
+| `--margin-top <mm>` | Top margin in mm | |
+| `--margin-bottom <mm>` | Bottom margin in mm | |
+| `--margin-left <mm>` | Left margin in mm | |
+| `--margin-right <mm>` | Right margin in mm | |
+| `--header <file>` | Header template file (.tsx) | |
+| `--footer <file>` | Footer template file (.tsx) | |
+| `--debug` | Add debug overlay for header/footer zones | |
+| `--owner-password <pw>` | PDF owner password (controls permissions) | |
+| `--user-password <pw>` | PDF password required to open | |
+| `--no-print` | Disable printing permission | |
+| `--no-copy` | Disable copy permission | |
+| `--sign-cert <path>` | Path to PKCS#12 certificate for signing | |
+| `--self-signed` | Auto-generate a self-signed certificate | |
+| `--timestamp-url <url>` | RFC 3161 Timestamp Authority URL | |
 
-- `-t, --template <file>` - Path to React template file (.tsx) **[required]**
-- `-d, --data <file>` - Path to JSON data file
-- `-l, --data-loader <file>` - Path to data loader module (.ts or .js)
-- `-p, --port <number>` - Server port (default: 3000)
-- `-v, --verbose` - Enable verbose logging
+### html-only Options
+
+| Option | Description |
+|--------|-------------|
+| `--css-scope <prefix>` | CSS scope prefix for scoped HTML generation |
+
+### serve Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-p, --port <number>` | Server port | `3010` |
+| `--templates-dir <dir>` | Directory containing templates | `.` |
+| `--workers <count>` | Number of browser workers | `2` |
+| `--timeout <ms>` | Render timeout in milliseconds | `60000` |
+| `--api-key <key>` | API key for authentication | |
+
+### lint Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-v, --verbose` | Show detailed output including passing files | |
+| `--rule <name>` | Run only a specific rule | all rules |
+| `--severity <level>` | Minimum severity to report (`warning` or `error`) | `warning` |
+
+### Lint Rules
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `hardcoded-page-break` | error | Inline `pageBreakAfter`/`breakAfter` styles — use `<PageBreak />` |
+| `page-structure` | error | Missing `<Page>` wrapper, nested pages, content outside page |
+| `conflicting-print-css` | error | `@page`, `@media print`, `break-before-page` classes in components |
+| `conflicting-tailwind` | error | Contradictory Tailwind utilities (`flex-row flex-col`, duplicate gaps) |
+| `inline-hex-colors` | warning | Hex colors in `style={{}}` — use Tailwind classes |
+| `inline-style-layout` | warning | Layout props in inline styles — use Tailwind arbitrary values |
+| `mixed-units` | warning | `px` units in PDF-targeted code — use `mm` or `pt` |
+
+Suppress a line with `// facet-lint-disable` or `// facet-lint-disable-next-line`.
 
 ### Global Options
 
-- `-h, --help` - Show help
-- `-V, --version` - Show version
+| Option | Description |
+|--------|-------------|
+| `-h, --help` | Show help |
+| `-V, --version` | Show version and build date |
 
 ## Template Requirements
 
@@ -323,30 +308,7 @@ Templates must:
 1. Be valid TypeScript React files (`.tsx`)
 2. Export a default function component
 3. Accept a `data` prop with your data type
-4. Return a complete HTML document (including `<html>`, `<head>`, `<body>`)
-
-**Example**:
-
-```tsx
-import React from 'react';
-
-interface MyData {
-  title: string;
-}
-
-export default function MyTemplate({ data }: { data: MyData }) {
-  return (
-    <html>
-      <head>
-        <title>{data.title}</title>
-      </head>
-      <body>
-        <h1>{data.title}</h1>
-      </body>
-    </html>
-  );
-}
-```
+4. Wrap content in `<Page>` components (for PDF output)
 
 ## Data Loader Requirements
 
@@ -358,83 +320,25 @@ Data loaders must:
    - A static object: `export const data = { ... }`
    - An async function: `export const data = async () => { ... }`
 
-**Static Example**:
-
-```typescript
-export const data = {
-  name: "Report-2024",
-  title: "Annual Report"
-};
-```
-
-**Async Example**:
-
-```typescript
-export const data = async () => {
-  const db = await connectToDatabase();
-  const records = await db.query('SELECT * FROM reports WHERE id = ?', [123]);
-  return {
-    name: `Report-${records[0].id}`,
-    title: records[0].title,
-    data: records[0].data
-  };
-};
-```
-
-## Examples
-
-See the [`examples/`](./examples) directory for:
-
-- `SimpleReport.tsx` - Basic report template
-- `simple-data.json` - Static JSON data
-- `simple-data-loader.ts` - Async data loader
-- `simple-schema.json` - JSON Schema validation
-
 ## Architecture
 
 The CLI is built with:
 
 - **Commander.js** - CLI argument parsing
 - **TypeScript** - Type-safe code
-- **esbuild** - Fast TypeScript compilation
+- **Vite** - Dynamic template compilation (SSR)
 - **React** - Template rendering (SSR)
 - **Puppeteer** - PDF generation
-- **PostCSS** - CSS scoping for WebComponents
+- **LightningCSS** - CSS scoping for WebComponents
 - **Ajv** - JSON Schema validation
-- **Vite** - Development server
+- **Bun** - Standalone binary compilation
 
 All dependencies are bundled within the CLI package - no installation required in your project.
 
 ## Requirements
 
-- Node.js 18 or higher
-
-## Development
-
-**Install dependencies**:
-
-```bash
-cd cli
-npm install
-```
-
-**Build**:
-
-```bash
-npm run build
-```
-
-**Test**:
-
-```bash
-npm test
-```
-
-**Watch mode**:
-
-```bash
-npm run dev
-```
+- Node.js 20 or higher (for development)
+- Standalone binary requires no runtime
 
 ## License
 

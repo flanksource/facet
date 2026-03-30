@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { Logger } from './utils/logger.js';
 import { resolveOutput } from './utils/resolve-output.js';
+import { VERSION, BUILD_DATE } from './version-generated.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
 
@@ -57,10 +59,17 @@ function addSharedOptions(cmd: Command): Command {
 
 const program = new Command();
 
+const versionStr = BUILD_DATE === 'dev'
+  ? `${VERSION} (dev)`
+  : `${VERSION} (${BUILD_DATE})`;
+
 program
   .name('facet')
   .description('Build beautiful datasheets and PDFs from React templates')
-  .version('1.0.1');
+  .version(versionStr)
+  .hook('preAction', () => {
+    console.log(chalk.gray(`facet ${versionStr}`));
+  });
 
 // html command
 addSharedOptions(
