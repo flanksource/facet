@@ -508,12 +508,20 @@ const COLORS = {
   margin: hexToRgb('#38a169'),
 };
 
+export interface DebugVersionInfo {
+  cliVersion: string;
+  buildDate: string;
+  gitCommit: string;
+  pkgVersion: string;
+}
+
 export async function drawDebugOverlay(
   pdfBuffer: Buffer | Uint8Array,
   pageMap: PageType[],
   pageSizeMap: string[],
   typeInfo: PageTypeInfo,
   pageMarginMap?: PageMargins[],
+  versionInfo?: DebugVersionInfo,
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(pdfBuffer);
   const font = await doc.embedFont(StandardFonts.Courier);
@@ -637,6 +645,28 @@ export async function drawDebugOverlay(
       size: fontSize,
       font,
       color: rgb(COLORS.footerBottom.r, COLORS.footerBottom.g, COLORS.footerBottom.b),
+    });
+  }
+
+  if (versionInfo && pages.length > 0) {
+    const lastPage = pages[pages.length - 1];
+    const { width: lpw } = lastPage.getSize();
+    const parts = [
+      `facet ${versionInfo.cliVersion}`,
+      `built ${versionInfo.buildDate}`,
+      versionInfo.gitCommit || '',
+      `pkg ${versionInfo.pkgVersion}`,
+    ].filter(Boolean).join(' | ');
+    const tw = font.widthOfTextAtSize(parts, fontSize);
+    lastPage.drawRectangle({
+      x: lpw - tw - 12, y: 4,
+      width: tw + 8, height: fontSize + 6,
+      color: rgb(0.12, 0.15, 0.23), opacity: 0.9,
+    });
+    lastPage.drawText(parts, {
+      x: lpw - tw - 8, y: 7,
+      size: fontSize, font,
+      color: rgb(0.89, 0.91, 0.94),
     });
   }
 

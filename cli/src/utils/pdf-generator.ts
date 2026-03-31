@@ -10,7 +10,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { PDFDocument } from 'pdf-lib';
-import { injectDebugAnnotations, injectTypographyAnnotations, extractTypographyInfo, type FontCombo, type DebugInfo } from './debug-annotations.js';
+import { injectDebugAnnotations, injectTypographyAnnotations, extractTypographyInfo, type FontCombo } from './debug-annotations.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from '../version-generated.js';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import { Logger } from './logger.js';
@@ -26,7 +26,7 @@ function readVersion(): string {
 }
 const FACET_CREATOR = `Facet v${readVersion()}`;
 
-function buildDebugInfo(): DebugInfo {
+function buildDebugInfo(): import('./pdf-multipass.js').DebugVersionInfo {
   let pkgVersion = 'local';
   try {
     const resolved = require.resolve('@flanksource/facet/package.json');
@@ -200,7 +200,7 @@ async function renderMultiPass(
       margins.right = elemMargin.right;
     }
     const page = await loadAndPrepare(browser, html, dims.width);
-    if (debug || debugTypography) await injectDebugAnnotations(page, debug ? buildDebugInfo() : undefined);
+    if (debug || debugTypography) await injectDebugAnnotations(page);
     if (debugTypography) await injectTypographyAnnotations(page);
     const result = await renderGroup(page, group, dims, margins);
     await page.close();
@@ -216,7 +216,7 @@ async function renderMultiPass(
   const { buffer, pageMap, pageSizeMap, pageMarginMap } = await assembleGroups(results, log, typeInfo);
   const composited = await compositeHeaderFooter(Buffer.from(buffer), overlays, pageMap, typeInfo, pageSizeMap);
   if (debug) {
-    const debugBuffer = await drawDebugOverlay(composited, pageMap, pageSizeMap, typeInfo, pageMarginMap);
+    const debugBuffer = await drawDebugOverlay(composited, pageMap, pageSizeMap, typeInfo, pageMarginMap, buildDebugInfo());
     return Buffer.from(debugBuffer);
   }
   return Buffer.from(composited);
@@ -266,7 +266,7 @@ async function renderSinglePass(
     }, [...emptyIndices]);
   }
 
-  if (debug || debugTypography) await injectDebugAnnotations(page, debug ? buildDebugInfo() : undefined);
+  if (debug || debugTypography) await injectDebugAnnotations(page);
   if (debugTypography) await injectTypographyAnnotations(page);
 
   const pageInfo = await page.evaluate((override: string | null): { top: number; bottom: number; pageSize: string } => {
@@ -319,7 +319,7 @@ async function renderSinglePass(
         types: ['default'], pageSizes: [pageInfo.pageSize], pageMargins: [],
         definitions: new Map([['default', { type: 'default' as PageType, headerHeight: 0, footerHeight: 0 }]]),
       };
-      const debugBuf = await drawDebugOverlay(pdf, ['default'], [pageInfo.pageSize], noHeaderTypeInfo);
+      const debugBuf = await drawDebugOverlay(pdf, ['default'], [pageInfo.pageSize], noHeaderTypeInfo, undefined, buildDebugInfo());
       return Buffer.from(debugBuf);
     }
     return Buffer.from(pdf);
@@ -388,7 +388,7 @@ async function renderSinglePass(
 
   const composited = await compositeHeaderFooter(contentBuffer, overlays, pageMap, singleTypeInfo, pageSizeMap);
   if (debug) {
-    const debugBuf = await drawDebugOverlay(composited, pageMap, pageSizeMap, singleTypeInfo);
+    const debugBuf = await drawDebugOverlay(composited, pageMap, pageSizeMap, singleTypeInfo, undefined, buildDebugInfo());
     return Buffer.from(debugBuf);
   }
   return Buffer.from(composited);

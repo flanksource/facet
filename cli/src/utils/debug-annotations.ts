@@ -84,15 +84,8 @@ export async function injectTypographyAnnotations(page: Page): Promise<void> {
   });
 }
 
-export interface DebugInfo {
-  cliVersion: string;
-  buildDate: string;
-  gitCommit: string;
-  pkgVersion: string;
-}
-
-export async function injectDebugAnnotations(page: Page, info?: DebugInfo): Promise<void> {
-  await page.evaluate((debugInfo: DebugInfo | undefined) => {
+export async function injectDebugAnnotations(page: Page): Promise<void> {
+  await page.evaluate(() => {
     const labelStyle = 'font-size:7pt;color:#e53e3e;background:rgba(255,255,255,0.9);padding:0 2px;border-radius:2px;margin-left:4px;font-weight:normal;font-style:normal;line-height:1;white-space:nowrap;display:inline;vertical-align:baseline';
 
     const EXPECTED: Record<string, string> = {
@@ -125,20 +118,6 @@ export async function injectDebugAnnotations(page: Page, info?: DebugInfo): Prom
       return div;
     };
 
-    if (debugInfo) {
-      const banner = document.createElement('div');
-      banner.className = 'debug-annotation';
-      banner.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#1e293b;color:#e2e8f0;font-size:7pt;padding:1mm 3mm;display:flex;gap:4mm;font-family:monospace;line-height:1.4');
-      const parts = [
-        `facet ${debugInfo.cliVersion}`,
-        `built ${debugInfo.buildDate}`,
-        debugInfo.gitCommit ? debugInfo.gitCommit : '',
-        `pkg ${debugInfo.pkgVersion}`,
-      ].filter(Boolean);
-      banner.textContent = parts.join(' | ');
-      document.body.prepend(banner);
-    }
-
     document.querySelectorAll('h1, h2, h3, h4, p').forEach((el) => {
       if (el.closest('.debug-annotation')) return;
       const s = window.getComputedStyle(el);
@@ -166,5 +145,5 @@ export async function injectDebugAnnotations(page: Page, info?: DebugInfo): Prom
         firstTd.appendChild(makeLabel(`td: ${pxToPt(tds.fontSize)} pad=${pxToMm(tds.padding)}`));
       }
     });
-  }, info);
+  });
 }
