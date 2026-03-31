@@ -1,14 +1,19 @@
 import type { LintRule, LintContext, LintIssue } from '../types.js';
+import { parseJSXTree, type JSXNode } from '../jsx-parser.js';
 
-const EXEMPT_FILES = [
-  'Header.tsx', 'Footer.tsx', 'PageBreak.tsx', 'Page.tsx',
-  'index.tsx', 'DatasheetTemplate.tsx',
-];
-const ALLOWED_SIBLINGS = /^\s*<(Header|Footer|PageBreak|React\.Fragment|>|\/?>|\{\/\*)/;
-const PAGE_OPEN = /<Page[\s>]/;
-const PAGE_CLOSE = /<\/Page>/;
+const EXEMPT_FILES = ['Header.tsx', 'Footer.tsx', 'PageBreak.tsx', 'index.tsx'];
+const ALLOWED_SIBLINGS = new Set(['Header', 'Footer', 'PageBreak']);
 const IMPORTS_PAGE = /import\b.*\bPage\b.*from\b/;
-const JSX_ELEMENT = /^\s*<[A-Z]/;
+
+function isPageComponent(name: string): boolean {
+  return name === 'Page' || name.endsWith('Page');
+}
+
+function isExempt(filePath: string): boolean {
+  if (EXEMPT_FILES.some((f) => filePath.endsWith(f))) return true;
+  if (filePath.endsWith('/Page.tsx') || filePath === 'Page.tsx') return true;
+  return false;
+}
 
 function isTemplateFile(ctx: LintContext): boolean {
   if (IMPORTS_PAGE.test(ctx.content)) return true;
@@ -17,84 +22,89 @@ function isTemplateFile(ctx: LintContext): boolean {
   return false;
 }
 
+function isCustomPageFile(ctx: LintContext): boolean {
+  return /[A-Z]\w*Page\.tsx$/.test(ctx.filePath) && !ctx.filePath.endsWith('/Page.tsx');
+}
+
+function findNestedPages(node: JSXNode, issues: LintIssue[], file: string, severity: 'error' | 'warning') {
+  for (const child of node.children) {
+    if (isPageComponent(child.name)) {
+      issues.push({
+        file,
+        line: child.line,
+        rule: 'page-structure',
+        severity,
+        message: `Nested <${child.name}> inside <${node.name}> is not allowed`,
+      });
+    }
+    findNestedPages(child, issues, file, severity);
+  }
+}
+
 export const pageStructure: LintRule = {
   name: 'page-structure',
   description: 'All content must be inside a <Page> wrapper; no nested pages or orphaned content',
   severity: 'error',
 
   check(ctx: LintContext): LintIssue[] {
-    if (EXEMPT_FILES.some((f) => ctx.filePath.endsWith(f))) return [];
-    if (!isTemplateFile(ctx)) return [];
+    if (isExempt(ctx.filePath)) return [];
 
     const issues: LintIssue[] = [];
-    const hasPage = PAGE_OPEN.test(ctx.content);
+    const tree = parseJSXTree(ctx.content);
+    if (tree.length === 0) return [];
 
-    if (!hasPage) {
-      const returnLine = ctx.lines.findIndex((l) => /^\s*return\s*[(<]/.test(l));
-      if (returnLine >= 0) {
+    if (isCustomPageFile(ctx)) {
+      const usesPage = hasPageDescendant(tree);
+      if (!usesPage) {
         issues.push({
           file: ctx.filePath,
-          line: returnLine + 1,
+          line: tree[0].line,
           rule: this.name,
           severity: this.severity,
-          message: 'Template must wrap content in a <Page> component',
+          message: 'Custom Page component must use the facet <Page> component internally',
         });
       }
       return issues;
     }
 
-    let pageDepth = 0;
-    let inReturn = false;
-    let parenDepth = 0;
+    if (!isTemplateFile(ctx)) return [];
 
-    for (let i = 0; i < ctx.lines.length; i++) {
-      const line = ctx.lines[i];
+    const hasAnyPage = tree.some((n) => isPageComponent(n.name));
+    if (!hasAnyPage) {
+      issues.push({
+        file: ctx.filePath,
+        line: tree[0].line,
+        rule: this.name,
+        severity: this.severity,
+        message: 'Template must wrap content in a <Page> component',
+      });
+      return issues;
+    }
 
-      if (/^\s*return\s*[(<]/.test(line)) {
-        inReturn = true;
-        parenDepth = 0;
-      }
-
-      if (!inReturn) continue;
-
-      for (const ch of line) {
-        if (ch === '(') parenDepth++;
-        if (ch === ')') parenDepth--;
-      }
-
-      if (PAGE_OPEN.test(line)) {
-        if (pageDepth > 0) {
-          issues.push({
-            file: ctx.filePath,
-            line: i + 1,
-            rule: this.name,
-            severity: this.severity,
-            message: 'Nested <Page> components are not allowed',
-          });
-        }
-        pageDepth++;
-      }
-
-      if (PAGE_CLOSE.test(line)) {
-        pageDepth = Math.max(0, pageDepth - 1);
-      }
-
-      if (pageDepth === 0 && JSX_ELEMENT.test(line) && !ALLOWED_SIBLINGS.test(line)
-          && !PAGE_OPEN.test(line)) {
+    for (const node of tree) {
+      if (!isPageComponent(node.name) && !ALLOWED_SIBLINGS.has(node.name)) {
         issues.push({
           file: ctx.filePath,
-          line: i + 1,
+          line: node.line,
           rule: this.name,
           severity: this.severity,
-          message: 'Content outside <Page> wrapper. Only Header, Footer, and PageBreak are allowed as siblings',
+          message: `Content outside <Page> wrapper. Only Header, Footer, PageBreak, and *Page components are allowed as siblings`,
         });
       }
 
-      if (parenDepth <= 0 && inReturn && i > 0) {
-        inReturn = false;
+      if (isPageComponent(node.name)) {
+        findNestedPages(node, issues, ctx.filePath, this.severity);
       }
     }
 
     return issues;
   },
 };
+
+function hasPageDescendant(nodes: JSXNode[]): boolean {
+  for (const node of nodes) {
+    if (node.name === 'Page') return true;
+    if (hasPageDescendant(node.children)) return true;
+  }
+  return false;
+}

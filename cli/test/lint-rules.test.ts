@@ -239,6 +239,16 @@ describe('page-structure', () => {
     expect(issues).toHaveLength(0);
   });
 
+  it('skips Page.tsx itself', () => {
+    const issues = pageStructure.check(ctx('components/Page.tsx', [
+      'import Page from "./Page";',
+      'export default function Page() {',
+      '  return <div>page</div>;',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(0);
+  });
+
   it('flags template missing Page wrapper', () => {
     const issues = pageStructure.check(ctx('MyTemplate.tsx', [
       'import Page from "./Page";',
@@ -320,5 +330,80 @@ describe('page-structure', () => {
     ].join('\n')));
     const orphaned = issues.filter((i) => i.message.includes('outside'));
     expect(orphaned).toHaveLength(1);
+  });
+
+  it('allows CoverPage as sibling to Page', () => {
+    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+      'import Page from "./Page";',
+      'export default function MyTemplate() {',
+      '  return (',
+      '    <>',
+      '      <CoverPage title="Report" />',
+      '      <Page pageSize="a4">',
+      '        <div>content</div>',
+      '      </Page>',
+      '    </>',
+      '  );',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(0);
+  });
+
+  it('allows LandscapePage as sibling to Page', () => {
+    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+      'import Page from "./Page";',
+      'export default function MyTemplate() {',
+      '  return (',
+      '    <>',
+      '      <Page pageSize="a4">',
+      '        <div>portrait content</div>',
+      '      </Page>',
+      '      <LandscapePage>',
+      '        <div>landscape content</div>',
+      '      </LandscapePage>',
+      '    </>',
+      '  );',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(0);
+  });
+
+  it('flags nested CoverPage inside Page', () => {
+    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+      'import Page from "./Page";',
+      'export default function MyTemplate() {',
+      '  return (',
+      '    <Page pageSize="a4">',
+      '      <CoverPage title="bad nesting" />',
+      '    </Page>',
+      '  );',
+      '}',
+    ].join('\n')));
+    const nested = issues.filter((i) => i.message.includes('Nested'));
+    expect(nested).toHaveLength(1);
+  });
+
+  it('flags custom Page file that does not use facet Page', () => {
+    const issues = pageStructure.check(ctx('CoverPage.tsx', [
+      'export default function CoverPage({ title }) {',
+      '  return <div className="cover">{title}</div>;',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain('must use the facet <Page>');
+  });
+
+  it('passes custom Page file that uses facet Page', () => {
+    const issues = pageStructure.check(ctx('CoverPage.tsx', [
+      'import { Page } from "@flanksource/facet";',
+      'export default function CoverPage({ title }) {',
+      '  return (',
+      '    <Page pageSize="a4">',
+      '      <div className="cover">{title}</div>',
+      '    </Page>',
+      '  );',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(0);
   });
 });
