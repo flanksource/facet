@@ -10,7 +10,8 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { PDFDocument } from 'pdf-lib';
-import { injectDebugAnnotations } from './debug-annotations.js';
+import { injectDebugAnnotations, injectTypographyAnnotations, extractTypographyInfo, type FontCombo, type DebugInfo } from './debug-annotations.js';
+import { VERSION, BUILD_DATE, GIT_COMMIT } from '../version-generated.js';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import { Logger } from './logger.js';
 
@@ -24,6 +25,17 @@ function readVersion(): string {
   }
 }
 const FACET_CREATOR = `Facet v${readVersion()}`;
+
+function buildDebugInfo(): DebugInfo {
+  let pkgVersion = 'local';
+  try {
+    const resolved = require.resolve('@flanksource/facet/package.json');
+    pkgVersion = JSON.parse(readFileSync(resolved, 'utf-8')).version;
+  } catch {
+    pkgVersion = readVersion();
+  }
+  return { cliVersion: VERSION, buildDate: BUILD_DATE, gitCommit: GIT_COMMIT, pkgVersion };
+}
 
 async function stampPDFMetadata(buffer: Buffer): Promise<Buffer> {
   const doc = await PDFDocument.load(buffer);
@@ -147,6 +159,7 @@ async function renderMultiPass(
   log: Logger,
   debug?: boolean,
   outputPath?: string,
+  debugTypography?: boolean,
 ): Promise<Buffer> {
   let html = _html;
   if (typeInfo.heightDetails) {
@@ -187,7 +200,8 @@ async function renderMultiPass(
       margins.right = elemMargin.right;
     }
     const page = await loadAndPrepare(browser, html, dims.width);
-    if (debug) await injectDebugAnnotations(page);
+    if (debug || debugTypography) await injectDebugAnnotations(page, debug ? buildDebugInfo() : undefined);
+    if (debugTypography) await injectTypographyAnnotations(page);
     const result = await renderGroup(page, group, dims, margins);
     await page.close();
     log.info(`  Group ${group.type}/${group.size}: ${result.pageCount} pages (margins=${margins.top}/${margins.bottom}/${margins.left}/${margins.right}mm)`);
@@ -240,6 +254,7 @@ async function renderSinglePass(
   overridePageSize?: string,
   outputPath?: string,
   overrideMargins?: PDFMargins,
+  debugTypography?: boolean,
 ): Promise<Buffer> {
   const emptyIndices = await detectEmptyPages(page);
   if (emptyIndices.size > 0) {
@@ -251,7 +266,8 @@ async function renderSinglePass(
     }, [...emptyIndices]);
   }
 
-  if (debug) await injectDebugAnnotations(page);
+  if (debug || debugTypography) await injectDebugAnnotations(page, debug ? buildDebugInfo() : undefined);
+  if (debugTypography) await injectTypographyAnnotations(page);
 
   const pageInfo = await page.evaluate((override: string | null): { top: number; bottom: number; pageSize: string } => {
     const pxToMm = 25.4 / 96;
@@ -423,21 +439,27 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
     }
     await page.evaluateHandle('document.fonts.ready');
 
+    let fontCombos: FontCombo[] | undefined;
+    if (debugTypography) {
+      fontCombos = await extractTypographyInfo(page);
+      log.info(`Typography: found ${fontCombos.length} unique font combinations`);
+    }
+
     const typeInfo = await detectPageTypes(page, defaultPageSize) ?? await detectMixedSizes(page);
 
     let result: Buffer;
     if (typeInfo != null) {
       log.info(`Multi-pass mode: ${typeInfo.definitions.size} type(s), ${typeInfo.pageSizes.length} pages`);
       await page.close();
-      result = await renderMultiPass(browser, html, typeInfo, log, debug, outputPath);
+      result = await renderMultiPass(browser, html, typeInfo, log, debug, outputPath, debugTypography);
     } else {
       log.info('Single-pass mode (no typed headers/footers)');
-      result = await renderSinglePass(browser, html, page, log, debug, landscape, defaultPageSize, outputPath, margins);
+      result = await renderSinglePass(browser, html, page, log, debug, landscape, defaultPageSize, outputPath, margins, debugTypography);
       await page.close();
     }
 
     if (debugTypography) {
-      result = Buffer.from(await appendDebugFontPage(result, fontSize));
+      result = Buffer.from(await appendDebugFontPage(result, fontSize, fontCombos));
     }
     result = await stampPDFMetadata(result);
     writeFileSync(outputPath, result);

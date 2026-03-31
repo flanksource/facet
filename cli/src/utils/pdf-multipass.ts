@@ -645,23 +645,40 @@ export async function drawDebugOverlay(
 
 // --- Debug Typography Page ---
 
-const FONT_SAMPLES: { label: string; pt: number }[] = [
-  { label: 'h1 (22pt)', pt: 22 },
-  { label: 'h2 (15pt)', pt: 15 },
-  { label: 'h3 (12pt)', pt: 12 },
-  { label: 'h4 (10pt)', pt: 10 },
-  { label: 'p (9pt)', pt: 9 },
-  { label: 'text-2xl (24pt)', pt: 24 },
-  { label: 'text-xl (18pt)', pt: 18 },
-  { label: 'text-lg (15pt)', pt: 15 },
-  { label: 'text-md (13pt)', pt: 13 },
-  { label: 'text-sm (11pt)', pt: 11 },
-  { label: 'text-xs (9pt)', pt: 9 },
+interface FontSample {
+  label: string;
+  pt: number;
+  lineHeight: number;
+  margin: string;
+}
+
+const FONT_SAMPLES: FontSample[] = [
+  { label: 'h1', pt: 22, lineHeight: 26, margin: '0 0 4mm' },
+  { label: 'h2', pt: 15, lineHeight: 19, margin: '4mm 0 3mm' },
+  { label: 'h3', pt: 12, lineHeight: 15, margin: '3mm 0 2mm' },
+  { label: 'h4', pt: 10, lineHeight: 12, margin: '2mm 0 2mm' },
+  { label: 'p', pt: 9, lineHeight: 12, margin: '0 0 3mm' },
+  { label: 'text-2xl', pt: 24, lineHeight: 0, margin: '' },
+  { label: 'text-xl', pt: 18, lineHeight: 0, margin: '' },
+  { label: 'text-lg', pt: 15, lineHeight: 0, margin: '' },
+  { label: 'text-md', pt: 10, lineHeight: 0, margin: '' },
+  { label: 'text-sm', pt: 9, lineHeight: 0, margin: '' },
+  { label: 'text-xs', pt: 7, lineHeight: 0, margin: '' },
 ];
+
+export interface FontComboInfo {
+  family: string;
+  size: string;
+  weight: string;
+  color: string;
+  tag: string;
+  sample: string;
+}
 
 export async function appendDebugFontPage(
   pdfBuffer: Buffer | Uint8Array,
   baseFontSize?: number,
+  fontCombos?: FontComboInfo[],
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(pdfBuffer);
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -671,69 +688,104 @@ export async function appendDebugFontPage(
   const { width, height } = page.getSize();
   const margin = 40;
   let y = height - margin;
+  const gray = rgb(0.5, 0.5, 0.5);
+  const dark = rgb(0.1, 0.1, 0.1);
+  const red = rgb(0.9, 0.24, 0.24);
+  const lineColor = rgb(0.85, 0.85, 0.85);
 
-  page.drawText('Typography Reference', {
-    x: margin,
-    y,
-    size: 18,
-    font: boldFont,
-    color: rgb(0.15, 0.15, 0.15),
-  });
-  y -= 30;
+  page.drawText('Typography Reference', { x: margin, y, size: 18, font: boldFont, color: dark });
+  y -= 24;
 
   if (baseFontSize) {
-    page.drawText(`Base font-size override: ${baseFontSize}pt`, {
-      x: margin,
-      y,
-      size: 10,
-      font,
-      color: rgb(0.4, 0.4, 0.4),
-    });
-    y -= 20;
+    page.drawText(`Base font-size override: ${baseFontSize.toFixed(1)}pt`, { x: margin, y, size: 10, font, color: gray });
+    y -= 16;
   }
 
-  page.drawLine({
-    start: { x: margin, y },
-    end: { x: width - margin, y },
-    thickness: 0.5,
-    color: rgb(0.8, 0.8, 0.8),
-  });
-  y -= 20;
+  // Column headers
+  const cols = { label: margin, size: margin + 70, lh: margin + 120, margins: margin + 170, sample: margin + 240 };
+  page.drawText('Element', { x: cols.label, y, size: 7, font: boldFont, color: gray });
+  page.drawText('Size', { x: cols.size, y, size: 7, font: boldFont, color: gray });
+  page.drawText('Line-H', { x: cols.lh, y, size: 7, font: boldFont, color: gray });
+  page.drawText('Margin', { x: cols.margins, y, size: 7, font: boldFont, color: gray });
+  page.drawText('Sample', { x: cols.sample, y, size: 7, font: boldFont, color: gray });
+  y -= 10;
 
-  for (const { label, pt } of FONT_SAMPLES) {
-    const labelWidth = 140;
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: lineColor });
+  y -= 14;
 
-    page.drawText(label, {
-      x: margin,
-      y: y - pt * 0.3,
-      size: 9,
-      font,
-      color: rgb(0.5, 0.5, 0.5),
-    });
+  for (const sample of FONT_SAMPLES) {
+    page.drawText(sample.label, { x: cols.label, y: y - sample.pt * 0.2, size: 8, font: boldFont, color: dark });
+    page.drawText(`${sample.pt.toFixed(1)}pt`, { x: cols.size, y: y - sample.pt * 0.2, size: 8, font, color: gray });
 
-    page.drawText('The quick brown fox jumps over the lazy dog', {
-      x: margin + labelWidth,
-      y,
-      size: pt,
-      font,
-      color: rgb(0.1, 0.1, 0.1),
-    });
+    if (sample.lineHeight > 0) {
+      page.drawText(`${sample.lineHeight.toFixed(1)}pt`, { x: cols.lh, y: y - sample.pt * 0.2, size: 8, font, color: gray });
+    }
 
-    y -= Math.max(pt * 1.4, 16) + 6;
+    if (sample.margin) {
+      page.drawText(sample.margin, { x: cols.margins, y: y - sample.pt * 0.2, size: 7, font, color: gray });
+    }
 
-    if (y < margin) {
-      break;
+    page.drawText('The quick brown fox jumps over the lazy dog', { x: cols.sample, y, size: sample.pt, font, color: dark });
+
+    y -= Math.max(sample.pt * 1.4, 14) + 4;
+    if (y < margin + 30) break;
+  }
+
+  // Actual font usage from document
+  if (fontCombos && fontCombos.length > 0) {
+    y -= 10;
+    page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: lineColor });
+    y -= 14;
+
+    const purple = rgb(0.576, 0.2, 0.918);
+    page.drawText('Document Font Usage (unique combos)', { x: margin, y, size: 9, font: boldFont, color: purple });
+    y -= 14;
+
+    const fc = { tag: margin, size: margin + 50, weight: margin + 100, color: margin + 140, family: margin + 210, sample: margin + 310 };
+    page.drawText('Tag', { x: fc.tag, y, size: 7, font: boldFont, color: gray });
+    page.drawText('Size', { x: fc.size, y, size: 7, font: boldFont, color: gray });
+    page.drawText('Weight', { x: fc.weight, y, size: 7, font: boldFont, color: gray });
+    page.drawText('Color', { x: fc.color, y, size: 7, font: boldFont, color: gray });
+    page.drawText('Family', { x: fc.family, y, size: 7, font: boldFont, color: gray });
+    page.drawText('Sample', { x: fc.sample, y, size: 7, font: boldFont, color: gray });
+    y -= 10;
+
+    page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.3, color: lineColor });
+    y -= 10;
+
+    for (const combo of fontCombos) {
+      if (y < margin + 30) {
+        page.drawText('... truncated', { x: margin, y, size: 7, font, color: gray });
+        break;
+      }
+      page.drawText(combo.tag, { x: fc.tag, y, size: 7, font, color: dark });
+      page.drawText(combo.size, { x: fc.size, y, size: 7, font, color: dark });
+      page.drawText(combo.weight, { x: fc.weight, y, size: 7, font, color: dark });
+      page.drawText(combo.color, { x: fc.color, y, size: 7, font, color: dark });
+      page.drawText(combo.family, { x: fc.family, y, size: 7, font, color: dark });
+      page.drawText(combo.sample.slice(0, 20), { x: fc.sample, y, size: 7, font, color: gray });
+      y -= 10;
     }
   }
 
-  const badge = 'facet --debug-typography';
-  page.drawText(badge, {
-    x: margin,
-    y: 20,
-    size: 7,
-    font,
-    color: rgb(0.6, 0.6, 0.6),
-  });
+  // Style guide reference box
+  y -= 10;
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: lineColor });
+  y -= 14;
 
+  page.drawText('Style Guide Reference (print @media)', { x: margin, y, size: 9, font: boldFont, color: red });
+  y -= 14;
+
+  const refLines = [
+    'body: 10pt/14pt (1.4x)  |  table: 10pt  |  footer: 8pt/10pt',
+    'h1: 22pt/26pt (1.2x)  |  h2: 15pt/19pt (1.3x)  |  h3: 12pt/15pt (1.3x)  |  h4: 10pt/12pt (1.2x)  |  p: 9pt/12pt (1.3x)',
+    'text-xs: 7pt  |  text-sm: 9pt  |  text-md: 10pt  |  text-lg: 15pt  |  text-xl: 18pt  |  text-2xl: 24pt',
+  ];
+  for (const line of refLines) {
+    page.drawText(line, { x: margin, y, size: 7, font, color: gray });
+    y -= 11;
+  }
+
+  page.drawText('facet --debug-typography', { x: margin, y: 20, size: 7, font, color: gray });
   return doc.save();
 }
