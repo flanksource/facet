@@ -10,6 +10,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { PDFDocument } from 'pdf-lib';
+import { injectDebugAnnotations } from './debug-annotations.js';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import { Logger } from './logger.js';
 
@@ -186,6 +187,7 @@ async function renderMultiPass(
       margins.right = elemMargin.right;
     }
     const page = await loadAndPrepare(browser, html, dims.width);
+    if (debug) await injectDebugAnnotations(page);
     const result = await renderGroup(page, group, dims, margins);
     await page.close();
     log.info(`  Group ${group.type}/${group.size}: ${result.pageCount} pages (margins=${margins.top}/${margins.bottom}/${margins.left}/${margins.right}mm)`);
@@ -248,6 +250,8 @@ async function renderSinglePass(
       pages.forEach((el, i) => { if (empties.has(i)) el.remove(); });
     }, [...emptyIndices]);
   }
+
+  if (debug) await injectDebugAnnotations(page);
 
   const pageInfo = await page.evaluate((override: string | null): { top: number; bottom: number; pageSize: string } => {
     const pxToMm = 25.4 / 96;
