@@ -648,7 +648,7 @@ export async function drawDebugOverlay(
 const FONT_SAMPLES: { label: string; pt: number }[] = [
   { label: 'h1 (22pt)', pt: 22 },
   { label: 'h2 (15pt)', pt: 15 },
-  { label: 'h3 (13pt)', pt: 13 },
+  { label: 'h3 (12pt)', pt: 12 },
   { label: 'h4 (10pt)', pt: 10 },
   { label: 'p (9pt)', pt: 9 },
   { label: 'text-2xl (24pt)', pt: 24 },

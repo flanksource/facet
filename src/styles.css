@@ -47,8 +47,8 @@
   }
 
   .prose h3 {
-    font-size: 11pt !important;
-    line-height: 13pt !important;
+    font-size: 12pt !important;
+    line-height: 15pt !important;
     margin-top: 3mm !important;
     margin-bottom: 2mm !important;
     font-weight: 500 !important;
@@ -95,8 +95,8 @@
   }
 
   h3 {
-    font-size: 13pt !important;
-    line-height: 13pt !important;
+    font-size: 12pt !important;
+    line-height: 15pt !important;
     margin-top: 3mm !important;
     margin-bottom: 2mm !important;
   }
@@ -327,8 +327,8 @@ h3 {
 h4 {
   @apply text-gray-600 font-semibold;
 
-  font-size: 12pt;
-  line-height: 16pt;
+  font-size: 11pt;
+  line-height: 14pt;
   margin-top: 3mm;
   margin-bottom: 2mm;
 }
@@ -547,8 +547,8 @@ article {
 
 .datasheet-footer p {
   margin: 0 0 1mm !important;
-  font-size: 7pt;
-  line-height: 9pt;
+  font-size: 8pt;
+  line-height: 10pt;
 }
 
 .datasheet-footer .footer-left p:first-child {
