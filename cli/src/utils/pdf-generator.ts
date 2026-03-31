@@ -33,6 +33,7 @@ async function stampPDFMetadata(buffer: Buffer): Promise<Buffer> {
 import {
   detectPageTypes,
   detectEmptyPages,
+  appendDebugFontPage,
   buildPageGroups,
   renderGroup,
   assembleGroups,
@@ -378,13 +379,23 @@ export interface PDFOptions {
   outputPath: string;
   logger?: Logger;
   debug?: boolean;
+  debugTypography?: boolean;
+  fontSize?: number;
   defaultPageSize?: string;
   margins?: PDFMargins;
   landscape?: boolean;
 }
 
+function injectFontSize(html: string, fontSize: number): string {
+  const style = `<style>body{font-size:${fontSize}pt!important}p{font-size:${fontSize}pt!important}</style>`;
+  if (html.includes('</head>')) return html.replace('</head>', `${style}</head>`);
+  return style + html;
+}
+
 export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
-  const { html, outputPath, logger, debug, defaultPageSize, margins, landscape } = options;
+  let { html } = options;
+  const { outputPath, logger, debug, debugTypography, fontSize, defaultPageSize, margins, landscape } = options;
+  if (fontSize) html = injectFontSize(html, fontSize);
   const log = logger || new Logger(false);
 
   const chromePath = resolveChromePath();
@@ -421,6 +432,9 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
       await page.close();
     }
 
+    if (debugTypography) {
+      result = Buffer.from(await appendDebugFontPage(result, fontSize));
+    }
     result = await stampPDFMetadata(result);
     writeFileSync(outputPath, result);
     log.debug(`PDF saved to: ${outputPath}`);

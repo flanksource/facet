@@ -123,6 +123,8 @@ addSharedOptions(
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
     .option('--debug', 'Add colored debug overlay lines for header/footer zones')
+    .option('--debug-typography', 'Append a font-size reference page to the PDF')
+    .option('--font-size <pt>', 'Override base font size in pt (default: 10)', parseFloat)
     .option('--page-size <size>', 'Default page size (a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k)', 'a4')
     .option('--landscape', 'Use landscape orientation')
     .option('--margin-top <mm>', 'Top margin in mm', parseFloat)
@@ -162,6 +164,8 @@ addSharedOptions(
         verbose: options.verbose,
         refresh: options.refresh,
         debug: options.debug,
+        debugTypography: options.debugTypography,
+        fontSize: options.fontSize,
         pageSize: options.pageSize,
         landscape: options.landscape,
         margins: buildMargins(options),

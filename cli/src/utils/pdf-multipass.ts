@@ -306,8 +306,8 @@ export interface GroupResult {
 }
 
 export async function detectEmptyPages(page: Page): Promise<Set<number>> {
-  return page.evaluate(() => {
-    const empty = new Set<number>();
+  const indices = await page.evaluate(() => {
+    const empty: number[] = [];
     const pages = document.querySelectorAll('[data-page-size]');
     pages.forEach((el, i) => {
       const main = el.querySelector('main, article') ?? el;
@@ -323,11 +323,12 @@ export async function detectEmptyPages(page: Page): Promise<Set<number>> {
             hasVisibleContent = true;
           }
         });
-        if (!hasVisibleContent) empty.add(i);
+        if (!hasVisibleContent) empty.push(i);
       }
     });
     return empty;
-  }).then((raw) => new Set(raw));
+  });
+  return new Set(indices);
 }
 
 export async function renderGroup(
@@ -638,6 +639,101 @@ export async function drawDebugOverlay(
       color: rgb(COLORS.footerBottom.r, COLORS.footerBottom.g, COLORS.footerBottom.b),
     });
   }
+
+  return doc.save();
+}
+
+// --- Debug Typography Page ---
+
+const FONT_SAMPLES: { label: string; pt: number }[] = [
+  { label: 'h1 (22pt)', pt: 22 },
+  { label: 'h2 (15pt)', pt: 15 },
+  { label: 'h3 (13pt)', pt: 13 },
+  { label: 'h4 (10pt)', pt: 10 },
+  { label: 'p (9pt)', pt: 9 },
+  { label: 'text-2xl (24pt)', pt: 24 },
+  { label: 'text-xl (18pt)', pt: 18 },
+  { label: 'text-lg (15pt)', pt: 15 },
+  { label: 'text-md (13pt)', pt: 13 },
+  { label: 'text-sm (11pt)', pt: 11 },
+  { label: 'text-xs (9pt)', pt: 9 },
+];
+
+export async function appendDebugFontPage(
+  pdfBuffer: Buffer | Uint8Array,
+  baseFontSize?: number,
+): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(pdfBuffer);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
+
+  const page = doc.addPage([mmToPt(210), mmToPt(297)]);
+  const { width, height } = page.getSize();
+  const margin = 40;
+  let y = height - margin;
+
+  page.drawText('Typography Reference', {
+    x: margin,
+    y,
+    size: 18,
+    font: boldFont,
+    color: rgb(0.15, 0.15, 0.15),
+  });
+  y -= 30;
+
+  if (baseFontSize) {
+    page.drawText(`Base font-size override: ${baseFontSize}pt`, {
+      x: margin,
+      y,
+      size: 10,
+      font,
+      color: rgb(0.4, 0.4, 0.4),
+    });
+    y -= 20;
+  }
+
+  page.drawLine({
+    start: { x: margin, y },
+    end: { x: width - margin, y },
+    thickness: 0.5,
+    color: rgb(0.8, 0.8, 0.8),
+  });
+  y -= 20;
+
+  for (const { label, pt } of FONT_SAMPLES) {
+    const labelWidth = 140;
+
+    page.drawText(label, {
+      x: margin,
+      y: y - pt * 0.3,
+      size: 9,
+      font,
+      color: rgb(0.5, 0.5, 0.5),
+    });
+
+    page.drawText('The quick brown fox jumps over the lazy dog', {
+      x: margin + labelWidth,
+      y,
+      size: pt,
+      font,
+      color: rgb(0.1, 0.1, 0.1),
+    });
+
+    y -= Math.max(pt * 1.4, 16) + 6;
+
+    if (y < margin) {
+      break;
+    }
+  }
+
+  const badge = 'facet --debug-typography';
+  page.drawText(badge, {
+    x: margin,
+    y: 20,
+    size: 7,
+    font,
+    color: rgb(0.6, 0.6, 0.6),
+  });
 
   return doc.save();
 }
