@@ -6,6 +6,7 @@ import { inlineStyleLayout } from './inline-style-layout.js';
 import { conflictingTailwind } from './conflicting-tailwind.js';
 import { conflictingPrintCss } from './conflicting-print-css.js';
 import { pageStructure } from './page-structure.js';
+import { emptyPage } from './empty-page.js';
 
 export const allRules: LintRule[] = [
   hardcodedPageBreak,
@@ -15,4 +16,5 @@ export const allRules: LintRule[] = [
   conflictingTailwind,
   conflictingPrintCss,
   pageStructure,
+  emptyPage,
 ];

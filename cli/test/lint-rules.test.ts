@@ -3,6 +3,7 @@ import { hardcodedPageBreak } from '../src/lint/rules/hardcoded-page-break.js';
 import { inlineHexColors } from '../src/lint/rules/inline-hex-colors.js';
 import { mixedUnits } from '../src/lint/rules/mixed-units.js';
 import { inlineStyleLayout } from '../src/lint/rules/inline-style-layout.js';
+import { emptyPage } from '../src/lint/rules/empty-page.js';
 import { conflictingTailwind } from '../src/lint/rules/conflicting-tailwind.js';
 import { conflictingPrintCss } from '../src/lint/rules/conflicting-print-css.js';
 import { pageStructure } from '../src/lint/rules/page-structure.js';
@@ -405,5 +406,92 @@ describe('page-structure', () => {
       '}',
     ].join('\n')));
     expect(issues).toHaveLength(0);
+  });
+});
+
+describe('empty-page', () => {
+  it('flags Page with no children', () => {
+    const issues = emptyPage.check(ctx('Foo.tsx', [
+      'export default function Foo() {',
+      '  return <Page pageSize="a4"></Page>;',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain('Empty');
+  });
+
+  it('flags Page with only whitespace', () => {
+    const issues = emptyPage.check(ctx('Foo.tsx', [
+      'export default function Foo() {',
+      '  return (',
+      '    <Page pageSize="a4">',
+      '      ',
+      '    </Page>',
+      '  );',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(1);
+  });
+
+  it('passes Page with element children', () => {
+    const issues = emptyPage.check(ctx('Foo.tsx', [
+      'export default function Foo() {',
+      '  return (',
+      '    <Page pageSize="a4">',
+      '      <Section title="Hello" />',
+      '    </Page>',
+      '  );',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(0);
+  });
+
+  it('passes Page with text content', () => {
+    const issues = emptyPage.check(ctx('Foo.tsx', [
+      'export default function Foo() {',
+      '  return <Page pageSize="a4">Hello World</Page>;',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(0);
+  });
+
+  it('passes Page with expression children', () => {
+    const issues = emptyPage.check(ctx('Foo.tsx', [
+      'export default function Foo({ items }) {',
+      '  return (',
+      '    <Page pageSize="a4">',
+      '      {items.map(i => <div key={i}>{i}</div>)}',
+      '    </Page>',
+      '  );',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(0);
+  });
+
+  it('flags empty CoverPage', () => {
+    const issues = emptyPage.check(ctx('Foo.tsx', [
+      'export default function Foo() {',
+      '  return <CoverPage></CoverPage>;',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain('CoverPage');
+  });
+
+  it('flags only empty pages in multi-page template', () => {
+    const issues = emptyPage.check(ctx('Foo.tsx', [
+      'export default function Foo() {',
+      '  return (',
+      '    <>',
+      '      <Page pageSize="a4">',
+      '        <div>content</div>',
+      '      </Page>',
+      '      <Page pageSize="a4"></Page>',
+      '    </>',
+      '  );',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].line).toBe(7);
   });
 });

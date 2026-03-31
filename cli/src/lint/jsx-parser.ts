@@ -4,6 +4,7 @@ export interface JSXNode {
   name: string;
   line: number;
   children: JSXNode[];
+  hasContent: boolean;
 }
 
 export function parseJSXTree(content: string): JSXNode[] {
@@ -93,18 +94,23 @@ function jsxNodeFrom(node: ts.JsxElement | ts.JsxSelfClosingElement, source: ts.
   const name = getTagName(node);
   const line = source.getLineAndCharacterOfPosition(node.getStart()).line + 1;
   const children: JSXNode[] = [];
+  let hasContent = ts.isJsxSelfClosingElement(node);
 
   if (ts.isJsxElement(node)) {
     for (const child of node.children) {
       if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
         children.push(jsxNodeFrom(child, source));
+        hasContent = true;
       } else if (ts.isJsxExpression(child) && child.expression) {
         collectFromExpression(child.expression, source, children);
+        hasContent = true;
+      } else if (ts.isJsxText(child) && child.text.trim().length > 0) {
+        hasContent = true;
       }
     }
   }
 
-  return { name, line, children };
+  return { name, line, children, hasContent };
 }
 
 function collectFromExpression(expr: ts.Expression, source: ts.SourceFile, out: JSXNode[]) {

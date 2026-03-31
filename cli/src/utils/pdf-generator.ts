@@ -32,6 +32,7 @@ async function stampPDFMetadata(buffer: Buffer): Promise<Buffer> {
 }
 import {
   detectPageTypes,
+  detectEmptyPages,
   buildPageGroups,
   renderGroup,
   assembleGroups,
@@ -109,19 +110,63 @@ async function detectMixedSizes(page: Page): Promise<PageTypeInfo | null> {
   };
 }
 
+async function removeEmptyPages(browser: Browser, html: string, emptyIndices: Set<number>): Promise<string> {
+  const page = await browser.newPage();
+  await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.evaluate((indices: number[]) => {
+    const empties = new Set(indices);
+    document.querySelectorAll('[data-page-size]').forEach((el, i) => {
+      if (empties.has(i)) el.remove();
+    });
+  }, [...emptyIndices]);
+  const cleaned = await page.content();
+  await page.close();
+  return cleaned;
+}
+
+function filterEmptyPages(info: PageTypeInfo, emptyIndices: Set<number>): PageTypeInfo {
+  const types: PageType[] = [];
+  const pageSizes: string[] = [];
+  const pageMargins: typeof info.pageMargins = [];
+  for (let i = 0; i < info.types.length; i++) {
+    if (!emptyIndices.has(i)) {
+      types.push(info.types[i]);
+      pageSizes.push(info.pageSizes[i]);
+      if (info.pageMargins[i]) pageMargins.push(info.pageMargins[i]);
+    }
+  }
+  return { types, pageSizes, pageMargins, definitions: info.definitions, heightDetails: info.heightDetails };
+}
+
 async function renderMultiPass(
   browser: Browser,
-  html: string,
+  _html: string,
   typeInfo: PageTypeInfo,
   log: Logger,
   debug?: boolean,
   outputPath?: string,
 ): Promise<Buffer> {
+  let html = _html;
   if (typeInfo.heightDetails) {
     for (const detail of typeInfo.heightDetails) log.debug(`  ${detail}`);
   }
 
   const debugBasePath = debug && outputPath ? outputPath.replace(/\.pdf$/, '') : undefined;
+
+  const emptyCheckPage = await loadAndPrepare(browser, html);
+  const emptyIndices = await detectEmptyPages(emptyCheckPage);
+  await emptyCheckPage.close();
+
+  if (emptyIndices.size > 0) {
+    log.info(`Omitting ${emptyIndices.size} empty page(s): indices ${[...emptyIndices].join(', ')}`);
+    typeInfo = filterEmptyPages(typeInfo, emptyIndices);
+    if (typeInfo.types.length === 0) {
+      log.warn('All pages are empty — skipping PDF generation');
+      return Buffer.alloc(0);
+    }
+    html = await removeEmptyPages(browser, html, emptyIndices);
+  }
+
   const overlays = await renderHeaderFooterPdfs(browser, html, typeInfo, typeInfo.pageSizes, debugBasePath);
   if (debugBasePath) {
     for (const key of overlays.headers.keys()) log.info(`Debug: wrote ${debugBasePath}.debug-header-${key}.html/.pdf`);
@@ -193,6 +238,16 @@ async function renderSinglePass(
   outputPath?: string,
   overrideMargins?: PDFMargins,
 ): Promise<Buffer> {
+  const emptyIndices = await detectEmptyPages(page);
+  if (emptyIndices.size > 0) {
+    log.info(`Omitting ${emptyIndices.size} empty page(s)`);
+    await page.evaluate((indices: number[]) => {
+      const empties = new Set(indices);
+      const pages = document.querySelectorAll('[data-page-size]');
+      pages.forEach((el, i) => { if (empties.has(i)) el.remove(); });
+    }, [...emptyIndices]);
+  }
+
   const pageInfo = await page.evaluate((override: string | null): { top: number; bottom: number; pageSize: string } => {
     const pxToMm = 25.4 / 96;
     const pages = document.querySelectorAll('[data-page-size]');
@@ -213,9 +268,12 @@ async function renderSinglePass(
   }, overridePageSize ?? null);
 
   const dims = resolvePageSize(pageInfo.pageSize);
+  const isLandscape = landscape ?? (dims.width > dims.height);
+  const pdfWidth = isLandscape ? Math.min(dims.width, dims.height) : dims.width;
+  const pdfHeight = isLandscape ? Math.max(dims.width, dims.height) : dims.height;
   await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
   await page.addStyleTag({
-    content: `body { max-width: ${dims.width}mm !important; }`,
+    content: `@page { size: ${dims.width}mm ${dims.height}mm; } body { max-width: ${dims.width}mm !important; }`,
   });
 
   // Apply explicit margin overrides
@@ -226,9 +284,9 @@ async function renderSinglePass(
 
   if (marginTop === 0 && marginBottom === 0 && marginLeft === 0 && marginRight === 0) {
     const pdf = await page.pdf({
-      width: `${dims.width}mm`,
-      height: `${dims.height}mm`,
-      landscape: landscape ?? false,
+      width: `${pdfWidth}mm`,
+      height: `${pdfHeight}mm`,
+      landscape: isLandscape,
       margin: { top: 0, bottom: 0, left: 0, right: 0 },
       omitBackground: false,
       printBackground: true,
@@ -285,9 +343,9 @@ async function renderSinglePass(
   });
 
   const pdfBytes = await page.pdf({
-    width: `${dims.width}mm`,
-    height: `${dims.height}mm`,
-    landscape: landscape ?? false,
+    width: `${pdfWidth}mm`,
+    height: `${pdfHeight}mm`,
+    landscape: isLandscape,
     margin: { top: topMm, bottom: bottomMm, left: leftMm, right: rightMm },
     omitBackground: false,
     printBackground: true,

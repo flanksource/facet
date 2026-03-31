@@ -305,6 +305,31 @@ export interface GroupResult {
   pageCount: number;
 }
 
+export async function detectEmptyPages(page: Page): Promise<Set<number>> {
+  return page.evaluate(() => {
+    const empty = new Set<number>();
+    const pages = document.querySelectorAll('[data-page-size]');
+    pages.forEach((el, i) => {
+      const main = el.querySelector('main, article') ?? el;
+      const text = main.textContent?.trim() ?? '';
+      const visibleChildren = main.querySelectorAll('img, svg, canvas, video, iframe, table, [style*="background"]');
+      if (text.length === 0 && visibleChildren.length === 0) {
+        const children = main.querySelectorAll('*');
+        let hasVisibleContent = false;
+        children.forEach((child) => {
+          if (hasVisibleContent) return;
+          const style = window.getComputedStyle(child);
+          if (style.backgroundImage !== 'none' || style.borderWidth !== '0px') {
+            hasVisibleContent = true;
+          }
+        });
+        if (!hasVisibleContent) empty.add(i);
+      }
+    });
+    return empty;
+  }).then((raw) => new Set(raw));
+}
+
 export async function renderGroup(
   page: Page,
   group: PageGroup,
@@ -336,6 +361,9 @@ export async function renderGroup(
     });
   }, indices);
 
+  const isLandscape = dims.width > dims.height;
+  const pdfWidth = isLandscape ? Math.min(dims.width, dims.height) : dims.width;
+  const pdfHeight = isLandscape ? Math.max(dims.width, dims.height) : dims.height;
   const topMm = `${margins.top}mm`;
   const bottomMm = `${margins.bottom}mm`;
   const leftMm = `${margins.left}mm`;
@@ -345,8 +373,9 @@ export async function renderGroup(
   });
 
   const pdfBytes = await page.pdf({
-    width: `${dims.width}mm`,
-    height: `${dims.height}mm`,
+    width: `${pdfWidth}mm`,
+    height: `${pdfHeight}mm`,
+    landscape: isLandscape,
     margin: { top: topMm, bottom: bottomMm, left: leftMm, right: rightMm },
     omitBackground: false,
     printBackground: true,
