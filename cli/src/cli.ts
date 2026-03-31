@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { Logger } from './utils/logger.js';
 import { resolveOutput } from './utils/resolve-output.js';
-import { VERSION, BUILD_DATE } from './version-generated.js';
+import { VERSION, BUILD_DATE, GIT_COMMIT } from './version-generated.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
 
@@ -61,7 +61,7 @@ const program = new Command();
 
 const versionStr = BUILD_DATE === 'dev'
   ? `${VERSION} (dev)`
-  : `${VERSION} (${BUILD_DATE})`;
+  : `${VERSION} (${BUILD_DATE}${GIT_COMMIT ? ` ${GIT_COMMIT}` : ''})`;
 
 program
   .name('facet')
