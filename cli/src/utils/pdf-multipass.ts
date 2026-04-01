@@ -14,9 +14,13 @@ export interface PageSizeDimensions {
 
 export const PAGE_SIZES: Record<string, PageSizeDimensions> = {
   a4: { width: 210, height: 297 },
+  'a4-landscape': { width: 297, height: 210 },
   a3: { width: 297, height: 420 },
+  'a3-landscape': { width: 420, height: 297 },
   letter: { width: 215.9, height: 279.4 },
+  'letter-landscape': { width: 279.4, height: 215.9 },
   legal: { width: 215.9, height: 355.6 },
+  'legal-landscape': { width: 355.6, height: 215.9 },
   fhd: { width: 508, height: 285.75 },
   qhd: { width: 677.33, height: 381 },
   wqhd: { width: 846.67, height: 381 },
@@ -159,6 +163,8 @@ export function buildPageGroups(typeInfo: PageTypeInfo): PageGroup[] {
 export interface RenderMargins {
   top: number;
   bottom: number;
+  left: number;
+  right: number;
 }
 
 export function computeMarginsForSize(
@@ -171,7 +177,7 @@ export function computeMarginsForSize(
     top = Math.max(top, scaledHeight(def.headerHeight, scale));
     bottom = Math.max(bottom, scaledHeight(def.footerHeight, scale));
   }
-  return { top, bottom };
+  return { top, bottom, left: 0, right: 0 };
 }
 
 // --- Phase 1: Element-to-PDF rendering ---
@@ -299,6 +305,32 @@ export interface GroupResult {
   pageCount: number;
 }
 
+export async function detectEmptyPages(page: Page): Promise<Set<number>> {
+  const indices = await page.evaluate(() => {
+    const empty: number[] = [];
+    const pages = document.querySelectorAll('[data-page-size]');
+    pages.forEach((el, i) => {
+      const main = el.querySelector('main, article') ?? el;
+      const text = main.textContent?.trim() ?? '';
+      const visibleChildren = main.querySelectorAll('img, svg, canvas, video, iframe, table, [style*="background"]');
+      if (text.length === 0 && visibleChildren.length === 0) {
+        const children = main.querySelectorAll('*');
+        let hasVisibleContent = false;
+        children.forEach((child) => {
+          if (hasVisibleContent) return;
+          const style = window.getComputedStyle(child);
+          if (style.backgroundImage !== 'none' || style.borderWidth !== '0px') {
+            hasVisibleContent = true;
+          }
+        });
+        if (!hasVisibleContent) empty.push(i);
+      }
+    });
+    return empty;
+  });
+  return new Set(indices);
+}
+
 export async function renderGroup(
   page: Page,
   group: PageGroup,
@@ -330,16 +362,22 @@ export async function renderGroup(
     });
   }, indices);
 
+  const isLandscape = dims.width > dims.height;
+  const pdfWidth = isLandscape ? Math.min(dims.width, dims.height) : dims.width;
+  const pdfHeight = isLandscape ? Math.max(dims.width, dims.height) : dims.height;
   const topMm = `${margins.top}mm`;
   const bottomMm = `${margins.bottom}mm`;
+  const leftMm = `${margins.left}mm`;
+  const rightMm = `${margins.right}mm`;
   await page.addStyleTag({
-    content: `@page { size: ${dims.width}mm ${dims.height}mm; margin-top: ${topMm} !important; margin-bottom: ${bottomMm} !important; margin-left: 0 !important; margin-right: 0 !important; } body { max-width: ${dims.width}mm !important; }`,
+    content: `@page { size: ${dims.width}mm ${dims.height}mm; margin-top: ${topMm} !important; margin-bottom: ${bottomMm} !important; margin-left: ${leftMm} !important; margin-right: ${rightMm} !important; } body { max-width: ${dims.width}mm !important; }`,
   });
 
   const pdfBytes = await page.pdf({
-    width: `${dims.width}mm`,
-    height: `${dims.height}mm`,
-    margin: { top: topMm, bottom: bottomMm, left: 0, right: 0 },
+    width: `${pdfWidth}mm`,
+    height: `${pdfHeight}mm`,
+    landscape: isLandscape,
+    margin: { top: topMm, bottom: bottomMm, left: leftMm, right: rightMm },
     omitBackground: false,
     printBackground: true,
     displayHeaderFooter: false,
@@ -470,12 +508,20 @@ const COLORS = {
   margin: hexToRgb('#38a169'),
 };
 
+export interface DebugVersionInfo {
+  cliVersion: string;
+  buildDate: string;
+  gitCommit: string;
+  pkgVersion: string;
+}
+
 export async function drawDebugOverlay(
   pdfBuffer: Buffer | Uint8Array,
   pageMap: PageType[],
   pageSizeMap: string[],
   typeInfo: PageTypeInfo,
   pageMarginMap?: PageMargins[],
+  versionInfo?: DebugVersionInfo,
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(pdfBuffer);
   const font = await doc.embedFont(StandardFonts.Courier);
@@ -545,11 +591,11 @@ export async function drawDebugOverlay(
 
     // Draw vertical margin lines (left/right)
     const pm = pageMarginMap?.[i] ?? { top: 0, right: 0, bottom: 0, left: 0 };
-    const leftPt = mmToPt(pm.left + 10);
-    const rightPt = pw - mmToPt(pm.right + 10);
+    const leftPt = mmToPt(pm.left);
+    const rightPt = pw - mmToPt(pm.right);
     const verticals = [
-      { xPt: leftPt, label: `margin-left ${pm.left + 10}mm` },
-      { xPt: rightPt, label: `margin-right ${pm.right + 10}mm` },
+      { xPt: leftPt, label: `margin-left ${pm.left}mm` },
+      { xPt: rightPt, label: `margin-right ${pm.right}mm` },
     ];
     for (const { xPt, label: vLabel } of verticals) {
       let y = 0;
@@ -602,5 +648,174 @@ export async function drawDebugOverlay(
     });
   }
 
+  if (versionInfo && pages.length > 0) {
+    const lastPage = pages[pages.length - 1];
+    const { width: lpw } = lastPage.getSize();
+    const parts = [
+      `facet ${versionInfo.cliVersion}`,
+      `built ${versionInfo.buildDate}`,
+      versionInfo.gitCommit || '',
+      `pkg ${versionInfo.pkgVersion}`,
+    ].filter(Boolean).join(' | ');
+    const tw = font.widthOfTextAtSize(parts, fontSize);
+    lastPage.drawRectangle({
+      x: lpw - tw - 12, y: 4,
+      width: tw + 8, height: fontSize + 6,
+      color: rgb(0.12, 0.15, 0.23), opacity: 0.9,
+    });
+    lastPage.drawText(parts, {
+      x: lpw - tw - 8, y: 7,
+      size: fontSize, font,
+      color: rgb(0.89, 0.91, 0.94),
+    });
+  }
+
+  return doc.save();
+}
+
+// --- Debug Typography Page ---
+
+interface FontSample {
+  label: string;
+  pt: number;
+  lineHeight: number;
+  margin: string;
+}
+
+const FONT_SAMPLES: FontSample[] = [
+  { label: 'h1', pt: 22, lineHeight: 26, margin: '0 0 4mm' },
+  { label: 'h2', pt: 15, lineHeight: 19, margin: '4mm 0 3mm' },
+  { label: 'h3', pt: 12, lineHeight: 15, margin: '3mm 0 2mm' },
+  { label: 'h4', pt: 10, lineHeight: 12, margin: '2mm 0 2mm' },
+  { label: 'p', pt: 9, lineHeight: 12, margin: '0 0 3mm' },
+  { label: 'text-2xl', pt: 24, lineHeight: 0, margin: '' },
+  { label: 'text-xl', pt: 18, lineHeight: 0, margin: '' },
+  { label: 'text-lg', pt: 15, lineHeight: 0, margin: '' },
+  { label: 'text-md', pt: 10, lineHeight: 0, margin: '' },
+  { label: 'text-sm', pt: 9, lineHeight: 0, margin: '' },
+  { label: 'text-xs', pt: 7, lineHeight: 0, margin: '' },
+];
+
+export interface FontComboInfo {
+  family: string;
+  size: string;
+  weight: string;
+  color: string;
+  tag: string;
+  sample: string;
+}
+
+export async function appendDebugFontPage(
+  pdfBuffer: Buffer | Uint8Array,
+  baseFontSize?: number,
+  fontCombos?: FontComboInfo[],
+): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(pdfBuffer);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
+
+  const page = doc.addPage([mmToPt(210), mmToPt(297)]);
+  const { width, height } = page.getSize();
+  const margin = 40;
+  let y = height - margin;
+  const gray = rgb(0.5, 0.5, 0.5);
+  const dark = rgb(0.1, 0.1, 0.1);
+  const red = rgb(0.9, 0.24, 0.24);
+  const lineColor = rgb(0.85, 0.85, 0.85);
+
+  page.drawText('Typography Reference', { x: margin, y, size: 18, font: boldFont, color: dark });
+  y -= 24;
+
+  if (baseFontSize) {
+    page.drawText(`Base font-size override: ${baseFontSize.toFixed(1)}pt`, { x: margin, y, size: 10, font, color: gray });
+    y -= 16;
+  }
+
+  // Column headers
+  const cols = { label: margin, size: margin + 70, lh: margin + 120, margins: margin + 170, sample: margin + 240 };
+  page.drawText('Element', { x: cols.label, y, size: 7, font: boldFont, color: gray });
+  page.drawText('Size', { x: cols.size, y, size: 7, font: boldFont, color: gray });
+  page.drawText('Line-H', { x: cols.lh, y, size: 7, font: boldFont, color: gray });
+  page.drawText('Margin', { x: cols.margins, y, size: 7, font: boldFont, color: gray });
+  page.drawText('Sample', { x: cols.sample, y, size: 7, font: boldFont, color: gray });
+  y -= 10;
+
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: lineColor });
+  y -= 14;
+
+  for (const sample of FONT_SAMPLES) {
+    page.drawText(sample.label, { x: cols.label, y: y - sample.pt * 0.2, size: 8, font: boldFont, color: dark });
+    page.drawText(`${sample.pt.toFixed(1)}pt`, { x: cols.size, y: y - sample.pt * 0.2, size: 8, font, color: gray });
+
+    if (sample.lineHeight > 0) {
+      page.drawText(`${sample.lineHeight.toFixed(1)}pt`, { x: cols.lh, y: y - sample.pt * 0.2, size: 8, font, color: gray });
+    }
+
+    if (sample.margin) {
+      page.drawText(sample.margin, { x: cols.margins, y: y - sample.pt * 0.2, size: 7, font, color: gray });
+    }
+
+    page.drawText('The quick brown fox jumps over the lazy dog', { x: cols.sample, y, size: sample.pt, font, color: dark });
+
+    y -= Math.max(sample.pt * 1.4, 14) + 4;
+    if (y < margin + 30) break;
+  }
+
+  // Actual font usage from document
+  if (fontCombos && fontCombos.length > 0) {
+    y -= 10;
+    page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: lineColor });
+    y -= 14;
+
+    const purple = rgb(0.576, 0.2, 0.918);
+    page.drawText('Document Font Usage (unique combos)', { x: margin, y, size: 9, font: boldFont, color: purple });
+    y -= 14;
+
+    const fc = { tag: margin, size: margin + 50, weight: margin + 100, color: margin + 140, family: margin + 210, sample: margin + 310 };
+    page.drawText('Tag', { x: fc.tag, y, size: 7, font: boldFont, color: gray });
+    page.drawText('Size', { x: fc.size, y, size: 7, font: boldFont, color: gray });
+    page.drawText('Weight', { x: fc.weight, y, size: 7, font: boldFont, color: gray });
+    page.drawText('Color', { x: fc.color, y, size: 7, font: boldFont, color: gray });
+    page.drawText('Family', { x: fc.family, y, size: 7, font: boldFont, color: gray });
+    page.drawText('Sample', { x: fc.sample, y, size: 7, font: boldFont, color: gray });
+    y -= 10;
+
+    page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.3, color: lineColor });
+    y -= 10;
+
+    for (const combo of fontCombos) {
+      if (y < margin + 30) {
+        page.drawText('... truncated', { x: margin, y, size: 7, font, color: gray });
+        break;
+      }
+      page.drawText(combo.tag, { x: fc.tag, y, size: 7, font, color: dark });
+      page.drawText(combo.size, { x: fc.size, y, size: 7, font, color: dark });
+      page.drawText(combo.weight, { x: fc.weight, y, size: 7, font, color: dark });
+      page.drawText(combo.color, { x: fc.color, y, size: 7, font, color: dark });
+      page.drawText(combo.family, { x: fc.family, y, size: 7, font, color: dark });
+      page.drawText(combo.sample.slice(0, 20), { x: fc.sample, y, size: 7, font, color: gray });
+      y -= 10;
+    }
+  }
+
+  // Style guide reference box
+  y -= 10;
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: lineColor });
+  y -= 14;
+
+  page.drawText('Style Guide Reference (print @media)', { x: margin, y, size: 9, font: boldFont, color: red });
+  y -= 14;
+
+  const refLines = [
+    'body: 10pt/14pt (1.4x)  |  table: 9pt (th: +1pt)  |  footer: 8pt/10pt',
+    'h1: 22pt/26pt (1.2x)  |  h2: 15pt/19pt (1.3x)  |  h3: 12pt/15pt (1.3x)  |  h4: 10pt/12pt (1.2x)  |  p: 9pt/12pt (1.3x)',
+    'text-xs: 7pt  |  text-sm: 9pt  |  text-md: 10pt  |  text-lg: 15pt  |  text-xl: 18pt  |  text-2xl: 24pt',
+  ];
+  for (const line of refLines) {
+    page.drawText(line, { x: margin, y, size: 7, font, color: gray });
+    y -= 11;
+  }
+
+  page.drawText('facet --debug-typography', { x: margin, y: 20, size: 7, font, color: gray });
   return doc.save();
 }
