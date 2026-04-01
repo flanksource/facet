@@ -1,26 +1,33 @@
-import React from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { IoLogoGithub as IconGithub } from 'react-icons/io5';
 
-/**
- * Grid layout for platform components with shields and GitHub links
- *
- * @param {Object} props
- * @param {Array} props.items - Array of platform items
- */
-export default function PlatformGrid({ items }) {
+interface PlatformItem {
+  name: string;
+  subtitle?: string;
+  icon?: ComponentType<{ className?: string }>;
+  githubUrl?: string;
+  shields?: ReactNode;
+}
+
+interface PlatformGridProps {
+  items: PlatformItem[];
+}
+
+export default function PlatformGrid({ items }: PlatformGridProps) {
   return (
     <div className="grid gap-4 mb-8">
-      {items.map((item, index) => (
+      {items.map((item, index) => {
+        const Icon = item.icon;
+        return (
         <div
           key={index}
           className="grid grid-cols-[auto_1fr_auto] gap-4 items-center border-b border-gray-200 pb-4 last:border-b-0"
         >
           {/* Platform Info Column (3 cols equivalent) */}
           <div className="flex items-start gap-3 col-span-2">
-            {/* Icon */}
-            {item.icon && (
+            {Icon && (
               <div className="flex-shrink-0 mt-0.5">
-                <item.icon className="w-6 h-6 text-gray-700" />
+                <Icon className="w-6 h-6 text-gray-700" />
               </div>
             )}
 
@@ -51,7 +58,8 @@ export default function PlatformGrid({ items }) {
             )}
           </div>
         </div>
-      ))}
+      );
+      })}
     </div>
   );
 }

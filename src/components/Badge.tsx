@@ -130,27 +130,31 @@ function getStatusClasses(status: BadgeStatus, variant: BadgeVariant): string {
 /**
  * Get size-based classes
  */
-function getSizeClasses(size: BadgeSize): { container: string; icon: string; text: string } {
+function getSizeClasses(size: BadgeSize): { container: string; icon: string; text: string; gap: string } {
   const sizeMap = {
     xs: {
       container: 'px-1 gap-1',
       icon: 'w-3 h-3',
       text: 'text-xs',
+      gap: 'gap-1',
     },
     sm: {
       container: 'px-2 py-0.5 gap-1',
       icon: 'w-3 h-3',
       text: 'text-xs',
+      gap: 'gap-1',
     },
     md: {
       container: 'px-3 py-1 gap-1.5',
       icon: 'w-3.5 h-3.5',
       text: 'text-sm',
+      gap: 'gap-1.5',
     },
     lg: {
       container: 'px-4 py-1.5 gap-2',
       icon: 'w-4 h-4',
       text: 'text-base',
+      gap: 'gap-2',
     },
   };
 
