@@ -807,7 +807,7 @@ export async function appendDebugFontPage(
   y -= 14;
 
   const refLines = [
-    'body: 10pt/14pt (1.4x)  |  table: 10pt  |  footer: 8pt/10pt',
+    'body: 10pt/14pt (1.4x)  |  table: 9pt (th: +1pt)  |  footer: 8pt/10pt',
     'h1: 22pt/26pt (1.2x)  |  h2: 15pt/19pt (1.3x)  |  h3: 12pt/15pt (1.3x)  |  h4: 10pt/12pt (1.2x)  |  p: 9pt/12pt (1.3x)',
     'text-xs: 7pt  |  text-sm: 9pt  |  text-md: 10pt  |  text-lg: 15pt  |  text-xl: 18pt  |  text-2xl: 24pt',
   ];

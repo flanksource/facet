@@ -7,6 +7,7 @@ import { conflictingTailwind } from './conflicting-tailwind.js';
 import { conflictingPrintCss } from './conflicting-print-css.js';
 import { pageStructure } from './page-structure.js';
 import { emptyPage } from './empty-page.js';
+import { interactiveContent } from './interactive-content.js';
 
 export const allRules: LintRule[] = [
   hardcodedPageBreak,
@@ -17,4 +18,5 @@ export const allRules: LintRule[] = [
   conflictingPrintCss,
   pageStructure,
   emptyPage,
+  interactiveContent,
 ];

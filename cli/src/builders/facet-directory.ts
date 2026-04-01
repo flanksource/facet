@@ -13,8 +13,8 @@
  * - dist/ - Vite build output
  */
 
-import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, realpathSync } from 'fs';
-import { join, relative, basename, dirname, resolve, isAbsolute } from 'path';
+import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync } from 'fs';
+import { join, relative, basename, dirname, resolve } from 'path';
 import type { Logger } from '../utils/logger.js';
 
 // Embed assets at build time using Bun's import with file type
@@ -159,41 +159,6 @@ export class FacetDirectory {
       this.logger.debug('Symlinked node_modules');
     } catch (error) {
       throw new Error(`Failed to symlink node_modules: ${error instanceof Error ? error.message : String(error)}`);
-    }
-
-    this.resolveRelativeFileSymlinks(source);
-  }
-
-  /**
-   * Scan node_modules for relative symlinks (created by npm `file:` deps)
-   * and replace them with absolute symlinks so they resolve correctly
-   * when accessed via the .facet/ symlink chain.
-   */
-  private resolveRelativeFileSymlinks(nodeModulesPath: string): void {
-    const scopes = readdirSync(nodeModulesPath).filter(d => d.startsWith('@'));
-    const check = (pkgPath: string) => {
-      try {
-        const stat = lstatSync(pkgPath);
-        if (!stat.isSymbolicLink()) return;
-        const linkTarget = readlinkSync(pkgPath);
-        if (isAbsolute(linkTarget)) return;
-        const resolved = realpathSync(pkgPath);
-        rmSync(pkgPath, { force: true });
-        symlinkSync(resolved, pkgPath, 'junction');
-        this.logger.debug(`Resolved relative symlink: ${basename(pkgPath)} -> ${resolved}`);
-      } catch { /* skip unresolvable */ }
-    };
-
-    for (const scope of scopes) {
-      const scopePath = join(nodeModulesPath, scope);
-      for (const pkg of readdirSync(scopePath)) {
-        check(join(scopePath, pkg));
-      }
-    }
-    for (const entry of readdirSync(nodeModulesPath)) {
-      if (!entry.startsWith('@') && !entry.startsWith('.')) {
-        check(join(nodeModulesPath, entry));
-      }
     }
   }
 

@@ -128,6 +128,24 @@ export async function injectDebugAnnotations(page: Page): Promise<void> {
       el.appendChild(makeLabel(`${actual}${match}`));
     });
 
+    // Annotate first occurrence of each unique font size per page
+    document.querySelectorAll('[data-page-size]').forEach((pageEl) => {
+      const seenSizes = new Set<string>();
+      const walker = document.createTreeWalker(pageEl, NodeFilter.SHOW_ELEMENT);
+      let el: Element | null;
+      while ((el = walker.nextNode() as Element | null)) {
+        if (el.classList?.contains('debug-annotation')) continue;
+        if (el.tagName === 'H1' || el.tagName === 'H2' || el.tagName === 'H3' || el.tagName === 'H4' || el.tagName === 'P') continue;
+        if (!el.textContent?.trim()) continue;
+        const s = window.getComputedStyle(el);
+        const size = pxToPt(s.fontSize);
+        if (!seenSizes.has(size)) {
+          seenSizes.add(size);
+          el.appendChild(makeLabel(size));
+        }
+      }
+    });
+
     document.querySelectorAll('table').forEach((table) => {
       const ts = window.getComputedStyle(table);
       const tableInfo = `table: font=${pxToPt(ts.fontSize)} collapse=${ts.borderCollapse} w=${pxToMm(ts.width)}`;

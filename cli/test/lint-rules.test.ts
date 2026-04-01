@@ -7,6 +7,7 @@ import { emptyPage } from '../src/lint/rules/empty-page.js';
 import { conflictingTailwind } from '../src/lint/rules/conflicting-tailwind.js';
 import { conflictingPrintCss } from '../src/lint/rules/conflicting-print-css.js';
 import { pageStructure } from '../src/lint/rules/page-structure.js';
+import { interactiveContent } from '../src/lint/rules/interactive-content.js';
 import type { LintContext } from '../src/lint/types.js';
 
 function ctx(filePath: string, content: string): LintContext {
@@ -493,5 +494,97 @@ describe('empty-page', () => {
     ].join('\n')));
     expect(issues).toHaveLength(1);
     expect(issues[0].line).toBe(7);
+  });
+});
+
+describe('interactive-content', () => {
+  it('flags onClick handler', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `<button onClick={() => setCount(count + 1)}>Click</button>`));
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+    expect(issues.some((i) => i.message.includes('Event handlers'))).toBe(true);
+  });
+
+  it('flags useState hook', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `const [count, setCount] = useState(0);`));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain('hooks');
+  });
+
+  it('does not flag useMemo', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `const val = useMemo(() => compute(), [dep]);`));
+    expect(issues).toHaveLength(0);
+  });
+
+  it('flags hover Tailwind classes', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `<div className="hover:bg-blue-500 text-sm">`));
+    expect(issues.some((i) => i.message.includes('Hover/focus'))).toBe(true);
+  });
+
+  it('flags focus states', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `<input className="focus:ring-2 focus:ring-blue-500" />`));
+    const focusIssues = issues.filter((i) => i.message.includes('Hover/focus'));
+    expect(focusIssues.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('flags cursor-pointer', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `<span className="cursor-pointer text-blue-600">click me</span>`));
+    expect(issues.some((i) => i.message.includes('Cursor'))).toBe(true);
+  });
+
+  it('flags transitions', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `<div className="transition-colors duration-200">`));
+    expect(issues.some((i) => i.message.includes('transitions'))).toBe(true);
+  });
+
+  it('flags form elements', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `<input type="text" placeholder="search" />`));
+    expect(issues.some((i) => i.message.includes('Form elements'))).toBe(true);
+  });
+
+  it('flags video/audio/iframe', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `<video src="demo.mp4" autoPlay />`));
+    expect(issues.some((i) => i.message.includes('media'))).toBe(true);
+  });
+
+  it('flags browser APIs', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `const width = window.innerWidth;`));
+    expect(issues.some((i) => i.message.includes('Browser APIs'))).toBe(true);
+  });
+
+  it('flags timers', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `setTimeout(() => refresh(), 5000);`));
+    expect(issues.some((i) => i.message.includes('Timers'))).toBe(true);
+  });
+
+  it('skips import lines', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `import { useState, useEffect } from 'react';`));
+    expect(issues).toHaveLength(0);
+  });
+
+  it('skips comment lines', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx',
+      `// onClick handler for interactive mode`));
+    expect(issues).toHaveLength(0);
+  });
+
+  it('passes clean static component', () => {
+    const issues = interactiveContent.check(ctx('Foo.tsx', [
+      'export default function Foo({ title }) {',
+      '  return <div className="text-lg font-bold">{title}</div>;',
+      '}',
+    ].join('\n')));
+    expect(issues).toHaveLength(0);
   });
 });
