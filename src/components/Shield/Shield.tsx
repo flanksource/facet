@@ -1,20 +1,18 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 import clsx from 'clsx';
 
-/**
- * Shield badge component similar to shields.io for-the-badge style
- *
- * @param {Object} props - Component props
- * @param {string} props.value - Badge value (required) - displayed on the right section
- * @param {string} [props.label] - Badge label (optional) - displayed on the left section if provided
- * @param {'h-3'|'h-4'|'h-5'|'h-6'} [props.size='h-5'] - Size using Tailwind height classes
- * @param {'primary'|'secondary'|'success'|'warning'|'error'|'info'} [props.theme='primary'] - Theme preset for colors
- * @param {React.ReactNode} [props.icon] - Icon component (from @iconify/react or react-icons)
- * @param {string} [props.href] - Optional href to make badge a link
- * @param {string} [props.target] - Link target (_blank, _self, etc.)
- * @param {string} [props.ariaLabel] - Accessible label for screen readers
- * @param {string} [props.className] - Additional CSS classes
- */
+interface ShieldProps {
+  value: string;
+  label?: string;
+  size?: 'h-3' | 'h-4' | 'h-5' | 'h-6';
+  theme?: 'primary' | 'secondary' | 'success' | 'warning' | 'high' | 'error' | 'info';
+  icon?: ReactNode;
+  href?: string;
+  target?: string;
+  ariaLabel?: string;
+  className?: string;
+}
+
 export function Shield({
   value,
   label,
@@ -25,7 +23,7 @@ export function Shield({
   target,
   ariaLabel,
   className,
-}) {
+}: ShieldProps) {
   const themes = {
     primary: {
       label: 'bg-zinc-300 text-zinc-500',

@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { BsFillPersonFill } from 'react-icons/bs';
 import type { User } from '../types/common';
 import { getColorFromString } from '../utils/colors';

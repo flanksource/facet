@@ -4,7 +4,7 @@ interface CTAButton {
 }
 
 interface CallToActionProps {
-  primary: CTAButton;
+  primary?: CTAButton;
   secondary?: CTAButton[];
   audience?: 'enterprise' | 'technical' | 'security';
 }

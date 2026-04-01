@@ -13,7 +13,7 @@ interface StatCardProps {
   | 'before-after' // show before → after style
   | 'before-after-progress'; // show before → after with progress bar style (like MetricHeader)
 
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   valueClassName?: string;
   iconClassName?: string;
   iconColor?: string;
@@ -308,7 +308,7 @@ export default function StatCard({
   const renderComparisonIndicator = () => {
     if (!compareFrom || !compareVariant) return null;
 
-    const { delta, percent, isPositive } = calculateDelta();
+    const { delta, isPositive } = calculateDelta();
     const formattedValue = formatValue(value);
     const formattedCompareFrom = formatValue(compareFrom);
 
@@ -411,6 +411,23 @@ export default function StatCard({
   // Get size-specific classes for card and badge variants
   const getSizeClasses = () => {
     const sizeMap = {
+      xs: {
+        iconSize: 'w-[3mm] h-[3mm]',
+        iconGap: 'gap-[0.5mm]',
+        cardPadding: 'px-[1.5mm] py-[1mm]',
+        badgePadding: 'px-[1.5mm] py-[0.5mm]',
+        gap: 'gap-[0.5mm]',
+        valueText: 'text-[9pt] leading-[11pt]',
+        labelText: 'text-[6pt] leading-[8pt]',
+        sublabelText: 'text-[5pt]',
+        badgeValueText: 'text-[7pt]',
+        badgeLabelText: 'text-[6pt]',
+        heroValueText: 'text-[18pt] leading-[22pt]',
+        heroLabelText: 'text-[7pt]',
+        heroSublabelText: 'text-[6pt]',
+        iconHeavyBadgeText: 'text-[5pt]',
+        iconHeavyLabelText: 'text-[6pt]'
+      },
       sm: {
         iconSize: 'w-[4mm] h-[4mm]',
         iconGap: 'gap-[1mm]',

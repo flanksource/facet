@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface ComparisonTableProps {
   pros: string[];
   cons: string[];

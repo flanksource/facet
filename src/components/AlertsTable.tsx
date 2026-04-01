@@ -1,4 +1,3 @@
-import React from 'react';
 import type { Alert } from '../types/security';
 
 interface AlertsTableProps {
@@ -98,7 +97,7 @@ export default function AlertsTable({ alerts, className = '' }: AlertsTableProps
           </span>
           {alert.location && (
             <code className="text-gray-500 truncate-prefix flex-shrink-0 max-w-[50%] text-[10px] bg-gray-100 px-1 rounded">
-              {alert.location.replaceAll(".github/workflows/", "")}
+              {alert.location.split(".github/workflows/").join("")}
             </code>
           )}
           {alert.count > 1 && (

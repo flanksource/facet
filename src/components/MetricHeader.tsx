@@ -120,10 +120,10 @@ export default function MetricHeader(props: MetricHeaderProps) {
   }
 
   if (variant === 'comparison') {
-    const { before, after, showBars = true, ComparisonComponent } = props;
+    const { before, after } = props;
 
-    const beforeValue = typeof before.value === 'number' ? before.value : parseFloat(before.value.toString());
-    const afterValue = typeof after.value === 'number' ? after.value : parseFloat(after.value.toString());
+    const beforeValue = typeof before.value === 'number' ? before.value : parseFloat(String(before.value));
+    const afterValue = typeof after.value === 'number' ? after.value : parseFloat(String(after.value));
     const maxValue = Math.max(beforeValue, afterValue);
     const beforeWidth = (beforeValue / maxValue) * 100;
     const afterWidth = (afterValue / maxValue) * 100;

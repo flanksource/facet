@@ -1,4 +1,4 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 
 /**
  * ProgressBar Props
@@ -22,7 +22,7 @@ export interface ProgressBarProps {
   showPercentageLabel?: boolean;
   /** Optional CSS class name */
   className?: string;
-  choldren?: React.ReactNode;
+  children?: ReactNode;
 }
 
 /**
@@ -63,11 +63,9 @@ export default function ProgressBar({
   title,
   percentage,
   displayValue,
-  subtitle,
   variant = 'primary',
   size = 'md',
   showPercentageInBar = true,
-  showPercentageLabel = true,
   className = '',
   children
 }: ProgressBarProps) {
