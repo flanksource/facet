@@ -78,6 +78,7 @@ export const NoTrend: Story = {
 
 export const AllSeverities: Story = {
   name: 'All Severity Levels',
+  args: { color: 'red', value: 8, label: 'Critical' },
   render: () => (
     <div className="flex gap-4">
       <SeverityStatCard color="red" value={8} label="Critical" />
