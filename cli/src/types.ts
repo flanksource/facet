@@ -33,6 +33,8 @@ export interface GenerateOptions {
   margins?: { top?: number; bottom?: number; left?: number; right?: number };
   header?: string;
   footer?: string;
+  debugTypography?: boolean;
+  fontSize?: number;
   encryption?: import('./utils/pdf-security.js').PDFEncryptionOptions;
   signature?: import('./utils/pdf-security.js').PDFSignatureOptions;
 }

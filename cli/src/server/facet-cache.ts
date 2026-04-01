@@ -11,8 +11,8 @@
  */
 
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, symlinkSync, readlinkSync, renameSync, cpSync } from 'fs';
-import { join } from 'path';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, symlinkSync, readlinkSync, renameSync, cpSync, lstatSync, realpathSync } from 'fs';
+import { join, isAbsolute, basename } from 'path';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
 
@@ -66,6 +66,9 @@ export function promoteToCacheAfterInstall(facetRoot: string, hash: string, logg
   // Don't promote if it's already a symlink (already cached)
   try { readlinkSync(nmPath); return; } catch { /* real dir — promote it */ }
 
+  // Resolve relative symlinks before moving — they won't resolve from the cache dir
+  resolveRelativeSymlinks(nmPath, logger);
+
   ensureCacheDir();
   const dest = join(cacheDir(hash), 'node_modules');
   mkdirSync(cacheDir(hash), { recursive: true });
@@ -81,10 +84,38 @@ export function promoteToCacheAfterInstall(facetRoot: string, hash: string, logg
     cpSync(nmPath, dest, { recursive: true });
     rmSync(nmPath, { recursive: true, force: true });
   }
-
   symlinkSync(dest, nmPath, 'junction');
   logger.debug(`Promoted node_modules to cache (${hash})`);
   evictCache(logger);
+}
+
+/**
+ * Resolve relative symlinks (from npm `file:` deps) to absolute paths.
+ * After moving node_modules to cache, relative symlinks no longer resolve.
+ */
+function resolveRelativeSymlinks(nodeModulesPath: string, logger: Logger): void {
+  const check = (pkgPath: string) => {
+    try {
+      if (!lstatSync(pkgPath).isSymbolicLink()) return;
+      const target = readlinkSync(pkgPath);
+      if (isAbsolute(target)) return;
+      const resolved = realpathSync(pkgPath);
+      rmSync(pkgPath, { force: true });
+      symlinkSync(resolved, pkgPath, 'junction');
+      logger.debug(`Resolved relative symlink: ${basename(pkgPath)} -> ${resolved}`);
+    } catch { /* skip unresolvable */ }
+  };
+
+  for (const entry of readdirSync(nodeModulesPath)) {
+    if (entry.startsWith('@')) {
+      const scopePath = join(nodeModulesPath, entry);
+      try {
+        for (const pkg of readdirSync(scopePath)) check(join(scopePath, pkg));
+      } catch { /* skip */ }
+    } else if (!entry.startsWith('.')) {
+      check(join(nodeModulesPath, entry));
+    }
+  }
 }
 
 function ensureCacheDir(): void {

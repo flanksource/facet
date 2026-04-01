@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { version } from '../package.json';
-import { generatePDF } from './generators/pdf.js';
-import { generateHTML } from './generators/html.js';
-import { startServer } from './server/preview.js';
+import chalk from 'chalk';
 import { Logger } from './utils/logger.js';
 import { resolveOutput } from './utils/resolve-output.js';
+import { VERSION, BUILD_DATE, GIT_COMMIT } from './version-generated.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
 
@@ -61,10 +59,17 @@ function addSharedOptions(cmd: Command): Command {
 
 const program = new Command();
 
+const versionStr = BUILD_DATE === 'dev'
+  ? `${VERSION} (dev)`
+  : `${VERSION} (${BUILD_DATE}${GIT_COMMIT ? ` ${GIT_COMMIT}` : ''})`;
+
 program
   .name('facet')
   .description('Build beautiful datasheets and PDFs from React templates')
-  .version(version);
+  .version(versionStr)
+  .hook('preAction', () => {
+    console.log(chalk.gray(`facet ${versionStr}`));
+  });
 
 // html command
 addSharedOptions(
@@ -81,6 +86,7 @@ addSharedOptions(
       logger.info(`Generating HTML from template: ${template}`);
       const { outputDir, outputName } = resolveOutput(options.output);
 
+      const { generateHTML } = await import('./generators/html.js');
       await generateHTML({
         template,
         data: options.data,
@@ -117,6 +123,8 @@ addSharedOptions(
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
     .option('--debug', 'Add colored debug overlay lines for header/footer zones')
+    .option('--debug-typography', 'Append a font-size reference page to the PDF')
+    .option('--font-size <pt>', 'Override base font size in pt (default: 10)', parseFloat)
     .option('--page-size <size>', 'Default page size (a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k)', 'a4')
     .option('--landscape', 'Use landscape orientation')
     .option('--margin-top <mm>', 'Top margin in mm', parseFloat)
@@ -142,6 +150,7 @@ addSharedOptions(
       logger.info(`Generating PDF from template: ${template}`);
       const { outputDir, outputName } = resolveOutput(options.output);
 
+      const { generatePDF } = await import('./generators/pdf.js');
       await generatePDF({
         template,
         data: options.data,
@@ -155,6 +164,8 @@ addSharedOptions(
         verbose: options.verbose,
         refresh: options.refresh,
         debug: options.debug,
+        debugTypography: options.debugTypography,
+        fontSize: options.fontSize,
         pageSize: options.pageSize,
         landscape: options.landscape,
         margins: buildMargins(options),
@@ -196,6 +207,7 @@ program
   .action(async (options: any) => {
     const logger = new Logger(options.verbose);
     try {
+      const { startServer } = await import('./server/preview.js');
       await startServer({
         port: options.port,
         templatesDir: options.templatesDir,
@@ -213,6 +225,34 @@ program
       });
     } catch (error) {
       logger.error(`Server failed: ${error instanceof Error ? error.message : String(error)}`);
+      if (options.verbose && error instanceof Error && error.stack) {
+        logger.debug(error.stack);
+      }
+      process.exit(1);
+    }
+  });
+
+// lint command
+program
+  .command('lint [paths...]')
+  .description('Scan TSX files for styling, CSS, and page layout issues')
+  .option('-v, --verbose', 'Show detailed output including passing files')
+  .option('--rule <name>', 'Run only a specific rule')
+  .option('--severity <level>', 'Minimum severity to report (warning, error)', 'warning')
+  .action(async (paths: string[], options: any) => {
+    const logger = new Logger(options.verbose);
+    try {
+      const { runLint } = await import('./lint/index.js');
+      const exitCode = await runLint({
+        paths: paths.length > 0 ? paths : ['.'],
+        verbose: options.verbose,
+        rule: options.rule,
+        severity: options.severity,
+        logger,
+      });
+      process.exit(exitCode);
+    } catch (error) {
+      logger.error(`Lint failed: ${error instanceof Error ? error.message : String(error)}`);
       if (options.verbose && error instanceof Error && error.stack) {
         logger.debug(error.stack);
       }

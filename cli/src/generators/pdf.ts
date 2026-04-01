@@ -69,6 +69,8 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
     outputPath: pdfPath,
     logger,
     debug: options.debug,
+    debugTypography: options.debugTypography,
+    fontSize: options.fontSize,
     defaultPageSize: options.pageSize,
     landscape: options.landscape,
     margins: options.margins,
