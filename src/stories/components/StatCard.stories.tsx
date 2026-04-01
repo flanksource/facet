@@ -221,6 +221,7 @@ export const ConditionalCustomThreshold: Story = {
 // Color Theming
 export const MetricWithColors: Story = {
   name: 'Color Theming',
+  args: { value: 100, label: 'Blue Theme' },
   render: () => (
     <div className="grid grid-cols-3 gap-4">
       <StatCard value={100} label="Blue Theme" variant="metric" color="blue" />
@@ -236,6 +237,7 @@ export const MetricWithColors: Story = {
 // Size Variants - Card
 export const CardSizes: Story = {
   name: 'Card Sizes',
+  args: { value: '50x', label: 'Small Card' },
   render: () => (
     <div className="flex items-center gap-4">
       <StatCard
@@ -266,6 +268,7 @@ export const CardSizes: Story = {
 // Size Variants - Badge
 export const BadgeSizes: Story = {
   name: 'Badge Sizes',
+  args: { value: 42, label: 'Small Badge' },
   render: () => (
     <div className="flex flex-col items-start gap-4">
       <StatCard

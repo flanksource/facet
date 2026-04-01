@@ -74,6 +74,7 @@ export const LargeSize: Story = {
 
 export const AllScores: Story = {
   name: 'All Score Ranges',
+  args: { score: 5 },
   render: () => (
     <div className="flex gap-8 items-center">
       <ScoreGauge score={2.5} label="Critical" />

@@ -22,14 +22,12 @@ type Story = StoryObj<typeof meta>;
 
 export const TermGlossary: Story = {
   args: {
-    type: 'terms',
     terms: sampleTerms,
   },
 };
 
 export const RatingScale: Story = {
   args: {
-    type: 'rating',
     ratingScale: [
       { stars: 5, meaning: 'Excellent - Exceeds expectations' },
       { stars: 4, meaning: 'Good - Meets expectations' },
@@ -42,7 +40,6 @@ export const RatingScale: Story = {
 
 export const Legend: Story = {
   args: {
-    type: 'legend',
     legend: [
       { example: '✓', description: 'Feature is fully supported' },
       { example: '~', description: 'Feature is partially supported' },
