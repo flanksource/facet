@@ -5,21 +5,25 @@ interface MatrixTableProps {
   rows: { label: React.ReactNode; cells: React.ReactNode[] }[];
   columnWidth?: number;
   headerHeight?: number;
+  cornerContent?: React.ReactNode;
 }
 
-export function Dot({ color }: { color: string }) {
+export function Dot({ color, outline }: { color: string; outline?: boolean }) {
   return (
     <div style={{
       width: '2mm', height: '2mm',
-      borderRadius: '50%', backgroundColor: color,
+      borderRadius: '50%',
+      backgroundColor: outline ? 'transparent' : color,
+      border: outline ? `0.4mm solid ${color}` : 'none',
     }} />
   );
 }
 
 export default function MatrixTable({
-  columns, rows, columnWidth = 6, headerHeight = 18,
+  columns, rows, columnWidth = 6, headerHeight = 18, cornerContent,
 }: MatrixTableProps) {
   const textWidth = headerHeight * 1.41;
+  const diagonalOverhang = Math.round(headerHeight * 0.71);
 
   const thReset: React.CSSProperties = {
     background: 'transparent', backgroundColor: 'transparent',
@@ -27,7 +31,8 @@ export default function MatrixTable({
   };
 
   return (
-    <table style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+    <div style={{ paddingRight: `${diagonalOverhang}mm` }}>
+    <table style={{ borderCollapse: 'collapse' }}>
       <colgroup>
         <col />
         {columns.map((_, i) => (
@@ -36,7 +41,13 @@ export default function MatrixTable({
       </colgroup>
       <thead style={{ background: 'transparent', backgroundColor: 'transparent', color: 'inherit' }}>
         <tr style={{ background: 'transparent', backgroundColor: 'transparent' }}>
-          <th style={thReset} />
+          <th style={{ ...thReset, verticalAlign: 'bottom' }}>
+            {cornerContent && (
+              <div style={{ fontSize: '6pt', color: '#6B7280', paddingBottom: '1mm' }}>
+                {cornerContent}
+              </div>
+            )}
+          </th>
           {columns.map((col, i) => (
             <th key={i} style={{
               ...thReset,
@@ -107,5 +118,6 @@ export default function MatrixTable({
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

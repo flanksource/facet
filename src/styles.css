@@ -138,10 +138,8 @@
     font-size: 24pt !important;
   }
 
-  tbody > td {
-    font-size: 10pt;
+  tbody td {
     font-weight: 400 !important;
-
   }
 }
 
@@ -394,7 +392,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   margin: 5mm 0;
-  font-size: 10pt;
+  font-size: 9pt;
 }
 
 thead {
@@ -404,6 +402,7 @@ thead {
 thead th {
   @apply bg-blue-600 text-white border border-blue-500 font-semibold;
 
+  font-size: calc(1em + 1pt);
   padding: 2mm;
   text-align: left;
 }
@@ -427,13 +426,17 @@ tbody td:first-child {
   font-weight: 600;
 }
 
-/* Table size-based padding — apply text-{size} class on <table> */
+/* Table size variants — apply text-{size} class on <table> */
+/* th gets +1pt automatically via calc(1em + 1pt) above */
+table.text-xs { font-size: 7pt; }
 table.text-xs th { padding: 1mm; }
 table.text-xs td { padding: 0.5mm 1mm; }
 
+table.text-sm { font-size: 9pt; }
 table.text-sm th { padding: 1.5mm; }
 table.text-sm td { padding: 1mm 1.5mm; }
 
+table.text-md { font-size: 10pt; }
 table.text-md th { padding: 2.5mm; }
 table.text-md td { padding: 2mm 2.5mm; }
 
