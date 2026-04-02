@@ -3,6 +3,8 @@
 
 FROM node:20-bookworm-slim AS builder
 
+ARG GIT_COMMIT=unknown
+
 # Install system dependencies and bun
 RUN apt-get update && apt-get install -y \
     python3 \
@@ -31,6 +33,7 @@ RUN cd cli && npm install
 COPY . .
 
 # Build the standalone binary (bun compile) and the lib
+ENV GIT_COMMIT=${GIT_COMMIT}
 RUN cd cli && npm run build
 
 # Final stage with Chromium browser
