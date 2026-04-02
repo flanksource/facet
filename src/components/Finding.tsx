@@ -5,7 +5,7 @@ import ListTable from './ListTable';
 export interface FindingBadge {
   label: string;
   className?: string;
-  icon?: string | React.ComponentType<{ className?: string }>;
+  icon?: string | React.ComponentType<{ className?: string; size?: number }>;
   dot?: string;
 }
 
@@ -143,7 +143,7 @@ export default function Finding(props: FindingProps) {
           <ListTable
             rows={entityRows}
             subject="name"
-            keys={["type"]}
+            keys={["type", "scope"]}
             size="xs"
           />
         </div>

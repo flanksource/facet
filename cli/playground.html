@@ -122,7 +122,7 @@ export default function Template({ data }: { data: ReportData }) {
       ]
     }, null, 2);
 
-    let templateEditor, dataEditor;
+    let templateEditor, dataEditor, previewUrl;
 
     require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' } });
     require(['vs/editor/editor.main'], function () {
@@ -209,10 +209,22 @@ export default function Template({ data }: { data: ReportData }) {
       else dataEditor?.layout();
     }
 
+    function showError(preview, message) {
+      const el = document.createElement('div');
+      el.className = 'error';
+      el.textContent = message;
+      preview.replaceChildren(el);
+    }
+
     async function doRender() {
       const btn = document.getElementById('renderBtn');
       const status = document.getElementById('status');
       const preview = document.getElementById('preview');
+
+      if (!templateEditor || !dataEditor) {
+        status.textContent = 'Editors are still loading…';
+        return;
+      }
 
       btn.disabled = true;
       status.textContent = 'Rendering…';
@@ -227,7 +239,7 @@ export default function Template({ data }: { data: ReportData }) {
       try {
         data = JSON.parse(dataEditor.getValue());
       } catch (e) {
-        preview.innerHTML = '<div class="error">Invalid JSON in data editor:\n' + e.message + '</div>';
+        showError(preview, 'Invalid JSON in data editor:\n' + e.message);
         btn.disabled = false;
         status.textContent = '';
         return;
@@ -254,9 +266,14 @@ export default function Template({ data }: { data: ReportData }) {
 
         if (!res.ok) {
           const err = await res.text();
-          preview.innerHTML = '<div class="error">Render failed (' + res.status + '):\n' + err + '</div>';
+          showError(preview, 'Render failed (' + res.status + '):\n' + err);
           status.textContent = 'Failed (' + elapsed + 's)';
           return;
+        }
+
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          previewUrl = undefined;
         }
 
         if (format === 'html') {
@@ -265,13 +282,13 @@ export default function Template({ data }: { data: ReportData }) {
           preview.querySelector('iframe').srcdoc = html;
         } else {
           const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
+          previewUrl = URL.createObjectURL(blob);
           preview.innerHTML = '<iframe></iframe>';
-          preview.querySelector('iframe').src = url;
+          preview.querySelector('iframe').src = previewUrl;
         }
         status.textContent = 'Done (' + elapsed + 's)';
       } catch (e) {
-        preview.innerHTML = '<div class="error">Network error:\n' + e.message + '</div>';
+        showError(preview, 'Network error:\n' + e.message);
         status.textContent = 'Error';
       } finally {
         btn.disabled = false;

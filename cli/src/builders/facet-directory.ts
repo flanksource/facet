@@ -220,8 +220,7 @@ export default defineConfig({
   plugins: [
     mdx({
       remarkPlugins: [remarkGfm],
-      mdExtensions: ['.md'],
-      mdxExtensions: ['.mdx'],
+      include: ['**/*.md', '**/*.mdx'],
     }),
     react({
       include: /\\.(md|mdx|js|jsx|ts|tsx)$/,
@@ -482,7 +481,7 @@ export default defineConfig({
 console.log('Using default tailwind.config.js');
 export default {
   content: [
-    "src/**/*.{html,js,jsx,ts,tsx,mdx}",
+    "src/**/*.{html,js,jsx,ts,tsx,md,mdx}",
     "./node_modules/@flanksource/facet/src/**/*.{js,jsx,ts,tsx}"
   ],
   theme: {
