@@ -41,19 +41,6 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
 
   logger.debug('Starting HTML generation');
 
-  if (options.clearCache) {
-    const facetDir = join(resolve(dirname(options.template)), '.facet');
-    if (existsSync(facetDir)) {
-      rmSync(facetDir, { recursive: true, force: true });
-      logger.info(`Cleared .facet/ cache: ${facetDir}`);
-    }
-    const cacheDir = join(tmpdir(), 'facet-cache');
-    if (existsSync(cacheDir)) {
-      rmSync(cacheDir, { recursive: true, force: true });
-      logger.info(`Cleared node_modules cache: ${cacheDir}`);
-    }
-  }
-
   // Resolve remote template if needed
   let templatePath = options.template;
   let consumerRoot: string | undefined;
@@ -71,6 +58,20 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
       consumerRoot = projectRoot;
       templatePath = relative(projectRoot, resolve(templatePath));
       logger.debug(`Using project root: ${projectRoot}`);
+    }
+  }
+
+  if (options.clearCache) {
+    const root = consumerRoot || resolve(dirname(options.template));
+    const facetDir = join(root, '.facet');
+    if (existsSync(facetDir)) {
+      rmSync(facetDir, { recursive: true, force: true });
+      logger.info(`Cleared .facet/ cache: ${facetDir}`);
+    }
+    const cacheDir = join(tmpdir(), 'facet-cache');
+    if (existsSync(cacheDir)) {
+      rmSync(cacheDir, { recursive: true, force: true });
+      logger.info(`Cleared node_modules cache: ${cacheDir}`);
     }
   }
 
