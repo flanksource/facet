@@ -99,6 +99,8 @@ jobs:
       - name: Build CLI binary
         run: |
           cd cli
+          npm run prebuild:cli
+          npm run build:lib
           bun build src/cli.ts --outfile=../dist/facet-${{ matrix.platform }}-${{ matrix.arch }} --compile --target=${{ matrix.target }}
 
       - name: Upload binary artifact
