@@ -1,9 +1,11 @@
+import React from 'react';
 import { formatDateTime, formatRelative } from './Format';
+import ListTable from './ListTable';
 
 export interface FindingBadge {
   label: string;
   className?: string;
-  icon?: string;
+  icon?: string | React.ComponentType<{ className?: string }>;
   dot?: string;
 }
 
@@ -37,6 +39,7 @@ export interface FindingProps {
 }
 
 function MdiIcon({ path, className }: { path: string; className?: string }) {
+  if (!path) return null;
   return (
     <svg viewBox="0 0 24 24" width="14" height="14" className={`inline-block align-middle ${className || ''}`}>
       <path fill="currentColor" d={path} />
@@ -48,7 +51,9 @@ function BadgeEl({ badge }: { badge: FindingBadge }) {
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.className || 'bg-gray-100 text-gray-500'}`}>
       {badge.dot && <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />}
-      {badge.icon && <MdiIcon path={badge.icon} />}
+      {badge.icon && (typeof badge.icon === 'string'
+        ? <MdiIcon path={badge.icon} />
+        : <span className="inline-flex w-3.5 h-3.5">{React.createElement(badge.icon, { size: 14 })}</span>)}
       {badge.label}
     </span>
   );
@@ -84,26 +89,45 @@ export default function Finding(props: FindingProps) {
     );
   }
 
+  const entityRows = (entities || []).map((e) => ({
+    name: e.name,
+    type: e.type || '',
+    scope: e.scope || '',
+  }));
+
+  const sampleRows = (samples || []).map((s) => {
+    const row: Record<string, string> = {};
+    for (const [k, v] of Object.entries(s)) {
+      row[k] = typeof v === 'boolean' ? (v ? '✓' : '✗') : String(v ?? '');
+    }
+    return row;
+  });
+
   return (
-    <div className={`border rounded-lg p-4 mb-4 break-inside-avoid ${className || 'border-gray-200'}`}>
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
+    <div className={`mb-6 break-inside-avoid ${className || ''}`}>
+      {/* Header */}
+      <div className="flex items-center gap-2 flex-wrap border-b border-gray-200 pb-2 mb-2">
         <code className="text-xs text-gray-500 font-mono">{id}</code>
         <BadgeEl badge={severity} />
         {outcome && <BadgeEl badge={outcome} />}
         {tags?.map((t, i) => <span key={i} className={`text-xs px-1.5 py-0.5 rounded ${t.className || 'bg-gray-100 text-gray-400'}`}>{t.label}</span>)}
       </div>
-      <h3 className="text-sm font-semibold text-gray-900 mb-2">{title}</h3>
-      <p className="text-xs text-gray-700 mb-2">{summary}</p>
 
+      {/* Title & Summary */}
+      <h3 className="text-sm font-semibold text-gray-900 mb-1">{title}</h3>
+      <p className="text-xs text-gray-700 border-b border-gray-100 pb-2 mb-2">{summary}</p>
+
+      {/* Time range */}
       {timeRange && (
-        <p className="text-xs text-gray-500 mb-2">
+        <p className="text-xs text-gray-500 border-b border-gray-100 pb-2 mb-2">
           {formatDateTime(timeRange.start)} — {formatDateTime(timeRange.end)}
           {timeRange.durationSeconds != null && ` (${formatDuration(timeRange.durationSeconds)})`}
         </p>
       )}
 
+      {/* Metrics */}
       {metrics && (
-        <div className="flex flex-wrap gap-2 mb-2">
+        <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-2 mb-2">
           {Object.entries(metrics).filter(([, v]) => v != null).map(([key, val]) => (
             <span key={key} className="text-xs bg-white border border-gray-200 rounded px-2 py-0.5">
               <span className="text-gray-400">{formatKey(key)}:</span>{' '}
@@ -113,43 +137,38 @@ export default function Finding(props: FindingProps) {
         </div>
       )}
 
-      {entities && entities.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {entities.map((e, i) => (
-            <span key={i} className={`text-xs px-1.5 py-0.5 rounded ${e.className || 'bg-gray-100 text-gray-700'}`}>
-              {e.name}{e.type && <span className="text-gray-400"> ({e.type})</span>}
-              {e.scope && <span className="text-gray-400"> @ {e.scope}</span>}
-            </span>
-          ))}
+      {/* Entities via ListTable */}
+      {entityRows.length > 0 && (
+        <div className="border-b border-gray-100 pb-2 mb-2">
+          <ListTable
+            rows={entityRows}
+            subject="name"
+            keys={["type"]}
+            size="xs"
+          />
         </div>
       )}
 
-      {samples && samples.length > 0 && (() => {
-        const cols = Object.keys(samples[0]);
+      {/* Samples via ListTable */}
+      {sampleRows.length > 0 && (() => {
+        const cols = Object.keys(sampleRows[0]);
+        const subject = cols[0];
+        const keys = cols.slice(1);
         return (
-          <table className="w-full text-xs mb-2 border-collapse">
-            <thead>
-              <tr className="text-left text-gray-400 border-b border-gray-200">
-                {cols.map((col) => <th key={col} className="pb-1 pr-2 font-medium">{formatKey(col)}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {samples.map((row, i) => (
-                <tr key={i} className="border-b border-gray-100">
-                  {cols.map((col) => (
-                    <td key={col} className="py-0.5 pr-2 text-gray-600 max-w-xs truncate">
-                      {typeof row[col] === 'boolean' ? (row[col] ? '✓' : '✗') : String(row[col] ?? '')}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="border-b border-gray-100 pb-2 mb-2">
+            <ListTable
+              rows={sampleRows}
+              subject={subject}
+              keys={keys}
+              size="xs"
+            />
+          </div>
         );
       })()}
 
+      {/* Recommendation */}
       {recommendation && (
-        <div className="bg-white/80 border border-gray-200 rounded p-2 mb-2">
+        <div className="border-b border-gray-100 pb-2 mb-2">
           <span className="text-xs font-semibold text-gray-500 uppercase">Recommendation: </span>
           <span className="text-xs text-gray-800">{recommendation}</span>
           {mitigations && mitigations.length > 0 && (
@@ -160,6 +179,7 @@ export default function Finding(props: FindingProps) {
         </div>
       )}
 
+      {/* References */}
       {references && references.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {references.map((ref, i) => (

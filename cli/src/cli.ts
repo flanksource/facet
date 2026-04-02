@@ -54,6 +54,7 @@ function addSharedOptions(cmd: Command): Command {
     .option('--output-name-field <field>', 'Data field to use for output filename', 'name')
     .option('-v, --verbose', 'Enable verbose logging')
     .option('--refresh', 'Force re-fetch of remote template (bypass cache)')
+    .option('--clear-cache', 'Delete .facet/ build cache and node_modules cache before generation')
     .option('--sandbox [settings]', 'Enable sandbox via srt (optionally specify settings file path)');
 }
 
@@ -100,6 +101,7 @@ addSharedOptions(
         validate: options.validate,
         verbose: options.verbose,
         refresh: options.refresh,
+        clearCache: options.clearCache,
         sandbox: options.sandbox,
       });
     }
@@ -163,6 +165,7 @@ addSharedOptions(
         validate: options.validate,
         verbose: options.verbose,
         refresh: options.refresh,
+        clearCache: options.clearCache,
         debug: options.debug,
         debugTypography: options.debugTypography,
         fontSize: options.fontSize,

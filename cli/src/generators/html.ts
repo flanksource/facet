@@ -1,6 +1,7 @@
 import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
 import { resolve, join, basename, extname, relative, dirname } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { $ } from 'bun';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
@@ -39,6 +40,19 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
   const logger = new Logger(options.verbose);
 
   logger.debug('Starting HTML generation');
+
+  if (options.clearCache) {
+    const facetDir = join(resolve(dirname(options.template)), '.facet');
+    if (existsSync(facetDir)) {
+      rmSync(facetDir, { recursive: true, force: true });
+      logger.info(`Cleared .facet/ cache: ${facetDir}`);
+    }
+    const cacheDir = join(tmpdir(), 'facet-cache');
+    if (existsSync(cacheDir)) {
+      rmSync(cacheDir, { recursive: true, force: true });
+      logger.info(`Cleared node_modules cache: ${cacheDir}`);
+    }
+  }
 
   // Resolve remote template if needed
   let templatePath = options.template;
