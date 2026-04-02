@@ -113,7 +113,7 @@ var _ = BeforeSuite(func() {
 	pod.WaitReady()
 	Expect(pod.Error()).NotTo(HaveOccurred())
 
-	localPort, stopFwd = pod.ForwardPort(3000)
+	localPort, stopFwd = pod.ForwardPort(3010)
 	Expect(localPort).NotTo(BeNil())
 })
 

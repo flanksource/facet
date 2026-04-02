@@ -113,7 +113,7 @@ COPY srt-settings.json /etc/facet/srt-settings.json
 # Set default working directory
 WORKDIR /workspace
 
-EXPOSE 3000
+EXPOSE 3010
 
 # Add labels
 LABEL org.opencontainers.image.title="Facet" \
