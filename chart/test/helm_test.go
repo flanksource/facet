@@ -84,7 +84,7 @@ var _ = Describe("Facet", Ordered, FlakeAttempts(3), func() {
 			pod.WaitReady()
 			Expect(pod.Error()).NotTo(HaveOccurred())
 
-			newPort, newStop := pod.ForwardPort(3000)
+			newPort, newStop := pod.ForwardPort(3010)
 			Expect(newPort).NotTo(BeNil())
 			defer newStop()
 
