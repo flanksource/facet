@@ -33,6 +33,8 @@ spec:
           command: ["facet"]
           args:
             - serve
+            - --port
+            - {{ .Values.service.port | quote }}
             - --templates-dir
             - {{ .Values.facet.templatesDir }}
             - --workers
