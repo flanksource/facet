@@ -169,8 +169,27 @@ export class FacetDirectory {
     this.logger.debug('Generating entry.tsx wrapper');
 
     const templateRelPath = relative(this.consumerRoot, join(this.consumerRoot, this.templateFile));
+    const ext = this.templateFile.match(/\.[^.]+$/)?.[0] ?? '';
+    const isMarkdown = ext === '.md' || ext === '.mdx';
 
-    const entry = `import React from 'react';
+    const entry = isMarkdown
+      ? `import React from 'react';
+import './src/styles.css';
+import { Page } from '@flanksource/facet';
+import { Icon } from '@iconify/react';
+import Content from './src/${templateRelPath}';
+
+export default function Template({ data }) {
+  return (
+    <Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+      <article className="prose">
+        <Content components={{ Icon }} {...data} />
+      </article>
+    </Page>
+  );
+}
+`
+      : `import React from 'react';
 import './src/styles.css';
 import Template from './src/${templateRelPath}';
 
@@ -201,9 +220,11 @@ export default defineConfig({
   plugins: [
     mdx({
       remarkPlugins: [remarkGfm],
+      mdExtensions: ['.md'],
+      mdxExtensions: ['.mdx'],
     }),
     react({
-      include: /\\.(mdx|js|jsx|ts|tsx)$/,
+      include: /\\.(md|mdx|js|jsx|ts|tsx)$/,
     }),
   ],
   resolve: {
@@ -218,7 +239,7 @@ export default defineConfig({
     conditions: ['import', 'module', 'browser', 'default'],
   },
   ssr: {
-    noExternal: ['react-icons', '@flanksource/facet', new RegExp('^@flanksource/')],
+    noExternal: ['react-icons', '@iconify/react', '@flanksource/facet', new RegExp('^@flanksource/')],
     resolve: {
       conditions: ['node', 'import', 'module', 'browser', 'default'],
       externalConditions: ['node'],
@@ -326,6 +347,7 @@ export default defineConfig({
       'remark-gfm',
       'react-icons',
       '@flanksource/icons',
+      '@iconify/react',
       'typescript',
       '@tailwindcss/typography',
       '@tailwindcss/postcss',

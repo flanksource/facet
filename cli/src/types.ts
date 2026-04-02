@@ -27,6 +27,7 @@ export interface GenerateOptions {
   validate: boolean;
   verbose: boolean;
   refresh?: boolean;
+  clearCache?: boolean;
   debug?: boolean;
   pageSize?: string;
   landscape?: boolean;
