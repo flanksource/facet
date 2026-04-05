@@ -1,4 +1,5 @@
 import {
+  AIModelCard,
   DatasheetTemplate,
   Page,
   Section,
@@ -54,7 +55,9 @@ import {
   IoFlash,
   IoCube,
   IoSpeedometer,
+  IoSparkles,
 } from 'react-icons/io5';
+import { SiOpenai } from 'react-icons/si';
 import FlanksourceHeader from './FlanksourceHeader';
 import FlanksourceFooter from './FlanksourceFooter';
 import {
@@ -205,6 +208,48 @@ export default function UberKitchenSink() {
             <Badge variant="status" status="success" label="md" size="md" icon={IoCheckmarkCircle} />
             <Badge variant="status" status="success" label="lg" size="lg" icon={IoCheckmarkCircle} />
           </div>
+
+          <h3 className="text-sm font-semibold text-gray-700">Shape Variants</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="status" status="success" label="Pill" shape="pill" icon={IoCheckmarkCircle} />
+            <Badge variant="status" status="warning" label="Rounded" shape="rounded" icon={IoWarning} />
+            <Badge variant="status" status="error" label="Square" shape="square" icon={IoCloseCircle} />
+          </div>
+
+          <h3 className="text-sm font-semibold text-gray-700">Label + Value (Two-part)</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="metric" label="Build" value="passing" icon={IoCheckmarkCircle} />
+            <Badge variant="metric" label="Coverage" value="94%" icon={IoShieldCheckmark} />
+            <Badge variant="metric" label="Version" value="v2.4.1" icon={IoGitBranch} />
+            <Badge variant="metric" label="Latency" value="45ms" icon={IoSpeedometer} size="sm" />
+          </div>
+
+          <h3 className="text-sm font-semibold text-gray-700">Outlined — Shapes</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outlined" label="Pill" shape="pill" borderColor="#326ce5" textColor="#326ce5" icon={IoCube} />
+            <Badge variant="outlined" label="Rounded" shape="rounded" borderColor="#5468ff" textColor="#5468ff" icon={IoFlash} />
+            <Badge variant="outlined" label="Square" shape="square" borderColor="#065f46" textColor="#065f46" icon={IoLockClosed} />
+          </div>
+
+          <h3 className="text-sm font-semibold text-gray-700">Label (value without bg)</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="label" label="Build" value="passing" icon={IoCheckmarkCircle} />
+            <Badge variant="label" label="Coverage" value="94%" icon={IoShieldCheckmark} color="#16a34a" />
+            <Badge variant="label" label="Version" value="v2.4.1" icon={IoGitBranch} color="#4338ca" textColor="#fff" />
+            <Badge variant="label" label="Latency" value="45ms" icon={IoSpeedometer} color="#0369a1" size="sm" />
+            <Badge variant="label" label="Status" value="Deployed" icon={IoRocket} color="#be185d" size="lg" shape="rounded" />
+          </div>
+
+          <h3 className="text-sm font-semibold text-gray-700">Custom Color Matrix</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="custom" color="#dbeafe" textColor="#1e40af" label="Info" icon={IoInformationCircle} shape="pill" />
+            <Badge variant="custom" color="#fef3c7" textColor="#92400e" label="Caution" icon={IoWarning} shape="rounded" />
+            <Badge variant="custom" color="#fce7f3" textColor="#9d174d" label="Hotfix" icon={IoFlash} shape="pill" size="sm" />
+            <Badge variant="custom" color="#d1fae5" textColor="#065f46" label="Deployed" icon={IoRocket} shape="rounded" size="lg" />
+            <Badge variant="custom" color="#ede9fe" textColor="#5b21b6" label="Preview" icon={IoSparkles} shape="square" />
+            <Badge variant="custom" color="#fee2e2" textColor="#991b1b" borderColor="#fca5a5" label="Expired" icon={IoTime} />
+          </div>
+
           <div className="flex flex-wrap gap-4">
             <Status status="healthy" />
             <Status status="unhealthy" />
@@ -364,7 +409,7 @@ export default function UberKitchenSink() {
 
           <VulnerabilityBreakdown data={vulnerabilityData} projectName="mission-control" githubUrl="https://github.com/flanksource/mission-control" />
 
-          <Section variant="hero" title="ListTable Density" size="sm">
+          <Section variant="hero" title="ListTable — Density (minimal)" size="sm">
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <h4>compact</h4>
@@ -377,6 +422,65 @@ export default function UberKitchenSink() {
               <div>
                 <h4>comfortable</h4>
                 <ListTable rows={changeLog.slice(0, 4)} subject="type" body="summary" primaryTags={['severity']} size="xs" density="comfortable" />
+              </div>
+            </div>
+          </Section>
+
+          <Section variant="hero" title="ListTable — Density (full features)" size="sm">
+            <div className="space-y-4">
+              <div>
+                <h4>compact</h4>
+                <ListTable
+                  rows={changeLog.slice(0, 4)}
+                  subject="type"
+                  subtitle="source"
+                  body="summary"
+                  date="date"
+                  dateFormat="age"
+                  icon="type"
+                  iconMap={(type) => <Icon name={type} size={14} />}
+                  primaryTags={['severity']}
+                  secondaryTags={['createdBy']}
+                  count="count"
+                  size="xs"
+                  density="compact"
+                />
+              </div>
+              <div>
+                <h4>normal</h4>
+                <ListTable
+                  rows={changeLog.slice(0, 4)}
+                  subject="type"
+                  subtitle="source"
+                  body="summary"
+                  date="date"
+                  dateFormat="age"
+                  icon="type"
+                  iconMap={(type) => <Icon name={type} size={14} />}
+                  primaryTags={['severity']}
+                  secondaryTags={['createdBy']}
+                  count="count"
+                  size="xs"
+                  density="normal"
+                />
+              </div>
+              <div>
+                <h4>comfortable</h4>
+                <ListTable
+                  rows={changeLog.slice(0, 4)}
+                  subject="type"
+                  subtitle="source"
+                  body="summary"
+                  date="date"
+                  dateFormat="age"
+                  icon="type"
+                  iconMap={(type) => <Icon name={type} size={14} />}
+                  primaryTags={['severity']}
+                  secondaryTags={['createdBy']}
+                  count="count"
+                  size="xs"
+                  density="comfortable"
+                />
               </div>
             </div>
           </Section>
@@ -402,6 +506,14 @@ export default function UberKitchenSink() {
               <Age from="2026-03-28T10:30:00Z" />
               <span className="text-gray-400">|</span>
               <Age from="2026-03-01T00:00:00Z" />
+            </div>
+          </Section>
+
+          <Section variant="hero" title="AI Model Cards" size="sm">
+            <div className="grid grid-cols-3 gap-3">
+              <AIModelCard name="GPT-4o" model="gpt-4o-2024-08-06" tokensUsed={1_254_300} cost={3.42} icon={SiOpenai} variant="bordered" />
+              <AIModelCard name="Claude 3.5 Sonnet" model="claude-3-5-sonnet-20241022" tokensUsed={842_000} cost={1.87} icon={IoSparkles} variant="bordered" />
+              <AIModelCard name="GPT-4o Mini" model="gpt-4o-mini" tokensUsed={5_230_000} cost={0.52} icon={SiOpenai} variant="bordered" />
             </div>
           </Section>
 

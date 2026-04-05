@@ -1,16 +1,17 @@
 import React from 'react';
 import type { PageType } from './Header';
+import { useDocumentDefaults } from './Document';
 
 export type PageSize = string;
 
-interface PageMargins {
+export interface PageMargins {
   top?: number;
   right?: number;
   bottom?: number;
   left?: number;
 }
 
-interface PageProps {
+export interface PageProps {
   children: React.ReactNode;
   title?: string;
   product?: string;
@@ -19,6 +20,15 @@ interface PageProps {
   margins?: PageMargins;
   watermark?: string;
   type?: PageType;
+}
+
+function mergeMargins(defaults?: PageMargins, overrides?: PageMargins): PageMargins {
+  return {
+    top: overrides?.top ?? defaults?.top,
+    right: overrides?.right ?? defaults?.right,
+    bottom: overrides?.bottom ?? defaults?.bottom,
+    left: overrides?.left ?? defaults?.left,
+  };
 }
 
 export default function Page({
@@ -31,12 +41,15 @@ export default function Page({
   watermark,
   type = 'default',
 }: PageProps) {
+  const documentDefaults = useDocumentDefaults();
+  const resolvedPageSize = pageSize ?? documentDefaults?.pageSize ?? 'a4';
+  const resolvedMargins = mergeMargins(documentDefaults?.margins, margins);
   const {
     top: marginTop = 0,
     right: marginRight = 0,
     bottom: marginBottom = 0,
     left: marginLeft = 0
-  } = margins;
+  } = resolvedMargins;
 
   const mainStyle: React.CSSProperties = {
     overflow: 'hidden',
@@ -47,7 +60,7 @@ export default function Page({
   };
 
   return (
-    <div data-page-size={pageSize} data-page-type={type}
+    <div data-page-size={resolvedPageSize} data-page-type={type}
          data-margin-top={marginTop} data-margin-right={marginRight} data-margin-bottom={marginBottom} data-margin-left={marginLeft}
          style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
 

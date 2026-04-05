@@ -35,15 +35,15 @@ const DEFAULT_TAG_MAPPING: TagMapping = (_key, value) => {
 };
 
 const SIZE_CONFIG = {
-  xs: { row: 'text-xs', date: 'text-xs', body: 'text-xs text-gray-500 -mt-px', badge: 'text-xs', gap: 'gap-0.5' },
-  sm: { row: 'text-sm', date: 'text-xs', body: 'text-xs text-gray-500 -mt-px', badge: 'text-xs', gap: 'gap-1' },
-  md: { row: 'text-sm', date: 'text-xs', body: 'text-sm text-gray-500 -mt-px', badge: 'text-sm', gap: 'gap-1' },
+  xs: { row: 'text-xs', date: 'text-xs', body: 'text-xs text-gray-500', badge: 'text-xs', gap: 'gap-0.5' },
+  sm: { row: 'text-sm', date: 'text-xs', body: 'text-xs text-gray-500', badge: 'text-xs', gap: 'gap-1' },
+  md: { row: 'text-base', date: 'text-sm', body: 'text-sm text-gray-500', badge: 'text-sm', gap: 'gap-1.5' },
 } as const;
 
 const DENSITY_CONFIG = {
-  compact: { py: '', border: 'border-b border-gray-50', bodyMl: '' },
-  normal: { py: 'py-px', border: 'border-b border-gray-100', bodyMl: '' },
-  comfortable: { py: 'py-1', border: 'border-b border-gray-100', bodyMl: '' },
+  compact: { py: '', border: 'border-b border-gray-100', bodyMt: '' },
+  normal: { py: 'py-0.5', border: 'border-b border-gray-100', bodyMt: '-mt-px' },
+  comfortable: { py: 'py-1.5', border: 'border-b border-gray-200', bodyMt: 'mt-px' },
 } as const;
 
 function resolveTagClasses(tagMapping: TagMapping | TagMapping[] | undefined, key: string, value: any): string {
@@ -68,7 +68,7 @@ function formatDateValue(value: string, format: 'short' | 'long' | 'age'): strin
 function TagBadge({ tagKey, value, tagMapping, sc }: {
   tagKey: string; value: any;
   tagMapping: TagMapping | TagMapping[] | undefined;
-  sc: typeof SIZE_CONFIG['sm'];
+  sc: (typeof SIZE_CONFIG)[keyof typeof SIZE_CONFIG];
 }) {
   const classes = resolveTagClasses(tagMapping, tagKey, value);
   return (
@@ -78,7 +78,7 @@ function TagBadge({ tagKey, value, tagMapping, sc }: {
   );
 }
 
-function ListRow({ row, props, sc, dc }: { row: Record<string, any>; props: ListTableProps; sc: typeof SIZE_CONFIG['sm']; dc: typeof DENSITY_CONFIG['normal'] }) {
+function ListRow({ row, props, sc, dc }: { row: Record<string, any>; props: ListTableProps; sc: (typeof SIZE_CONFIG)[keyof typeof SIZE_CONFIG]; dc: (typeof DENSITY_CONFIG)[keyof typeof DENSITY_CONFIG] }) {
   const subjectVal = row[props.subject] ?? '-';
   const subtitleVal = props.subtitle ? row[props.subtitle] : undefined;
   const bodyVal = props.body ? row[props.body] : undefined;
@@ -99,9 +99,9 @@ function ListRow({ row, props, sc, dc }: { row: Record<string, any>; props: List
             {props.iconMap(iconVal)}
           </span>
         )}
-        <span className="font-medium text-slate-800 whitespace-nowrap">{subjectVal}</span>
+        <span className="font-medium text-slate-800 whitespace-nowrap text-[10pt]">{subjectVal}</span>
           {subtitleVal && (
-            <span className="text-slate-600 whitespace-nowrap">{String(subtitleVal)}</span>
+            <span className="text-slate-600 whitespace-nowrap text-[10pt]">{String(subtitleVal)}</span>
           )}
           {(props.primaryTags ?? []).map((tagKey) => {
             const val = row[tagKey];
@@ -124,7 +124,7 @@ function ListRow({ row, props, sc, dc }: { row: Record<string, any>; props: List
           )}
       </div>
       {bodyVal && (
-        <div className={`${sc.body} truncate`}>
+        <div className={`${sc.body} ${dc.bodyMt} truncate`}>
           {String(bodyVal)}
         </div>
       )}
