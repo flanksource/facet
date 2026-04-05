@@ -14,7 +14,7 @@ export type BadgeShape = 'pill' | 'rounded' | 'square';
 /**
  * Badge visual variant
  */
-export type BadgeVariant = 'status' | 'metric' | 'custom' | 'outlined';
+export type BadgeVariant = 'status' | 'metric' | 'custom' | 'outlined' | 'label';
 
 /**
  * Semantic status types for status badges
@@ -243,9 +243,62 @@ export default function Badge({
     } else if (borderColor) {
       colorClasses += ` border ${borderColor}`;
     }
+  } else if (variant === 'label') {
+    colorClasses = '';
   } else {
     // Default metric variant
     colorClasses = 'bg-gray-100 text-gray-800 border-gray-200';
+  }
+
+  // Label variant: colored label section + plain value, all inside a shared border
+  if (variant === 'label') {
+    let labelBg = 'bg-gray-600 text-white';
+    let labelStyle: React.CSSProperties = {};
+    if (color?.startsWith('#') || color?.startsWith('rgb')) {
+      labelStyle.backgroundColor = color;
+      labelStyle.color = textColor || '#fff';
+    } else if (color) {
+      labelBg = color;
+    }
+
+    const wrapperClasses = clsx(
+      'inline-flex items-center font-medium whitespace-nowrap border border-gray-300 overflow-hidden',
+      sizeClasses.text,
+      shapeClass,
+      href && 'transition-opacity hover:opacity-80 cursor-pointer',
+      className,
+    );
+
+    const labelChipClasses = clsx(
+      'inline-flex items-center',
+      sizeClasses.container,
+      sizeClasses.gap,
+      labelBg,
+    );
+
+    const valueClasses = clsx(
+      'text-gray-700',
+      sizeClasses.container,
+    );
+
+    const labelContent = (
+      <>
+        <span className={labelChipClasses} style={labelStyle}>
+          {Icon && <Icon className={sizeClasses.icon} />}
+          {label && <span>{label}</span>}
+        </span>
+        {value && <span className={valueClasses}>{value}</span>}
+      </>
+    );
+
+    if (href) {
+      return (
+        <a href={href} target={target} rel={rel || (target === '_blank' ? 'noopener noreferrer' : undefined)} className={wrapperClasses}>
+          {labelContent}
+        </a>
+      );
+    }
+    return <span className={wrapperClasses}>{labelContent}</span>;
   }
 
   // Base classes for badge container

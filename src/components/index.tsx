@@ -5,6 +5,8 @@
  * Consumers import components using: import { ComponentName } from '@facet'
  */
 
+export { default as AIModelCard } from './AIModelCard';
+export type { AIModelCardProps } from './AIModelCard';
 export { Age } from './Age';
 export { default as AlertsTable } from './AlertsTable';
 export { Avatar } from './Avatar';
@@ -19,6 +21,8 @@ export { default as CompactTable } from './CompactTable';
 export type { TableSize } from './CompactTable';
 export { default as ComparisonTable } from './ComparisonTable';
 export { default as DatasheetTemplate } from './DatasheetTemplate';
+export { default as Document, useDocumentDefaults } from './Document';
+export type { DocumentProps, DocumentDefaults } from './Document';
 export { default as DynamicTable, formatCellValue } from './DynamicTable';
 export type { ColumnDef, ColumnType, CellAttributes, GaugeConfig, GaugeThreshold, DynamicTableProps } from './DynamicTable';
 export { default as FeatureLayout } from './FeatureLayout';
@@ -44,7 +48,7 @@ export { default as MetricGrid } from './MetricGrid';
 export { default as MetricHeader } from './MetricHeader';
 export { default as MetricsCallout } from './MetricsCallout';
 export { default as Page } from './Page';
-export type { PageSize } from './Page';
+export type { PageProps, PageSize, PageMargins } from './Page';
 export { default as PageBreak } from './PageBreak';
 export { default as ProgressBar } from './ProgressBar';
 export { default as ProjectSummaryCard } from './ProjectSummaryCard';

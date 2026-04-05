@@ -1,5 +1,3 @@
-import React from 'react';
-
 type CalendarStatus = 'success' | 'failed' | 'none';
 
 export interface HeatmapValue {
