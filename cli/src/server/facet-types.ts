@@ -1550,7 +1550,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
           className?: string;
           style?: React.CSSProperties;
       }>;
-      variant?: 'card' | 'badge' | 'hero' | 'bordered' | 'icon-heavy' | 'left-aligned' | 'metric';
+      variant?: 'card' | 'badge' | 'hero' | 'bordered' | 'icon-heavy' | 'left-aligned' | 'metric' | 'summary';
       compareVariant?: 'trendline' | 'up-down' | 'before-after' | 'before-after-progress';
       size?: 'sm' | 'md' | 'lg';
       valueClassName?: string;
@@ -1608,6 +1608,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
    * - 'icon-heavy': Large icon with overlaid value badge
    * - 'left-aligned': Icon on left, value and label stacked on right
    * - 'metric': Summary metric card with colored background and border
+   * - 'summary': Compact KPI card for report header bands
    *
    * Compare Variants (when compareFrom is provided):
    * - 'trendline': Show trend icon and delta
