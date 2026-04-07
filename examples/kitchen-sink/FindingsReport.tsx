@@ -1,4 +1,4 @@
-import { Page, SeverityStatCard, ListTable, Finding, Header, Footer } from "@flanksource/facet";
+import { Page, SeverityStatCard, ListTable, Finding, Header, Footer, PageNo } from "@flanksource/facet";
 import type { Entity, Sample } from "@flanksource/facet";
 import { Sqlserver, K8S, Aws, Azure, MissionControl, MissionControlLogo } from "@flanksource/icons/mi";
 
@@ -437,7 +437,7 @@ export default function FindingsReport(props: Record<string, unknown>) {
     <>
       <Header type="default" height={10}>
         <div className="flex items-center justify-between px-4 h-full bg-[#1e293b]">
-          <MissionControlLogo height="7mm" className="filter grayscale brightness-[250] contrast-100 mix-blend-screen" />
+          <MissionControlLogo height="7mm" width="35mm" className="filter grayscale brightness-[250] contrast-100 mix-blend-screen" />
           <span className="text-[9pt] text-white/80">Audit Findings Report</span>
         </div>
       </Header>
@@ -445,11 +445,11 @@ export default function FindingsReport(props: Record<string, unknown>) {
         <div className="flex items-center justify-between px-4 h-full border-t border-gray-200 text-[7pt] text-gray-400">
           <span className="uppercase tracking-wide font-semibold">{classification}</span>
           <span>{reportDate}</span>
-          <span>Page</span>
+          <PageNo format="Page ${page} of ${total}" />
         </div>
       </Footer>
 
-      <Page margins={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+      <Page margins={{ top: 10, bottom: 10, left: 5, right: 5 }}>
         <SummaryContent findings={findings} metadata={metadata} />
 
         <div>
@@ -459,6 +459,7 @@ export default function FindingsReport(props: Record<string, unknown>) {
               key={i}
               id={`###${i + 1}`}
               title={f.title}
+              typeIcon={CATEGORY_ICONS[f.category] ? <SvgIcon icon={CATEGORY_ICONS[f.category]} size={16} /> : undefined}
               summary={f.evidence.summary}
               className={SEVERITY_STYLES[f.severity].border}
               severity={severityBadge(f.severity)}

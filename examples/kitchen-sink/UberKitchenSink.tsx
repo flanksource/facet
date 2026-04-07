@@ -79,6 +79,24 @@ import {
   codeExample,
 } from './data';
 
+const BADGE_STATUS_EXAMPLES = [
+  { label: 'Healthy', value: 'ready', status: 'success' as const, icon: IoCheckmarkCircle },
+  { label: 'Degraded', value: 'latency', status: 'warning' as const, icon: IoWarning },
+  { label: 'Failed', value: 'blocked', status: 'error' as const, icon: IoCloseCircle },
+  { label: 'Pending', value: 'queued', status: 'info' as const, icon: IoInformationCircle },
+] as const;
+
+const BADGE_FIELD_VALUE_EXAMPLES = [
+  ['engine', 'postgresql'],
+  ['env', 'production'],
+  ['region', 'eu-west-1'],
+  ['tier', 'critical'],
+  ['owner', 'platform'],
+  ['backup', 'nightly'],
+  ['retention', '35d'],
+  ['replicas', '3'],
+] as const;
+
 export default function UberKitchenSink() {
   return (
     <DatasheetTemplate title="Facet Kitchen Sink" css="">
@@ -182,10 +200,9 @@ export default function UberKitchenSink() {
       <Page title="Badges & Icons" margins={{ top: 5, bottom: 5, left: 5, right: 5 }}>
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2">
-            <Badge variant="status" status="success" label="Healthy" icon={IoCheckmarkCircle} />
-            <Badge variant="status" status="warning" label="Degraded" icon={IoWarning} />
-            <Badge variant="status" status="error" label="Failed" icon={IoCloseCircle} />
-            <Badge variant="status" status="info" label="Pending" icon={IoInformationCircle} />
+            {BADGE_STATUS_EXAMPLES.map(({ label, value, status, icon }) => (
+              <Badge key={label} variant="status" status={status} label={label} value={value} icon={icon} />
+            ))}
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge variant="metric" label="CPU" value="42%" icon={IoPulse} />
@@ -202,11 +219,84 @@ export default function UberKitchenSink() {
             <Badge variant="outlined" label="Helm" borderColor="#0f1689" textColor="#0f1689" />
             <Badge variant="outlined" label="Flux" borderColor="#5468ff" textColor="#5468ff" />
           </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="label" label="engine" value="postgresql" color="#dbeafe" textColor="#1d4ed8" className="bg-white" />
+            <Badge variant="label" label="env" value="production" color="#dcfce7" textColor="#15803d" className="bg-white" />
+            <Badge variant="label" label="region" value="eu-west-1" color="#ede9fe" textColor="#6d28d9" className="bg-white" />
+            <Badge variant="label" label="owner" value="platform" color="#fef3c7" textColor="#b45309" className="bg-white" />
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="status" status="success" label="xs" size="xs" icon={IoCheckmarkCircle} />
             <Badge variant="status" status="success" label="sm" size="sm" icon={IoCheckmarkCircle} />
             <Badge variant="status" status="success" label="md" size="md" icon={IoCheckmarkCircle} />
             <Badge variant="status" status="success" label="lg" size="lg" icon={IoCheckmarkCircle} />
+          </div>
+          <div className="text-sm leading-6 text-gray-700">
+            Healthy
+            {' '}
+            <Badge variant="status" status="success" label="Ready" size="xs" icon={IoCheckmarkCircle} />
+            {' '}
+            running on
+            {' '}
+            <Badge variant="outlined" label="Kubernetes" size="xs" icon={IoCube} borderColor="#326ce5" textColor="#326ce5" />
+            {' '}
+            with
+            {' '}
+            <Badge variant="custom" label="v2.4.1" size="xs" color="#eef2ff" textColor="#4338ca" borderColor="#c7d2fe" />
+            .
+          </div>
+          <div className="rounded-lg border border-gray-200 overflow-hidden">
+            <div className="grid grid-cols-[28mm_1fr_28mm] bg-gray-50 border-b border-gray-200 text-[8pt] font-semibold text-gray-600">
+              <div className="px-3 py-2">service</div>
+              <div className="px-3 py-2">status badge</div>
+              <div className="px-3 py-2">track</div>
+            </div>
+            <div className="grid grid-cols-[28mm_1fr_28mm] items-center min-h-[11mm] border-b border-gray-100 text-[8pt] text-gray-700">
+              <div className="px-3">gateway</div>
+              <div className="px-3">
+                <Badge variant="status" status="success" label="Healthy" value="ready" size="sm" icon={IoCheckmarkCircle} />
+              </div>
+              <div className="px-3">
+                <Badge variant="outlined" label="stable" size="xs" borderColor="#16a34a" textColor="#166534" />
+              </div>
+            </div>
+            <div className="grid grid-cols-[28mm_1fr_28mm] items-center min-h-[14mm] text-[8pt] text-gray-700">
+              <div className="px-3">workers</div>
+              <div className="px-3">
+                <Badge variant="status" status="warning" label="Degraded" value="backpressure" size="sm" icon={IoWarning} />
+              </div>
+              <div className="px-3">
+                <Badge variant="custom" label="canary" size="xs" color="#fef3c7" textColor="#92400e" borderColor="#fcd34d" />
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-slate-50 p-3">
+            <div className="max-w-[95mm] flex flex-wrap gap-2">
+              {BADGE_FIELD_VALUE_EXAMPLES.map(([label, value]) => (
+                <Badge
+                  key={label}
+                  variant="label"
+                  label={label}
+                  value={value}
+                  color="#dbeafe"
+                  textColor="#1d4ed8"
+                  size="sm"
+                  className="bg-white"
+                />
+              ))}
+            </div>
+            <div className="text-[8pt] text-gray-500 mt-2">
+              Field/value badges wrap cleanly for dense metadata summaries before you need a full table.
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <h4 className="text-[9pt] font-semibold text-slate-800 mb-2">Information architecture guidance</h4>
+            <ul className="list-disc pl-4 space-y-1 text-[8.5pt] leading-5 text-slate-700">
+              <li>Use badges for scan-first metadata and state.</li>
+              <li>Keep badge labels stable so users learn the pattern quickly.</li>
+              <li>Spend color on meaning, not decoration.</li>
+              <li>Allow wrapping for dense summaries; switch to tables when row comparison matters.</li>
+            </ul>
           </div>
 
           <h3 className="text-sm font-semibold text-gray-700">Shape Variants</h3>
@@ -233,11 +323,11 @@ export default function UberKitchenSink() {
 
           <h3 className="text-sm font-semibold text-gray-700">Label (value without bg)</h3>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="label" label="Build" value="passing" icon={IoCheckmarkCircle} />
-            <Badge variant="label" label="Coverage" value="94%" icon={IoShieldCheckmark} color="#16a34a" />
-            <Badge variant="label" label="Version" value="v2.4.1" icon={IoGitBranch} color="#4338ca" textColor="#fff" />
-            <Badge variant="label" label="Latency" value="45ms" icon={IoSpeedometer} color="#0369a1" size="sm" />
-            <Badge variant="label" label="Status" value="Deployed" icon={IoRocket} color="#be185d" size="lg" shape="rounded" />
+            <Badge variant="label" label="Build" value="passing" icon={IoCheckmarkCircle} className="bg-white" />
+            <Badge variant="label" label="Coverage" value="94%" icon={IoShieldCheckmark} color="#16a34a" className="bg-white" />
+            <Badge variant="label" label="Version" value="v2.4.1" icon={IoGitBranch} color="#4338ca" textColor="#fff" className="bg-white" />
+            <Badge variant="label" label="Latency" value="45ms" icon={IoSpeedometer} color="#0369a1" size="sm" className="bg-white" />
+            <Badge variant="label" label="Status" value="Deployed" icon={IoRocket} color="#be185d" size="lg" shape="rounded" className="bg-white" />
           </div>
 
           <h3 className="text-sm font-semibold text-gray-700">Custom Color Matrix</h3>

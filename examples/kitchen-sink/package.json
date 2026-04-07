@@ -9,7 +9,7 @@
     "mission-control": "npm run pdf"
   },
   "dependencies": {
-    "@flanksource/facet": "^0.1.23",
+    "@flanksource/facet": "file:../../",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
