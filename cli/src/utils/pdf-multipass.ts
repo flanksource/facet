@@ -819,3 +819,38 @@ export async function appendDebugFontPage(
   page.drawText('facet --debug-typography', { x: margin, y: 20, size: 7, font, color: gray });
   return doc.save();
 }
+
+export interface PageNumberOptions {
+  fontSize?: number;
+  startPage?: number;
+  marginRight?: number;
+  marginBottom?: number;
+}
+
+export async function addPageNumbers(
+  pdfBytes: Uint8Array,
+  options: PageNumberOptions = {},
+): Promise<Uint8Array> {
+  const { fontSize = 7, startPage = 0, marginRight = 15, marginBottom = 8 } = options;
+  const doc = await PDFDocument.load(pdfBytes);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const pages = doc.getPages();
+  const total = pages.length;
+  const color = rgb(0.6, 0.6, 0.6);
+
+  for (let i = startPage; i < total; i++) {
+    const page = pages[i];
+    const text = `Page ${i + 1} of ${total}`;
+    const textWidth = font.widthOfTextAtSize(text, fontSize);
+    const { width } = page.getSize();
+    page.drawText(text, {
+      x: width - mmToPx(marginRight) - textWidth,
+      y: mmToPx(marginBottom),
+      size: fontSize,
+      font,
+      color,
+    });
+  }
+
+  return doc.save();
+}

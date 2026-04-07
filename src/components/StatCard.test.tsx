@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import StatCard, { TimeUnitValue, DataUnitValue, NumberUnitValue } from './StatCard';
 
 describe('StatCard', () => {
-  // Test all 7 variants render correctly
+  // Test all variants render correctly
   describe('Variants', () => {
     it('should render card variant with correct classes', () => {
       const { container } = render(
@@ -109,6 +109,25 @@ describe('StatCard', () => {
       const wrapper = container.firstChild as HTMLElement;
       expect(wrapper.className).toContain('bg-purple-50');
       expect(wrapper.className).toContain('border-purple-200');
+    });
+
+    it('should render summary variant with label, value, and sublabel', () => {
+      const { container } = render(
+        <StatCard
+          value="Mar 30, 02:08"
+          label="Latest Successful Backup"
+          sublabel="12 completed"
+          variant="summary"
+          color="green"
+        />
+      );
+
+      const wrapper = container.firstChild as HTMLElement;
+      expect(wrapper.className).toContain('bg-green-50');
+      expect(wrapper.className).toContain('border-green-200');
+      expect(screen.getByText('Latest Successful Backup')).toBeInTheDocument();
+      expect(screen.getByText('Mar 30, 02:08')).toBeInTheDocument();
+      expect(screen.getByText('12 completed')).toBeInTheDocument();
     });
   });
 
