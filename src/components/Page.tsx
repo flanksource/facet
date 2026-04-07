@@ -14,6 +14,7 @@ export interface PageMargins {
 export interface PageProps {
   children: React.ReactNode;
   title?: string;
+  titleClassName?: string;
   product?: string;
   className?: string;
   pageSize?: PageSize;
@@ -34,7 +35,7 @@ function mergeMargins(defaults?: PageMargins, overrides?: PageMargins): PageMarg
 export default function Page({
   children,
   title,
-  product,
+  titleClassName = "text-xl font-bold text-gray-900 mb-4 border-b border-gray-200 pb-2",
   className,
   pageSize = 'a4',
   margins = {},
@@ -61,8 +62,8 @@ export default function Page({
 
   return (
     <div data-page-size={resolvedPageSize} data-page-type={type}
-         data-margin-top={marginTop} data-margin-right={marginRight} data-margin-bottom={marginBottom} data-margin-left={marginLeft}
-         style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
+      data-margin-top={marginTop} data-margin-right={marginRight} data-margin-bottom={marginBottom} data-margin-left={marginLeft}
+      style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
 
       {watermark && (
         <div style={{
@@ -79,10 +80,7 @@ export default function Page({
       )}
 
       {title && (
-        <div className="section-header-bar bg-[#3578e5] text-white">
-          <h2 className="text-[18pt] font-semibold text-white m-0">{title}</h2>
-          {product && <div className="text-[10pt] text-white font-normal">{product}</div>}
-        </div>
+        <h2 className={titleClassName}>{title}</h2>
       )}
 
       <main className={className} style={mainStyle}>

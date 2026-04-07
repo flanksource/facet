@@ -1,8 +1,10 @@
-function getStatusColor(
+type StatusVariant = 'healthy' | 'warning' | 'danger' | 'unknown';
+
+function getStatusVariant(
   status: string | undefined,
   good: boolean | undefined,
   mixed: boolean | undefined
-): string {
+): StatusVariant {
   status = status?.toLowerCase();
 
   if (
@@ -11,22 +13,22 @@ function getStatusColor(
     status === 'unhealthy' ||
     (good !== undefined && !good)
   ) {
-    return 'bg-red-400';
+    return 'danger';
   }
 
   if (status === 'unknown' || status === 'suspended') {
-    return 'bg-gray-400';
+    return 'unknown';
   }
 
   if (status === 'warning' || status === 'warn') {
-    return 'bg-orange-400';
+    return 'warning';
   }
 
   if (mixed !== undefined && mixed) {
-    return 'bg-orange-400';
+    return 'warning';
   }
 
-  return 'bg-green-400';
+  return 'healthy';
 }
 
 export interface StatusProps {
@@ -50,14 +52,28 @@ export function Status({
     return null;
   }
 
-  const color = getStatusColor(status, good, mixed);
+  const variant = getStatusVariant(status, good, mixed);
+  const indicatorClassName =
+    variant === 'unknown'
+      ? 'inline-flex h-3 w-3 flex-shrink-0 items-center justify-center rounded-full border border-gray-400 bg-white text-gray-400'
+      : `inline-block h-3 w-3 flex-shrink-0 rounded-full shadow-md ${
+          variant === 'danger'
+            ? 'bg-red-400'
+            : variant === 'warning'
+              ? 'bg-orange-400'
+              : 'bg-green-400'
+        }`;
 
   return (
     <div className="inline-flex flex-row items-center">
       <span
-        className={`inline-block h-3 w-3 flex-shrink-0 rounded-full shadow-md ${className} ${color}`}
+        className={`${indicatorClassName} ${className}`}
         aria-hidden="true"
-      />
+      >
+        {variant === 'unknown' && (
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-gray-400" />
+        )}
+      </span>
       {!hideText && (
         <span className="pl-1 capitalize">{statusText ?? status}</span>
       )}

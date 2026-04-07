@@ -133,27 +133,27 @@ function getStatusClasses(status: BadgeStatus, variant: BadgeVariant): string {
 function getSizeClasses(size: BadgeSize): { container: string; icon: string; text: string; gap: string } {
   const sizeMap = {
     xs: {
-      container: 'px-1 gap-1',
+      container: 'px-1 py-[1px]',
       icon: 'w-3 h-3',
-      text: 'text-xs',
+      text: 'text-[10px] leading-none',
       gap: 'gap-1',
     },
     sm: {
-      container: 'px-2 py-0.5 gap-1',
+      container: 'px-1.5 py-[2px]',
       icon: 'w-3 h-3',
-      text: 'text-xs',
+      text: 'text-xs leading-none',
       gap: 'gap-1',
     },
     md: {
-      container: 'px-3 py-1 gap-1.5',
+      container: 'px-2 py-[3px]',
       icon: 'w-3.5 h-3.5',
-      text: 'text-sm',
+      text: 'text-sm leading-none',
       gap: 'gap-1.5',
     },
     lg: {
-      container: 'px-4 py-1.5 gap-2',
+      container: 'px-3 py-[4px]',
       icon: 'w-4 h-4',
-      text: 'text-base',
+      text: 'text-base leading-none',
       gap: 'gap-2',
     },
   };
@@ -220,7 +220,7 @@ export default function Badge({
     colorClasses = getStatusClasses(status, variant);
   } else if (variant === 'outlined') {
     colorClasses = clsx(
-      'bg-transparent border-2',
+      'bg-transparent',
       status ? getStatusClasses(status, variant) : borderColor
     );
   } else if (variant === 'custom') {
@@ -262,7 +262,7 @@ export default function Badge({
     }
 
     const wrapperClasses = clsx(
-      'inline-flex items-center font-medium whitespace-nowrap border border-gray-300 overflow-hidden',
+      'inline-flex shrink-0 align-middle items-stretch font-medium whitespace-nowrap leading-none border border-gray-300 overflow-hidden',
       sizeClasses.text,
       shapeClass,
       href && 'transition-opacity hover:opacity-80 cursor-pointer',
@@ -270,14 +270,14 @@ export default function Badge({
     );
 
     const labelChipClasses = clsx(
-      'inline-flex items-center',
+      'inline-flex self-stretch items-center leading-none',
       sizeClasses.container,
       sizeClasses.gap,
       labelBg,
     );
 
     const valueClasses = clsx(
-      'text-gray-700',
+      'inline-flex self-stretch items-center text-gray-700 leading-none',
       sizeClasses.container,
     );
 
@@ -303,9 +303,10 @@ export default function Badge({
 
   // Base classes for badge container
   const badgeClasses = clsx(
-    'inline-flex items-center font-medium whitespace-nowrap border',
+    'inline-flex shrink-0 align-middle items-center font-medium whitespace-nowrap leading-none border',
     sizeClasses.container,
     sizeClasses.text,
+    sizeClasses.gap,
     shapeClass,
     colorClasses,
     href && 'transition-opacity hover:opacity-80 cursor-pointer',
@@ -317,7 +318,7 @@ export default function Badge({
     if (!label && !Icon) return null;
 
     const labelClasses = clsx(
-      'flex items-center',
+      'inline-flex items-center leading-none',
       sizeClasses.gap || 'gap-1.5',
       value && 'pr-2 -ml-3 pl-3 border-r border-black/10'
     );
@@ -333,7 +334,7 @@ export default function Badge({
   // Render value section
   const renderValue = () => {
     if (!value) return null;
-    return <span className={label ? 'pl-1' : ''}>{value}</span>;
+    return <span className={clsx('leading-none', label && 'pl-1')}>{value}</span>;
   };
 
   // Render content

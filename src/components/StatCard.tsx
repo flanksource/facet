@@ -6,7 +6,7 @@ interface StatCardProps {
   compareFrom?: UnitValue | string | number;
   label: string;
   icon?: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
-  variant?: 'card' | 'badge' | 'hero' | 'bordered' | 'icon-heavy' | 'left-aligned' | 'metric';
+  variant?: 'card' | 'badge' | 'hero' | 'bordered' | 'icon-heavy' | 'left-aligned' | 'metric' | 'summary';
   compareVariant?:
   | 'trendline' // show a trendline icon and the trending value delta
   | 'up-down'  // show up/down arrows with the delta
@@ -20,6 +20,7 @@ interface StatCardProps {
   valueColor?: string;
   sublabel?: React.ReactNode;
   sublabelClassName?: string;
+  shrink?: boolean;
   // Conditional styles based on the value e.g. for coloring based on thresholds
   conditionalStyles?: ConditionalStyle[];
   color?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'gray';
@@ -162,6 +163,7 @@ export class NumberUnitValue {
  * - 'icon-heavy': Large icon with overlaid value badge
  * - 'left-aligned': Icon on left, value and label stacked on right
  * - 'metric': Summary metric card with colored background and border
+ * - 'summary': Compact KPI card for report header bands
  *
  * Compare Variants (when compareFrom is provided):
  * - 'trendline': Show trend icon and delta
@@ -195,7 +197,8 @@ export default function StatCard({
   conditionalStyles = [],
   valueClassName = '',
   iconClassName = '',
-  sublabelClassName = ''
+  sublabelClassName = '',
+  shrink = false,
 }: StatCardProps) {
 
   // Helper: Convert value to display string
@@ -426,7 +429,10 @@ export default function StatCard({
         heroLabelText: 'text-[7pt]',
         heroSublabelText: 'text-[6pt]',
         iconHeavyBadgeText: 'text-[5pt]',
-        iconHeavyLabelText: 'text-[6pt]'
+        iconHeavyLabelText: 'text-[6pt]',
+        summaryValueText: 'text-[8pt] leading-[10pt]',
+        summaryLabelText: 'text-[6pt] leading-[8pt]',
+        summarySublabelText: 'text-[5pt] leading-[7pt]'
       },
       sm: {
         iconSize: 'w-[4mm] h-[4mm]',
@@ -443,7 +449,10 @@ export default function StatCard({
         heroLabelText: 'text-[9pt]',
         heroSublabelText: 'text-[7pt]',
         iconHeavyBadgeText: 'text-[6pt]',
-        iconHeavyLabelText: 'text-[8pt]'
+        iconHeavyLabelText: 'text-[8pt]',
+        summaryValueText: 'text-[10pt] leading-[12pt]',
+        summaryLabelText: 'text-[7pt] leading-[9pt]',
+        summarySublabelText: 'text-[6pt] leading-[8pt]'
       },
       md: {
         iconSize: 'w-[6mm] h-[6mm]',
@@ -460,7 +469,10 @@ export default function StatCard({
         heroLabelText: 'text-[12pt]',
         heroSublabelText: 'text-[9pt]',
         iconHeavyBadgeText: 'text-[8pt]',
-        iconHeavyLabelText: 'text-[10pt]'
+        iconHeavyLabelText: 'text-[10pt]',
+        summaryValueText: 'text-[14pt] leading-[17pt]',
+        summaryLabelText: 'text-[8pt] leading-[10pt]',
+        summarySublabelText: 'text-[7pt] leading-[9pt]'
       },
       lg: {
         iconSize: 'w-[8mm] h-[8mm]',
@@ -477,7 +489,10 @@ export default function StatCard({
         heroLabelText: 'text-[14pt]',
         heroSublabelText: 'text-[11pt]',
         iconHeavyBadgeText: 'text-[10pt]',
-        iconHeavyLabelText: 'text-[12pt]'
+        iconHeavyLabelText: 'text-[12pt]',
+        summaryValueText: 'text-[18pt] leading-[22pt]',
+        summaryLabelText: 'text-[10pt] leading-[12pt]',
+        summarySublabelText: 'text-[8pt] leading-[10pt]'
       }
     };
     return sizeMap[size];
@@ -487,11 +502,26 @@ export default function StatCard({
   const conditionalClasses = evaluateConditionalStyles();
   const colorClasses = getColorClasses();
   const sizeClasses = getSizeClasses();
+  const getMinSizeClasses = (targetVariant: NonNullable<StatCardProps['variant']>) => {
+    if (targetVariant === 'summary') {
+      return shrink ? 'min-w-[28mm] min-h-[18mm] h-full' : 'min-w-[36mm] min-h-[22mm]';
+    }
+
+    if (targetVariant === 'metric') {
+      return shrink ? 'min-w-[21mm] h-full' : 'min-w-[25mm]';
+    }
+
+    if (targetVariant === 'left-aligned') {
+      return shrink ? 'min-w-[22mm]' : 'min-w-[25mm]';
+    }
+
+    return shrink ? 'min-w-[30mm] min-h-[28mm] h-full' : 'min-w-[40mm] min-h-[40mm]';
+  };
 
   // Card variant: Clean unbordered card with icon, value, label
   if (variant === 'card') {
     return (
-      <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} bg-white min-w-[40mm] min-h-[40mm] justify-center`}>
+      <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} bg-white ${getMinSizeClasses('card')} justify-center`}>
         <div className={`flex items-center ${sizeClasses.iconGap}`}>
           {IconComponent && (
             <div className={sizeClasses.iconSize}>
@@ -514,7 +544,7 @@ export default function StatCard({
   // Bordered variant: Card with border (for when emphasis is needed)
   if (variant === 'bordered') {
     return (
-      <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} border ${colorClasses.border} rounded-[2mm] ${colorClasses.bg} min-w-[40mm] min-h-[40mm] justify-center`}>
+      <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} border ${colorClasses.border} rounded-[2mm] ${colorClasses.bg} ${getMinSizeClasses('bordered')} justify-center`}>
         <div className={`flex items-center ${sizeClasses.iconGap}`}>
           {IconComponent && (
             <div className={sizeClasses.iconSize}>
@@ -600,7 +630,7 @@ export default function StatCard({
   // Left-aligned variant: Icon on left, value and label stacked on right
   if (variant === 'left-aligned') {
     return (
-      <div className="flex items-center gap-[3mm] p-[2mm] min-w-[25mm]">
+      <div className={`flex items-center gap-[3mm] p-[2mm] ${getMinSizeClasses('left-aligned')}`}>
         {IconComponent && (
           <div className={`${sizeClasses.iconSize} flex-shrink-0`}>
             {renderIcon()}
@@ -623,7 +653,7 @@ export default function StatCard({
   // Metric variant: Summary metric card with colored background
   if (variant === 'metric') {
     return (
-      <div className={`${colorClasses.bg} p-4 rounded-lg border ${colorClasses.border} min-w-[25mm]`}>
+      <div className={`${colorClasses.bg} p-4 rounded-lg border ${colorClasses.border} ${getMinSizeClasses('metric')}`}>
         <div className="text-xs text-gray-600 mb-1 whitespace-nowrap">{label}</div>
         <div className="flex items-center justify-between gap-2">
           <div className={`flex items-center ${sizeClasses.iconGap}`}>
@@ -645,9 +675,28 @@ export default function StatCard({
     );
   }
 
+  // Summary variant: Compact bordered KPI card for report headers
+  if (variant === 'summary') {
+    return (
+      <div className={`${colorClasses.bg} border ${colorClasses.border} rounded-[2mm] px-[2.4mm] py-[2mm] ${getMinSizeClasses('summary')} flex flex-col justify-between`}>
+        <div className={`${sizeClasses.summaryLabelText} text-[#6b7280] font-medium whitespace-nowrap overflow-hidden text-ellipsis`}>
+          {label}
+        </div>
+        <div className={`font-bold ${colorClasses.text} ${conditionalClasses || valueClassName || sizeClasses.summaryValueText}`}>
+          {formattedValue}
+        </div>
+        {sublabel && (
+          <div className={`${sizeClasses.summarySublabelText} text-[#6b7280] ${sublabelClassName}`}>
+            {sublabel}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // Default fallback to clean card
   return (
-    <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} bg-white min-w-[40mm] min-h-[40mm] justify-center`}>
+    <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} bg-white ${getMinSizeClasses('card')} justify-center`}>
       <div className={`flex items-center ${sizeClasses.iconGap}`}>
         {IconComponent && (
           <div className={sizeClasses.iconSize}>

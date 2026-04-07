@@ -39,7 +39,15 @@ export type { HeatmapValue, HeatmapProps } from './Heatmap';
 export type { PageType } from './Header';
 export { default as IntegrationGrid } from './IntegrationGrid';
 export { default as ListTable } from './ListTable';
-export type { ListTableProps, TagMapping } from './ListTable';
+export type {
+  ListTableProps,
+  ListTableGroup,
+  ListTableDateFormat,
+  ListTableTimeBucketFormat,
+  ListTablePublicGroup,
+  ListTableIconContext,
+  TagMapping,
+} from './ListTable';
 export { default as LogoGrid } from './LogoGrid';
 export { default as KpiComparison } from './KpiComparison';
 export { default as KPITargetActual } from './KPITargetActual';
@@ -50,6 +58,8 @@ export { default as MetricsCallout } from './MetricsCallout';
 export { default as Page } from './Page';
 export type { PageProps, PageSize, PageMargins } from './Page';
 export { default as PageBreak } from './PageBreak';
+export { default as PageNo, PAGE_PLACEHOLDER, TOTAL_PLACEHOLDER } from './PageNo';
+export type { PageNoProps } from './PageNo';
 export { default as ProgressBar } from './ProgressBar';
 export { default as ProjectSummaryCard } from './ProjectSummaryCard';
 export { default as QueryResponseChat } from './QueryResponseChat';
