@@ -12,7 +12,7 @@ const meta = {
   argTypes: {
     variant: {
       control: 'select',
-      options: ['card', 'badge', 'hero', 'bordered', 'icon-heavy', 'left-aligned', 'metric'],
+      options: ['card', 'badge', 'hero', 'bordered', 'icon-heavy', 'left-aligned', 'metric', 'summary'],
       description: 'Visual variant of the stat card',
     },
     size: {
@@ -78,6 +78,16 @@ export const Metric: Story = {
     variant: 'metric',
     color: 'blue',
     sublabel: 'credits remaining',
+  },
+};
+
+export const Summary: Story = {
+  args: {
+    value: 'Mar 30, 02:08',
+    label: 'Latest Successful Backup',
+    variant: 'summary',
+    color: 'green',
+    sublabel: '12 completed',
   },
 };
 

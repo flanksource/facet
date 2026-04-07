@@ -12,7 +12,7 @@ const meta = {
   argTypes: {
     variant: {
       control: 'select',
-      options: ['status', 'metric', 'custom', 'outlined'],
+      options: ['status', 'metric', 'custom', 'outlined', 'label'],
       description: 'Visual variant of the badge',
     },
     status: {
@@ -225,6 +225,66 @@ export const OutlinedVariant: Story = {
       <Badge variant="outlined" status="error" label="Disabled" />
       <Badge variant="outlined" status="warning" label="Pending" />
       <Badge variant="outlined" status="info" label="Beta" />
+    </div>
+  ),
+};
+
+export const LabelVariant: Story = {
+  render: () => (
+    <div className="flex flex-wrap gap-4 bg-slate-50 p-4 rounded-lg">
+      <Badge variant="label" label="engine" value="postgresql" color="#dbeafe" textColor="#1d4ed8" className="bg-white" />
+      <Badge variant="label" label="env" value="production" color="#dcfce7" textColor="#15803d" className="bg-white" />
+      <Badge variant="label" label="region" value="eu-west-1" color="#ede9fe" textColor="#6d28d9" className="bg-white" />
+      <Badge variant="label" label="owner" value="platform" color="#fef3c7" textColor="#b45309" className="bg-white" />
+    </div>
+  ),
+};
+
+export const DenseMetadataWrap: Story = {
+  render: () => (
+    <div className="max-w-[420px] rounded-lg border border-gray-200 bg-slate-50 p-4">
+      <div className="flex flex-wrap gap-2">
+        {[
+          ['engine', 'postgresql'],
+          ['env', 'production'],
+          ['region', 'eu-west-1'],
+          ['tier', 'critical'],
+          ['owner', 'platform'],
+          ['cluster', 'mission-control'],
+          ['backup', 'nightly'],
+          ['retention', '35d'],
+          ['replicas', '3'],
+        ].map(([label, value]) => (
+          <Badge
+            key={label}
+            variant="label"
+            label={label}
+            value={value}
+            color="#dbeafe"
+            textColor="#1d4ed8"
+            size="sm"
+            className="bg-white"
+          />
+        ))}
+      </div>
+      <p className="text-sm text-gray-600 mt-3">
+        Use wrapping field/value badges for dense scan-first metadata. Switch to a table when cross-row comparison matters more than quick recognition.
+      </p>
+    </div>
+  ),
+};
+
+export const BadgeBestPractices: Story = {
+  render: () => (
+    <div className="max-w-[640px] rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <h4 className="text-sm font-semibold text-slate-800 mb-3">Information architecture guidance</h4>
+      <ul className="list-disc pl-5 space-y-2 text-sm text-slate-700">
+        <li>Use badges for state and compact metadata, not for long explanations.</li>
+        <li>Keep label vocabulary stable so repeated badges are easy to scan across pages.</li>
+        <li>Use color semantically. Save stronger colors for state, risk, or priority.</li>
+        <li>Prefer 4 to 8 badges for a summary band; let them wrap before turning everything into a table.</li>
+        <li>Use tables when users need to compare the same fields across many rows.</li>
+      </ul>
     </div>
   ),
 };
