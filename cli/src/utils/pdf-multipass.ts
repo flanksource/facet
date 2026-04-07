@@ -1,5 +1,6 @@
 import { writeFileSync } from 'fs';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import * as zlib from 'zlib';
+import { PDFDocument, PDFName, PDFRawStream, rgb, StandardFonts } from 'pdf-lib';
 import type { Browser, Page } from 'puppeteer';
 import type { Logger } from './logger.js';
 
@@ -395,26 +396,118 @@ function mmToPt(mm: number): number {
   return mm * 72 / 25.4;
 }
 
+export const PAGE_MARKER = '_PG_';
+export const TOTAL_MARKER = '_TL_';
+
+const PAGE_MARKER_HEX = Buffer.from(PAGE_MARKER).toString('hex').toUpperCase();
+const TOTAL_MARKER_HEX = Buffer.from(TOTAL_MARKER).toString('hex').toUpperCase();
+
+export function bufferHasPlaceholders(buf: Buffer): boolean {
+  if (buf.includes(PAGE_MARKER) || buf.includes(TOTAL_MARKER)) return true;
+  if (buf.includes(PAGE_MARKER_HEX) || buf.includes(TOTAL_MARKER_HEX)) return true;
+  const deflateHeader = Buffer.from([0x78]);
+  let offset = 0;
+  while ((offset = buf.indexOf(deflateHeader, offset)) !== -1) {
+    try {
+      const chunk = zlib.inflateSync(buf.subarray(offset));
+      if (chunk.includes(PAGE_MARKER) || chunk.includes(TOTAL_MARKER)
+          || chunk.includes(PAGE_MARKER_HEX) || chunk.includes(TOTAL_MARKER_HEX)) return true;
+    } catch { /* not a valid zlib stream */ }
+    offset++;
+  }
+  return false;
+}
+
+export function replaceInBuffer(buf: Buffer, placeholder: string, value: string): Buffer {
+  const padded = value.padEnd(placeholder.length, ' ');
+  const result = Buffer.from(buf);
+  const search = Buffer.from(placeholder);
+  const replace = Buffer.from(padded);
+  let idx = 0;
+  while ((idx = result.indexOf(search, idx)) !== -1) {
+    replace.copy(result, idx);
+    idx += replace.length;
+  }
+  return result;
+}
+
+async function replaceInPdfStreams(buf: Buffer, replacements: [string, string][]): Promise<Buffer> {
+  const doc = await PDFDocument.load(buf);
+  for (const [ref, obj] of doc.context.enumerateIndirectObjects()) {
+    if (!(obj instanceof PDFRawStream)) continue;
+    const dict = obj.dict;
+    const filter = dict.get(PDFName.of('Filter'));
+    let bytes = Buffer.from(obj.contents);
+    let compressed = false;
+
+    if (filter?.toString() === '/FlateDecode') {
+      try { bytes = zlib.inflateSync(bytes); compressed = true; } catch { continue; }
+    }
+
+    let modified = false;
+    for (const [placeholder, value] of replacements) {
+      const padded = value.padEnd(placeholder.length, ' ');
+      const searchAscii = Buffer.from(placeholder);
+      const replAscii = Buffer.from(padded);
+      let idx = 0;
+      while ((idx = bytes.indexOf(searchAscii, idx)) !== -1) {
+        replAscii.copy(bytes, idx);
+        idx += replAscii.length;
+        modified = true;
+      }
+      const searchHex = Buffer.from(Buffer.from(placeholder).toString('hex').toUpperCase());
+      const replHex = Buffer.from(Buffer.from(padded).toString('hex').toUpperCase());
+      idx = 0;
+      while ((idx = bytes.indexOf(searchHex, idx)) !== -1) {
+        replHex.copy(bytes, idx);
+        idx += replHex.length;
+        modified = true;
+      }
+    }
+
+    if (modified) {
+      const final = compressed ? zlib.deflateSync(bytes) : bytes;
+      (obj as any).contents = new Uint8Array(final);
+      dict.set(PDFName.of('Length'), doc.context.obj(final.length));
+    }
+  }
+  return Buffer.from(await doc.save());
+}
+
+async function embedOverlay(doc: PDFDocument, buf: Buffer): Promise<Awaited<ReturnType<typeof doc.embedPages>>[0]> {
+  const srcDoc = await PDFDocument.load(buf);
+  const [embedded] = await doc.embedPages(srcDoc.getPages());
+  return embedded;
+}
+
 export async function compositeHeaderFooter(
   contentBuffer: Buffer,
   overlays: OverlayPdfs,
   pageMap: PageType[],
   typeInfo: PageTypeInfo,
   pageSizeMap?: string[],
+  browser?: Browser,
+  html?: string,
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(contentBuffer);
+  const totalPages = doc.getPageCount();
+
   const embeddedHeaders = new Map<string, Awaited<ReturnType<typeof doc.embedPages>>[0]>();
   const embeddedFooters = new Map<string, Awaited<ReturnType<typeof doc.embedPages>>[0]>();
+  const headerHasPlaceholders = new Map<string, boolean>();
+  const footerHasPlaceholders = new Map<string, boolean>();
+
+  const htmlHasTokens = html ? (html.includes(PAGE_MARKER) || html.includes(TOTAL_MARKER)) : false;
 
   for (const [key, buf] of overlays.headers) {
-    const srcDoc = await PDFDocument.load(buf);
-    const [embedded] = await doc.embedPages(srcDoc.getPages());
-    embeddedHeaders.set(key, embedded);
+    const has = htmlHasTokens || bufferHasPlaceholders(buf);
+    headerHasPlaceholders.set(key, has);
+    if (!has) embeddedHeaders.set(key, await embedOverlay(doc, buf));
   }
   for (const [key, buf] of overlays.footers) {
-    const srcDoc = await PDFDocument.load(buf);
-    const [embedded] = await doc.embedPages(srcDoc.getPages());
-    embeddedFooters.set(key, embedded);
+    const has = htmlHasTokens || bufferHasPlaceholders(buf);
+    footerHasPlaceholders.set(key, has);
+    if (!has) embeddedFooters.set(key, await embedOverlay(doc, buf));
   }
 
   const pages = doc.getPages();
@@ -427,27 +520,47 @@ export async function compositeHeaderFooter(
     const dims = resolvePageSize(sizeName);
     const scale = areaScale(dims);
     const key = overlayKey(type, sizeName);
+    const pageNum = String(i + 1);
+    const totalStr = String(totalPages);
 
-    const headerEmbed = embeddedHeaders.get(key);
-    if (headerEmbed && def) {
+    const headerBuf = overlays.headers.get(key);
+    if (headerBuf && def) {
       const headerHeightPt = mmToPt(scaledHeight(def.headerHeight, scale));
-      page.drawPage(headerEmbed, {
-        x: 0,
-        y: pageHeight - headerHeightPt,
-        width: pageWidth,
-        height: headerHeightPt,
-      });
+      let embedded = embeddedHeaders.get(key);
+      if (headerHasPlaceholders.get(key) && browser && html) {
+        const pageHtml = html.replaceAll(PAGE_MARKER, pageNum).replaceAll(TOTAL_MARKER, totalStr);
+        const h = scaledHeight(def.headerHeight, scale);
+        const buf = await renderElementPdf(browser, pageHtml, `[data-header-type="${type}"]`, h, dims.width);
+        embedded = await embedOverlay(doc, buf);
+      }
+      if (embedded) {
+        page.drawPage(embedded, {
+          x: 0,
+          y: pageHeight - headerHeightPt,
+          width: pageWidth,
+          height: headerHeightPt,
+        });
+      }
     }
 
-    const footerEmbed = embeddedFooters.get(key);
-    if (footerEmbed && def) {
+    const footerBuf = overlays.footers.get(key);
+    if (footerBuf && def) {
       const footerHeightPt = mmToPt(scaledHeight(def.footerHeight, scale));
-      page.drawPage(footerEmbed, {
-        x: 0,
-        y: 0,
-        width: pageWidth,
-        height: footerHeightPt,
-      });
+      let embedded = embeddedFooters.get(key);
+      if (footerHasPlaceholders.get(key) && browser && html) {
+        const pageHtml = html.replaceAll(PAGE_MARKER, pageNum).replaceAll(TOTAL_MARKER, totalStr);
+        const h = scaledHeight(def.footerHeight, scale);
+        const buf = await renderElementPdf(browser, pageHtml, `[data-footer-type="${type}"]`, h, dims.width);
+        embedded = await embedOverlay(doc, buf);
+      }
+      if (embedded) {
+        page.drawPage(embedded, {
+          x: 0,
+          y: 0,
+          width: pageWidth,
+          height: footerHeightPt,
+        });
+      }
     }
   }
 
@@ -820,37 +933,3 @@ export async function appendDebugFontPage(
   return doc.save();
 }
 
-export interface PageNumberOptions {
-  fontSize?: number;
-  startPage?: number;
-  marginRight?: number;
-  marginBottom?: number;
-}
-
-export async function addPageNumbers(
-  pdfBytes: Uint8Array,
-  options: PageNumberOptions = {},
-): Promise<Uint8Array> {
-  const { fontSize = 7, startPage = 0, marginRight = 15, marginBottom = 8 } = options;
-  const doc = await PDFDocument.load(pdfBytes);
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const pages = doc.getPages();
-  const total = pages.length;
-  const color = rgb(0.6, 0.6, 0.6);
-
-  for (let i = startPage; i < total; i++) {
-    const page = pages[i];
-    const text = `Page ${i + 1} of ${total}`;
-    const textWidth = font.widthOfTextAtSize(text, fontSize);
-    const { width } = page.getSize();
-    page.drawText(text, {
-      x: width - mmToPx(marginRight) - textWidth,
-      y: mmToPx(marginBottom),
-      size: fontSize,
-      font,
-      color,
-    });
-  }
-
-  return doc.save();
-}

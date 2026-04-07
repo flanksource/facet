@@ -57,7 +57,6 @@ import {
   resolvePageSize,
   overlayKey,
   mmToPx,
-  addPageNumbers,
   type PageTypeInfo,
   type GroupResult,
   type PageType,
@@ -215,13 +214,12 @@ async function renderMultiPass(
   }
 
   const { buffer, pageMap, pageSizeMap, pageMarginMap } = await assembleGroups(results, log, typeInfo);
-  const composited = await compositeHeaderFooter(Buffer.from(buffer), overlays, pageMap, typeInfo, pageSizeMap);
-  const numbered = await addPageNumbers(composited);
+  const composited = await compositeHeaderFooter(Buffer.from(buffer), overlays, pageMap, typeInfo, pageSizeMap, browser, html);
   if (debug) {
-    const debugBuffer = await drawDebugOverlay(numbered, pageMap, pageSizeMap, typeInfo, pageMarginMap, buildDebugInfo());
+    const debugBuffer = await drawDebugOverlay(composited, pageMap, pageSizeMap, typeInfo, pageMarginMap, buildDebugInfo());
     return Buffer.from(debugBuffer);
   }
-  return Buffer.from(numbered);
+  return Buffer.from(composited);
 }
 
 async function renderLegacyElementPdf(
@@ -388,13 +386,12 @@ async function renderSinglePass(
     definitions: new Map([['default', { type: 'default' as PageType, headerHeight: pageInfo.top, footerHeight: pageInfo.bottom }]]),
   };
 
-  const composited = await compositeHeaderFooter(contentBuffer, overlays, pageMap, singleTypeInfo, pageSizeMap);
-  const numbered = await addPageNumbers(composited);
+  const composited = await compositeHeaderFooter(contentBuffer, overlays, pageMap, singleTypeInfo, pageSizeMap, browser, html);
   if (debug) {
-    const debugBuf = await drawDebugOverlay(numbered, pageMap, pageSizeMap, singleTypeInfo, undefined, buildDebugInfo());
+    const debugBuf = await drawDebugOverlay(composited, pageMap, pageSizeMap, singleTypeInfo, undefined, buildDebugInfo());
     return Buffer.from(debugBuf);
   }
-  return Buffer.from(numbered);
+  return Buffer.from(composited);
 }
 
 export interface PDFOptions {
