@@ -72,6 +72,16 @@ export interface BadgeProps {
   value?: string;
 
   /**
+   * Additional CSS classes for the label section.
+   */
+  labelClassName?: string;
+
+  /**
+   * Additional CSS classes for the value section.
+   */
+  valueClassName?: string;
+
+  /**
    * Size of the badge
    * @default 'md'
    */
@@ -98,6 +108,11 @@ export interface BadgeProps {
    * Link rel attribute (e.g., 'noopener noreferrer' for external links)
    */
   rel?: string;
+
+  /**
+   * Allow the badge content to wrap instead of forcing a single line.
+   */
+  wrap?: boolean;
 
   /**
    * Additional CSS classes
@@ -195,49 +210,65 @@ function getShapeClasses(shape: BadgeShape): string {
  */
 export default function Badge({
   variant = 'metric',
-  status = 'info',
+  status,
   color,
   textColor,
   borderColor,
   icon: Icon,
   label,
   value,
+  labelClassName,
+  valueClassName,
   size = 'md',
   shape = 'pill',
   href,
   target = '_self',
   rel,
+  wrap = false,
   className,
 }: BadgeProps) {
   const sizeClasses = getSizeClasses(size);
   const shapeClass = getShapeClasses(shape);
+  const textWrapClasses = wrap ? 'min-w-0 max-w-full whitespace-normal break-all' : 'whitespace-nowrap';
 
   // Determine background and text colors based on variant
   let colorClasses = '';
   let customStyles: React.CSSProperties = {};
 
   if (variant === 'status') {
-    colorClasses = getStatusClasses(status, variant);
+    colorClasses = getStatusClasses(status ?? 'info', variant);
   } else if (variant === 'outlined') {
-    colorClasses = clsx(
-      'bg-transparent',
-      status ? getStatusClasses(status, variant) : borderColor
-    );
+    if (status) {
+      colorClasses = clsx('bg-transparent', getStatusClasses(status, variant));
+    } else {
+      colorClasses = 'bg-transparent text-gray-700 border-gray-300';
+      if (textColor?.startsWith('#') || textColor?.startsWith('rgb') || textColor?.startsWith('hsl')) {
+        customStyles.color = textColor;
+      } else if (textColor) {
+        colorClasses += ` ${textColor}`;
+      }
+
+      if (borderColor?.startsWith('#') || borderColor?.startsWith('rgb') || borderColor?.startsWith('hsl')) {
+        customStyles.borderColor = borderColor;
+      } else if (borderColor) {
+        colorClasses += ` ${borderColor}`;
+      }
+    }
   } else if (variant === 'custom') {
     // Handle custom colors
-    if (color?.startsWith('#') || color?.startsWith('rgb')) {
+    if (color?.startsWith('#') || color?.startsWith('rgb') || color?.startsWith('hsl')) {
       customStyles.backgroundColor = color;
     } else if (color) {
       colorClasses += ` ${color}`;
     }
 
-    if (textColor?.startsWith('#') || textColor?.startsWith('rgb')) {
+    if (textColor?.startsWith('#') || textColor?.startsWith('rgb') || textColor?.startsWith('hsl')) {
       customStyles.color = textColor;
     } else if (textColor) {
       colorClasses += ` ${textColor}`;
     }
 
-    if (borderColor?.startsWith('#') || borderColor?.startsWith('rgb')) {
+    if (borderColor?.startsWith('#') || borderColor?.startsWith('rgb') || borderColor?.startsWith('hsl')) {
       customStyles.borderColor = borderColor;
       colorClasses += ' border';
     } else if (borderColor) {
@@ -254,7 +285,7 @@ export default function Badge({
   if (variant === 'label') {
     let labelBg = 'bg-gray-600 text-white';
     let labelStyle: React.CSSProperties = {};
-    if (color?.startsWith('#') || color?.startsWith('rgb')) {
+    if (color?.startsWith('#') || color?.startsWith('rgb') || color?.startsWith('hsl')) {
       labelStyle.backgroundColor = color;
       labelStyle.color = textColor || '#fff';
     } else if (color) {
@@ -262,7 +293,9 @@ export default function Badge({
     }
 
     const wrapperClasses = clsx(
-      'inline-flex shrink-0 align-middle items-stretch font-medium whitespace-nowrap leading-none border border-gray-300 overflow-hidden',
+      'inline-flex align-middle items-stretch font-medium leading-none border border-gray-300',
+      wrap ? 'max-w-full flex-wrap' : 'shrink-0 overflow-hidden',
+      textWrapClasses,
       sizeClasses.text,
       shapeClass,
       href && 'transition-opacity hover:opacity-80 cursor-pointer',
@@ -271,14 +304,18 @@ export default function Badge({
 
     const labelChipClasses = clsx(
       'inline-flex self-stretch items-center leading-none',
+      textWrapClasses,
       sizeClasses.container,
       sizeClasses.gap,
       labelBg,
+      labelClassName,
     );
 
     const valueClasses = clsx(
       'inline-flex self-stretch items-center text-gray-700 leading-none',
+      textWrapClasses,
       sizeClasses.container,
+      valueClassName,
     );
 
     const labelContent = (
@@ -303,7 +340,9 @@ export default function Badge({
 
   // Base classes for badge container
   const badgeClasses = clsx(
-    'inline-flex shrink-0 align-middle items-center font-medium whitespace-nowrap leading-none border',
+    'inline-flex align-middle items-center font-medium leading-none border',
+    wrap ? 'max-w-full flex-wrap' : 'shrink-0',
+    textWrapClasses,
     sizeClasses.container,
     sizeClasses.text,
     sizeClasses.gap,
@@ -319,8 +358,10 @@ export default function Badge({
 
     const labelClasses = clsx(
       'inline-flex items-center leading-none',
+      textWrapClasses,
       sizeClasses.gap || 'gap-1.5',
-      value && 'pr-2 -ml-3 pl-3 border-r border-black/10'
+      value && 'pr-2 -ml-3 pl-3 border-r border-black/10',
+      labelClassName,
     );
 
     return (
@@ -334,7 +375,7 @@ export default function Badge({
   // Render value section
   const renderValue = () => {
     if (!value) return null;
-    return <span className={clsx('leading-none', label && 'pl-1')}>{value}</span>;
+    return <span className={clsx('leading-none', textWrapClasses, label && 'pl-1', valueClassName)}>{value}</span>;
   };
 
   // Render content

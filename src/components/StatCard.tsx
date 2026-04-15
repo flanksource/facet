@@ -502,6 +502,7 @@ export default function StatCard({
   const conditionalClasses = evaluateConditionalStyles();
   const colorClasses = getColorClasses();
   const sizeClasses = getSizeClasses();
+  const noBreakStyle = { pageBreakInside: 'avoid' as const, breakInside: 'avoid' as const };
   const getMinSizeClasses = (targetVariant: NonNullable<StatCardProps['variant']>) => {
     if (targetVariant === 'summary') {
       return shrink ? 'min-w-[28mm] min-h-[18mm] h-full' : 'min-w-[36mm] min-h-[22mm]';
@@ -521,7 +522,10 @@ export default function StatCard({
   // Card variant: Clean unbordered card with icon, value, label
   if (variant === 'card') {
     return (
-      <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} bg-white ${getMinSizeClasses('card')} justify-center`}>
+      <div
+        className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} bg-white ${getMinSizeClasses('card')} justify-center`}
+        style={noBreakStyle}
+      >
         <div className={`flex items-center ${sizeClasses.iconGap}`}>
           {IconComponent && (
             <div className={sizeClasses.iconSize}>
@@ -544,7 +548,10 @@ export default function StatCard({
   // Bordered variant: Card with border (for when emphasis is needed)
   if (variant === 'bordered') {
     return (
-      <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} border ${colorClasses.border} rounded-[2mm] ${colorClasses.bg} ${getMinSizeClasses('bordered')} justify-center`}>
+      <div
+        className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} border ${colorClasses.border} rounded-[2mm] ${colorClasses.bg} ${getMinSizeClasses('bordered')} justify-center`}
+        style={noBreakStyle}
+      >
         <div className={`flex items-center ${sizeClasses.iconGap}`}>
           {IconComponent && (
             <div className={sizeClasses.iconSize}>
@@ -567,7 +574,10 @@ export default function StatCard({
   // Badge variant: Compact inline pill-shaped badge
   if (variant === 'badge') {
     return (
-      <div className={`inline-flex items-center ${sizeClasses.gap} ${sizeClasses.badgePadding} ${colorClasses.bg} rounded-full`}>
+      <div
+        className={`inline-flex items-center ${sizeClasses.gap} ${sizeClasses.badgePadding} ${colorClasses.bg} rounded-full`}
+        style={noBreakStyle}
+      >
         {IconComponent && (
           <div className={`${sizeClasses.iconSize} flex-shrink-0`}>
             {renderIcon()}
@@ -587,7 +597,10 @@ export default function StatCard({
   // Hero variant: Large emphasis metric
   if (variant === 'hero') {
     return (
-      <div className={`flex flex-col items-center gap-[3mm] ${colorClasses.bg} p-[8mm] text-center`}>
+      <div
+        className={`flex flex-col items-center gap-[3mm] ${colorClasses.bg} p-[8mm] text-center`}
+        style={noBreakStyle}
+      >
         <div className={`${sizeClasses.heroValueText} font-bold ${conditionalClasses || valueClassName}`} style={!conditionalClasses ? { color: valueColor } : undefined}>
           {formattedValue}
         </div>
@@ -607,7 +620,7 @@ export default function StatCard({
   // Icon-heavy variant: Large icon with overlaid value badge
   if (variant === 'icon-heavy') {
     return (
-      <div className="flex flex-col items-center gap-[4mm] p-[4mm]">
+      <div className="flex flex-col items-center gap-[4mm] p-[4mm]" style={noBreakStyle}>
         <div className="relative w-[12mm] h-[12mm] flex items-center justify-center">
           {IconComponent && (
             <div className="w-full h-full">
@@ -630,7 +643,10 @@ export default function StatCard({
   // Left-aligned variant: Icon on left, value and label stacked on right
   if (variant === 'left-aligned') {
     return (
-      <div className={`flex items-center gap-[3mm] p-[2mm] ${getMinSizeClasses('left-aligned')}`}>
+      <div
+        className={`flex items-center gap-[3mm] p-[2mm] ${getMinSizeClasses('left-aligned')}`}
+        style={noBreakStyle}
+      >
         {IconComponent && (
           <div className={`${sizeClasses.iconSize} flex-shrink-0`}>
             {renderIcon()}
@@ -653,7 +669,10 @@ export default function StatCard({
   // Metric variant: Summary metric card with colored background
   if (variant === 'metric') {
     return (
-      <div className={`${colorClasses.bg} p-4 rounded-lg border ${colorClasses.border} ${getMinSizeClasses('metric')}`}>
+      <div
+        className={`${colorClasses.bg} p-4 rounded-lg border ${colorClasses.border} ${getMinSizeClasses('metric')}`}
+        style={noBreakStyle}
+      >
         <div className="text-xs text-gray-600 mb-1 whitespace-nowrap">{label}</div>
         <div className="flex items-center justify-between gap-2">
           <div className={`flex items-center ${sizeClasses.iconGap}`}>
@@ -678,7 +697,10 @@ export default function StatCard({
   // Summary variant: Compact bordered KPI card for report headers
   if (variant === 'summary') {
     return (
-      <div className={`${colorClasses.bg} border ${colorClasses.border} rounded-[2mm] px-[2.4mm] py-[2mm] ${getMinSizeClasses('summary')} flex flex-col justify-between`}>
+      <div
+        className={`${colorClasses.bg} border ${colorClasses.border} rounded-[2mm] px-[2.4mm] py-[2mm] ${getMinSizeClasses('summary')} flex flex-col justify-between`}
+        style={noBreakStyle}
+      >
         <div className={`${sizeClasses.summaryLabelText} text-[#6b7280] font-medium whitespace-nowrap overflow-hidden text-ellipsis`}>
           {label}
         </div>
@@ -696,7 +718,10 @@ export default function StatCard({
 
   // Default fallback to clean card
   return (
-    <div className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} bg-white ${getMinSizeClasses('card')} justify-center`}>
+    <div
+      className={`flex flex-col items-center ${sizeClasses.gap} ${sizeClasses.cardPadding} bg-white ${getMinSizeClasses('card')} justify-center`}
+      style={noBreakStyle}
+    >
       <div className={`flex items-center ${sizeClasses.iconGap}`}>
         {IconComponent && (
           <div className={sizeClasses.iconSize}>
