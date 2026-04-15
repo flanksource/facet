@@ -22,7 +22,7 @@ const meta = {
     },
     size: {
       control: 'select',
-      options: ['sm', 'md', 'lg'],
+      options: ['xs', 'sm', 'md', 'lg'],
       description: 'Size of the badge',
     },
     shape: {
@@ -53,6 +53,18 @@ const meta = {
     href: {
       control: 'text',
       description: 'URL for clickable badge',
+    },
+    wrap: {
+      control: 'boolean',
+      description: 'Allow badge content to wrap',
+    },
+    labelClassName: {
+      control: 'text',
+      description: 'Additional classes for the label section',
+    },
+    valueClassName: {
+      control: 'text',
+      description: 'Additional classes for the value section',
     },
   },
 } satisfies Meta<typeof Badge>;
@@ -93,6 +105,10 @@ export const Variants: Story = {
 export const Sizes: Story = {
   render: () => (
     <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-4">
+        <Badge size="xs" label="Extra Small" value="v1.0" />
+        <span className="text-gray-500">Extra Small (xs)</span>
+      </div>
       <div className="flex items-center gap-4">
         <Badge size="sm" label="Small" value="v1.0" />
         <span className="text-gray-500">Small (sm)</span>
@@ -229,13 +245,53 @@ export const OutlinedVariant: Story = {
   ),
 };
 
+export const CustomOutlinedColors: Story = {
+  render: () => (
+    <div className="flex flex-wrap gap-4">
+      <Badge variant="outlined" label="Kubernetes" borderColor="#326ce5" textColor="#326ce5" size="xs" />
+      <Badge variant="outlined" label="Helm" borderColor="#0f1689" textColor="#0f1689" size="xs" />
+      <Badge variant="outlined" label="Flux" borderColor="#5468ff" textColor="#5468ff" size="xs" />
+      <Badge variant="outlined" label="ArgoCD" borderColor="#ef7b4d" textColor="#ef7b4d" size="xs" />
+    </div>
+  ),
+};
+
 export const LabelVariant: Story = {
   render: () => (
     <div className="flex flex-wrap gap-4 bg-slate-50 p-4 rounded-lg">
-      <Badge variant="label" label="engine" value="postgresql" color="#dbeafe" textColor="#1d4ed8" className="bg-white" />
-      <Badge variant="label" label="env" value="production" color="#dcfce7" textColor="#15803d" className="bg-white" />
-      <Badge variant="label" label="region" value="eu-west-1" color="#ede9fe" textColor="#6d28d9" className="bg-white" />
-      <Badge variant="label" label="owner" value="platform" color="#fef3c7" textColor="#b45309" className="bg-white" />
+      <Badge
+        variant="label"
+        label="container"
+        value="incident-commander"
+        color="#dbeafe"
+        textColor="#1d4ed8"
+        size="xs"
+        className="bg-white"
+        labelClassName="uppercase tracking-[0.03em]"
+        valueClassName="font-mono text-slate-800"
+      />
+      <Badge
+        variant="label"
+        label="namespace"
+        value="mc"
+        color="#dcfce7"
+        textColor="#15803d"
+        size="xs"
+        className="bg-white"
+        labelClassName="uppercase tracking-[0.03em]"
+        valueClassName="font-semibold text-slate-800"
+      />
+      <Badge
+        variant="label"
+        label="strategy"
+        value="rolling"
+        color="#ede9fe"
+        textColor="#6d28d9"
+        size="xs"
+        className="bg-white"
+        labelClassName="uppercase tracking-[0.03em]"
+        valueClassName="font-medium text-slate-800"
+      />
     </div>
   ),
 };
@@ -245,30 +301,28 @@ export const DenseMetadataWrap: Story = {
     <div className="max-w-[420px] rounded-lg border border-gray-200 bg-slate-50 p-4">
       <div className="flex flex-wrap gap-2">
         {[
-          ['engine', 'postgresql'],
-          ['env', 'production'],
-          ['region', 'eu-west-1'],
-          ['tier', 'critical'],
-          ['owner', 'platform'],
-          ['cluster', 'mission-control'],
-          ['backup', 'nightly'],
-          ['retention', '35d'],
-          ['replicas', '3'],
+          ['container', 'flanksource/incident-commander'],
+          ['image', 'flanksource/incident-commander:v1.4.200-build.12'],
+          ['from', 'sha256:42e5e2378f81f1b8d0355ab5b12a47f3'],
+          ['to', 'sha256:8cd15af2d1364a5cb4f8df25e7c6291e'],
         ].map(([label, value]) => (
           <Badge
             key={label}
             variant="label"
             label={label}
             value={value}
-            color="#dbeafe"
-            textColor="#1d4ed8"
-            size="sm"
-            className="bg-white"
+            color={label === 'to' ? '#dcfce7' : '#dbeafe'}
+            textColor={label === 'to' ? '#15803d' : '#1d4ed8'}
+            size="xs"
+            wrap
+            className="bg-white max-w-[180px]"
+            labelClassName="uppercase tracking-[0.03em]"
+            valueClassName="font-mono"
           />
         ))}
       </div>
       <p className="text-sm text-gray-600 mt-3">
-        Use wrapping field/value badges for dense scan-first metadata. Switch to a table when cross-row comparison matters more than quick recognition.
+        Use <code>wrap</code> when metadata needs to stay badge-shaped but long values cannot remain single-line.
       </p>
     </div>
   ),
