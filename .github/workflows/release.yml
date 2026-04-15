@@ -151,7 +151,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Pin npm
-        run: npm install -g npm@11.4.2
+        run: npm install -g --force npm@11.11.0
 
       - name: Install dependencies
         run: |
@@ -164,5 +164,3 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ""
