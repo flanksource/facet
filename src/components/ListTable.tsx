@@ -129,7 +129,10 @@ function getTimeBucket(value: string): TimeBucket {
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diffDays = Math.floor((startOfToday.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86400000);
 
-  if (diffDays <= 0) {
+  if (diffDays < 0) {
+    return { key: 'future', label: formatDayLabel(d), dateFormat: 'time' };
+  }
+  if (diffDays === 0) {
     return { key: 'today', label: formatDayLabel(d), dateFormat: 'time' };
   }
   if (diffDays <= 6) {
@@ -137,7 +140,7 @@ function getTimeBucket(value: string): TimeBucket {
   }
   if (diffDays <= 30) {
     const weekStart = new Date(d);
-    weekStart.setDate(d.getDate() - d.getDay() + 1);
+    weekStart.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 4);
     return {

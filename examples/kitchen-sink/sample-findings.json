@@ -153,7 +153,7 @@
       "dataSource": {
         "type": "s3-parquet",
         "path": "s3://acmer-app-audit/sql/parquet/AuditLogins/2026/03/*/*.parquet",
-        "query": "SELECT client_ip, count(DISTINCT server_principal_name) AS targeted FROM AuditLogins WHERE succeeded = false GROUP BY client_ip HAVING targeted >= 3",
+        "query": "SELECT client_ip, count(DISTINCT server_principal_name) AS targeted FROM AuditLogins WHERE succeeded = false GROUP BY client_ip HAVING targeted >= 10",
         "connection": "connection://monitoring/sql-server"
       },
       "provenance": {
@@ -175,7 +175,7 @@
         "threshold": "Any sysadmin role grant"
       },
       "evidence": {
-        "summary": "User admin_dba granted sysadmin role to jdoe at 22:41 UTC on a Tuesday, outside the approved change window (Wed 06:00-10:00 UTC)",
+        "summary": "User admin_dba granted sysadmin role to jdoe at 22:41 UTC on a Wednesday, outside the approved change window (Wed 06:00-10:00 UTC)",
         "identities": [
           {
             "name": "admin_dba",

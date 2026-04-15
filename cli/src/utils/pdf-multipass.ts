@@ -467,8 +467,10 @@ async function replaceInPdfStreams(buf: Buffer, replacements: [string, string][]
 
     if (modified) {
       const final = compressed ? zlib.deflateSync(bytes) : bytes;
-      (obj as any).contents = new Uint8Array(final);
-      dict.set(PDFName.of('Length'), doc.context.obj(final.length));
+      const newDict = dict.clone(doc.context);
+      newDict.set(PDFName.of('Length'), doc.context.obj(final.length));
+      const newStream = PDFRawStream.of(newDict, new Uint8Array(final));
+      doc.context.assign(ref, newStream);
     }
   }
   return Buffer.from(await doc.save());

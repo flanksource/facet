@@ -37,7 +37,7 @@ export default function Page({
   title,
   titleClassName = "text-xl font-bold text-gray-900 mb-4 border-b border-gray-200 pb-2",
   className,
-  pageSize = 'a4',
+  pageSize,
   margins = {},
   watermark,
   type = 'default',

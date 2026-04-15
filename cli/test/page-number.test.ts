@@ -179,10 +179,11 @@ describe('page number placeholder replacement', () => {
       expect(joined).not.toContain(TOTAL_MARKER);
 
       const raw = Buffer.from(result);
+      const rawHex = raw.toString('hex').toUpperCase();
       expect(raw.includes(PAGE_MARKER)).toBe(false);
       expect(raw.includes(TOTAL_MARKER)).toBe(false);
-      expect(raw.includes(PAGE_MARKER_HEX)).toBe(false);
-      expect(raw.includes(TOTAL_MARKER_HEX)).toBe(false);
+      expect(rawHex.includes(PAGE_MARKER_HEX)).toBe(false);
+      expect(rawHex.includes(TOTAL_MARKER_HEX)).toBe(false);
     });
 
     it('preserves static footer text in PDF object streams', async () => {

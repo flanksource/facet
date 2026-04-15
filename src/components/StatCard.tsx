@@ -704,7 +704,7 @@ export default function StatCard({
         <div className={`${sizeClasses.summaryLabelText} text-[#6b7280] font-medium whitespace-nowrap overflow-hidden text-ellipsis`}>
           {label}
         </div>
-        <div className={`font-bold ${colorClasses.text} ${conditionalClasses || valueClassName || sizeClasses.summaryValueText}`}>
+        <div className={`font-bold ${colorClasses.text} ${sizeClasses.summaryValueText} ${conditionalClasses || ''} ${valueClassName || ''}`.trim()}>
           {formattedValue}
         </div>
         {sublabel && (

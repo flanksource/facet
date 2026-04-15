@@ -320,10 +320,12 @@ export default function Badge({
 
     const labelContent = (
       <>
-        <span className={labelChipClasses} style={labelStyle}>
-          {Icon && <Icon className={sizeClasses.icon} />}
-          {label && <span>{label}</span>}
-        </span>
+        {(Icon || label) && (
+          <span className={labelChipClasses} style={labelStyle}>
+            {Icon && <Icon className={sizeClasses.icon} />}
+            {label && <span>{label}</span>}
+          </span>
+        )}
         {value && <span className={valueClasses}>{value}</span>}
       </>
     );
