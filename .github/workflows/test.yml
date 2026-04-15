@@ -26,10 +26,10 @@ jobs:
           cache: "npm"
           cache-dependency-path: cli/package-lock.json
 
-      - name: Setup Bun
+      - name: Setup tools
         uses: flanksource/deps@v1.0.24
         with:
-          tools: bun@v1.3.10
+          tools: bun@v1.3.10,task@v3.39.2
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install system dependencies
@@ -47,7 +47,7 @@ jobs:
           cd cli && npm install
 
       - name: Run tests
-        run: cd cli && bun test
+        run: task test:unit
 
       - name: Build
         run: cd cli && npm run build:lib

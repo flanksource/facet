@@ -56,11 +56,22 @@ tasks:
     deps:
       - test:unit
       # - test:storybook
-  test:unit:
-    desc: "Run unit tests with Jest"
+
+  gen-version:
+    desc: "Generate cli/src/version-generated.ts"
     dir: cli
     cmds:
-      - bun run jest
+      - node scripts/gen-version.cjs
+    generates:
+      - src/version-generated.ts
+
+  test:unit:
+    desc: "Run cli unit tests with bun"
+    dir: cli
+    deps:
+      - gen-version
+    cmds:
+      - bun test
 
   test:storybook:
     desc: "Build Storybook and verify all stories load without errors"
