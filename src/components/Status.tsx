@@ -64,18 +64,22 @@ export function Status({
               : 'bg-green-400'
         }`;
 
+  const accessibleLabel = statusText ?? status;
+
   return (
     <div className="inline-flex flex-row items-center">
       <span
         className={`${indicatorClassName} ${className}`}
-        aria-hidden="true"
+        aria-hidden={hideText ? undefined : true}
+        aria-label={hideText ? accessibleLabel : undefined}
+        role={hideText ? 'img' : undefined}
       >
         {variant === 'unknown' && (
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-gray-400" />
         )}
       </span>
       {!hideText && (
-        <span className="pl-1 capitalize">{statusText ?? status}</span>
+        <span className="pl-1 capitalize">{accessibleLabel}</span>
       )}
     </div>
   );

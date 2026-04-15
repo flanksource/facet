@@ -1,3 +1,4 @@
+import type { ComponentType, ReactNode } from "react";
 import { Page, SeverityStatCard, ListTable, Finding, Header, Footer, PageNo } from "@flanksource/facet";
 import type { Entity, Sample } from "@flanksource/facet";
 import { Sqlserver, K8S, Aws, Azure, MissionControl, MissionControlLogo } from "@flanksource/icons/mi";
@@ -131,7 +132,7 @@ function SvgIcon({ icon, size = 14 }: { icon: IconDef; size?: number }) {
   return <svg viewBox={icon.viewBox} width={size} height={size} dangerouslySetInnerHTML={{ __html: icon.body }} />;
 }
 
-function svgIconComponent(icon: IconDef): React.ComponentType<{ className?: string }> {
+function svgIconComponent(icon: IconDef): ComponentType<{ className?: string }> {
   return ({ className }: { className?: string }) => (
     <svg viewBox={icon.viewBox} width="14" height="14" className={className} dangerouslySetInnerHTML={{ __html: icon.body }} />
   );
@@ -197,7 +198,7 @@ const SEVERITY_STYLES: Record<Severity, { className: string; dot: string; border
   info: { className: "bg-gray-50 text-gray-600", dot: "bg-gray-400", border: "border border-l-2 border-l-gray-300 border-gray-200", order: 4, color: "gray" },
 };
 
-const OUTCOME_STYLES: Record<Outcome, { className: string; icon: React.ComponentType<{ className?: string }>; label: string }> = {
+const OUTCOME_STYLES: Record<Outcome, { className: string; icon: ComponentType<{ className?: string }>; label: string }> = {
   "safety-switch": { className: "bg-gray-50 text-red-900 border border-gray-200", icon: svgIconComponent(OUTCOME_ICONS["safety-switch"]), label: "Kill Switch" },
   "page-oncall": { className: "bg-gray-50 text-red-600 border border-gray-200", icon: svgIconComponent(OUTCOME_ICONS["page-oncall"]), label: "Page On-Call" },
   "high-ticket": { className: "bg-gray-50 text-orange-600 border border-gray-200", icon: svgIconComponent(OUTCOME_ICONS["high-ticket"]), label: "High Priority" },
@@ -209,7 +210,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   "sql-server": "SQL Server", kubernetes: "Kubernetes", aws: "AWS", azure: "Azure", "mission-control": "Mission Control",
 };
 
-const PLATFORM_ICONS: Record<Platform, React.ComponentType<{ className?: string }>> = {
+const PLATFORM_ICONS: Record<Platform, ComponentType<{ className?: string }>> = {
   "sql-server": Sqlserver, kubernetes: K8S, aws: Aws, azure: Azure, "mission-control": MissionControl,
 };
 
@@ -224,12 +225,12 @@ function outcomeBadge(o: Outcome) {
   return { label: s.label, className: s.className, icon: s.icon };
 }
 
-const CATEGORY_ICON_COMPONENTS: Record<string, React.ComponentType<{ className?: string }>> = Object.fromEntries(
+const CATEGORY_ICON_COMPONENTS: Record<string, ComponentType<{ className?: string }>> = Object.fromEntries(
   Object.entries(CATEGORY_ICONS).map(([k, v]) => [k, svgIconComponent(v)])
 );
 
 function findingTags(f: AuditFinding) {
-  const tags: { label: string; className?: string; icon?: React.ComponentType<{ className?: string }> }[] = [
+  const tags: { label: string; className?: string; icon?: ComponentType<{ className?: string }> }[] = [
     { label: f.category, className: "bg-gray-100 text-gray-500", icon: CATEGORY_ICON_COMPONENTS[f.category] },
     { label: PLATFORM_LABELS[f.platform], className: "bg-gray-100 text-gray-500", icon: PLATFORM_ICONS[f.platform] },
   ];
@@ -298,7 +299,7 @@ function countBy(items: AuditFinding[], key: (f: AuditFinding) => string): { nam
 function BreakdownTable({ title, rows, iconMap }: {
   title: string;
   rows: { name: string; count: number }[];
-  iconMap?: (value: unknown) => React.ReactNode;
+  iconMap?: (value: unknown) => ReactNode;
 }) {
   return (
     <ListTable

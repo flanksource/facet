@@ -1,5 +1,3 @@
-import React from 'react';
-
 export const PAGE_PLACEHOLDER = '_PG_';
 export const TOTAL_PLACEHOLDER = '_TL_';
 
@@ -13,8 +11,8 @@ export default function PageNo({
   className,
 }: PageNoProps) {
   const text = format
-    .replace('${page}', PAGE_PLACEHOLDER)
-    .replace('${total}', TOTAL_PLACEHOLDER);
+    .replace(/\$\{page\}/g, PAGE_PLACEHOLDER)
+    .replace(/\$\{total\}/g, TOTAL_PLACEHOLDER);
 
   return <span className={className}>{text}</span>;
 }

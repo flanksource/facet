@@ -158,6 +158,7 @@ src/examples/*/dist/
 .task
 *-cache/
 cli/cli
+cli/src/version-generated.ts
 cmd/facet/facet-cli.tar.gz
 facet
 hack/
