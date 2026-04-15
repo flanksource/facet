@@ -157,7 +157,7 @@ jobs:
           npm install
 
       - name: Build library
-        run: cd cli && npm run build:lib
+        run: cd cli && npm run gen-version && npm run build:lib
 
       - name: Publish to npm
         run: npm publish --access public --provenance
