@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import clsx from 'clsx';
+import { resolveSizeVariant } from '../utils/resolveSizeVariant';
 
 interface ShieldProps {
   value: string;
@@ -86,8 +87,8 @@ export function Shield({
     },
   };
 
-  const currentTheme = themes[theme];
-  const currentSize = sizeConfig[size];
+  const currentTheme = resolveSizeVariant(theme, themes, themes.primary, 'Shield.theme');
+  const currentSize = resolveSizeVariant(size, sizeConfig, sizeConfig['h-5'], 'Shield.size');
 
   const badgeContent = (
     <div

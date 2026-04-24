@@ -1,3 +1,5 @@
+import { resolveSizeVariant } from './utils/resolveSizeVariant';
+
 interface ScoreGaugeProps {
   score: number; // 0-10
   label?: string;
@@ -31,7 +33,7 @@ export default function ScoreGauge({ score, label, size = 'md', className = '', 
     lg: { container: 'w-32 h-32', text: 'text-3xl', label: 'text-base', strokeWidth: 5 }
   };
 
-  const config = sizeConfig[size];
+  const config = resolveSizeVariant(size, sizeConfig, sizeConfig.md, 'ScoreGauge');
   const radius = 45;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;

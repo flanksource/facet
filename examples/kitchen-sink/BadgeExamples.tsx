@@ -125,8 +125,9 @@ export default function BadgeExamples() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">sizes (xs / sm / md / lg)</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">sizes (xxs / xs / sm / md / lg)</h3>
             <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="status" status="success" label="xxs" size="xxs" icon={IoCheckmarkCircle} />
               <Badge variant="status" status="success" label="xs" size="xs" icon={IoCheckmarkCircle} />
               <Badge variant="status" status="success" label="sm" size="sm" icon={IoCheckmarkCircle} />
               <Badge variant="status" status="success" label="md" size="md" icon={IoCheckmarkCircle} />
@@ -163,19 +164,19 @@ export default function BadgeExamples() {
               <p>
                 Deployment
                 {' '}
-                <Badge variant="custom" label="incident-commander" size="xs" color="#eff6ff" textColor="#1d4ed8" borderColor="#bfdbfe" />
+                <Badge variant="custom" label="incident-commander" size="xxs" color="#eff6ff" textColor="#1d4ed8" borderColor="#bfdbfe" />
                 {' '}
                 rolled from
                 {' '}
-                <Badge variant="custom" label="v1.4.190" size="xs" color="#fef2f2" textColor="#b91c1c" borderColor="#fecaca" />
+                <Badge variant="custom" label="v1.4.190" size="xxs" color="#fef2f2" textColor="#b91c1c" borderColor="#fecaca" />
                 {' '}
                 to
                 {' '}
-                <Badge variant="custom" label="v1.4.200" size="xs" color="#ecfdf5" textColor="#15803d" borderColor="#bbf7d0" />
+                <Badge variant="custom" label="v1.4.200" size="xxs" color="#ecfdf5" textColor="#15803d" borderColor="#bbf7d0" />
                 {' '}
                 via
                 {' '}
-                <Badge variant="outlined" label="ArgoCD" size="xs" borderColor="#ef7b4d" textColor="#ef7b4d" />
+                <Badge variant="outlined" label="ArgoCD" size="xxs" borderColor="#ef7b4d" textColor="#ef7b4d" />
                 {' '}
                 in
                 {' '}
@@ -183,7 +184,7 @@ export default function BadgeExamples() {
                   variant="label"
                   label="namespace"
                   value="mc"
-                  size="xs"
+                  size="xxs"
                   color="#dbeafe"
                   textColor="#1d4ed8"
                   className="bg-white"
@@ -195,7 +196,7 @@ export default function BadgeExamples() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">wrapped xs badges for long values</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">wrapped xxs badges for long values</h3>
             <div className="rounded-lg border border-gray-200 bg-slate-50 p-3">
               <div className="max-w-[95mm] flex flex-wrap gap-2">
                 {WRAPPING_BADGES.map(([label, value], index) => (
@@ -206,7 +207,7 @@ export default function BadgeExamples() {
                     value={value}
                     color={label === 'to' ? '#dcfce7' : '#dbeafe'}
                     textColor={label === 'to' ? '#15803d' : '#1d4ed8'}
-                    size="xs"
+                    size="xxs"
                     wrap
                     className="bg-white max-w-[42mm]"
                     labelClassName="uppercase tracking-[0.03em]"
@@ -232,7 +233,7 @@ export default function BadgeExamples() {
                     value={value}
                     color="#dbeafe"
                     textColor="#1d4ed8"
-                    size="xs"
+                    size="xxs"
                     className="bg-white"
                     labelClassName="uppercase tracking-[0.03em]"
                     valueClassName="font-medium text-slate-800"

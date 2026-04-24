@@ -7,13 +7,13 @@ This example demonstrates the basic usage of `@flanksource/facet` to create a si
 1. Install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
 2. Build the datasheet:
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 This will create:

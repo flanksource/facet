@@ -4,9 +4,9 @@
   "type": "module",
   "scripts": {
     "data": "tsx mission-control.ts > dist/mission-control.json",
-    "html": "npm run data && facet html Application.tsx -d dist/mission-control.json -o dist",
-    "pdf": "npm run data && facet pdf Application.tsx -d dist/mission-control.json -o dist",
-    "mission-control": "npm run pdf"
+    "html": "pnpm run data && facet html Application.tsx -d dist/mission-control.json -o dist",
+    "pdf": "pnpm run data && facet pdf Application.tsx -d dist/mission-control.json -o dist",
+    "mission-control": "pnpm run pdf"
   },
   "dependencies": {
     "@flanksource/facet": "file:../../",

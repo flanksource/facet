@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { resolveSizeVariant } from './utils/resolveSizeVariant';
 
 /**
  * ProgressBar Props
@@ -96,9 +97,9 @@ export default function ProgressBar({
     lg: 'text-sm',
   };
 
-  const barColorClass = variantClasses[variant];
-  const barHeightClass = sizeClasses[size];
-  const textSizeClass = textSizeClasses[size];
+  const barColorClass = resolveSizeVariant(variant, variantClasses, variantClasses.primary, 'ProgressBar.variant');
+  const barHeightClass = resolveSizeVariant(size, sizeClasses, sizeClasses.md, 'ProgressBar.size');
+  const textSizeClass = resolveSizeVariant(size, textSizeClasses, textSizeClasses.md, 'ProgressBar.size');
 
   return (
     <div className={`flex flex-col ${className}`}>

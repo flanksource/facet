@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from '@iconify/react';
+import { resolveSizeVariant } from './utils/resolveSizeVariant';
 
 // @flanksource/icons IndexMap is not available in this version
 // Using undefined to trigger fallback behavior
@@ -173,7 +174,7 @@ function getSizeClasses(size: 'xs' | 'sm' | 'md') {
       iconSize: 18
     }
   };
-  return sizeMap[size];
+  return resolveSizeVariant(size, sizeMap, sizeMap.md, 'BulletList');
 }
 
 /**

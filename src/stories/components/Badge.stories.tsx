@@ -22,7 +22,7 @@ const meta = {
     },
     size: {
       control: 'select',
-      options: ['xs', 'sm', 'md', 'lg'],
+      options: ['xxs', 'xs', 'sm', 'md', 'lg'],
       description: 'Size of the badge',
     },
     shape: {
@@ -100,11 +100,15 @@ export const Variants: Story = {
 };
 
 /**
- * All three size options
+ * All badge size options
  */
 export const Sizes: Story = {
   render: () => (
     <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-4">
+        <Badge size="xxs" label="Extra Extra Small" value="v1.0" />
+        <span className="text-gray-500">Extra Extra Small (xxs)</span>
+      </div>
       <div className="flex items-center gap-4">
         <Badge size="xs" label="Extra Small" value="v1.0" />
         <span className="text-gray-500">Extra Small (xs)</span>

@@ -1,4 +1,5 @@
 import React from 'react';
+import Badge from './Badge';
 import { formatDate, formatDateTime, formatRelative } from './Format';
 
 export type TagMapping = (key: string, value: any) => string;
@@ -81,20 +82,60 @@ const DEFAULT_TAG_MAPPING: TagMapping = (_key, value) => {
   if (['medium'].includes(v)) return 'text-yellow-700 bg-yellow-50 border-yellow-200';
   if (['low', 'info', 'pending'].includes(v)) return 'text-blue-700 bg-blue-50 border-blue-200';
   if (['success', 'healthy', 'running', 'active'].includes(v)) return 'text-green-700 bg-green-50 border-green-200';
-  return 'text-gray-600 bg-gray-50 border-gray-200';
+  return 'text-slate-600 bg-slate-50 border-slate-200';
 };
 
 const SIZE_CONFIG = {
-  xs: { row: 'text-xs', date: 'text-xs', body: 'text-xs text-gray-500', badge: 'text-xs', gap: 'gap-0.5' },
-  sm: { row: 'text-sm', date: 'text-xs', body: 'text-xs text-gray-500', badge: 'text-xs', gap: 'gap-1' },
-  md: { row: 'text-base', date: 'text-sm', body: 'text-sm text-gray-500', badge: 'text-sm', gap: 'gap-1.5' },
+  xs: {
+    row: 'text-[8.5pt] leading-[10pt]',
+    subject: 'text-[8.5pt] leading-[10pt] font-medium text-slate-800',
+    subtitle: 'text-[7.5pt] leading-[9pt] text-slate-600',
+    date: 'text-[7.5pt] leading-[9pt]',
+    body: 'text-[7.5pt] leading-[9pt] text-slate-500',
+    key: 'text-[7.5pt] leading-[9pt] text-slate-400',
+    gap: 'gap-[0.8mm]',
+    tagSize: 'xxs' as const,
+  },
+  sm: {
+    row: 'text-[9pt] leading-[11pt]',
+    subject: 'text-[9pt] leading-[11pt] font-medium text-slate-800',
+    subtitle: 'text-[8pt] leading-[10pt] text-slate-600',
+    date: 'text-[8pt] leading-[10pt]',
+    body: 'text-[8pt] leading-[10pt] text-slate-500',
+    key: 'text-[8pt] leading-[10pt] text-slate-400',
+    gap: 'gap-[1mm]',
+    tagSize: 'xs' as const,
+  },
+  md: {
+    row: 'text-[10pt] leading-[12pt]',
+    subject: 'text-[10pt] leading-[12pt] font-medium text-slate-800',
+    subtitle: 'text-[9pt] leading-[11pt] text-slate-600',
+    date: 'text-[9pt] leading-[11pt]',
+    body: 'text-[9pt] leading-[11pt] text-slate-500',
+    key: 'text-[9pt] leading-[11pt] text-slate-400',
+    gap: 'gap-[1.5mm]',
+    tagSize: 'sm' as const,
+  },
 } as const;
 
 const DENSITY_CONFIG = {
-  compact: { py: '', border: 'border-b border-gray-100', bodyMt: '' },
-  normal: { py: 'py-0.5', border: 'border-b border-gray-100', bodyMt: '-mt-px' },
-  comfortable: { py: 'py-1.5', border: 'border-b border-gray-200', bodyMt: 'mt-px' },
+  compact: { py: '', border: 'border-b border-slate-100', bodyMt: '' },
+  normal: { py: 'py-0.5', border: 'border-b border-slate-100', bodyMt: '-mt-px' },
+  comfortable: { py: 'py-1.5', border: 'border-b border-slate-200', bodyMt: 'mt-px' },
 } as const;
+
+function splitColorClasses(classes: string): { textColor?: string; color?: string; borderColor?: string } {
+  return classes.split(/\s+/).reduce<{ textColor?: string; color?: string; borderColor?: string }>((acc, token) => {
+    if (token.startsWith('text-')) {
+      acc.textColor = token;
+    } else if (token.startsWith('bg-')) {
+      acc.color = token;
+    } else if (token.startsWith('border-')) {
+      acc.borderColor = token;
+    }
+    return acc;
+  }, {});
+}
 
 function resolveTagClasses(tagMapping: TagMapping | TagMapping[] | undefined, key: string, value: any): string {
   if (!tagMapping) return DEFAULT_TAG_MAPPING(key, value);
@@ -188,11 +229,17 @@ function TagBadge({ tagKey, value, tagMapping, sc }: {
   tagMapping: TagMapping | TagMapping[] | undefined;
   sc: (typeof SIZE_CONFIG)[keyof typeof SIZE_CONFIG];
 }) {
-  const classes = resolveTagClasses(tagMapping, tagKey, value);
+  const { color, textColor, borderColor } = splitColorClasses(resolveTagClasses(tagMapping, tagKey, value));
   return (
-    <span className={`${sc.badge} inline-flex items-center align-middle leading-none px-1 py-px rounded border font-semibold whitespace-nowrap shrink-0 ${classes}`}>
-      {String(value)}
-    </span>
+    <Badge
+      variant="custom"
+      size={sc.tagSize}
+      shape="rounded"
+      label={String(value)}
+      color={color}
+      textColor={textColor}
+      borderColor={borderColor}
+    />
   );
 }
 
@@ -252,7 +299,7 @@ function ListRow({
     <div className={`${dc.border} last:border-b-0 ${dc.py}`}>
       <div className={`flex items-center ${wrap ? 'flex-wrap' : ''} ${sc.gap} ${sc.row}`}>
         {dateVal && (
-          <span className={`${sc.date} text-gray-400 font-mono whitespace-nowrap shrink-0 ${!hasIconColumn ? 'mr-[1.2mm]' : ''} ${cellClassName || ''}`}>
+          <span className={`${sc.date} text-slate-400 font-mono whitespace-nowrap shrink-0 ${!hasIconColumn ? 'mr-[1.2mm]' : ''} ${cellClassName || ''}`}>
             {formatDateValue(String(dateVal), dateFormatOverride ?? props.dateFormat ?? 'age')}
           </span>
         )}
@@ -261,11 +308,11 @@ function ListRow({
             {renderedIcon}
           </span>
         )}
-        <span className={`font-medium text-slate-800 ${wrap ? '' : 'whitespace-nowrap'} text-[10pt] ${cellClassName || ''}`}>
+        <span className={`${sc.subject} ${wrap ? '' : 'whitespace-nowrap'} ${cellClassName || ''}`}>
           {renderValue(subjectVal)}
         </span>
         {subtitleVal != null && (
-          <span className={`text-slate-600 ${wrap ? '' : 'whitespace-nowrap'} text-[10pt] ${cellClassName || ''}`}>
+          <span className={`${sc.subtitle} ${wrap ? '' : 'whitespace-nowrap'} ${cellClassName || ''}`}>
             {renderValue(subtitleVal)}
           </span>
         )}
@@ -284,13 +331,19 @@ function ListRow({
           const value = row[key];
           if (value == null) return null;
           return (
-            <span key={key} className={`text-gray-400 ${wrap ? '' : 'whitespace-nowrap shrink-0'} ${cellClassName || ''}`}>
+            <span key={key} className={`${sc.key} ${wrap ? '' : 'whitespace-nowrap shrink-0'} ${cellClassName || ''}`}>
               {renderValue(value)}
             </span>
           );
         })}
         {countVal > 1 && (
-          <span className={`${sc.badge} text-gray-400 bg-gray-100 px-1 rounded shrink-0`}>x{countVal}</span>
+          <Badge
+            variant="label"
+            size={sc.tagSize}
+            shape="rounded"
+            label="count"
+            value={String(countVal)}
+          />
         )}
       </div>
       {bodyVal != null && (
@@ -375,7 +428,7 @@ function FieldGroupHeader({ group, iconRenderer }: { group: RowGroup; iconRender
     <div className="flex items-center gap-[1mm] mb-[1mm]">
       {icon && <span className="inline-flex shrink-0 w-[3mm] h-[3mm] items-center justify-center">{icon}</span>}
       <span className="text-[8pt] font-semibold text-slate-900">{group.label}</span>
-      <span className="text-[7pt] text-gray-400">({group.count})</span>
+      <span className="text-[7pt] text-slate-400">({group.count})</span>
     </div>
   );
 }
@@ -415,9 +468,9 @@ function renderGroupedRows(
     if (group.group.by === 'date') {
       return (
         <div key={group.key} className="mb-[3mm]">
-          <div className="text-[8pt] font-semibold text-gray-500 border-b border-gray-200 pb-[0.8mm] mb-[1mm]">
+          <div className="text-[8pt] font-semibold text-slate-500 border-b border-slate-200 pb-[0.8mm] mb-[1mm]">
             {group.label}
-            <span className="font-normal text-gray-400 ml-[1mm]">({group.count})</span>
+            <span className="font-normal text-slate-400 ml-[1mm]">({group.count})</span>
           </div>
           {content}
         </div>
@@ -427,7 +480,7 @@ function renderGroupedRows(
     return (
       <div key={group.key} className={level > 0 ? '' : 'mb-[3mm]'}>
         <FieldGroupHeader group={group} iconRenderer={iconRenderer} />
-        <div className={level > 0 ? 'ml-[4mm] border-l border-gray-200 pl-[2.5mm]' : ''}>
+        <div className={level > 0 ? 'ml-[4mm] border-l border-slate-200 pl-[2.5mm]' : ''}>
           {content}
         </div>
       </div>
@@ -467,7 +520,7 @@ export default function ListTable(props: ListTableProps) {
             {renderGroupedRows(buildGroups(visibleRows, appliedGroups, props.date), props, sc, dc, cellClassName, wrap, undefined, iconRenderer)}
           </div>
           {overflowCount > 0 && (
-            <div className={`${dc.py} ${sc.row} text-gray-400 italic`}>
+            <div className={`${dc.py} ${sc.row} text-slate-400 italic`}>
               {overflowNote || `+ ${overflowCount} more`}
             </div>
           )}
@@ -478,7 +531,7 @@ export default function ListTable(props: ListTableProps) {
             <ListRow key={row.id ?? index} row={row} props={props} sc={sc} dc={dc} cellClassName={cellClassName} wrap={wrap} />
           ))}
           {overflowCount > 0 && (
-            <div className={`${dc.py} ${sc.row} text-gray-400 italic`}>
+            <div className={`${dc.py} ${sc.row} text-slate-400 italic`}>
               {overflowNote || `+ ${overflowCount} more`}
             </div>
           )}
