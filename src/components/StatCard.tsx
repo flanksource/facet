@@ -1,5 +1,6 @@
 import React from 'react';
 import ProgressBar from './ProgressBar';
+import { resolveSizeVariant } from './utils/resolveSizeVariant';
 
 interface StatCardProps {
   value: UnitValue | string | number;
@@ -347,7 +348,7 @@ export default function StatCard({
       // Before → After format
       return (
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-gray-400">{formattedCompareFrom}</span>
+          <span className="text-slate-400">{formattedCompareFrom}</span>
           <span className="text-green-500">→</span>
           <span className="font-semibold">{formattedValue}</span>
         </div>
@@ -406,9 +407,9 @@ export default function StatCard({
       purple: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-900' },
       orange: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-900' },
       red: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-900' },
-      gray: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-900' }
+      gray: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-900' }
     };
-    return colorMap[color];
+    return resolveSizeVariant(color, colorMap, colorMap.gray, 'StatCard.color');
   };
 
   // Get size-specific classes for card and badge variants
@@ -495,7 +496,7 @@ export default function StatCard({
         summarySublabelText: 'text-[8pt] leading-[10pt]'
       }
     };
-    return sizeMap[size];
+    return resolveSizeVariant(size, sizeMap, sizeMap.md, 'StatCard.size');
   };
 
   const formattedValue = formatValue(value);
@@ -536,11 +537,11 @@ export default function StatCard({
             {formattedValue}
           </div>
         </div>
-        <div className={`${sizeClasses.labelText} text-[#6b7280] text-center font-medium`}>
+        <div className={`${sizeClasses.labelText} text-slate-500 text-center font-medium`}>
           {label}
         </div>
         {compareVariant && renderComparisonIndicator()}
-        {sublabel && <div className={`${sizeClasses.sublabelText} text-[#9ca3af] text-center ${sublabelClassName}`}>{sublabel}</div>}
+        {sublabel && <div className={`${sizeClasses.sublabelText} text-slate-400 text-center ${sublabelClassName}`}>{sublabel}</div>}
       </div>
     );
   }
@@ -562,11 +563,11 @@ export default function StatCard({
             {formattedValue}
           </div>
         </div>
-        <div className={`${sizeClasses.labelText} text-[#6b7280] text-center font-medium`}>
+        <div className={`${sizeClasses.labelText} text-slate-500 text-center font-medium`}>
           {label}
         </div>
         {compareVariant && renderComparisonIndicator()}
-        {sublabel && <div className={`${sizeClasses.sublabelText} text-[#9ca3af] text-center ${sublabelClassName}`}>{sublabel}</div>}
+        {sublabel && <div className={`${sizeClasses.sublabelText} text-slate-400 text-center ${sublabelClassName}`}>{sublabel}</div>}
       </div>
     );
   }
@@ -586,7 +587,7 @@ export default function StatCard({
         <span className={`${sizeClasses.badgeValueText} font-semibold ${conditionalClasses || valueClassName}`} style={!conditionalClasses ? { color: valueColor } : undefined}>
           {formattedValue}
         </span>
-        <span className={`${sizeClasses.badgeLabelText} text-[#6b7280]`}>
+        <span className={`${sizeClasses.badgeLabelText} text-slate-500`}>
           {label}
         </span>
         {compareVariant && renderComparisonIndicator()}
@@ -604,12 +605,12 @@ export default function StatCard({
         <div className={`${sizeClasses.heroValueText} font-bold ${conditionalClasses || valueClassName}`} style={!conditionalClasses ? { color: valueColor } : undefined}>
           {formattedValue}
         </div>
-        <div className={`${sizeClasses.heroLabelText} font-semibold text-[#374151]`}>
+        <div className={`${sizeClasses.heroLabelText} font-semibold text-slate-700`}>
           {label}
         </div>
         {compareVariant && renderComparisonIndicator()}
         {sublabel && (
-          <div className={`${sizeClasses.heroSublabelText} text-[#6b7280] ${sublabelClassName}`}>
+          <div className={`${sizeClasses.heroSublabelText} text-slate-500 ${sublabelClassName}`}>
             {sublabel}
           </div>
         )}
@@ -631,11 +632,11 @@ export default function StatCard({
             {formattedValue}
           </div>
         </div>
-        <div className={`${sizeClasses.iconHeavyLabelText} font-semibold text-[#374151] text-center`}>
+        <div className={`${sizeClasses.iconHeavyLabelText} font-semibold text-slate-700 text-center`}>
           {label}
         </div>
         {compareVariant && renderComparisonIndicator()}
-        {sublabel && <div className={`${sizeClasses.sublabelText} text-[#9ca3af] text-center ${sublabelClassName}`}>{sublabel}</div>}
+        {sublabel && <div className={`${sizeClasses.sublabelText} text-slate-400 text-center ${sublabelClassName}`}>{sublabel}</div>}
       </div>
     );
   }
@@ -656,11 +657,11 @@ export default function StatCard({
           <div className={`${sizeClasses.valueText} font-bold ${conditionalClasses || valueClassName}`} style={!conditionalClasses ? { color: valueColor } : undefined}>
             {formattedValue}
           </div>
-          <div className={`${sizeClasses.labelText} text-[#6b7280] font-medium`}>
+          <div className={`${sizeClasses.labelText} text-slate-500 font-medium`}>
             {label}
           </div>
           {compareVariant && renderComparisonIndicator()}
-          {sublabel && <div className={`${sizeClasses.sublabelText} text-[#9ca3af] ${sublabelClassName}`}>{sublabel}</div>}
+          {sublabel && <div className={`${sizeClasses.sublabelText} text-slate-400 ${sublabelClassName}`}>{sublabel}</div>}
         </div>
       </div>
     );
@@ -673,7 +674,7 @@ export default function StatCard({
         className={`${colorClasses.bg} p-4 rounded-lg border ${colorClasses.border} ${getMinSizeClasses('metric')}`}
         style={noBreakStyle}
       >
-        <div className="text-xs text-gray-600 mb-1 whitespace-nowrap">{label}</div>
+        <div className="text-xs text-slate-500 mb-1 whitespace-nowrap">{label}</div>
         <div className="flex items-center justify-between gap-2">
           <div className={`flex items-center ${sizeClasses.iconGap}`}>
             {IconComponent && (
@@ -689,7 +690,7 @@ export default function StatCard({
             <div className="flex-shrink-0">{renderComparisonIndicator()}</div>
           )}
         </div>
-        {sublabel && <div className={`text-xs text-gray-600 mt-1 ${sublabelClassName}`}>{sublabel}</div>}
+        {sublabel && <div className={`text-xs text-slate-500 mt-1 ${sublabelClassName}`}>{sublabel}</div>}
       </div>
     );
   }
@@ -701,14 +702,14 @@ export default function StatCard({
         className={`${colorClasses.bg} border ${colorClasses.border} rounded-[2mm] px-[2.4mm] py-[2mm] ${getMinSizeClasses('summary')} flex flex-col justify-between`}
         style={noBreakStyle}
       >
-        <div className={`${sizeClasses.summaryLabelText} text-[#6b7280] font-medium whitespace-nowrap overflow-hidden text-ellipsis`}>
+        <div className={`${sizeClasses.summaryLabelText} text-slate-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis`}>
           {label}
         </div>
         <div className={`font-bold ${colorClasses.text} ${sizeClasses.summaryValueText} ${conditionalClasses || ''} ${valueClassName || ''}`.trim()}>
           {formattedValue}
         </div>
         {sublabel && (
-          <div className={`${sizeClasses.summarySublabelText} text-[#6b7280] ${sublabelClassName}`}>
+          <div className={`${sizeClasses.summarySublabelText} text-slate-500 ${sublabelClassName}`}>
             {sublabel}
           </div>
         )}
@@ -732,11 +733,11 @@ export default function StatCard({
           {formattedValue}
         </div>
       </div>
-      <div className={`${sizeClasses.labelText} text-[#6b7280] text-center font-medium`}>
+      <div className={`${sizeClasses.labelText} text-slate-500 text-center font-medium`}>
         {label}
       </div>
       {compareVariant && renderComparisonIndicator()}
-      {sublabel && <div className={`${sizeClasses.sublabelText} text-[#9ca3af] text-center ${sublabelClassName}`}>{sublabel}</div>}
+      {sublabel && <div className={`${sizeClasses.sublabelText} text-slate-400 text-center ${sublabelClassName}`}>{sublabel}</div>}
     </div>
   );
 }

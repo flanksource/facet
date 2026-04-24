@@ -45,9 +45,9 @@ const colorClasses = {
     border: 'border-green-200'
   },
   gray: {
-    text: 'text-gray-600',
-    bg: 'bg-gray-50',
-    border: 'border-gray-200'
+    text: 'text-slate-600',
+    bg: 'bg-slate-50',
+    border: 'border-slate-200'
   }
 };
 
@@ -98,12 +98,12 @@ export default function SeverityStatCard({
   };
 
   return (
-    <div className={`${colors.bg} border ${colors.border} rounded p-2 min-w-[25mm] ${className}`}>
+    <div className={`${colors.bg} border ${colors.border} rounded-[2mm] px-[2.4mm] py-[2mm] min-w-[25mm] ${className}`}>
       <div className="flex items-center justify-between mb-1">
-        <div className="text-xs text-gray-600">{label}</div>
+        <div className="text-[7pt] leading-[9pt] font-medium text-slate-500">{label}</div>
         {getTrendDisplay()}
       </div>
-      <div className={`text-2xl font-bold ${colors.text}`}>
+      <div className={`text-[15pt] leading-[18pt] font-bold ${colors.text}`}>
         {value}
       </div>
     </div>

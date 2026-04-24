@@ -4,7 +4,7 @@ import type { User } from '../types/common';
 
 export interface AvatarGroupProps {
   users: Partial<User>[];
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: 'xxs' | 'xs' | 'sm' | 'md' | 'lg';
   maxCount?: number;
   className?: string;
 }

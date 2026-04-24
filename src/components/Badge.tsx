@@ -2,9 +2,11 @@ import React from 'react';
 import clsx from 'clsx';
 
 /**
- * Badge size variant
+ * Badge size variant — either a named preset or a numeric font size in pt.
+ * Numeric sizes interpolate container padding, icon dimensions, and gap
+ * from the named presets so custom typography still lays out consistently.
  */
-export type BadgeSize = 'xs' | 'sm' | 'md' | 'lg';
+export type BadgeSize = 'xxs' | 'xs' | 'sm' | 'md' | 'lg' | number;
 
 /**
  * Badge shape variant
@@ -64,12 +66,12 @@ export interface BadgeProps {
   /**
    * Label text (left section)
    */
-  label?: string;
+  label?: React.ReactNode;
 
   /**
    * Value text (right section)
    */
-  value?: string;
+  value?: React.ReactNode;
 
   /**
    * Additional CSS classes for the label section.
@@ -142,38 +144,65 @@ function getStatusClasses(status: BadgeStatus, variant: BadgeVariant): string {
   return baseClasses[status];
 }
 
-/**
- * Get size-based classes
- */
-function getSizeClasses(size: BadgeSize): { container: string; icon: string; text: string; gap: string } {
-  const sizeMap = {
-    xs: {
-      container: 'px-1 py-[1px]',
-      icon: 'w-3 h-3',
-      text: 'text-[10px] leading-none',
-      gap: 'gap-1',
-    },
-    sm: {
-      container: 'px-1.5 py-[2px]',
-      icon: 'w-3 h-3',
-      text: 'text-xs leading-none',
-      gap: 'gap-1',
-    },
-    md: {
-      container: 'px-2 py-[3px]',
-      icon: 'w-3.5 h-3.5',
-      text: 'text-sm leading-none',
-      gap: 'gap-1.5',
-    },
-    lg: {
-      container: 'px-3 py-[4px]',
-      icon: 'w-4 h-4',
-      text: 'text-base leading-none',
-      gap: 'gap-2',
-    },
-  };
+type SizeClasses = { container: string; icon: string; text: string; gap: string };
 
-  return sizeMap[size];
+const NAMED_SIZE_MAP: Record<Exclude<BadgeSize, number>, SizeClasses> = {
+  xxs: {
+    container: 'px-[0.9mm] py-[0.2mm]',
+    icon: 'w-[2.3mm] h-[2.3mm]',
+    text: 'text-[7pt] leading-[8pt]',
+    gap: 'gap-[0.6mm]',
+  },
+  xs: {
+    container: 'px-[1.2mm] py-[0.3mm]',
+    icon: 'w-[2.7mm] h-[2.7mm]',
+    text: 'text-[8pt] leading-[9pt]',
+    gap: 'gap-[0.8mm]',
+  },
+  sm: {
+    container: 'px-[1.6mm] py-[0.45mm]',
+    icon: 'w-[3mm] h-[3mm]',
+    text: 'text-[9pt] leading-[10pt]',
+    gap: 'gap-[1mm]',
+  },
+  md: {
+    container: 'px-[2mm] py-[0.6mm]',
+    icon: 'w-[3.6mm] h-[3.6mm]',
+    text: 'text-[10pt] leading-[12pt]',
+    gap: 'gap-[1.2mm]',
+  },
+  lg: {
+    container: 'px-[2.6mm] py-[0.8mm]',
+    icon: 'w-[4.2mm] h-[4.2mm]',
+    text: 'text-[11pt] leading-[13pt]',
+    gap: 'gap-[1.5mm]',
+  },
+};
+
+const DEFAULT_SIZE: Exclude<BadgeSize, number> = 'md';
+
+/**
+ * Get size-based classes. Accepts named presets (xxs/xs/sm/md/lg) or a
+ * numeric font size in pt. Unknown values fall back to 'md' to keep
+ * rendering resilient rather than throwing on `.container` access.
+ */
+function getSizeClasses(size: BadgeSize): SizeClasses {
+  if (typeof size === 'number' && Number.isFinite(size) && size > 0) {
+    const pt = size;
+    const line = Math.round(pt * 1.2 * 10) / 10;
+    const pad = Math.round(pt * 0.2 * 10) / 10;
+    const padY = Math.round(pt * 0.06 * 100) / 100;
+    const iconMm = Math.round(pt * 0.36 * 10) / 10;
+    const gapMm = Math.round(pt * 0.12 * 10) / 10;
+    return {
+      container: `px-[${pad}mm] py-[${padY}mm]`,
+      icon: `w-[${iconMm}mm] h-[${iconMm}mm]`,
+      text: `text-[${pt}pt] leading-[${line}pt]`,
+      gap: `gap-[${gapMm}mm]`,
+    };
+  }
+
+  return NAMED_SIZE_MAP[size as Exclude<BadgeSize, number>] ?? NAMED_SIZE_MAP[DEFAULT_SIZE];
 }
 
 /**
@@ -241,7 +270,7 @@ export default function Badge({
     if (status) {
       colorClasses = clsx('bg-transparent', getStatusClasses(status, variant));
     } else {
-      colorClasses = 'bg-transparent text-gray-700 border-gray-300';
+      colorClasses = 'bg-transparent text-slate-700 border-slate-300';
       if (textColor?.startsWith('#') || textColor?.startsWith('rgb') || textColor?.startsWith('hsl')) {
         customStyles.color = textColor;
       } else if (textColor) {
@@ -278,24 +307,27 @@ export default function Badge({
     colorClasses = '';
   } else {
     // Default metric variant
-    colorClasses = 'bg-gray-100 text-gray-800 border-gray-200';
+    colorClasses = 'bg-slate-100 text-slate-700 border-slate-200';
   }
 
   // Label variant: colored label section + plain value, all inside a shared border
   if (variant === 'label') {
-    let labelBg = 'bg-gray-600 text-white';
+    let labelBg = 'bg-slate-200';
+    let labelText = 'text-slate-700';
     let labelStyle: React.CSSProperties = {};
     if (color?.startsWith('#') || color?.startsWith('rgb') || color?.startsWith('hsl')) {
       labelStyle.backgroundColor = color;
-      labelStyle.color = textColor || '#fff';
+      labelStyle.color = textColor || '#334155';
     } else if (color) {
       labelBg = color;
     }
+    if (textColor && !(textColor.startsWith('#') || textColor.startsWith('rgb') || textColor.startsWith('hsl'))) {
+      labelText = textColor;
+    }
 
     const wrapperClasses = clsx(
-      'inline-flex align-middle items-stretch font-medium leading-none border border-gray-300',
+      'inline-flex align-middle items-stretch border border-slate-200 bg-white font-medium leading-none text-slate-700',
       wrap ? 'max-w-full flex-wrap' : 'shrink-0 overflow-hidden',
-      textWrapClasses,
       sizeClasses.text,
       shapeClass,
       href && 'transition-opacity hover:opacity-80 cursor-pointer',
@@ -304,15 +336,18 @@ export default function Badge({
 
     const labelChipClasses = clsx(
       'inline-flex self-stretch items-center leading-none',
+      wrap && 'flex-wrap',
       textWrapClasses,
       sizeClasses.container,
       sizeClasses.gap,
       labelBg,
+      labelText,
       labelClassName,
     );
 
     const valueClasses = clsx(
-      'inline-flex self-stretch items-center text-gray-700 leading-none',
+      'inline-flex self-stretch items-center leading-none text-slate-700',
+      wrap && 'flex-wrap',
       textWrapClasses,
       sizeClasses.container,
       valueClassName,
@@ -320,13 +355,13 @@ export default function Badge({
 
     const labelContent = (
       <>
-        {(Icon || label) && (
+        {(Icon || label != null) && (
           <span className={labelChipClasses} style={labelStyle}>
             {Icon && <Icon className={sizeClasses.icon} />}
-            {label && <span>{label}</span>}
+            {label != null && <span>{label}</span>}
           </span>
         )}
-        {value && <span className={valueClasses}>{value}</span>}
+        {value != null && <span className={valueClasses}>{value}</span>}
       </>
     );
 
@@ -362,22 +397,22 @@ export default function Badge({
       'inline-flex items-center leading-none',
       textWrapClasses,
       sizeClasses.gap || 'gap-1.5',
-      value && 'pr-2 -ml-3 pl-3 border-r border-black/10',
+      value != null && 'pr-2 -ml-3 pl-3 border-r border-black/10',
       labelClassName,
     );
 
     return (
       <span className={labelClasses}>
         {Icon && <Icon className={sizeClasses.icon} />}
-        {label && <span>{label}</span>}
+        {label != null && <span>{label}</span>}
       </span>
     );
   };
 
   // Render value section
   const renderValue = () => {
-    if (!value) return null;
-    return <span className={clsx('leading-none', textWrapClasses, label && 'pl-1', valueClassName)}>{value}</span>;
+    if (value == null) return null;
+    return <span className={clsx('leading-none', textWrapClasses, label != null && 'pl-1', valueClassName)}>{value}</span>;
   };
 
   // Render content

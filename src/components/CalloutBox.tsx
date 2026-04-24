@@ -1,4 +1,5 @@
 import React from 'react';
+import { resolveSizeVariant } from './utils/resolveSizeVariant';
 
 /**
  * CalloutBox Props
@@ -56,7 +57,7 @@ export default function CalloutBox({
     },
   };
 
-  const styles = variantStyles[variant];
+  const styles = resolveSizeVariant(variant, variantStyles, variantStyles.default, 'CalloutBox');
 
   return (
     <div

@@ -5,7 +5,7 @@ import type { User } from '../types/common';
 import { getColorFromString } from '../utils/colors';
 
 export interface AvatarProps {
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: 'xxs' | 'xs' | 'sm' | 'md' | 'lg';
   circular?: boolean;
   inline?: boolean;
   alt?: string;
@@ -25,6 +25,8 @@ export function Avatar({
 }: AvatarProps) {
   const sizeClass = useMemo(() => {
     switch (size) {
+      case 'xxs':
+        return 'w-3 h-3 text-[8px]';
       case 'xs':
         return 'w-4 h-4 text-xs';
       case 'sm':
@@ -49,6 +51,8 @@ export function Avatar({
 
   const textSize = useMemo(() => {
     switch (size) {
+      case 'xxs':
+        return '8px';
       case 'xs':
         return '10px';
       case 'sm':
