@@ -9,6 +9,8 @@ interface FlanksourceHeaderProps {
   subtitle?: string;
   type?: PageType;
   height?: number;
+  logoClass?: string;
+  className?: string;
 }
 
 export default function FlanksourceHeader({
@@ -17,18 +19,20 @@ export default function FlanksourceHeader({
   subtitle = 'Mission Control Platform',
   type = 'default',
   height = 24,
+  logoClass = 'h-[15mm] w-auto',
+  className,
 }: FlanksourceHeaderProps) {
   return (
     <Header
       variant={variant}
+      className={className}
       type={type}
       height={height}
       title={title}
       subtitle={subtitle}
       logo={
         <MissionControlLogo
-          height="15mm"
-          className="filter grayscale brightness-[250] contrast-100 mix-blend-screen h-full w-full"
+          className={`filter grayscale brightness-[250] contrast-100 mix-blend-screen ${logoClass}`}
         />
       }
     />

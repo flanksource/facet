@@ -11,7 +11,7 @@ module.exports = {
     extend: {
       fontFamily: {
         'sans': ["Open Sans", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
-        'mono': ["Consolas", "Monaco", "Courier New", "monospace"],
+        'mono': ["Fira Code", "Consolas", "Monaco", "Courier New", "monospace"],
       },
       colors: {
         'flanksource-blue': '#2563eb',

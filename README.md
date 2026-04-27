@@ -18,7 +18,8 @@ Build beautiful, print-ready datasheets and PDFs from React templates.
 ### Option 1: npm Package (Recommended)
 
 ```bash
-npm install -g @flanksource/facet
+pnpm add -g @flanksource/facet
+# or: npm install -g @flanksource/facet
 ```
 
 ### Option 2: Standalone Binary
@@ -333,7 +334,7 @@ import { StatCard } from '@flanksource/facet';
 Components use Tailwind CSS for styling. Include Tailwind in your project:
 
 ```bash
-npm install -D tailwindcss autoprefixer postcss
+pnpm add -D tailwindcss autoprefixer postcss
 ```
 
 **tailwind.config.js:**
@@ -387,19 +388,19 @@ This is **MDX content** with React components:
 Use Storybook for component development:
 
 ```bash
-npm run storybook
+pnpm run storybook
 ```
 
 ### Building the CLI
 
 ```bash
-npm run build:cli
+pnpm run build:cli
 ```
 
 ### Publishing
 
 ```bash
-npm run prepublishOnly  # Builds CLI automatically
+pnpm run prepublishOnly  # Builds CLI automatically
 npm publish
 ```
 

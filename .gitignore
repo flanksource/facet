@@ -165,3 +165,5 @@ hack/
 *.png
 .claude/
 *.html
+.agent/
+.sandbox.yaml

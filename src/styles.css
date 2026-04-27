@@ -261,7 +261,6 @@ body {
   /* Print header and footer adjustments */
   .datasheet-header {
     margin: 0;
-    padding: 5mm 10mm;
   }
 
 
@@ -591,7 +590,6 @@ article {
   border: none;
   color: #fff;
   margin: 0;
-  padding: 4mm 10mm;
 }
 
 .datasheet-header--solid .logo {
@@ -616,7 +614,6 @@ article {
 .datasheet-header--minimal {
   border: none;
   margin: 0;
-  padding: 3mm 10mm;
   background: transparent;
 }
 
