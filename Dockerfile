@@ -18,23 +18,26 @@ RUN apt-get update && apt-get install -y \
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:$PATH"
 
+# Install pnpm
+RUN npm install -g pnpm@8.13.1
+
 # Set working directory
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-COPY cli/package*.json ./cli/
+COPY package.json pnpm-lock.yaml ./
+COPY cli/package.json cli/pnpm-lock.yaml ./cli/
 
 # Install dependencies
-RUN npm install
-RUN cd cli && npm install
+RUN pnpm install --frozen-lockfile
+RUN cd cli && pnpm install --frozen-lockfile
 
 # Copy source code
 COPY . .
 
 # Build the standalone binary (bun compile) and the lib
 ENV GIT_COMMIT=${GIT_COMMIT}
-RUN cd cli && npm run build
+RUN cd cli && pnpm run build
 
 # Final stage with Chromium browser
 FROM node:20-bookworm-slim
@@ -83,7 +86,7 @@ COPY --from=builder /app/dist/facet /usr/local/bin/facet
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/package.json /app/package.json
-COPY --from=builder /app/package-lock.json /app/package-lock.json
+COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
 
 # Copy example files for demonstration
 COPY cli/examples/SimpleReport.tsx /app/examples/
