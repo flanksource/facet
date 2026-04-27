@@ -494,7 +494,7 @@ async function applyTailwind(
   const outputCssPath = join(consumerRoot, '_render.css');
 
   try {
-    await $`cd ${facetRoot} && npx tailwindcss -i ${stylesInput} --content ${tempHtmlPath} -o ${outputCssPath}`.quiet();
+    await $`cd ${facetRoot} && pnpm exec tailwindcss -i ${stylesInput} --content ${tempHtmlPath} -o ${outputCssPath}`.quiet();
     css = await readFile(outputCssPath, 'utf-8');
   } catch {
     logger.debug('Tailwind CSS failed, using Vite CSS fallback');

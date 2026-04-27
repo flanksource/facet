@@ -5,6 +5,7 @@ import { join, dirname, basename } from 'path';
 import { homedir } from 'os';
 import { $ } from 'bun';
 import type { RemoteRef, ResolvedTemplate } from '../types.js';
+import { resolvePackageManager } from './package-manager.js';
 
 function getBaseCacheDir(): string {
   return process.env['FACET_CACHE_DIR'] ?? join(homedir(), '.facet', 'cache');
@@ -168,12 +169,64 @@ async function resolveGitRef(ref: RemoteRef, targetDir: string): Promise<string>
   return sha;
 }
 
+// WORKAROUND(pnpm-tolerance): match .facet/.npmrc; this is also an ephemeral
+// install dir, and pnpm's strict defaults abort fetches that we'd otherwise
+// recover from by rebuilding. Correct fix: pnpm distinguishes ephemeral build
+// dirs from real workspaces. Ref: discussed with user 2026-04-26.
+const REMOTE_NPMRC = [
+  'node-linker=hoisted',
+  'auto-install-peers=true',
+  'strict-peer-dependencies=false',
+  'frozen-lockfile=false',
+  'prefer-frozen-lockfile=false',
+  'verify-store-integrity=false',
+  'engine-strict=false',
+  // Bun's $ is non-interactive; without this, pnpm aborts with
+  // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when it wants to purge a
+  // node_modules dir it considers foreign.
+  'confirm-modules-purge=false',
+].join('\n') + '\n';
+
+function nukeRemoteInstall(targetDir: string): void {
+  for (const p of ['node_modules', 'pnpm-lock.yaml']) {
+    const target = join(targetDir, p);
+    if (existsSync(target)) {
+      try { rmSync(target, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  }
+}
+
 async function resolveNpmRef(ref: RemoteRef, targetDir: string): Promise<string> {
   const { repoUrl: pkg, ref: version } = ref;
   const packageSpec = `${pkg}@${version}`;
 
   await mkdir(targetDir, { recursive: true });
-  await $`npm install --prefix ${targetDir} --no-save ${packageSpec}`.quiet();
+  // pnpm requires a manifest in --prefix dir; write a minimal one so `pnpm add`
+  // records the dep there (not in any parent package.json via workspace lookup).
+  await writeFile(
+    join(targetDir, 'package.json'),
+    JSON.stringify({ name: 'facet-remote-template', private: true, version: '0.0.0' }, null, 2),
+    'utf-8',
+  );
+  await writeFile(join(targetDir, '.npmrc'), REMOTE_NPMRC, 'utf-8');
+
+  await resolvePackageManager(targetDir);
+
+  // CI=true + --config.confirmModulesPurge=false: prevents
+  // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY under Bun's non-interactive $.
+  const runAdd = () =>
+    $`CI=true pnpm -C ${targetDir} --ignore-workspace add --ignore-scripts --config.confirmModulesPurge=false ${packageSpec}`.quiet();
+  try {
+    await runAdd();
+  } catch (firstErr: any) {
+    nukeRemoteInstall(targetDir);
+    try {
+      await runAdd();
+    } catch (secondErr: any) {
+      const out = secondErr?.stderr?.toString?.() || secondErr?.message || String(secondErr);
+      throw new Error(`pnpm add ${packageSpec} failed twice in ${targetDir}:\n${out}`);
+    }
+  }
 
   // Determine installed version
   const pkgJsonPath = join(targetDir, 'node_modules', ...pkg.split('/'), 'package.json');

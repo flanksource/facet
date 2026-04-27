@@ -12,7 +12,7 @@ import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
-import { depHash, linkCachedNodeModules, promoteToCacheAfterInstall } from '../server/facet-cache.js';
+import { resolvePackageManager } from '../utils/package-manager.js';
 
 export interface BuildResult {
   html: string;
@@ -43,6 +43,112 @@ function srtPrefix(sandbox?: string | boolean): string {
   return `srt --settings ${settings} `;
 }
 
+async function pnpmInstall(facetRoot: string, logger: Logger): Promise<void> {
+  // --ignore-workspace: when the consumer is a pnpm workspace whose globs
+  //   absorb .facet/, pnpm runs across "all N workspace projects" and ignores
+  //   .facet/.npmrc. Treating .facet/ as standalone restores our config.
+  // --config.confirmModulesPurge=false + CI=true: pnpm aborts with
+  //   ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when it wants to purge a
+  //   foreign node_modules under a non-TTY shell (Bun's $). Both signals
+  //   override .npmrc so this works even when workspace config wins.
+  const result = await $`cd ${facetRoot} && CI=true pnpm install --ignore-workspace --ignore-scripts --config.confirmModulesPurge=false 2>&1`.quiet();
+  logger.debug(result.stdout.toString());
+}
+
+function errorOutput(err: any): string {
+  return err?.stdout?.toString?.() || err?.stderr?.toString?.() || err?.message || String(err);
+}
+
+async function installWithRetry(facetDir: FacetDirectory, logger: Logger): Promise<void> {
+  const facetRoot = facetDir.getFacetRoot();
+  if (!facetDir.needsInstall()) {
+    logger.debug('Dependencies up to date, skipping pnpm install');
+    return;
+  }
+  // Pre-nuke when the install is detectably broken (legacy symlinked
+  // node_modules, foreign lockfile). Saves a guaranteed-to-fail first attempt
+  // and prevents pnpm's ENOENT-on-mkdir when it tries to materialize into a
+  // dangling symlink.
+  if (facetDir.isInstallBroken()) {
+    logger.info('Detected stale .facet/ install state, cleaning before install');
+    facetDir.nukeInstall();
+  }
+  const pm = await resolvePackageManager(facetRoot);
+  logger.info(`pnpm install (pnpm ${pm.version})...`);
+  const t0 = Date.now();
+  try {
+    await pnpmInstall(facetRoot, logger);
+  } catch (firstErr: any) {
+    logger.warn(`pnpm install failed; nuking .facet/ and retrying once. Reason:\n${errorOutput(firstErr)}`);
+    facetDir.nukeInstall();
+    try {
+      await pnpmInstall(facetRoot, logger);
+    } catch (secondErr: any) {
+      throw new Error(`pnpm install failed twice in ${facetRoot}:\n${errorOutput(secondErr)}`);
+    }
+  }
+  logger.info(`pnpm install completed in ${Date.now() - t0}ms`);
+}
+
+// Patterns that indicate the loader failed because a *package* (not a relative
+// path) couldn't be resolved — i.e. node_modules looks broken. Relative-path
+// resolve failures (`./foo.css`) are template bugs and would not be fixed by
+// reinstalling, so isMissingDepError() filters those out.
+const RUNTIME_REINSTALL_PATTERNS = [
+  /Cannot find module ['"][^.\/][^'"]*['"]/i,
+  /ERR_MODULE_NOT_FOUND/,
+  /Failed to resolve import ['"][^.\/][^'"]*['"]/i,
+  /Failed to resolve entry/i,
+  /Could not resolve ['"][^.\/][^'"]*['"] from/i,
+  /Rollup failed to resolve(?: import)? ['"][^.\/][^'"]*['"]/i,
+];
+
+export function isMissingDepError(stderr: string): boolean {
+  return RUNTIME_REINSTALL_PATTERNS.some(rx => rx.test(stderr));
+}
+
+interface LoaderArgs {
+  loaderPath: string;
+  facetRoot: string;
+  dataFilePath: string;
+  resultFilePath: string;
+  sandbox?: string | boolean;
+}
+
+async function runLoaderOnce(args: LoaderArgs): Promise<{ stderr?: Buffer | string; }> {
+  const prefix = srtPrefix(args.sandbox);
+  return await $`${{ raw: prefix }}bun run ${args.loaderPath} --facet-root=${args.facetRoot} --data-file=${args.dataFilePath} --output-file=${args.resultFilePath}`.quiet();
+}
+
+async function runLoaderWithRetry(
+  facetDir: FacetDirectory,
+  args: LoaderArgs,
+  logger: Logger,
+): Promise<LoaderResult> {
+  try {
+    const r = await runLoaderOnce(args);
+    if (r.stderr != null && r.stderr.length > 0) console.error(r.stderr.toString());
+    return JSON.parse(readFileSync(args.resultFilePath, 'utf-8'));
+  } catch (firstErr: any) {
+    const stderr = firstErr?.stderr?.toString?.() || '';
+    if (!isMissingDepError(stderr)) {
+      const raw = stderr || (firstErr instanceof Error ? firstErr.message : String(firstErr));
+      throw new Error(`Vite SSR build failed:\n${deduplicateOutput(raw)}`);
+    }
+    logger.warn('Loader failed with missing-dep signature; rebuilding .facet/ once.');
+    facetDir.nukeInstall();
+    await installWithRetry(facetDir, logger);
+    try {
+      const r = await runLoaderOnce(args);
+      if (r.stderr != null && r.stderr.length > 0) console.error(r.stderr.toString());
+      return JSON.parse(readFileSync(args.resultFilePath, 'utf-8'));
+    } catch (secondErr: any) {
+      const out = secondErr?.stderr?.toString?.() || String(secondErr);
+      throw new Error(`Vite SSR build failed after .facet/ rebuild:\n${deduplicateOutput(out)}`);
+    }
+  }
+}
+
 export async function buildTemplate(options: BuildOptions): Promise<BuildResult> {
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
 
@@ -69,29 +175,9 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   facetDir.generatePostCSSConfig();
   facetDir.generateTailwindConfig();
 
-  // Try to reuse cached node_modules based on dependency hash
-  let pkgDeps: Record<string, string> | undefined;
-  try {
-    const pkg = JSON.parse(readFileSync(join(facetRoot, 'package.json'), 'utf-8'));
-    pkgDeps = pkg.dependencies;
-  } catch {}
-  const hash = depHash(pkgDeps);
-
-  if (!linkCachedNodeModules(facetRoot, hash, logger) && facetDir.needsInstall()) {
-    logger.info('npm install...');
-    const npmStart = Date.now();
-    try {
-      const npmResult = await $`cd ${facetRoot} && npm install --ignore-scripts 2>&1`.quiet();
-      logger.debug(npmResult.stdout.toString());
-    } catch (error: any) {
-      const output = error?.stdout?.toString?.() || error?.stderr?.toString?.() || error?.message || String(error);
-      throw new Error(`npm install failed in ${facetRoot}:\n${output}`);
-    }
-    logger.info(`npm install completed in ${Date.now() - npmStart}ms`);
-    promoteToCacheAfterInstall(facetRoot, hash, logger);
-  } else {
-    logger.debug('Dependencies up to date, skipping npm install');
-  }
+  // Install dependencies with pnpm. pnpm's content-addressable store gives
+  // us fast reuse across renders — no facet-side cache needed.
+  await installWithRetry(facetDir, logger);
 
   // Shell out to vite-ssr-loader.ts script
   logger.info('Loading template with Vite SSR...');
@@ -100,36 +186,20 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   const dataFilePath = join(tmpDir, 'data.json');
   const resultFilePath = join(tmpDir, 'result.json');
   writeFileSync(dataFilePath, JSON.stringify(data));
-  let result;
   try {
-    const prefix = srtPrefix(options.sandbox);
-    result = await $`${{ raw: prefix }}bun run ${loaderPath} --facet-root=${facetRoot} --data-file=${dataFilePath} --output-file=${resultFilePath}`.quiet();
-
-    if (result.stderr != null && result.stderr.length > 0) {
-      console.error(result.stderr.toString());
-    }
-
-    const loaderResult: LoaderResult = JSON.parse(readFileSync(resultFilePath, 'utf-8'));
-
+    const loaderResult = await runLoaderWithRetry(
+      facetDir,
+      { loaderPath, facetRoot, dataFilePath, resultFilePath, sandbox: options.sandbox },
+      logger,
+    );
     logger.debug(`Rendered HTML: ${loaderResult.html.length} bytes, CSS: ${loaderResult.css.length} bytes`);
-
     return {
       html: loaderResult.html,
       css: loaderResult.css,
       cleanup: async () => {
-        // No cleanup needed - script has already exited
         logger.debug('Cleanup complete');
       },
     };
-  } catch (error: any) {
-    const stderr = result?.stderr?.toString() || error?.stderr?.toString() || '';
-    const stdout = result?.stdout?.toString() || error?.stdout?.toString() || '';
-    const exitCode = result?.exitCode ?? error?.exitCode;
-    if (stderr) logger.error(stderr);
-    if (stdout) logger.debug(`stdout: ${stdout.length} bytes`);
-    if (exitCode != null) logger.debug(`exit: ${exitCode}`);
-    const raw = stderr || (error instanceof Error ? error.message : String(error));
-    throw new Error(`Vite SSR build failed:\n${deduplicateOutput(raw)}`);
   } finally {
     try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   }

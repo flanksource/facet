@@ -81,7 +81,7 @@ const SYSTEM_CHROME_PATHS: Record<string, string[]> = {
   ],
 };
 
-function resolveChromePath(): string | undefined {
+export function resolveChromePath(): string | undefined {
   if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
   return (SYSTEM_CHROME_PATHS[process.platform] ?? []).find(existsSync);
