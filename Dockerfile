@@ -65,6 +65,9 @@ RUN apt-get update && apt-get install -y \
     ripgrep \
     && rm -rf /var/lib/apt/lists/*
 
+# Install pnpm (used by facet at runtime to install template dependencies)
+RUN npm install -g pnpm@8.13.1
+
 # Install sandbox-runtime for template execution isolation
 RUN npm install -g @anthropic-ai/sandbox-runtime
 
