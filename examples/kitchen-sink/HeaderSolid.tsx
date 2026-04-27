@@ -13,12 +13,29 @@ import { specifications as specs, infrastructureData, releaseData } from './data
 export default function HeaderSolid() {
   return (
     <DatasheetTemplate>
-      <FlanksourceHeader type="first" variant="solid" title="Solid" subtitle="First Header" />
-      <FlanksourceHeader type="default" variant="solid" title="Solid" subtitle="Default Header" />
+      {/* Tall hero header for the cover page: 30mm band, 20mm logo */}
+      <FlanksourceHeader
+        type="first"
+        variant="solid"
+        title="Solid"
+        subtitle="First Header — 30mm band, 20mm logo"
+        height={30}
+        logoClass="h-[20mm] w-auto"
+      />
+      {/* Compact per-page chrome: 14mm band, 10mm logo, slate-800 background */}
+      <FlanksourceHeader
+        type="default"
+        variant="solid"
+        title=""
+        subtitle="Default Header — 14mm band, 10mm logo, bg-slate-800"
+        height={14}
+        logoClass="h-[10mm] w-auto"
+        className="bg-slate-800"
+      />
       <FlanksourceFooter type="default" variant="minimal" />
       <FlanksourceFooter type="first" variant="default" />
       <Page
-        title="First Page"
+        title="First Page (30mm hero header)"
         product="Mission Control"
         type="first"
         margins={{ top: 10, bottom: 5, left: 10, right: 10 }}
@@ -34,7 +51,7 @@ export default function HeaderSolid() {
       </Page>
 
       <Page
-        title="Solid + Compact Footer"
+        title="Page 2 — 10mm compact chrome"
         margins={{ top: 5, bottom: 5 }}
       >
         <div className="space-y-4">
@@ -44,7 +61,7 @@ export default function HeaderSolid() {
       </Page>
 
       <Page
-        title="Solid + Minimal Footer"
+        title="Page 3 — 10mm compact chrome"
         margins={{ top: 5, bottom: 5 }}
       >
         <div className="space-y-4">
@@ -53,15 +70,15 @@ export default function HeaderSolid() {
       </Page>
 
       <Page
-        title="Last Page"
+        title="Last Page — 10mm compact chrome"
         type="last"
         margins={{ top: 5, bottom: 5 }}
       >
         <div className="space-y-4">
           <CompactTable variant="compact" title="Summary" data={[
             { label: 'Pages', value: '4' },
-            { label: 'Header', value: 'Solid' },
-            { label: 'Footer', value: 'None' },
+            { label: 'Header (first)', value: '30mm hero, 20mm logo' },
+            { label: 'Header (default)', value: '14mm chrome, 10mm logo, bg-slate-800' },
           ]} />
         </div>
       </Page>

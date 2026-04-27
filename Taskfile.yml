@@ -34,7 +34,7 @@ tasks:
     generates:
       - dist/facet
     cmds:
-      - npm run build
+      - pnpm run build
 
   install:
     deps:
@@ -45,12 +45,12 @@ tasks:
   storybook:
     desc: "Run Storybook development server on port 6006"
     cmds:
-      - npm run storybook
+      - pnpm run storybook
 
   storybook:build:
     desc: "Build static Storybook for deployment"
     cmds:
-      - npm run build-storybook
+      - pnpm run build-storybook
 
   test:
     deps:
@@ -76,7 +76,7 @@ tasks:
   test:storybook:
     desc: "Build Storybook and verify all stories load without errors"
     cmds:
-      - npm run build-storybook
+      - pnpm run build-storybook
       - echo "✓ Storybook build completed successfully"
       - echo "✓ All stories compiled without errors"
 
