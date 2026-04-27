@@ -10,6 +10,7 @@
  *   bun run vite-ssr-loader.ts --facet-root=/path/to/.facet --data-file=/path/to/data.json [--verbose]
  */
 
+import 'source-map-support/register';
 import { build } from 'vite';
 import { renderToString } from 'react-dom/server';
 import { join } from 'path';
@@ -112,6 +113,8 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   const viteConfigPath = join(facetRoot, 'vite.config.ts');
   const outDir = join(facetRoot, `dist-${crypto.randomUUID()}`);
 
+  // @ts-expect-error node's Console and Bun's augmented Console differ; at runtime
+  // the assignment only needs to provide the log/info/error/warn methods Vite uses.
   console = new Console(process.stderr, process.stderr);
 
   // Build the SSR bundle with Vite
@@ -126,8 +129,11 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
     },
   });
 
+  // On success, clean the bundle up; on failure, preserve it so the stack
+  // trace (which names entry.cjs:<line>) stays resolvable for debugging.
+  // FACET_KEEP_BUNDLE=1 forces retention even on success.
+  const keepOnSuccess = process.env.FACET_KEEP_BUNDLE === '1';
   try {
-    // Find the built SSR bundle (could be bundle.cjs or entry.cjs)
     const files = readdirSync(outDir);
     const cjsFile = files.find(f => f.endsWith('.cjs'));
 
@@ -138,28 +144,55 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
     const bundlePath = join(outDir, cjsFile);
     const module = require(bundlePath);
 
-    // Handle both ESM default export and CommonJS module.exports
     const Component = module.default || module;
 
     if (typeof Component !== 'function') {
       throw new Error('Template must export a React component function');
     }
 
-    // Render component to HTML string
     const html = renderToString(Component({ data }));
-
-    // Extract CSS from build output
     const css = extractCSS(outDir);
 
-    return { html, css };
-  } finally {
-    // Clean up build output
-    try {
-      rmSync(outDir, { recursive: true, force: true });
-    } catch (error) {
-      // Ignore cleanup errors
+    if (!keepOnSuccess) {
+      try { rmSync(outDir, { recursive: true, force: true }); } catch { /* best effort */ }
     }
+    return { html, css };
+  } catch (err) {
+    console.error(`[facet] SSR build preserved at ${outDir} for debugging. Set FACET_KEEP_BUNDLE=0 in CI to override.`);
+    throw err;
   }
+}
+
+/**
+ * Format a Vite/Rollup/MDX build error so the user sees the failing file,
+ * line:col, source frame, and plugin name — not just the bare error message.
+ *
+ * Vite errors carry these fields on the error object even when toString()
+ * collapses them: `id` (file path), `loc` ({ file, line, column }), `frame`
+ * (source excerpt with a caret), `plugin`, and `pluginCode`.
+ */
+function formatBuildError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const e = error as Error & {
+    id?: string;
+    loc?: { file?: string; line?: number; column?: number };
+    frame?: string;
+    plugin?: string;
+    code?: string;
+  };
+  const parts: string[] = [];
+  if (e.plugin) parts.push(`Plugin: ${e.plugin}`);
+  if (e.code) parts.push(`Code:   ${e.code}`);
+  const file = e.loc?.file ?? e.id;
+  if (file) {
+    const at = e.loc?.line != null
+      ? `${file}:${e.loc.line}${e.loc.column != null ? `:${e.loc.column}` : ''}`
+      : file;
+    parts.push(`File:   ${at}`);
+  }
+  parts.push(`Error:  ${e.message}`);
+  if (e.frame) parts.push(`\n${e.frame}`);
+  return parts.join('\n');
 }
 
 /**
@@ -178,16 +211,12 @@ async function main() {
     }
     process.exit(0);
   } catch (error) {
-    // Print error directly to stderr for readability
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-
     console.error('\n❌ Vite SSR Error:');
-    console.error(errorMessage);
+    console.error(formatBuildError(error));
 
-    if (errorStack) {
+    if (process.env.FACET_DEBUG_STACK === '1' && error instanceof Error && error.stack) {
       console.error('\nStack trace:');
-      console.error(errorStack);
+      console.error(error.stack);
     }
 
     process.exit(1);

@@ -302,7 +302,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
   /**
    * Badge size variant
    */
-  export type BadgeSize = 'xs' | 'sm' | 'md' | 'lg';
+  export type BadgeSize = 'xxs' | 'xs' | 'sm' | 'md' | 'lg';
   /**
    * Badge shape variant
    */
@@ -310,7 +310,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
   /**
    * Badge visual variant
    */
-  export type BadgeVariant = 'status' | 'metric' | 'custom' | 'outlined';
+  export type BadgeVariant = 'status' | 'metric' | 'custom' | 'outlined' | 'label';
   /**
    * Semantic status types for status badges
    */
@@ -354,11 +354,19 @@ export const facetTypes = `declare module '@flanksource/facet' {
       /**
        * Label text (left section)
        */
-      label?: string;
+      label?: React.ReactNode;
       /**
        * Value text (right section)
        */
-      value?: string;
+      value?: React.ReactNode;
+      /**
+       * Additional CSS classes for the label section.
+       */
+      labelClassName?: string;
+      /**
+       * Additional CSS classes for the value section.
+       */
+      valueClassName?: string;
       /**
        * Size of the badge
        * @default 'md'
@@ -383,6 +391,10 @@ export const facetTypes = `declare module '@flanksource/facet' {
        */
       rel?: string;
       /**
+       * Allow the badge content to wrap instead of forcing a single line.
+       */
+      wrap?: boolean;
+      /**
        * Additional CSS classes
        */
       className?: string;
@@ -406,7 +418,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
    * // Outlined badge as link
    * <Badge variant="outlined" status="info" label="Docs" href="/docs" target="_blank" />
    */
-  export function Badge({ variant, status, color, textColor, borderColor, icon: Icon, label, value, size, shape, href, target, rel, className, }: BadgeProps): JSX.Element;
+  export function Badge({ variant, status, color, textColor, borderColor, icon: Icon, label, value, labelClassName, valueClassName, size, shape, href, target, rel, wrap, className, }: BadgeProps): JSX.Element;
 
   interface BulletItem {
       term: string | React.ReactNode;

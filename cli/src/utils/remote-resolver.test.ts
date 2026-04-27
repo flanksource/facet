@@ -226,6 +226,21 @@ describe('resolveRemoteRef cache hit/miss', () => {
     expect(existsSync(join(dir, 'stale-file.txt'))).toBe(false);
   });
 
+  // Opt-in: hits the real npm registry. Enable with FACET_TEST_NPM=1.
+  const itNetwork = process.env['FACET_TEST_NPM'] === '1' ? it : it.skip;
+  itNetwork('resolveNpmRef installs a real package via pnpm', async () => {
+    const npmRef: RemoteRef = {
+      type: 'npm',
+      repoUrl: 'leftpad',
+      subPath: 'index.js',
+      ref: '0.0.1',
+    };
+    const result = await resolveRemoteRef(npmRef, { refresh: true });
+    expect(result.templateFile).toBe('index.js');
+    expect(existsSync(join(result.consumerRoot, 'index.js'))).toBe(true);
+    expect(result.resolvedSha).toBe('0.0.1');
+  }, 60000);
+
   it('clears cache and re-fetches when manifest missing', async () => {
     // Arrange: cache dir exists but no manifest (corrupted)
     const key = cacheKey(gitRef.repoUrl, gitRef.ref);

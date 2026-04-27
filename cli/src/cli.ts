@@ -263,6 +263,22 @@ program
     }
   });
 
+// doctor command — environment preflight
+program
+  .command('doctor')
+  .description('Check environment health (Node, arch, pnpm, Chromium, native bindings, FACET_PACKAGE_PATH, .facet/.npmrc leakage)')
+  .option('--json', 'Emit machine-readable JSON instead of human output')
+  .option('-v, --verbose', 'Enable verbose logging')
+  .action(async (options: any) => {
+    const { runDoctor } = await import('./commands/doctor.js');
+    const exitCode = await runDoctor({
+      consumerRoot: process.cwd(),
+      verbose: !!options.verbose,
+      json: !!options.json,
+    });
+    process.exit(exitCode);
+  });
+
 program.on('command:*', () => {
   console.error('Invalid command. See --help for available commands.');
   process.exit(2);

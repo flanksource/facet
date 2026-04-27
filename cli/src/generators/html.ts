@@ -1,7 +1,6 @@
 import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
 import { resolve, join, basename, extname, relative, dirname } from 'path';
 import { existsSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
 import { $ } from 'bun';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
@@ -68,11 +67,6 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
       rmSync(facetDir, { recursive: true, force: true });
       logger.info(`Cleared .facet/ cache: ${facetDir}`);
     }
-    const cacheDir = join(tmpdir(), 'facet-cache');
-    if (existsSync(cacheDir)) {
-      rmSync(cacheDir, { recursive: true, force: true });
-      logger.info(`Cleared node_modules cache: ${cacheDir}`);
-    }
   }
 
   // Load data
@@ -117,7 +111,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
 
     try {
       // Run tailwindcss CLI: -i input.css --content "output.html" -o output.css
-      const tailwindCmd = $`cd ${facetRoot} && npx tailwindcss -i ${stylesInput} --content ${tempHtmlPath} -o ${outputCssPath}`;
+      const tailwindCmd = $`cd ${facetRoot} && pnpm exec tailwindcss -i ${stylesInput} --content ${tempHtmlPath} -o ${outputCssPath}`;
       if (options.verbose) {
         await tailwindCmd;
       } else {
