@@ -24,6 +24,11 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.13.1
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -47,7 +52,7 @@ jobs:
           # Update root package.json version to match
           npm version $NEW_VERSION --no-git-tag-version --allow-same-version
 
-          git add cli/package.json package.json package-lock.json cli/package-lock.json
+          git add cli/package.json package.json
           git commit -m "chore: bump version to $NEW_VERSION"
           git tag "v$NEW_VERSION"
           git push origin main
@@ -79,6 +84,11 @@ jobs:
         with:
           ref: ${{ needs.version-bump.outputs.new_tag }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.13.1
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -92,14 +102,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install
+          pnpm install --frozen-lockfile
           cd cli
-          npm install
+          pnpm install --frozen-lockfile
 
       - name: Build CLI binary
         run: |
           cd cli
-          npm run prebuild:cli
+          pnpm run prebuild:cli
           bun build src/cli.ts --outfile=../dist/facet-${{ matrix.platform }}-${{ matrix.arch }} --compile --target=${{ matrix.target }}
 
       - name: Upload binary artifact
@@ -144,23 +154,25 @@ jobs:
         with:
           ref: ${{ needs.version-bump.outputs.new_tag }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.13.1
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Pin npm
-        run: npm install -g --force npm@11.11.0
-
       - name: Install dependencies
         run: |
-          npm install
+          pnpm install --frozen-lockfile
           cd cli
-          npm install
+          pnpm install --frozen-lockfile
 
       - name: Build library
-        run: cd cli && npm run gen-version && npm run build:lib
+        run: cd cli && pnpm run gen-version && pnpm run build:lib
 
       - name: Publish to npm
         run: npm publish --access public --provenance
