@@ -20,7 +20,8 @@ A zero-setup CLI tool that generates professional PDF reports, static HTML pages
 ### Option 1: npm Package (Recommended)
 
 ```bash
-npm install -g @flanksource/facet
+pnpm add -g @flanksource/facet
+# or: npm install -g @flanksource/facet
 ```
 
 ### Option 2: Standalone Binary
