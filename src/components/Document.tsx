@@ -35,15 +35,16 @@ function toCssSize(value?: number | string): string | undefined {
 }
 
 // Strip sequences that could break out of an inline <style> block or its
-// declarations when concatenated into `dangerouslySetInnerHTML`. Belt-and-
-// braces for values that are typically developer-supplied but may flow in
-// from template parameters or data.
+// declarations when concatenated into `dangerouslySetInnerHTML`. Removing all
+// `<` and `>` characters eliminates any HTML-tag injection variant (including
+// spaced forms like `< / style >`) since neither CSS values nor CSS rules
+// require angle brackets.
 function sanitizeCssValue(value: string): string {
-  return value.replace(/<\/?\s*style/gi, '').replace(/[<>{}]/g, '');
+  return value.replace(/[<>{}]/g, '');
 }
 
 function sanitizeCssBlock(value: string): string {
-  return value.replace(/<\/?\s*style/gi, '');
+  return value.replace(/[<>]/g, '');
 }
 
 function buildDocumentCss({

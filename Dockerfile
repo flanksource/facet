@@ -19,7 +19,7 @@ RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:$PATH"
 
 # Install pnpm
-RUN npm install -g pnpm@8.13.1
+RUN npm install -g pnpm@9.15.9
 
 # Set working directory
 WORKDIR /app
@@ -66,7 +66,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm (used by facet at runtime to install template dependencies)
-RUN npm install -g pnpm@8.13.1
+RUN npm install -g pnpm@9.15.9
 
 # Install sandbox-runtime for template execution isolation
 RUN npm install -g @anthropic-ai/sandbox-runtime
