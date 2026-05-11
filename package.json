@@ -27,7 +27,7 @@
     "openapi.yaml",
     "README.md"
   ],
-  "packageManager": "pnpm@8.13.1",
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "build": "pnpm run build:components && pnpm run build:css && pnpm run build:cli",
     "build:components": "vite build --config vite.lib.config.ts",
