@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from 'bun:test';
 import { hardcodedPageBreak } from '../src/lint/rules/hardcoded-page-break.js';
 import { inlineHexColors } from '../src/lint/rules/inline-hex-colors.js';
 import { mixedUnits } from '../src/lint/rules/mixed-units.js';

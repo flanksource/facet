@@ -64,12 +64,12 @@ export function Status({
               : 'bg-green-400'
         }`;
 
-  const accessibleLabel = statusText ?? status;
+  const accessibleLabel = statusText ?? status ?? variant;
 
   return (
-    <div className="inline-flex flex-row items-center">
+    <div className={`inline-flex flex-row items-center ${className}`.trim()}>
       <span
-        className={`${indicatorClassName} ${className}`}
+        className={indicatorClassName}
         aria-hidden={hideText ? undefined : true}
         aria-label={hideText ? accessibleLabel : undefined}
         role={hideText ? 'img' : undefined}

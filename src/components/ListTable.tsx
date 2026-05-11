@@ -171,7 +171,26 @@ function getTimeBucket(value: string): TimeBucket {
   const diffDays = Math.floor((startOfToday.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86400000);
 
   if (diffDays < 0) {
-    return { key: 'future', label: formatDayLabel(d), dateFormat: 'time' };
+    const ahead = -diffDays;
+    if (ahead <= 6) {
+      return { key: `future-day-${ahead}`, label: formatDayLabel(d), dateFormat: 'time' };
+    }
+    if (ahead <= 30) {
+      const weekStart = new Date(d);
+      weekStart.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 4);
+      return {
+        key: `future-week-${formatMonthDay(weekStart.toISOString())}`,
+        label: `${formatMonthDay(weekStart.toISOString())} – ${formatMonthDay(weekEnd.toISOString())}`,
+        dateFormat: 'monthDay',
+      };
+    }
+    return {
+      key: `future-month-${d.getFullYear()}-${d.getMonth()}`,
+      label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      dateFormat: 'monthDay',
+    };
   }
   if (diffDays === 0) {
     return { key: 'today', label: formatDayLabel(d), dateFormat: 'time' };

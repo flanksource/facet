@@ -270,13 +270,22 @@ program
   .option('--json', 'Emit machine-readable JSON instead of human output')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (options: any) => {
-    const { runDoctor } = await import('./commands/doctor.js');
-    const exitCode = await runDoctor({
-      consumerRoot: process.cwd(),
-      verbose: !!options.verbose,
-      json: !!options.json,
-    });
-    process.exit(exitCode);
+    const logger = new Logger(options.verbose);
+    try {
+      const { runDoctor } = await import('./commands/doctor.js');
+      const exitCode = await runDoctor({
+        consumerRoot: process.cwd(),
+        verbose: !!options.verbose,
+        json: !!options.json,
+      });
+      process.exit(exitCode);
+    } catch (error) {
+      logger.error(`Doctor failed: ${error instanceof Error ? error.message : String(error)}`);
+      if (options.verbose && error instanceof Error && error.stack) {
+        logger.debug(error.stack);
+      }
+      process.exit(1);
+    }
   });
 
 program.on('command:*', () => {

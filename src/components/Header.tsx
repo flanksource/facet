@@ -35,7 +35,7 @@ export default function Header({
   if (height != null) dataAttrs['data-header-height'] = height;
 
   if (children) {
-    return <div className={merged(DEFAULT_CLASSES, className)} style={style} {...dataAttrs}>{children}</div>;
+    return <div className={className} style={style} {...dataAttrs}>{children}</div>;
   }
 
   const headerClass = merged(`datasheet-header datasheet-header--${variant}`, DEFAULT_CLASSES, className);

@@ -21,17 +21,18 @@ export interface PackageManager {
   version: string;
 }
 
-let cached: PackageManager | undefined;
+let cachedVersion: string | undefined;
+const pinCache = new Map<string, PackageManager>();
 
 /**
  * Verify pnpm is usable and honor any `packageManager` pin in the project tree.
  * Throws with an actionable message if pnpm is missing or a foreign manager is pinned.
  *
- * Result is memoized per process — the check is cheap but not free.
+ * The pnpm version is memoized process-wide (cheap but not free); the pin check
+ * is keyed per project so a long-lived process serving multiple consumer trees
+ * re-evaluates each project's `packageManager` field.
  */
 export async function resolvePackageManager(cwd: string): Promise<PackageManager> {
-  if (cached) return cached;
-
   const pin = findPackageManagerPin(cwd);
   if (pin && pin.name !== 'pnpm') {
     throw new Error(
@@ -40,25 +41,32 @@ export async function resolvePackageManager(cwd: string): Promise<PackageManager
     );
   }
 
-  let version: string;
-  try {
-    const result = await $`pnpm --version`.quiet();
-    version = result.stdout.toString().trim();
-  } catch (err) {
-    throw new Error(
-      `facet requires pnpm, but it was not found on PATH. ` +
-      `Install it with \`npm i -g pnpm\` or \`corepack enable\`. ` +
-      `(underlying error: ${err instanceof Error ? err.message : String(err)})`
-    );
+  const pinKey = pin?.source ?? '<none>';
+  const cached = pinCache.get(pinKey);
+  if (cached) return cached;
+
+  if (!cachedVersion) {
+    try {
+      const result = await $`pnpm --version`.quiet();
+      cachedVersion = result.stdout.toString().trim();
+    } catch (err) {
+      throw new Error(
+        `facet requires pnpm, but it was not found on PATH. ` +
+        `Install it with \`npm i -g pnpm\` or \`corepack enable\`. ` +
+        `(underlying error: ${err instanceof Error ? err.message : String(err)})`
+      );
+    }
   }
 
-  cached = { cmd: 'pnpm', exec: 'pnpm exec', version };
-  return cached;
+  const resolved: PackageManager = { cmd: 'pnpm', exec: 'pnpm exec', version: cachedVersion };
+  pinCache.set(pinKey, resolved);
+  return resolved;
 }
 
 /** Reset the memoized resolution. Test-only. */
 export function _resetPackageManagerCache(): void {
-  cached = undefined;
+  cachedVersion = undefined;
+  pinCache.clear();
 }
 
 interface PackageManagerPin {
@@ -76,7 +84,7 @@ function findPackageManagerPin(cwd: string): PackageManagerPin | null {
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
         if (typeof pkg.packageManager === 'string' && pkg.packageManager.length > 0) {
           const raw = pkg.packageManager as string;
-          const name = raw.split('@')[0] ?? raw;
+          const name = raw.split('@')[0];
           return { name, raw, source: pkgPath };
         }
       } catch {

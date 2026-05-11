@@ -158,7 +158,7 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
     }
     return { html, css };
   } catch (err) {
-    console.error(`[facet] SSR build preserved at ${outDir} for debugging. Set FACET_KEEP_BUNDLE=0 in CI to override.`);
+    console.error(`[facet] SSR build preserved at ${outDir} for debugging.`);
     throw err;
   }
 }

@@ -34,15 +34,27 @@ function toCssSize(value?: number | string): string | undefined {
   return typeof value === 'number' ? `${value}pt` : value;
 }
 
+// Strip sequences that could break out of an inline <style> block or its
+// declarations when concatenated into `dangerouslySetInnerHTML`. Belt-and-
+// braces for values that are typically developer-supplied but may flow in
+// from template parameters or data.
+function sanitizeCssValue(value: string): string {
+  return value.replace(/<\/?\s*style/gi, '').replace(/[<>{}]/g, '');
+}
+
+function sanitizeCssBlock(value: string): string {
+  return value.replace(/<\/?\s*style/gi, '');
+}
+
 function buildDocumentCss({
   fontSize,
   lineHeight,
   fontFamily,
 }: Pick<DocumentDefaults, 'fontSize' | 'lineHeight' | 'fontFamily'>): string {
   const declarations = [
-    fontSize != null ? `font-size:${toCssSize(fontSize)}` : '',
-    lineHeight != null ? `line-height:${String(lineHeight)}` : '',
-    fontFamily ? `font-family:${fontFamily}` : '',
+    fontSize != null ? `font-size:${sanitizeCssValue(toCssSize(fontSize)!)}` : '',
+    lineHeight != null ? `line-height:${sanitizeCssValue(String(lineHeight))}` : '',
+    fontFamily ? `font-family:${sanitizeCssValue(fontFamily)}` : '',
   ].filter(Boolean);
 
   return declarations.length > 0 ? `body{${declarations.join(';')}}` : '';
@@ -74,7 +86,8 @@ export default function Document({
     ...style,
   };
   const inheritedCss = buildDocumentCss({ fontSize, lineHeight, fontFamily });
-  const mergedCss = [inheritedCss, datasheetProps.css].filter(Boolean).join('\n');
+  const userCss = datasheetProps.css ? sanitizeCssBlock(datasheetProps.css) : '';
+  const mergedCss = [inheritedCss, userCss].filter(Boolean).join('\n');
   const { title } = datasheetProps;
 
   return (
