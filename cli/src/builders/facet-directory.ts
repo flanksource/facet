@@ -55,10 +55,21 @@ function resolveFileProtocol(version: string, pkgDir: string, _facetRoot: string
   return 'file:' + resolve(pkgDir, version.slice(5));
 }
 
-// Resolve any pnpm/npm local-path protocol (file:, link:, portal:, workspace:)
-// to an absolute form anchored at `pkgDir`, so the reference survives being
-// rewritten into `.facet/package.json` which lives at a different depth.
+// Resolve any pnpm/npm local-path protocol (file:, link:, portal:) to an
+// absolute form anchored at `pkgDir`, so the reference survives being rewritten
+// into `.facet/package.json` which lives at a different depth.
+//
+// `workspace:` is rejected: facet runs pnpm with `--ignore-workspace` and has
+// no pnpm-workspace.yaml context inside `.facet/`, so workspace specs cannot be
+// resolved there.
 function resolveLocalProtocol(version: string, pkgDir: string): string {
+  if (version.startsWith('workspace:')) {
+    throw new Error(
+      `Cannot use \`workspace:\` references in facet overrides ("${version}"). ` +
+      `facet installs inside .facet/ with --ignore-workspace, so workspace specs ` +
+      `have no resolution context. Use a file:/link:/portal: path or a concrete version.`,
+    );
+  }
   for (const proto of ['file:', 'link:', 'portal:']) {
     if (version.startsWith(proto)) {
       return proto + resolve(pkgDir, version.slice(proto.length));
@@ -596,7 +607,7 @@ export default defineConfig({
         if (eq < 0) continue;
         const key = line.slice(0, eq).trim();
         if (seenKeys.has(key)) continue;
-        const unsetVar = /\$\{([A-Z_][A-Z0-9_]*)\}/g;
+        const unsetVar = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
         let skip = false;
         for (const match of line.matchAll(unsetVar)) {
           const envName = match[1];

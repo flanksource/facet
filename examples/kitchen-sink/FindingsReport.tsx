@@ -217,7 +217,7 @@ const PLATFORM_ICONS: Record<Platform, ComponentType<{ className?: string }>> = 
 /* ── Mapping helpers ────────────────────────────────────── */
 
 function severityBadge(s: Severity) {
-  return { label: s, className: SEVERITY_STYLES[s].className, dot: SEVERITY_STYLES[s].dot };
+  return { label: s, className: SEVERITY_STYLES[s].className };
 }
 
 function outcomeBadge(o: Outcome) {
@@ -458,7 +458,7 @@ export default function FindingsReport(props: Record<string, unknown>) {
           {sorted.map((f, i) => (
             <Finding
               key={i}
-              id={`###${i + 1}`}
+              id={`#${i + 1}`}
               title={f.title}
               typeIcon={CATEGORY_ICONS[f.category] ? <SvgIcon icon={CATEGORY_ICONS[f.category]} size={16} /> : undefined}
               summary={f.evidence.summary}

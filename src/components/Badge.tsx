@@ -144,7 +144,24 @@ function getStatusClasses(status: BadgeStatus, variant: BadgeVariant): string {
   return baseClasses[status];
 }
 
-type SizeClasses = { container: string; icon: string; text: string; gap: string };
+type SizeClasses = {
+  container: string;
+  icon: string;
+  text: string;
+  gap: string;
+  /**
+   * Inline-style fallbacks for numeric sizes. Tailwind's JIT cannot resolve
+   * runtime-built arbitrary-value classes, so numeric sizes apply padding,
+   * gap, font sizing, and icon dimensions via inline styles instead.
+   * Split to match the className split so each render path can apply only
+   * what it needs (e.g. the label variant uses gap on the chip but not the
+   * wrapper).
+   */
+  containerStyle?: React.CSSProperties;
+  textStyle?: React.CSSProperties;
+  gapStyle?: React.CSSProperties;
+  iconStyle?: React.CSSProperties;
+};
 
 const NAMED_SIZE_MAP: Record<Exclude<BadgeSize, number>, SizeClasses> = {
   xxs: {
@@ -189,16 +206,26 @@ const DEFAULT_SIZE: Exclude<BadgeSize, number> = 'md';
 function getSizeClasses(size: BadgeSize): SizeClasses {
   if (typeof size === 'number' && Number.isFinite(size) && size > 0) {
     const pt = size;
-    const line = Math.round(pt * 1.2 * 10) / 10;
-    const pad = Math.round(pt * 0.2 * 10) / 10;
-    const padY = Math.round(pt * 0.06 * 100) / 100;
-    const iconMm = Math.round(pt * 0.36 * 10) / 10;
-    const gapMm = Math.round(pt * 0.12 * 10) / 10;
     return {
-      container: `px-[${pad}mm] py-[${padY}mm]`,
-      icon: `w-[${iconMm}mm] h-[${iconMm}mm]`,
-      text: `text-[${pt}pt] leading-[${line}pt]`,
-      gap: `gap-[${gapMm}mm]`,
+      container: '',
+      icon: '',
+      text: '',
+      gap: '',
+      containerStyle: {
+        paddingLeft: `${pt * 0.2}mm`,
+        paddingRight: `${pt * 0.2}mm`,
+        paddingTop: `${pt * 0.06}mm`,
+        paddingBottom: `${pt * 0.06}mm`,
+      },
+      textStyle: {
+        fontSize: `${pt}pt`,
+        lineHeight: `${pt * 1.2}pt`,
+      },
+      gapStyle: { gap: `${pt * 0.12}mm` },
+      iconStyle: {
+        width: `${pt * 0.36}mm`,
+        height: `${pt * 0.36}mm`,
+      },
     };
   }
 
@@ -262,7 +289,11 @@ export default function Badge({
 
   // Determine background and text colors based on variant
   let colorClasses = '';
-  let customStyles: React.CSSProperties = {};
+  let customStyles: React.CSSProperties = {
+    ...sizeClasses.containerStyle,
+    ...sizeClasses.textStyle,
+    ...sizeClasses.gapStyle,
+  };
 
   if (variant === 'status') {
     colorClasses = getStatusClasses(status ?? 'info', variant);
@@ -353,26 +384,39 @@ export default function Badge({
       valueClassName,
     );
 
+    const chipStyle: React.CSSProperties = {
+      ...sizeClasses.containerStyle,
+      ...sizeClasses.gapStyle,
+      ...labelStyle,
+    };
+    const valueStyle: React.CSSProperties = { ...sizeClasses.containerStyle };
+    const wrapperStyle: React.CSSProperties = { ...sizeClasses.textStyle };
+    const iconElement = Icon
+      ? (sizeClasses.iconStyle
+          ? <span className="inline-flex" style={sizeClasses.iconStyle}><Icon className="w-full h-full" /></span>
+          : <Icon className={sizeClasses.icon} />)
+      : null;
+
     const labelContent = (
       <>
-        {(Icon || label != null) && (
-          <span className={labelChipClasses} style={labelStyle}>
-            {Icon && <Icon className={sizeClasses.icon} />}
+        {(iconElement || label != null) && (
+          <span className={labelChipClasses} style={chipStyle}>
+            {iconElement}
             {label != null && <span>{label}</span>}
           </span>
         )}
-        {value != null && <span className={valueClasses}>{value}</span>}
+        {value != null && <span className={valueClasses} style={valueStyle}>{value}</span>}
       </>
     );
 
     if (href) {
       return (
-        <a href={href} target={target} rel={rel || (target === '_blank' ? 'noopener noreferrer' : undefined)} className={wrapperClasses}>
+        <a href={href} target={target} rel={rel || (target === '_blank' ? 'noopener noreferrer' : undefined)} className={wrapperClasses} style={wrapperStyle}>
           {labelContent}
         </a>
       );
     }
-    return <span className={wrapperClasses}>{labelContent}</span>;
+    return <span className={wrapperClasses} style={wrapperStyle}>{labelContent}</span>;
   }
 
   // Base classes for badge container
@@ -396,14 +440,16 @@ export default function Badge({
     const labelClasses = clsx(
       'inline-flex items-center leading-none',
       textWrapClasses,
-      sizeClasses.gap || 'gap-1.5',
+      sizeClasses.gap || (sizeClasses.gapStyle ? undefined : 'gap-1.5'),
       value != null && 'pr-2 -ml-3 pl-3 border-r border-black/10',
       labelClassName,
     );
 
     return (
-      <span className={labelClasses}>
-        {Icon && <Icon className={sizeClasses.icon} />}
+      <span className={labelClasses} style={sizeClasses.gapStyle}>
+        {Icon && (sizeClasses.iconStyle
+          ? <span className="inline-flex" style={sizeClasses.iconStyle}><Icon className="w-full h-full" /></span>
+          : <Icon className={sizeClasses.icon} />)}
         {label != null && <span>{label}</span>}
       </span>
     );

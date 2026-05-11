@@ -6,8 +6,7 @@ import Badge from './Badge';
 export interface FindingBadge {
   label: string;
   className?: string;
-  icon?: string | React.ComponentType<{ className?: string }>;
-  dot?: string;
+  icon?: React.ComponentType<{ className?: string }>;
 }
 
 export interface Entity {
@@ -43,15 +42,11 @@ export interface FindingProps {
 }
 
 function FindingBadgeEl({ badge, size = 'sm' }: { badge: FindingBadge; size?: 'xs' | 'sm' | 'md' }) {
-  const icon = badge.icon && typeof badge.icon !== 'string'
-    ? badge.icon as React.ComponentType<{ className?: string }>
-    : undefined;
-
   return (
     <Badge
       variant="custom"
       label={badge.label}
-      icon={icon}
+      icon={badge.icon}
       size={size}
       shape="pill"
       className={badge.className || 'bg-gray-100 text-gray-500'}

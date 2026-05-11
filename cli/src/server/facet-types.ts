@@ -1571,6 +1571,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
       valueColor?: string;
       sublabel?: React.ReactNode;
       sublabelClassName?: string;
+      shrink?: boolean;
       conditionalStyles?: ConditionalStyle[];
       color?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'gray';
   }
@@ -1639,7 +1640,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
    *   conditionalStyles={['red-green']}
    * />
    */
-  export function StatCard({ value, label, icon: IconComponent, variant, size, iconColor, valueColor, sublabel, compareFrom, compareVariant, color, conditionalStyles, valueClassName, iconClassName, sublabelClassName }: StatCardProps): JSX.Element;
+  export function StatCard({ value, label, icon: IconComponent, variant, size, iconColor, valueColor, sublabel, compareFrom, compareVariant, color, conditionalStyles, valueClassName, iconClassName, sublabelClassName, shrink }: StatCardProps): JSX.Element;
 
   export interface StatusProps {
       good?: boolean;
