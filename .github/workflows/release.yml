@@ -111,7 +111,10 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: [version-bump, build-binaries]
+    # Depend on publish-npm so a binary is never released without the matching
+    # @flanksource/facet npm package. The CLI installs that package at render
+    # time, so a release/npm version skew breaks `facet pdf` for every consumer.
+    needs: [version-bump, build-binaries, publish-npm]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
