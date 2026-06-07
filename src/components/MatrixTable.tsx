@@ -2,9 +2,17 @@ import React from 'react';
 
 interface MatrixTableProps {
   columns: React.ReactNode[];
-  rows: { label: React.ReactNode; cells: React.ReactNode[] }[];
+  rows: {
+    label: React.ReactNode;
+    cells: React.ReactNode[];
+    rowStyle?: React.CSSProperties;
+    labelStyle?: React.CSSProperties;
+    cellStyle?: React.CSSProperties;
+  }[];
   columnWidth?: number;
   headerHeight?: number;
+  rowHeight?: number;
+  labelPadding?: string;
   cornerContent?: React.ReactNode;
 }
 
@@ -20,7 +28,7 @@ export function Dot({ color, outline }: { color: string; outline?: boolean }) {
 }
 
 export default function MatrixTable({
-  columns, rows, columnWidth = 6, headerHeight = 18, cornerContent,
+  columns, rows, columnWidth = 6, headerHeight = 18, rowHeight = 5, labelPadding = '1mm 3mm 1mm 1mm', cornerContent,
 }: MatrixTableProps) {
   const textWidth = headerHeight * 1.41;
   const diagonalOverhang = Math.round(headerHeight * 0.71);
@@ -89,12 +97,13 @@ export default function MatrixTable({
       </thead>
       <tbody>
         {rows.map((row, i) => (
-          <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#F8FAFC' : '#FFFFFF' }}>
+          <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#F8FAFC' : '#FFFFFF', ...row.rowStyle }}>
             <td style={{
-              padding: '1mm 3mm 1mm 1mm',
+              padding: labelPadding,
               borderBottom: '1px solid #E2E8F0',
               borderTop: i === 0 ? '1px solid #E2E8F0' : undefined,
-              whiteSpace: 'nowrap', verticalAlign: 'middle', height: '5mm',
+              whiteSpace: 'nowrap', verticalAlign: 'middle', height: `${rowHeight}mm`,
+              ...row.labelStyle,
             }}>
               {row.label}
             </td>
@@ -103,8 +112,9 @@ export default function MatrixTable({
                 borderBottom: '1px solid #E2E8F0',
                 borderLeft: '1px solid #E2E8F0',
                 borderTop: i === 0 ? '1px solid #E2E8F0' : undefined,
-                padding: 0, verticalAlign: 'middle', height: '5mm',
+                padding: 0, verticalAlign: 'middle', height: `${rowHeight}mm`,
                 position: 'relative',
+                ...row.cellStyle,
               }}>
                 <div style={{
                   display: 'flex', justifyContent: 'center',

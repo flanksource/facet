@@ -49,7 +49,7 @@ jobs:
           echo "new_tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
           cd ..
 
-          # Update root package.json version to match
+          # Keep the root library (@flanksource/facet) version in lockstep with the CLI.
           npm version $NEW_VERSION --no-git-tag-version --allow-same-version
 
           git add cli/package.json package.json
@@ -58,6 +58,45 @@ jobs:
           git push origin main
           git push origin "v$NEW_VERSION"
 
+  publish-npm:
+    name: Publish to npm
+    needs: version-bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version-bump.outputs.new_tag }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          cd cli
+          pnpm install --frozen-lockfile
+
+      - name: Build library and CLI
+        run: |
+          pnpm run build:components
+          pnpm run build:css
+          cd cli && pnpm run build
+
+      - name: Publish @flanksource/facet (library)
+        run: npm publish --access public --provenance
+
+      - name: Publish @flanksource/facet-cli
+        run: cd cli && npm publish --access public --provenance
+
   build-binaries:
     name: Build Binary (${{ matrix.platform }}-${{ matrix.arch }})
     needs: version-bump
@@ -65,19 +104,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            platform: linux
-            arch: x64
-            target: bun-linux-x64
-          - os: ubuntu-latest
-            platform: linux
-            arch: arm64
-            target: bun-linux-arm64
-          - os: macos-latest
-            platform: macos
-            arch: arm64
-            target: bun-darwin-arm64
-
+          - { os: ubuntu-latest, platform: linux, arch: x64, target: bun-linux-x64 }
+          - { os: ubuntu-latest, platform: linux, arch: arm64, target: bun-linux-arm64 }
+          - { os: macos-latest, platform: macos, arch: arm64, target: bun-darwin-arm64 }
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -106,11 +135,15 @@ jobs:
           cd cli
           pnpm install --frozen-lockfile
 
-      - name: Build CLI binary
+      - name: Build standalone binary
+        env:
+          BUN_TARGET: ${{ matrix.target }}
+          BIN_OUT: ../dist/facet-${{ matrix.platform }}-${{ matrix.arch }}
         run: |
           cd cli
-          pnpm run prebuild:cli
-          bun build src/cli.ts --outfile=../dist/facet-${{ matrix.platform }}-${{ matrix.arch }} --compile --target=${{ matrix.target }}
+          pnpm run gen-version
+          pnpm run build:bin
+          chmod +x ../dist/facet-${{ matrix.platform }}-${{ matrix.arch }}
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -121,19 +154,13 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    # Depend on publish-npm so a binary is never released without the matching
-    # @flanksource/facet npm package. The CLI installs that package at render
-    # time, so a release/npm version skew breaks `facet pdf` for every consumer.
-    needs: [version-bump, build-binaries, publish-npm]
+    needs: [version-bump, publish-npm, build-binaries]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
+      - name: Download all binary artifacts
         uses: actions/download-artifact@v4
         with:
           path: binaries
-
-      - name: Display structure of downloaded files
-        run: ls -R binaries
 
       - name: Create Release
         env:
@@ -142,40 +169,11 @@ jobs:
           gh release create ${{ needs.version-bump.outputs.new_tag }} \
             --repo ${{ github.repository }} \
             --title "Release ${{ needs.version-bump.outputs.new_tag }}" \
-            --notes "Release ${{ needs.version-bump.outputs.new_version }}" \
+            --notes "Release ${{ needs.version-bump.outputs.new_version }}
+
+          Install the CLI with: \`npm install -g @flanksource/facet-cli@${{ needs.version-bump.outputs.new_version }}\`
+
+          Or download a standalone binary below (requires pnpm and a system Chrome/Chromium at runtime)." \
             binaries/facet-linux-x64/facet-linux-x64 \
             binaries/facet-linux-arm64/facet-linux-arm64 \
             binaries/facet-macos-arm64/facet-macos-arm64
-
-  publish-npm:
-    name: Publish to npm
-    needs: [version-bump, build-binaries]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.version-bump.outputs.new_tag }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          cd cli
-          pnpm install --frozen-lockfile
-
-      - name: Build library
-        run: cd cli && pnpm run gen-version && pnpm run build:lib
-
-      - name: Publish to npm
-        run: npm publish --access public --provenance

@@ -55,6 +55,7 @@ function addSharedOptions(cmd: Command): Command {
     .option('-v, --verbose', 'Enable verbose logging')
     .option('--refresh', 'Force re-fetch of remote template (bypass cache)')
     .option('--clear-cache', 'Delete .facet/ build cache and node_modules cache before generation')
+    .option('--live', 'Render in a live browser (Vite dev server) instead of SSR; required for diagram components')
     .option('--sandbox [settings]', 'Enable sandbox via srt (optionally specify settings file path)');
 }
 
@@ -102,6 +103,7 @@ addSharedOptions(
         verbose: options.verbose,
         refresh: options.refresh,
         clearCache: options.clearCache,
+        live: options.live,
         sandbox: options.sandbox,
       });
     }
@@ -166,6 +168,7 @@ addSharedOptions(
         verbose: options.verbose,
         refresh: options.refresh,
         clearCache: options.clearCache,
+        live: options.live,
         debug: options.debug,
         debugTypography: options.debugTypography,
         fontSize: options.fontSize,
@@ -201,6 +204,7 @@ program
   .option('--api-key <key>', 'API key for authentication')
   .option('--max-upload <bytes>', 'Max upload size in bytes', '52428800')
   .option('--cache-max-size <bytes>', 'Max render cache size in bytes', '104857600')
+  .option('--cache-dir <dir>', 'Render cache directory (default: ./.facet)')
   .option('--s3-endpoint <url>', 'S3 endpoint URL')
   .option('--s3-bucket <name>', 'S3 bucket name')
   .option('--s3-region <region>', 'S3 region', 'us-east-1')
@@ -219,6 +223,7 @@ program
         apiKey: options.apiKey,
         maxUpload: options.maxUpload,
         cacheMaxSize: options.cacheMaxSize,
+        cacheDir: options.cacheDir,
         verbose: options.verbose,
         s3Endpoint: options.s3Endpoint,
         s3Bucket: options.s3Bucket,
@@ -268,6 +273,7 @@ program
   .command('doctor')
   .description('Check environment health (Node, arch, pnpm, Chromium, native bindings, FACET_PACKAGE_PATH, .facet/.npmrc leakage)')
   .option('--json', 'Emit machine-readable JSON instead of human output')
+  .option('--fix', 'Attempt safe remediations for failed checks (corepack enable, puppeteer install, .gitignore append, native-bindings nuke)')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (options: any) => {
     const logger = new Logger(options.verbose);
@@ -277,6 +283,7 @@ program
         consumerRoot: process.cwd(),
         verbose: !!options.verbose,
         json: !!options.json,
+        fix: !!options.fix,
       });
       process.exit(exitCode);
     } catch (error) {

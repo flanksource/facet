@@ -28,6 +28,11 @@ export interface GenerateOptions {
   verbose: boolean;
   refresh?: boolean;
   clearCache?: boolean;
+  /**
+   * Render in a live browser (Vite dev server + Puppeteer) instead of SSR.
+   * Required for templates using DOM-measuring components (diagrams/react-xarrows).
+   */
+  live?: boolean;
   debug?: boolean;
   pageSize?: string;
   landscape?: boolean;

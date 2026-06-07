@@ -5,7 +5,7 @@ FROM node:20-bookworm-slim AS builder
 
 ARG GIT_COMMIT=unknown
 
-# Install system dependencies and bun
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
@@ -14,9 +14,6 @@ RUN apt-get update && apt-get install -y \
     curl \
     unzip \
     && rm -rf /var/lib/apt/lists/*
-
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:$PATH"
 
 # Install pnpm
 RUN npm install -g pnpm@9.15.9
@@ -35,9 +32,11 @@ RUN cd cli && pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build the standalone binary (bun compile) and the lib
+# Build the library and the Node CLI bundle, then pack the CLI into a tarball
+# so the final stage can install it (and its runtime deps) with npm.
 ENV GIT_COMMIT=${GIT_COMMIT}
 RUN cd cli && pnpm run build
+RUN cd cli && npm pack --pack-destination /app/ && mv /app/flanksource-facet-cli-*.tgz /app/facet-cli.tgz
 
 # Final stage with Chromium browser
 FROM node:20-bookworm-slim
@@ -74,16 +73,15 @@ RUN npm install -g @anthropic-ai/sandbox-runtime
 # Allow ImageMagick to read/write PDFs (blocked by default policy)
 RUN sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
 
-# Install bun (needed to run vite-ssr-loader.ts at template build time)
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:$PATH"
-
 # Set Chromium executable path for Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Copy the compiled standalone binary from builder
-COPY --from=builder /app/dist/facet /usr/local/bin/facet
+# Install the Node CLI bundle globally from the tarball built in the builder
+# stage. This pulls the CLI's runtime deps (tsx, puppeteer, vite) and exposes
+# the `facet` bin — no bun runtime required.
+COPY --from=builder /app/facet-cli.tgz /tmp/facet-cli.tgz
+RUN npm install -g /tmp/facet-cli.tgz && rm -f /tmp/facet-cli.tgz
 
 # Copy source files needed at runtime (component library + examples)
 COPY --from=builder /app/src /app/src
