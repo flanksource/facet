@@ -45,7 +45,7 @@ export default function CompactTable({
       <div className={`my-4 ${className}`}>
         {title && <h4 className="font-semibold text-slate-900 mb-2">{title}</h4>}
         <table className={`w-full border-collapse ${textClass}`}>
-          <thead>
+          <thead className="table-header">
             <tr>
               {columns.map((col, index) => (
                 <th key={index} className="font-medium">{col}</th>

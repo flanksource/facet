@@ -3,7 +3,7 @@ import { existsSync, rmSync } from 'fs';
 import { mkdir, writeFile, readFile } from 'fs/promises';
 import { join, dirname, basename } from 'path';
 import { homedir } from 'os';
-import { $ } from 'bun';
+import { $ } from './shell.js';
 import type { RemoteRef, ResolvedTemplate } from '../types.js';
 import { resolvePackageManager } from './package-manager.js';
 

@@ -2,7 +2,7 @@ import { mkdtemp, writeFile, readdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { rmSync } from 'fs';
-import { $ } from 'bun';
+import { $ } from '../utils/shell.js';
 import { RenderError } from './errors.js';
 
 export interface ExtractedArchive {

@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env tsx
 
 /**
  * Vite SSR Loader
@@ -7,7 +7,7 @@
  * Runs outside the CLI bundle to avoid embedding Vite.
  *
  * Usage:
- *   bun run vite-ssr-loader.ts --facet-root=/path/to/.facet --data-file=/path/to/data.json [--verbose]
+ *   tsx vite-ssr-loader.ts --facet-root=/path/to/.facet --data-file=/path/to/data.json [--verbose]
  */
 
 import 'source-map-support/register';
@@ -15,8 +15,12 @@ import { build } from 'vite';
 import { renderToString } from 'react-dom/server';
 import { join } from 'path';
 import { readFileSync, writeFileSync, readdirSync, rmSync } from 'fs';
+import { createRequire } from 'module';
 
 import { Console } from 'console';
+
+// This script runs as ESM under tsx, where CommonJS `require` is not a global.
+const require = createRequire(import.meta.url);
 
 
 interface LoaderArgs {

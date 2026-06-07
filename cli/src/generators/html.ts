@@ -1,14 +1,16 @@
 import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
 import { resolve, join, basename, extname, relative, dirname } from 'path';
 import { existsSync, rmSync } from 'fs';
-import { $ } from 'bun';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
 import { DataLoader } from '../utils/data-loader.js';
 import { DataValidator } from '../utils/validator.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
+import { startViteServer } from '../bundler/vite-server.js';
+import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
+import { runTailwind } from '../utils/tailwind.js';
 
 function findProjectRoot(templatePath: string): string | undefined {
   const absTemplate = resolve(templatePath);
@@ -79,6 +81,27 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     await validator.validate(data, options.schema);
   }
 
+  const outputName = options.outputName ?? basename(options.template, extname(options.template));
+
+  // Live render path: boot a Vite dev server, render in a real browser, snapshot
+  // the settled DOM. Required for DOM-measuring components (diagrams).
+  if (options.live) {
+    logger.info('Live rendering template in browser...');
+    const server = await startViteServer({ templatePath, data, consumerRoot, logger });
+    try {
+      const html = await snapshotHTML(server.url, logger);
+      const outputDir = resolve(process.cwd(), options.outputDir);
+      await mkdir(outputDir, { recursive: true });
+      const outputPath = join(outputDir, `${outputName}.html`);
+      await writeFile(outputPath, html, 'utf-8');
+      logger.success(`HTML generated: ${outputPath}`);
+      logger.info(`File size: ${(Buffer.byteLength(html, 'utf-8') / 1024).toFixed(2)} KB`);
+      return outputName;
+    } finally {
+      await server.close();
+    }
+  }
+
   // Build template with Vite (includes rendering)
   logger.info('Compiling and rendering template...');
   const buildResult = await buildTemplate({
@@ -89,7 +112,6 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     sandbox: options.sandbox,
   });
 
-  const outputName = options.outputName ?? basename(options.template, extname(options.template));
   logger.debug(`Using output filename: ${outputName}`);
 
   try {
@@ -110,13 +132,13 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     const stylesInput = join(facetRoot, 'src/styles.css');
 
     try {
-      // Run tailwindcss CLI: -i input.css --content "output.html" -o output.css
-      const tailwindCmd = $`cd ${facetRoot} && pnpm exec tailwindcss -i ${stylesInput} --content ${tempHtmlPath} -o ${outputCssPath}`;
-      if (options.verbose) {
-        await tailwindCmd;
-      } else {
-        await tailwindCmd.quiet(true);
-      }
+      await runTailwind({
+        facetRoot,
+        stylesInput,
+        contentPath: tempHtmlPath,
+        outputCssPath,
+        verbose: options.verbose,
+      });
       logger.debug('Tailwind CSS generated successfully');
     } catch (error) {
       logger.warn(`Tailwind CSS generation failed: ${error instanceof Error ? error.message : String(error)}`);

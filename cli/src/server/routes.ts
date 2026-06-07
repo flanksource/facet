@@ -2,7 +2,6 @@ import { mkdtemp, cp, writeFile, readFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { tmpdir } from 'os';
 import { rmSync, lstatSync } from 'fs';
-import { $ } from 'bun';
 
 import type { ServerConfig } from './config.js';
 import type { WorkerPool } from './worker-pool.js';
@@ -20,6 +19,7 @@ import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { generatePDFBuffer } from '../utils/pdf-generator.js';
 import { applyPDFSecurity } from '../utils/pdf-security.js';
 import { Logger } from '../utils/logger.js';
+import { runTailwind } from '../utils/tailwind.js';
 import { RenderProgress } from './render-stream.js';
 import { computeCacheKey, RenderCache } from './render-cache.js';
 
@@ -494,7 +494,7 @@ async function applyTailwind(
   const outputCssPath = join(consumerRoot, '_render.css');
 
   try {
-    await $`cd ${facetRoot} && pnpm exec tailwindcss -i ${stylesInput} --content ${tempHtmlPath} -o ${outputCssPath}`.quiet();
+    await runTailwind({ facetRoot, stylesInput, contentPath: tempHtmlPath, outputCssPath });
     css = await readFile(outputCssPath, 'utf-8');
   } catch {
     logger.debug('Tailwind CSS failed, using Vite CSS fallback');

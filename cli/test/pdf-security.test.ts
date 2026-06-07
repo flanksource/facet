@@ -8,8 +8,8 @@ import { createServer, type ServerHandle } from '../src/server/preview.js';
 
 const exec = promisify(execFile);
 
-const EXAMPLES_DIR = join(__dirname, '../examples');
-const REPO_ROOT = join(__dirname, '../..');
+const EXAMPLES_DIR = join(import.meta.dirname, '../examples');
+const REPO_ROOT = join(import.meta.dirname, '../..');
 process.env['FACET_PACKAGE_PATH'] = REPO_ROOT;
 
 const SIMPLE_CODE = `

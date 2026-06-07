@@ -281,6 +281,51 @@ facet pdf Report.tsx --data data.json --no-validate
 | `--rule <name>` | Run only a specific rule | all rules |
 | `--severity <level>` | Minimum severity to report (`warning` or `error`) | `warning` |
 
+### `facet doctor`
+
+Environment preflight: validates Node version, architecture, pnpm, native bindings, Chromium, optional binaries (git, tar, tsx, tailwindcss), `FACET_PACKAGE_PATH`, version alignment, and `.facet/.npmrc` token leakage. Use `--fix` to auto-remediate the safe failures.
+
+```bash
+facet doctor                # human-readable output
+facet doctor --json         # machine-readable
+facet doctor --fix          # attempt safe remediations, then re-check
+```
+
+**`--json` schema** (stable contract):
+
+```jsonc
+{
+  "results": [
+    {
+      "id": "node-version" | "architecture" | "pnpm" | "native-bindings"
+          | "chromium" | "git" | "tar" | "tsx" | "tailwindcss"
+          | "facet-package-path" | "facet-version" | "npmrc-leakage",
+      "name": "<human label>",
+      "status": "pass" | "warn" | "fail",
+      "message": "<one-line explanation>",
+      "hint": "<optional remediation>"
+    }
+  ]
+}
+```
+
+**Exit codes**:
+
+| Code | Meaning |
+|------|---------|
+| `0`  | No failures (warnings allowed). |
+| `1`  | At least one check returned `fail` (after `--fix` if specified). |
+
+**`--fix` remediation table**:
+
+| Failed check | Fix |
+|---|---|
+| `pnpm` | `corepack enable pnpm` |
+| `chromium` | `npx puppeteer browsers install chrome` |
+| `native-bindings` | `rm -rf .facet/node_modules .facet/pnpm-lock.yaml` (next render reinstalls) |
+| `npmrc-leakage` | append `.facet/` to `.gitignore` (only if file exists; idempotent) |
+| `node-version`, `architecture`, `facet-package-path`, `facet-version` | manual fix required |
+
 ### Lint Rules
 
 | Rule | Severity | Description |
