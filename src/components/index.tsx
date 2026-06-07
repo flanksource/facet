@@ -21,6 +21,8 @@ export { default as CompactTable } from './CompactTable';
 export type { TableSize } from './CompactTable';
 export { default as ComparisonTable } from './ComparisonTable';
 export { default as DatasheetTemplate } from './DatasheetTemplate';
+export { Diagram, BoxNode, Arrow, variantProps, NodePill, NodeSection, SectionDivider, COLORS, COLORS as DIAGRAM_COLORS } from './diagram';
+export type { DiagramProps, IdFn, BoxNodeProps, ArrowProps, ArrowVariant, DiagramColors } from './diagram';
 export { default as Document, useDocumentDefaults } from './Document';
 export type { DocumentProps, DocumentDefaults } from './Document';
 export { default as DynamicTable, formatCellValue } from './DynamicTable';

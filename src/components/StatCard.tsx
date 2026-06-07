@@ -172,6 +172,10 @@ export class NumberUnitValue {
  * - 'before-after': Show "X → Y" format
  * - 'before-after-progress': Show before → after with progress bar
  *
+ * Layout:
+ * - `shrink` reduces the per-variant min-width / min-height so the card fits
+ *   into tight grids while staying visually consistent with siblings.
+ *
  * Usage:
  * <StatCard
  *   value={150}

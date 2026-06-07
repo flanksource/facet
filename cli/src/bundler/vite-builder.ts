@@ -1,18 +1,39 @@
 /**
  * Vite Builder for Dynamic Template Compilation
  *
- * Shells out to vite-ssr-loader.ts script (runs with Bun).
+ * Shells out to vite-ssr-loader.ts script (runs with tsx).
  * Vite is NOT embedded in CLI bundle - it runs from .facet/node_modules.
  * Errors will point to original .tsx files with full source maps.
  */
 
-import { $ } from 'bun';
+import { $ } from '../utils/shell.js';
 import { join } from 'path';
-import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'fs';
+import { writeFileSync, readFileSync, mkdtempSync, rmSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
+import { createRequire } from 'module';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
+
+/**
+ * Resolve the argv prefix that runs the `tsx` loader for the vite SSR/dev
+ * scripts. Prefer the copy installed into the consumer's .facet/node_modules,
+ * then the one bundled with this CLI package, falling back to a bare `tsx` on
+ * PATH. Returns argv tokens so it works for both shell and spawn invocations.
+ */
+export function resolveTsxBin(facetRoot: string): string[] {
+  const local = join(facetRoot, 'node_modules', '.bin', 'tsx');
+  if (existsSync(local)) return [local];
+  try {
+    const require = createRequire(import.meta.url);
+    const pkg = require.resolve('tsx/package.json');
+    const bin = join(pkg, '..', 'dist', 'cli.mjs');
+    if (existsSync(bin)) return ['node', bin];
+  } catch {
+    /* fall through to PATH */
+  }
+  return ['tsx'];
+}
 
 export interface BuildResult {
   html: string;
@@ -59,7 +80,7 @@ function errorOutput(err: any): string {
   return err?.stdout?.toString?.() || err?.stderr?.toString?.() || err?.message || String(err);
 }
 
-async function installWithRetry(facetDir: FacetDirectory, logger: Logger): Promise<void> {
+export async function installWithRetry(facetDir: FacetDirectory, logger: Logger): Promise<void> {
   const facetRoot = facetDir.getFacetRoot();
   if (!facetDir.needsInstall()) {
     logger.debug('Dependencies up to date, skipping pnpm install');
@@ -117,7 +138,8 @@ interface LoaderArgs {
 
 async function runLoaderOnce(args: LoaderArgs): Promise<{ stderr?: Buffer | string; }> {
   const prefix = srtPrefix(args.sandbox);
-  return await $`${{ raw: prefix }}bun run ${args.loaderPath} --facet-root=${args.facetRoot} --data-file=${args.dataFilePath} --output-file=${args.resultFilePath}`.quiet();
+  const tsx = resolveTsxBin(args.facetRoot).join(' ');
+  return await $`${{ raw: prefix }}${{ raw: tsx }} ${args.loaderPath} --facet-root=${args.facetRoot} --data-file=${args.dataFilePath} --output-file=${args.resultFilePath}`.quiet();
 }
 
 async function runLoaderWithRetry(

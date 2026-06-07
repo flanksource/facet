@@ -14,14 +14,13 @@
  */
 
 import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync } from 'fs';
-import { join, relative, basename, dirname, resolve } from 'path';
+import { spawnSync } from 'child_process';
+import { createHash } from 'crypto';
+import { join, relative, dirname, resolve, extname } from 'path';
 import { homedir } from 'os';
 import type { Logger } from '../utils/logger.js';
 
-// Embed assets at build time using Bun's import with file type
-import rootPackageJson from '../../../package.json' with { type: 'file' };
-import stylesCss from '../../../src/styles.css' with { type: 'file' };
-import viteSsrLoader from '../../vite-ssr-loader.ts' with { type: 'file' };
+import { assetPath } from '../utils/assets.js';
 
 export interface FacetDirectoryOptions {
   /** Consumer's project root directory */
@@ -55,19 +54,181 @@ function resolveFileProtocol(version: string, pkgDir: string, _facetRoot: string
   return 'file:' + resolve(pkgDir, version.slice(5));
 }
 
+export interface FacetPackageOverride {
+  kind: 'directory' | 'tarball';
+  path: string;
+}
+
+const SOURCE_DIR_SKIP = new Set(['node_modules', 'dist', '.git', '.facet', 'storybook-static']);
+const COMPONENT_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
+const CSS_BUILD_INPUTS = [
+  'src/styles.css',
+  'tailwind.config.js',
+  'tailwind.config.cjs',
+  'tailwind.config.mjs',
+  'tailwind.config.ts',
+  'postcss.config.js',
+  'postcss.config.cjs',
+  'postcss.config.mjs',
+  'package.json',
+];
+
+function isComponentBuildSource(path: string): boolean {
+  if (!COMPONENT_SOURCE_EXTENSIONS.has(extname(path))) return false;
+  return !/\.(test|spec|stories)\.[tj]sx?$/.test(path);
+}
+
+export function resolveFacetPackageOverride(raw = process.env['FACET_PACKAGE_PATH']): FacetPackageOverride | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) return undefined;
+  const abs = resolve(trimmed);
+  if (existsSync(abs)) {
+    try {
+      if (statSync(abs).isDirectory()) return { kind: 'directory', path: abs };
+    } catch {
+      // Let pnpm surface a clearer file/tarball error later.
+    }
+  }
+  return { kind: 'tarball', path: abs };
+}
+
+function newestMatchingMtime(dir: string, predicate: (path: string) => boolean): number {
+  if (!existsSync(dir)) return 0;
+  let newest = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (SOURCE_DIR_SKIP.has(entry.name)) continue;
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      newest = Math.max(newest, newestMatchingMtime(fullPath, predicate));
+      continue;
+    }
+    if (!entry.isFile() || !predicate(fullPath)) continue;
+    newest = Math.max(newest, statSync(fullPath).mtimeMs);
+  }
+  return newest;
+}
+
+function newestExistingMtime(paths: string[]): number {
+  let newest = 0;
+  for (const path of paths) {
+    if (!existsSync(path)) continue;
+    newest = Math.max(newest, statSync(path).mtimeMs);
+  }
+  return newest;
+}
+
+export function needsLocalFacetComponentsBuild(packageRoot: string): boolean {
+  const output = join(packageRoot, 'dist/components/index.js');
+  const sourceMtime = newestMatchingMtime(join(packageRoot, 'src'), isComponentBuildSource);
+  if (sourceMtime === 0) return false;
+  if (!existsSync(output)) return true;
+  return sourceMtime > statSync(output).mtimeMs;
+}
+
+export function needsLocalFacetCssBuild(packageRoot: string): boolean {
+  const output = join(packageRoot, 'dist/styles.css');
+  const sourceMtime = newestExistingMtime(CSS_BUILD_INPUTS.map(path => join(packageRoot, path)));
+  if (sourceMtime === 0) return false;
+  if (!existsSync(output)) return true;
+  return sourceMtime > statSync(output).mtimeMs;
+}
+
+function addFileFingerprint(hash: ReturnType<typeof createHash>, root: string, relPath: string): void {
+  const path = join(root, relPath);
+  if (!existsSync(path)) {
+    hash.update(`${relPath}:missing\n`);
+    return;
+  }
+  const stat = statSync(path);
+  if (!stat.isFile()) {
+    hash.update(`${relPath}:not-file\n`);
+    return;
+  }
+  hash.update(`${relPath}:${stat.size}:${Math.floor(stat.mtimeMs)}\n`);
+}
+
+function addTreeFingerprint(hash: ReturnType<typeof createHash>, root: string, relDir: string): void {
+  const dir = join(root, relDir);
+  if (!existsSync(dir)) {
+    hash.update(`${relDir}:missing\n`);
+    return;
+  }
+  const entries = readdirSync(dir, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    const relPath = join(relDir, entry.name);
+    if (entry.isDirectory()) {
+      addTreeFingerprint(hash, root, relPath);
+    } else if (entry.isFile()) {
+      addFileFingerprint(hash, root, relPath);
+    }
+  }
+}
+
+function addFileContentFingerprint(hash: ReturnType<typeof createHash>, root: string, relPath: string): void {
+  const path = join(root, relPath);
+  if (!existsSync(path)) {
+    hash.update(`${relPath}:missing\n`);
+    return;
+  }
+  const stat = statSync(path);
+  if (!stat.isFile()) {
+    hash.update(`${relPath}:not-file\n`);
+    return;
+  }
+  hash.update(`${relPath}:${stat.size}:`);
+  hash.update(readFileSync(path));
+  hash.update('\n');
+}
+
+function addTreeContentFingerprint(hash: ReturnType<typeof createHash>, root: string, relDir: string): void {
+  const dir = join(root, relDir);
+  if (!existsSync(dir)) {
+    hash.update(`${relDir}:missing\n`);
+    return;
+  }
+  const entries = readdirSync(dir, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    const relPath = join(relDir, entry.name);
+    if (entry.isDirectory()) {
+      addTreeContentFingerprint(hash, root, relPath);
+    } else if (entry.isFile()) {
+      addFileContentFingerprint(hash, root, relPath);
+    }
+  }
+}
+
+function facetBuildContentFingerprint(packageRoot: string): string {
+  const hash = createHash('sha256');
+  addFileContentFingerprint(hash, packageRoot, 'package.json');
+  addFileContentFingerprint(hash, packageRoot, 'dist/styles.css');
+  addTreeContentFingerprint(hash, packageRoot, 'dist/components');
+  return hash.digest('hex');
+}
+
+export function localFacetBuildFingerprint(packageRoot: string): string {
+  const hash = createHash('sha256');
+  hash.update(`root:${packageRoot}\n`);
+  addFileFingerprint(hash, packageRoot, 'package.json');
+  addFileFingerprint(hash, packageRoot, 'dist/styles.css');
+  addTreeFingerprint(hash, packageRoot, 'dist/components');
+  return hash.digest('hex').slice(0, 20);
+}
+
 // Resolve any pnpm/npm local-path protocol (file:, link:, portal:) to an
 // absolute form anchored at `pkgDir`, so the reference survives being rewritten
 // into `.facet/package.json` which lives at a different depth.
 //
-// `workspace:` is rejected: facet runs pnpm with `--ignore-workspace` and has
-// no pnpm-workspace.yaml context inside `.facet/`, so workspace specs cannot be
-// resolved there.
+// `workspace:` is rejected: it resolves through pnpm-workspace.yaml, but
+// .facet/ is built with `--ignore-workspace` and has no workspace context, so
+// passing it through would surface as a confusing pnpm error at install time.
 function resolveLocalProtocol(version: string, pkgDir: string): string {
   if (version.startsWith('workspace:')) {
     throw new Error(
-      `Cannot use \`workspace:\` references in facet overrides ("${version}"). ` +
-      `facet installs inside .facet/ with --ignore-workspace, so workspace specs ` +
-      `have no resolution context. Use a file:/link:/portal: path or a concrete version.`,
+      `facet overrides cannot use the "workspace:" protocol (got "${version}"): ` +
+      `.facet/ installs run with --ignore-workspace and have no pnpm-workspace.yaml. ` +
+      `Use a concrete version, or a file:/link:/portal: path that points at the workspace package.`
     );
   }
   for (const proto of ['file:', 'link:', 'portal:']) {
@@ -324,6 +485,86 @@ export default defineConfig({
   }
 
   /**
+   * Generate the live-render scaffold: a client entry that mounts the template
+   * into the DOM, an index.html, and a Vite dev-server config. Used by the
+   * --live path so DOM-measuring components (diagrams/react-xarrows) render in a
+   * real browser. The SSR entry.tsx is reused as the template source.
+   */
+  generateClientScaffold(data: Record<string, unknown>): void {
+    this.logger.debug('Generating live-render client scaffold');
+
+    const clientEntry = `import React from 'react';
+import { createRoot } from 'react-dom/client';
+import Template from './entry.tsx';
+
+const data = (window).__FACET_DATA__ || {};
+const root = createRoot(document.getElementById('facet-root'));
+root.render(React.createElement(Template, { data }));
+`;
+    writeFileSync(join(this.facetRoot, 'entry.client.tsx'), clientEntry, 'utf-8');
+
+    // Data is injected as a global rather than bundled so the existing
+    // --data/--data-loader loaders remain the single source of truth.
+    const dataScript = `window.__FACET_DATA__ = ${JSON.stringify(data)};\n`;
+    writeFileSync(join(this.facetRoot, 'facet-data.js'), dataScript, 'utf-8');
+
+    const indexHtml = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <div id="facet-root"></div>
+    <script src="/facet-data.js"></script>
+    <script type="module" src="/entry.client.tsx"></script>
+  </body>
+</html>
+`;
+    writeFileSync(join(this.facetRoot, 'index.html'), indexHtml, 'utf-8');
+
+    const config = `
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import mdx from '@mdx-js/rollup';
+import remarkGfm from 'remark-gfm';
+import { resolve } from 'path';
+
+export default defineConfig({
+  plugins: [
+    mdx({ remarkPlugins: [remarkGfm], include: ['**/*.md', '**/*.mdx'] }),
+    react({ include: /\\.(md|mdx|js|jsx|ts|tsx)$/ }),
+  ],
+  resolve: {
+    preserveSymlinks: true,
+    alias: {
+      '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
+      '@facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
+      '@facet/core': resolve(__dirname, 'node_modules/@flanksource/facet'),
+      '@src': resolve(__dirname, 'src'),
+      'react-icons': resolve(__dirname, 'node_modules/react-icons'),
+    },
+    conditions: ['import', 'module', 'browser', 'default'],
+  },
+});
+`;
+    writeFileSync(join(this.facetRoot, 'vite.client.config.ts'), config, 'utf-8');
+
+    // The dev server processes the template's `@tailwind` directives through
+    // PostCSS at request time (the SSR path instead shells out to the Tailwind
+    // CLI). Override the autoprefixer-only postcss config so Tailwind runs.
+    const postcss = `export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
+`;
+    writeFileSync(join(this.facetRoot, 'postcss.config.js'), postcss, 'utf-8');
+    this.logger.debug('Generated live-render client scaffold');
+  }
+
+  /**
    * Generate tsconfig.json for the build
    */
   generateTsConfig(): void {
@@ -363,6 +604,11 @@ export default defineConfig({
   generatePackageJson(): void {
     this.logger.debug('Generating package.json');
 
+    const facetOverride = resolveFacetPackageOverride();
+    if (facetOverride?.kind === 'directory') {
+      this.ensureLocalFacetPackageBuilt(facetOverride.path);
+    }
+
     let dependencies: Record<string, string> = {};
     // Forward consumer's override/resolution fields so local-development
     // workflows (e.g. `pnpm.overrides: { '@flanksource/facet': 'link:../facet' }`)
@@ -383,11 +629,13 @@ export default defineConfig({
           dependencies[name] = resolveFileProtocol(ver, this.consumerRoot, this.facetRoot);
         }
 
-        if (consumerPackage.pnpm && typeof consumerPackage.pnpm === 'object') {
-          pnpmField = { ...consumerPackage.pnpm };
-          if (pnpmField.overrides) {
-            pnpmField.overrides = resolveOverrideValues(pnpmField.overrides as Record<string, unknown>, this.consumerRoot);
+        const consumerPnpm = consumerPackage.pnpm;
+        if (consumerPnpm && typeof consumerPnpm === 'object') {
+          const resolvedPnpmField = { ...consumerPnpm } as Record<string, unknown>;
+          if (resolvedPnpmField.overrides) {
+            resolvedPnpmField.overrides = resolveOverrideValues(resolvedPnpmField.overrides as Record<string, unknown>, this.consumerRoot);
           }
+          pnpmField = resolvedPnpmField;
         }
         if (consumerPackage.resolutions) {
           resolutionsField = resolveOverrideValues(consumerPackage.resolutions, this.consumerRoot);
@@ -402,8 +650,11 @@ export default defineConfig({
       this.logger.warn(`Failed to read consumer package.json: ${error}`);
     }
 
-    // Read embedded root-package.json (imported at build time)
-    const rootPackageText = readFileSync(rootPackageJson, 'utf-8');
+    // Read package metadata from the local override when FACET_PACKAGE_PATH is a
+    // directory; otherwise use the package metadata embedded into the CLI build.
+    const rootPackageText = facetOverride?.kind === 'directory'
+      ? this.readLocalFacetFile(facetOverride.path, 'package.json', true)
+      : readFileSync(assetPath('package.json'), 'utf-8');
     const rootPackage = JSON.parse(rootPackageText);
     const allDeps = { ...rootPackage.dependencies, ...rootPackage.devDependencies };
 
@@ -416,6 +667,7 @@ export default defineConfig({
       '@mdx-js/rollup',
       'remark-gfm',
       'react-icons',
+      'react-xarrows',
       '@flanksource/icons',
       '@iconify/react',
       'typescript',
@@ -449,9 +701,8 @@ export default defineConfig({
     // fetching from the registry (used in Docker images where the version may not
     // yet be published, and for local facet development against a consumer repo).
     // When set, it always overrides any declared facet dependency.
-    const localPackagePath = process.env['FACET_PACKAGE_PATH'];
-    if (localPackagePath) {
-      dependencies['@flanksource/facet'] = resolveFileProtocol(`file:${localPackagePath}`, '/', this.facetRoot);
+    if (facetOverride) {
+      dependencies['@flanksource/facet'] = `file:${facetOverride.path}`;
     } else if (!dependencies['@flanksource/facet']) {
       dependencies['@flanksource/facet'] = rootPackage.version;
     }
@@ -503,6 +754,12 @@ export default defineConfig({
       type: 'module',
       dependencies,
     };
+    if (facetOverride?.kind === 'directory') {
+      packageJson.facetLocalOverride = {
+        path: facetOverride.path,
+        fingerprint: localFacetBuildFingerprint(facetOverride.path),
+      };
+    }
     if (pnpmField) packageJson.pnpm = pnpmField;
     if (resolutionsField) packageJson.resolutions = resolutionsField;
     if (overridesField) packageJson.overrides = overridesField;
@@ -531,6 +788,9 @@ export default defineConfig({
       }
     } else {
       this.logger.debug('package.json unchanged, skipping write');
+    }
+    if (facetOverride?.kind === 'directory') {
+      this.removeStaleInstalledLocalFacetOverride(facetOverride.path);
     }
 
     // Generate .npmrc. Start from consumer + user-home .npmrc so private
@@ -623,6 +883,90 @@ export default defineConfig({
       }
     }
     return merged;
+  }
+
+  private readLocalFacetFile(packageRoot: string, relPath: string, required: boolean): string {
+    const path = join(packageRoot, relPath);
+    try {
+      return readFileSync(path, 'utf-8');
+    } catch (error) {
+      if (!required) throw error;
+      throw new Error(
+        `FACET_PACKAGE_PATH points to ${packageRoot}, but ${relPath} could not be read: ` +
+        `${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private readFacetAsset(localRelPath: string, embeddedPath: string, label: string): string {
+    const facetOverride = resolveFacetPackageOverride();
+    if (facetOverride?.kind === 'directory') {
+      const localPath = join(facetOverride.path, localRelPath);
+      if (existsSync(localPath)) {
+        this.logger.debug(`Using ${label} from FACET_PACKAGE_PATH: ${localPath}`);
+        return readFileSync(localPath, 'utf-8');
+      }
+      this.logger.debug(`FACET_PACKAGE_PATH has no ${localRelPath}, using embedded ${label}`);
+    }
+    return readFileSync(embeddedPath, 'utf-8');
+  }
+
+  private ensureLocalFacetPackageBuilt(packageRoot: string): void {
+    const shouldBuildComponents = needsLocalFacetComponentsBuild(packageRoot);
+    const shouldBuildCss = needsLocalFacetCssBuild(packageRoot);
+    if (!shouldBuildComponents && !shouldBuildCss) {
+      this.logger.debug(`FACET_PACKAGE_PATH build outputs are current: ${packageRoot}`);
+      return;
+    }
+
+    if (shouldBuildComponents) {
+      this.runLocalFacetBuildScript(packageRoot, 'build:components');
+    }
+
+    // vite.lib.config.ts empties dist/ before building components. If CSS was
+    // current before that run, it may now be missing, so re-check afterward.
+    if (shouldBuildCss || needsLocalFacetCssBuild(packageRoot)) {
+      this.runLocalFacetBuildScript(packageRoot, 'build:css');
+    }
+  }
+
+  private removeStaleInstalledLocalFacetOverride(packageRoot: string): void {
+    const installedRoot = join(this.facetRoot, 'node_modules/@flanksource/facet');
+    if (!existsSync(installedRoot)) return;
+
+    let isStale = false;
+    try {
+      isStale = facetBuildContentFingerprint(packageRoot) !== facetBuildContentFingerprint(installedRoot);
+    } catch (error) {
+      isStale = true;
+      this.logger.warn(
+        `Could not compare installed FACET_PACKAGE_PATH override with ${packageRoot}; reinstalling @flanksource/facet: ` +
+        `${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+    if (!isStale) return;
+
+    this.removePaths(['node_modules/@flanksource/facet', 'pnpm-lock.yaml']);
+    this.logger.debug('Removed stale installed @flanksource/facet local override');
+  }
+
+  private runLocalFacetBuildScript(packageRoot: string, script: string): void {
+    this.logger.info(`FACET_PACKAGE_PATH local override is stale; running pnpm run ${script}`);
+    const result = spawnSync('pnpm', ['run', script], {
+      cwd: packageRoot,
+      encoding: 'utf-8',
+    });
+    if (result.stdout) this.logger.debug(result.stdout);
+    if (result.stderr) this.logger.debug(result.stderr);
+    if (result.error) {
+      throw new Error(`Failed to run pnpm run ${script} in ${packageRoot}: ${result.error.message}`);
+    }
+    if (result.status !== 0) {
+      throw new Error(
+        `pnpm run ${script} failed in ${packageRoot} with exit code ${result.status ?? 'unknown'}:\n` +
+        `${result.stdout ?? ''}${result.stderr ?? ''}`
+      );
+    }
   }
 
   /**
@@ -849,8 +1193,7 @@ export default {
     this.logger.debug('Copying default styles.css');
 
     try {
-      // Read embedded styles.css (imported at build time)
-      const styles = readFileSync(stylesCss, 'utf-8');
+      const styles = this.readFacetAsset('src/styles.css', assetPath('styles.css'), 'styles.css');
       writeFileSync(join(this.facetSrc, 'styles.css'), styles, 'utf-8');
       this.logger.debug('Copied styles.css');
     } catch (error) {
@@ -865,13 +1208,26 @@ export default {
     this.logger.debug('Copying vite-ssr-loader.ts');
 
     try {
-      // Read embedded loader script (imported at build time)
-      const loaderScript = readFileSync(viteSsrLoader, 'utf-8');
+      const loaderScript = this.readFacetAsset('cli/vite-ssr-loader.ts', assetPath('vite-ssr-loader.ts'), 'vite-ssr-loader.ts');
       const destPath = join(this.facetRoot, 'vite-ssr-loader.ts');
       writeFileSync(destPath, loaderScript, 'utf-8');
       this.logger.debug('Copied vite-ssr-loader.ts');
     } catch (error) {
       throw new Error(`Failed to copy vite-ssr-loader.ts: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Copy embedded vite-dev-loader.ts to .facet/ (live render path)
+   */
+  copyViteDevLoader(): void {
+    this.logger.debug('Copying vite-dev-loader.ts');
+    try {
+      const loaderScript = this.readFacetAsset('cli/vite-dev-loader.ts', assetPath('vite-dev-loader.ts'), 'vite-dev-loader.ts');
+      writeFileSync(join(this.facetRoot, 'vite-dev-loader.ts'), loaderScript, 'utf-8');
+      this.logger.debug('Copied vite-dev-loader.ts');
+    } catch (error) {
+      throw new Error(`Failed to copy vite-dev-loader.ts: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

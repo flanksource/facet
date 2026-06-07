@@ -8,6 +8,8 @@ const pkg = require('../package.json');
 let sha = process.env.GIT_COMMIT || 'unknown';
 let dirty = false;
 try {
+  // stdio: ignore stderr so `fatal: not a git repository` doesn't leak
+  // when run from a tarball install or shallow CI checkout.
   const opts = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] };
   sha = execSync('git rev-parse --short HEAD', opts).trim();
   dirty = execSync('git status --porcelain', opts).trim().length > 0;

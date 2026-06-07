@@ -1,7 +1,7 @@
 import { writeFileSync } from 'fs';
 import * as zlib from 'zlib';
 import { PDFDocument, PDFName, PDFRawStream, rgb, StandardFonts } from 'pdf-lib';
-import type { Browser, Page } from 'puppeteer';
+import type { Browser, Page } from 'puppeteer-core';
 import type { Logger } from './logger.js';
 
 export type PageType = 'first' | 'default' | 'last';

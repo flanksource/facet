@@ -1,4 +1,4 @@
-import type { Browser } from 'puppeteer';
+import type { Browser } from 'puppeteer-core';
 import { launchBrowser } from '../utils/pdf-generator.js';
 import { RenderError } from './errors.js';
 import { Logger } from '../utils/logger.js';
