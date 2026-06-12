@@ -1,0 +1,19 @@
+commit:
+  compatibility: {}
+  linkedDeps: {}
+  precommit: {}
+fixtures: {}
+lint:
+  ignore:
+  - file: .claude/worktrees/sandbox/src/components/Footer.tsx
+    source: betterleaks
+  - file: src/components/Footer.tsx
+    source: betterleaks
+secrets: {}
+ssh: {}
+verify:
+  checks:
+    disabled: null
+    disabledCategories: null
+  model: ""
+  prompt: ""

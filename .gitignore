@@ -170,4 +170,5 @@ hack/
 .container-sandbox/
 .facet/
 **/.facet/
+.ginkgo/
 .jest/
