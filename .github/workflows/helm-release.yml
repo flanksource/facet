@@ -257,6 +257,8 @@ jobs:
   push-helm-chart:
     needs: helm
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
     uses: flanksource/action-workflows/.github/workflows/push-helm-chart.yml@main
     with:
       filename_regex: "facet-*.tgz"
