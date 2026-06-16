@@ -147,6 +147,24 @@ jobs:
             binaries/facet-linux-arm64/facet-linux-arm64 \
             binaries/facet-macos-arm64/facet-macos-arm64
 
+  build-image-and-chart:
+    name: Build Image and Publish Chart
+    # The tag is pushed with GITHUB_TOKEN, which does not trigger helm-release.yml's
+    # push event. Dispatch it explicitly against the tag so the docker build and chart
+    # publish run only after the release exists, with github.ref pointing at the tag.
+    needs: [version-bump, create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch Docker and Helm Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run helm-release.yml \
+            --repo ${{ github.repository }} \
+            --ref ${{ needs.version-bump.outputs.new_tag }}
+
   publish-npm:
     name: Publish to npm
     needs: [version-bump, build-binaries]
