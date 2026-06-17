@@ -58,10 +58,10 @@ interface LoaderResult {
  * Build template using Vite SSR mode (via external script)
  * Errors will point to original source files with full stack traces
  */
-function srtPrefix(sandbox?: string | boolean): string {
-  if (!sandbox) return '';
+function srtArgs(sandbox?: string | boolean): string[] {
+  if (!sandbox) return [];
   const settings = typeof sandbox === 'string' ? sandbox : '/etc/facet/srt-settings.json';
-  return `srt --settings ${settings} `;
+  return ['srt', '--settings', settings];
 }
 
 async function pnpmInstall(facetRoot: string, logger: Logger): Promise<void> {
@@ -137,9 +137,8 @@ interface LoaderArgs {
 }
 
 async function runLoaderOnce(args: LoaderArgs): Promise<{ stderr?: Buffer | string; }> {
-  const prefix = srtPrefix(args.sandbox);
-  const tsx = resolveTsxBin(args.facetRoot).join(' ');
-  return await $`${{ raw: prefix }}${{ raw: tsx }} ${args.loaderPath} --facet-root=${args.facetRoot} --data-file=${args.dataFilePath} --output-file=${args.resultFilePath}`.quiet();
+  const argv = [...srtArgs(args.sandbox), ...resolveTsxBin(args.facetRoot)];
+  return await $`${argv} ${args.loaderPath} --facet-root=${args.facetRoot} --data-file=${args.dataFilePath} --output-file=${args.resultFilePath}`.quiet();
 }
 
 async function runLoaderWithRetry(

@@ -13,7 +13,7 @@
  * - dist/ - Vite build output
  */
 
-import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync } from 'fs';
+import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync, chmodSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname } from 'path';
@@ -831,7 +831,9 @@ export default defineConfig({
       : '';
     const npmrcContent = header + [...inheritedLines, ...required].join('\n') + '\n';
     if (!existsSync(npmrcPath) || readFileSync(npmrcPath, 'utf-8') !== npmrcContent) {
-      writeFileSync(npmrcPath, npmrcContent, 'utf-8');
+      // Restrict to owner-only — inherited lines may carry auth tokens.
+      writeFileSync(npmrcPath, npmrcContent, { encoding: 'utf-8', mode: 0o600 });
+      chmodSync(npmrcPath, 0o600);
       this.logger.debug(`Generated .npmrc with ${inheritedLines.length} inherited line(s)`);
     }
 

@@ -22,7 +22,8 @@ export interface ShellResult {
 export interface ShellError extends Error {
   stdout: Buffer;
   stderr: Buffer;
-  exitCode: number;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
 }
 
 type RawArg = { raw: string };
@@ -37,11 +38,17 @@ function escape(value: unknown): string {
   return `'${str.replace(/'/g, `'\\''`)}'`;
 }
 
+function renderValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map(el => (isRaw(el) ? el.raw : escape(el))).join(' ');
+  }
+  return isRaw(value) ? value.raw : escape(value);
+}
+
 function buildCommand(strings: TemplateStringsArray, values: unknown[]): string {
   let cmd = strings[0];
   for (let i = 0; i < values.length; i++) {
-    const value = values[i];
-    cmd += isRaw(value) ? value.raw : escape(value);
+    cmd += renderValue(values[i]);
     cmd += strings[i + 1];
   }
   return cmd;
@@ -87,21 +94,22 @@ class ShellPromise implements PromiseLike<ShellResult> {
       child.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
 
       child.on('error', reject);
-      child.on('close', (code) => {
+      child.on('close', (code, signal) => {
         const stdout = Buffer.concat(stdoutChunks);
         const stderr = Buffer.concat(stderrChunks);
-        const exitCode = code ?? 0;
-        if (exitCode !== 0) {
+        if (code !== 0) {
+          const reason = signal ? `signal ${signal}` : `exit ${code}`;
           const error = new Error(
-            `command failed (exit ${exitCode}): ${this.command}`,
+            `command failed (${reason}): ${this.command}`,
           ) as ShellError;
           error.stdout = stdout;
           error.stderr = stderr;
-          error.exitCode = exitCode;
+          error.exitCode = code;
+          error.signal = signal;
           reject(error);
           return;
         }
-        resolve({ stdout, stderr, exitCode });
+        resolve({ stdout, stderr, exitCode: code });
       });
     });
   }

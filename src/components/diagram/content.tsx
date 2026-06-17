@@ -24,8 +24,8 @@ export function NodeSection({ title, items, id }: { title: string; items: string
       <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: COLORS.muted }}>
         {title}
       </div>
-      {items.map((item) => (
-        <NodePill key={item}>{item}</NodePill>
+      {items.map((item, index) => (
+        <NodePill key={`${item}-${index}`}>{item}</NodePill>
       ))}
     </div>
   );

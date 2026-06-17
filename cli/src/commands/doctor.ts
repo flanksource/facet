@@ -17,6 +17,7 @@ import { Logger } from '../utils/logger.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
 import { resolveChromePath } from '../utils/pdf-generator.js';
 import { resolveTailwindBin, tailwindBinExists } from '../utils/tailwind.js';
+import { resolveTsxBin } from '../bundler/vite-builder.js';
 import { VERSION } from '../version-generated.js';
 import { assetPath } from '../utils/assets.js';
 
@@ -55,7 +56,7 @@ const CHECK_REGISTRY: ReadonlyArray<readonly [string, CheckFn]> = [
   ['chromium', () => checkChromium()],
   ['git', () => checkGit()],
   ['tar', () => checkTar()],
-  ['tsx', () => checkTsx()],
+  ['tsx', (root) => checkTsx(root)],
   ['tailwindcss', (root) => checkTailwindBin(root)],
   ['facet-package-path', () => checkFacetPackagePath()],
   ['facet-version', (root) => checkFacetVersionAlignment(root)],
@@ -518,8 +519,12 @@ async function checkTar(): Promise<CheckResult> {
   };
 }
 
-async function checkTsx(): Promise<CheckResult> {
-  const probe = await probeOptionalBin('tsx', ['--version']);
+async function checkTsx(consumerRoot: string): Promise<CheckResult> {
+  // Probe the same resolver the runtime uses (.facet copy, then the tsx bundled
+  // with this CLI, then PATH) rather than PATH alone, which warns spuriously.
+  const facetRoot = join(consumerRoot, '.facet');
+  const [bin, ...binArgs] = resolveTsxBin(facetRoot);
+  const probe = await probeOptionalBin(bin, [...binArgs, '--version']);
   if (probe.ok) {
     return { id: 'tsx', name: 'tsx', status: 'pass', message: probe.output.split('\n')[0] };
   }
@@ -527,7 +532,7 @@ async function checkTsx(): Promise<CheckResult> {
     id: 'tsx',
     name: 'tsx',
     status: 'warn',
-    message: 'not on PATH',
+    message: 'not resolvable',
     hint: 'Required only for `.ts` data loaders (`-l file.ts`). Install: `npm i -g tsx`.',
   };
 }

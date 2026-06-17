@@ -14,7 +14,7 @@ export type ArrowVariant = 'primary' | 'secondary' | 'er' | 'bidirectional';
 
 type VariantProps = Pick<
   xarrowPropsType,
-  'color' | 'strokeWidth' | 'headSize' | 'dashness' | 'curveness' | 'headShape' | 'tailShape' | 'showHead'
+  'color' | 'strokeWidth' | 'headSize' | 'dashness' | 'curveness' | 'headShape' | 'tailShape' | 'showHead' | 'showTail'
 >;
 
 /** Pure mapping of variant → react-xarrows props. Exported for unit testing. */
@@ -49,6 +49,7 @@ export function variantProps(variant: ArrowVariant): VariantProps {
         headShape: 'circle',
         tailShape: 'circle',
         showHead: true,
+        showTail: true,
       };
   }
 }
@@ -64,6 +65,7 @@ export interface ArrowProps extends Omit<xarrowPropsType, keyof VariantProps> {
   headShape?: xarrowPropsType['headShape'];
   tailShape?: xarrowPropsType['tailShape'];
   showHead?: boolean;
+  showTail?: boolean;
 }
 
 /**

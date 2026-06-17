@@ -18,6 +18,22 @@ describe('shell $', () => {
     expect(result.stdout.toString()).toBe(danger);
   });
 
+  it('escapes each element of an interpolated array as a separate argument', async () => {
+    const args = ['a', 'b;echo pwned'];
+    const result = await $`printf '%s\n' ${args}`.quiet();
+    expect(result.stdout.toString()).toBe('a\nb;echo pwned\n');
+  });
+
+  it('rejects with signal details when the child is terminated by a signal', async () => {
+    try {
+      await $`sh -c 'kill -TERM $$'`.quiet();
+      throw new Error('expected rejection');
+    } catch (e: any) {
+      expect(e.signal).toBe('SIGTERM');
+      expect(e.exitCode).toBeNull();
+    }
+  });
+
   it('injects raw fragments verbatim', async () => {
     const result = await $`printf one ${{ raw: '&& printf two' }}`.quiet();
     expect(result.stdout.toString()).toBe('onetwo');

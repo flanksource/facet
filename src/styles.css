@@ -2,7 +2,7 @@
  * because Puppeteer's headless Chromium has no system fonts installed.
  * Without this, PDF output falls back through Consolas/Monaco/Courier New.
  */
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap');
+@import 'https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap';
 
 /* Tailwind directives */
 @tailwind base;

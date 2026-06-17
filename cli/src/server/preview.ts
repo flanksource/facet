@@ -154,7 +154,9 @@ async function writeWebResponse(res: ServerResponse, response: Response): Promis
   }
 
   for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-    res.write(chunk);
+    if (!res.write(chunk)) {
+      await new Promise<void>(resolve => res.once('drain', resolve));
+    }
   }
   res.end();
 }

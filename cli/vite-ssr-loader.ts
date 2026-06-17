@@ -13,7 +13,7 @@
 import 'source-map-support/register';
 import { build } from 'vite';
 import { renderToString } from 'react-dom/server';
-import { join } from 'path';
+import { join, delimiter } from 'path';
 import { readFileSync, writeFileSync, readdirSync, rmSync } from 'fs';
 import { createRequire } from 'module';
 
@@ -109,7 +109,7 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   // Add facet's node_modules to NODE_PATH for proper module resolution
   const facetNodeModules = join(facetRoot, 'node_modules');
   const originalNodePath = process.env.NODE_PATH || '';
-  process.env.NODE_PATH = originalNodePath ? `${facetNodeModules}:${originalNodePath}` : facetNodeModules;
+  process.env.NODE_PATH = originalNodePath ? `${facetNodeModules}${delimiter}${originalNodePath}` : facetNodeModules;
 
   // Reload module resolution with new NODE_PATH
   require('module').Module._initPaths();
