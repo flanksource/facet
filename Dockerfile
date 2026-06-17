@@ -35,8 +35,14 @@ RUN cd cli && pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build the standalone binary (bun compile) and the lib
+# Build the component library + styles that rendered templates import from
+# "@flanksource/facet", then pack the package while dist/ holds only the library
+# (the CLI binary is added to dist/ afterwards and would bloat the tarball),
+# then build the standalone CLI binary (bun compile) into dist/facet.
 ENV GIT_COMMIT=${GIT_COMMIT}
+RUN pnpm run build:components && pnpm run build:css
+RUN cd /app && npm pack --pack-destination /app/ 2>/dev/null \
+    && mv /app/flanksource-facet-*.tgz /app/facet.tgz
 RUN cd cli && pnpm run build
 
 # Final stage with Chromium browser
@@ -91,6 +97,10 @@ COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
 
+# Copy the @flanksource/facet tarball built in the builder stage. It contains
+# the component library dist/, which rendered templates import from.
+COPY --from=builder /app/facet.tgz /app/facet.tgz
+
 # Copy example files for demonstration
 COPY cli/examples/SimpleReport.tsx /app/examples/
 COPY cli/examples/simple-data.json /app/examples/
@@ -98,20 +108,15 @@ COPY cli/examples/simple-data.json /app/examples/
 # Pre-populate npm cache with the locally-built @flanksource/facet package.
 # This means `npm install @flanksource/facet@<version>` inside .facet/ at
 # runtime will resolve from cache rather than fetching from the registry.
-RUN mkdir -p /tmp/facet-pack && \
-    TARBALL=$(cd /app && npm pack --pack-destination /tmp/facet-pack/ 2>/dev/null | tail -1) && \
-    npm cache add /tmp/facet-pack/${TARBALL} && \
-    rm -rf /tmp/facet-pack
+RUN npm cache add /app/facet.tgz
 
 # Verify Chromium and facet binary are available
 RUN chromium --version && facet --version
 
-# Pack @flanksource/facet to a permanent tarball path.
-# FACET_PACKAGE_PATH tells the CLI to use this local tarball instead of
-# fetching from the npm registry (the version may not yet be published).
-RUN cd /app && npm pack --pack-destination /app/ 2>/dev/null
+# FACET_PACKAGE_PATH tells the CLI to use the local tarball (copied from the
+# builder stage above) instead of fetching from the npm registry (the version
+# may not yet be published).
 ENV FACET_PACKAGE_PATH=/app/facet.tgz
-RUN mv /app/flanksource-facet-*.tgz /app/facet.tgz
 
 RUN mkdir -p /workspace /templates /etc/facet
 COPY srt-settings.json /etc/facet/srt-settings.json
