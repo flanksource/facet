@@ -41,8 +41,9 @@ COPY . .
 # then build the standalone CLI binary (bun compile) into dist/facet.
 ENV GIT_COMMIT=${GIT_COMMIT}
 RUN pnpm run build:components && pnpm run build:css
-RUN cd /app && npm pack --pack-destination /app/ 2>/dev/null \
+RUN cd /app && npm pack --pack-destination /app/ \
     && mv /app/flanksource-facet-*.tgz /app/facet.tgz
+
 RUN cd cli && pnpm run build
 
 # Final stage with Chromium browser
