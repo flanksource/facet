@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'fs/promises';
 import { existsSync, symlinkSync, utimesSync } from 'fs';
 import { join } from 'path';

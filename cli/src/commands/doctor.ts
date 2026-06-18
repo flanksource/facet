@@ -7,8 +7,7 @@
  * auth leakage into .facet/.
  */
 
-import { $ } from '../utils/shell.js';
-import { execFileSync } from 'node:child_process';
+import { $ } from 'bun';
 import { existsSync, readFileSync, readdirSync, statSync, appendFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import chalk from 'chalk';
@@ -17,9 +16,8 @@ import { Logger } from '../utils/logger.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
 import { resolveChromePath } from '../utils/pdf-generator.js';
 import { resolveTailwindBin, tailwindBinExists } from '../utils/tailwind.js';
-import { resolveTsxBin } from '../bundler/vite-builder.js';
 import { VERSION } from '../version-generated.js';
-import { assetPath } from '../utils/assets.js';
+import rootPackageJson from '../../../package.json' with { type: 'file' };
 
 type CheckStatus = 'pass' | 'warn' | 'fail';
 
@@ -56,7 +54,7 @@ const CHECK_REGISTRY: ReadonlyArray<readonly [string, CheckFn]> = [
   ['chromium', () => checkChromium()],
   ['git', () => checkGit()],
   ['tar', () => checkTar()],
-  ['tsx', (root) => checkTsx(root)],
+  ['tsx', () => checkTsx()],
   ['tailwindcss', (root) => checkTailwindBin(root)],
   ['facet-package-path', () => checkFacetPackagePath()],
   ['facet-version', (root) => checkFacetVersionAlignment(root)],
@@ -213,7 +211,7 @@ function checkNodeVersion(): CheckResult {
 
 function readRootEnginesNode(): string | undefined {
   try {
-    const raw = readFileSync(assetPath('package.json'), 'utf-8');
+    const raw = readFileSync(rootPackageJson, 'utf-8');
     const pkg = JSON.parse(raw);
     return pkg?.engines?.node;
   } catch {
@@ -228,7 +226,7 @@ function checkArchitecture(): CheckResult {
   // best effort — `uname` may be absent on some platforms.
   let hostArch: string = arch;
   try {
-    hostArch = execFileSync('uname', ['-m']).toString().trim();
+    hostArch = Bun.spawnSync(['uname', '-m']).stdout.toString().trim();
   } catch { /* fall through */ }
 
   const rosetta = platform === 'darwin' && arch === 'x64' && hostArch === 'arm64';
@@ -519,12 +517,8 @@ async function checkTar(): Promise<CheckResult> {
   };
 }
 
-async function checkTsx(consumerRoot: string): Promise<CheckResult> {
-  // Probe the same resolver the runtime uses (.facet copy, then the tsx bundled
-  // with this CLI, then PATH) rather than PATH alone, which warns spuriously.
-  const facetRoot = join(consumerRoot, '.facet');
-  const [bin, ...binArgs] = resolveTsxBin(facetRoot);
-  const probe = await probeOptionalBin(bin, [...binArgs, '--version']);
+async function checkTsx(): Promise<CheckResult> {
+  const probe = await probeOptionalBin('tsx', ['--version']);
   if (probe.ok) {
     return { id: 'tsx', name: 'tsx', status: 'pass', message: probe.output.split('\n')[0] };
   }
@@ -532,7 +526,7 @@ async function checkTsx(consumerRoot: string): Promise<CheckResult> {
     id: 'tsx',
     name: 'tsx',
     status: 'warn',
-    message: 'not resolvable',
+    message: 'not on PATH',
     hint: 'Required only for `.ts` data loaders (`-l file.ts`). Install: `npm i -g tsx`.',
   };
 }

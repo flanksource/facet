@@ -8,7 +8,7 @@
  * different package manager via the `packageManager` field.
  */
 
-import { $ } from './shell.js';
+import { $ } from 'bun';
 import { existsSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 

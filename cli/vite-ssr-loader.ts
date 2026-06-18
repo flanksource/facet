@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env bun
 
 /**
  * Vite SSR Loader
@@ -7,20 +7,16 @@
  * Runs outside the CLI bundle to avoid embedding Vite.
  *
  * Usage:
- *   tsx vite-ssr-loader.ts --facet-root=/path/to/.facet --data-file=/path/to/data.json [--verbose]
+ *   bun run vite-ssr-loader.ts --facet-root=/path/to/.facet --data-file=/path/to/data.json [--verbose]
  */
 
 import 'source-map-support/register';
 import { build } from 'vite';
 import { renderToString } from 'react-dom/server';
-import { join, delimiter } from 'path';
+import { join } from 'path';
 import { readFileSync, writeFileSync, readdirSync, rmSync } from 'fs';
-import { createRequire } from 'module';
 
 import { Console } from 'console';
-
-// This script runs as ESM under tsx, where CommonJS `require` is not a global.
-const require = createRequire(import.meta.url);
 
 
 interface LoaderArgs {
@@ -109,7 +105,7 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   // Add facet's node_modules to NODE_PATH for proper module resolution
   const facetNodeModules = join(facetRoot, 'node_modules');
   const originalNodePath = process.env.NODE_PATH || '';
-  process.env.NODE_PATH = originalNodePath ? `${facetNodeModules}${delimiter}${originalNodePath}` : facetNodeModules;
+  process.env.NODE_PATH = originalNodePath ? `${facetNodeModules}:${originalNodePath}` : facetNodeModules;
 
   // Reload module resolution with new NODE_PATH
   require('module').Module._initPaths();

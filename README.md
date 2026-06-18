@@ -18,8 +18,8 @@ Build beautiful, print-ready datasheets and PDFs from React templates.
 ### Option 1: npm Package (Recommended)
 
 ```bash
-pnpm add -g @flanksource/facet-cli
-# or: npm install -g @flanksource/facet-cli
+pnpm add -g @flanksource/facet
+# or: npm install -g @flanksource/facet
 ```
 
 ### Option 2: Standalone Binary

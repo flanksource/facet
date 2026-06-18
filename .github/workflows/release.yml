@@ -49,7 +49,7 @@ jobs:
           echo "new_tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
           cd ..
 
-          # Keep the root library (@flanksource/facet) version in lockstep with the CLI.
+          # Update root package.json version to match
           npm version $NEW_VERSION --no-git-tag-version --allow-same-version
 
           git add cli/package.json package.json
@@ -65,9 +65,19 @@ jobs:
     strategy:
       matrix:
         include:
-          - { os: ubuntu-latest, platform: linux, arch: x64, target: bun-linux-x64 }
-          - { os: ubuntu-latest, platform: linux, arch: arm64, target: bun-linux-arm64 }
-          - { os: macos-latest, platform: macos, arch: arm64, target: bun-darwin-arm64 }
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            target: bun-linux-x64
+          - os: ubuntu-latest
+            platform: linux
+            arch: arm64
+            target: bun-linux-arm64
+          - os: macos-latest
+            platform: macos
+            arch: arm64
+            target: bun-darwin-arm64
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -97,15 +107,11 @@ jobs:
           cd cli
           pnpm install --frozen-lockfile
 
-      - name: Build standalone binary
-        env:
-          BUN_TARGET: ${{ matrix.target }}
-          BIN_OUT: ../dist/facet-${{ matrix.platform }}-${{ matrix.arch }}
+      - name: Build CLI binary
         run: |
           cd cli
-          pnpm run gen-version
-          pnpm run build:bin
-          chmod +x ../dist/facet-${{ matrix.platform }}-${{ matrix.arch }}
+          pnpm run prebuild:cli
+          bun build src/cli.ts --outfile=../dist/facet-${{ matrix.platform }}-${{ matrix.arch }} --compile --target=${{ matrix.target }}
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -116,13 +122,19 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: [version-bump, publish-npm, build-binaries]
+    # Depend on publish-npm so a binary is never released without the matching
+    # @flanksource/facet npm package. The CLI installs that package at render
+    # time, so a release/npm version skew breaks `facet pdf` for every consumer.
+    needs: [version-bump, build-binaries, publish-npm]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all binary artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: binaries
+
+      - name: Display structure of downloaded files
+        run: ls -R binaries
 
       - name: Create Release
         env:
@@ -131,11 +143,7 @@ jobs:
           gh release create ${{ needs.version-bump.outputs.new_tag }} \
             --repo ${{ github.repository }} \
             --title "Release ${{ needs.version-bump.outputs.new_tag }}" \
-            --notes "Release ${{ needs.version-bump.outputs.new_version }}
-
-          Install the CLI with: \`npm install -g @flanksource/facet-cli@${{ needs.version-bump.outputs.new_version }}\`
-
-          Or download a standalone binary below (requires pnpm and a system Chrome/Chromium at runtime)." \
+            --notes "Release ${{ needs.version-bump.outputs.new_version }}" \
             binaries/facet-linux-x64/facet-linux-x64 \
             binaries/facet-linux-arm64/facet-linux-arm64 \
             binaries/facet-macos-arm64/facet-macos-arm64
@@ -190,13 +198,7 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Build library
-        run: |
-          pnpm run build:components
-          pnpm run build:css
-          cd cli && pnpm run gen-version && pnpm run build:lib
+        run: cd cli && pnpm run gen-version && pnpm run build:lib
 
       - name: Publish to npm
         run: npm publish --access public --provenance
-
-      - name: Publish @flanksource/facet-cli
-        run: cd cli && npm publish --access public --provenance

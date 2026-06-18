@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'bun:test';
 import { parseJSXTree } from '../src/lint/jsx-parser.js';
 
 describe('parseJSXTree', () => {

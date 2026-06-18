@@ -1,39 +1,18 @@
 /**
  * Vite Builder for Dynamic Template Compilation
  *
- * Shells out to vite-ssr-loader.ts script (runs with tsx).
+ * Shells out to vite-ssr-loader.ts script (runs with Bun).
  * Vite is NOT embedded in CLI bundle - it runs from .facet/node_modules.
  * Errors will point to original .tsx files with full source maps.
  */
 
-import { $ } from '../utils/shell.js';
+import { $ } from 'bun';
 import { join } from 'path';
-import { writeFileSync, readFileSync, mkdtempSync, rmSync, existsSync } from 'fs';
+import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
-import { createRequire } from 'module';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
-
-/**
- * Resolve the argv prefix that runs the `tsx` loader for the vite SSR/dev
- * scripts. Prefer the copy installed into the consumer's .facet/node_modules,
- * then the one bundled with this CLI package, falling back to a bare `tsx` on
- * PATH. Returns argv tokens so it works for both shell and spawn invocations.
- */
-export function resolveTsxBin(facetRoot: string): string[] {
-  const local = join(facetRoot, 'node_modules', '.bin', 'tsx');
-  if (existsSync(local)) return [local];
-  try {
-    const require = createRequire(import.meta.url);
-    const pkg = require.resolve('tsx/package.json');
-    const bin = join(pkg, '..', 'dist', 'cli.mjs');
-    if (existsSync(bin)) return ['node', bin];
-  } catch {
-    /* fall through to PATH */
-  }
-  return ['tsx'];
-}
 
 export interface BuildResult {
   html: string;
@@ -58,10 +37,10 @@ interface LoaderResult {
  * Build template using Vite SSR mode (via external script)
  * Errors will point to original source files with full stack traces
  */
-function srtArgs(sandbox?: string | boolean): string[] {
-  if (!sandbox) return [];
+function srtPrefix(sandbox?: string | boolean): string {
+  if (!sandbox) return '';
   const settings = typeof sandbox === 'string' ? sandbox : '/etc/facet/srt-settings.json';
-  return ['srt', '--settings', settings];
+  return `srt --settings ${settings} `;
 }
 
 async function pnpmInstall(facetRoot: string, logger: Logger): Promise<void> {
@@ -137,8 +116,8 @@ interface LoaderArgs {
 }
 
 async function runLoaderOnce(args: LoaderArgs): Promise<{ stderr?: Buffer | string; }> {
-  const argv = [...srtArgs(args.sandbox), ...resolveTsxBin(args.facetRoot)];
-  return await $`${argv} ${args.loaderPath} --facet-root=${args.facetRoot} --data-file=${args.dataFilePath} --output-file=${args.resultFilePath}`.quiet();
+  const prefix = srtPrefix(args.sandbox);
+  return await $`${{ raw: prefix }}bun run ${args.loaderPath} --facet-root=${args.facetRoot} --data-file=${args.dataFilePath} --output-file=${args.resultFilePath}`.quiet();
 }
 
 async function runLoaderWithRetry(

@@ -1,18 +1,15 @@
 import { defineConfig } from 'tsdown';
 
-// Builds the library (index) and the Node CLI (cli.mjs, the published `facet`
-// bin). Heavy runtime deps stay external and are resolved from node_modules at
-// install time; vite/tsx run as separate processes from the consumer's .facet/.
+// Library build only - CLI is built separately with Bun
 export default defineConfig({
-  entry: ['src/index.ts', 'src/cli.ts'],
+  entry: ['src/index.ts'],
   format: ['esm'],
-  outExtensions: () => ({ js: '.mjs' }),
-  dts: { entry: 'src/index.ts' },
+  dts: true,
   sourcemap: true,
   clean: true,
   splitting: false,
   minify: false,
-  external: ['tsx', 'puppeteer-core', 'vite', 'react', 'react-dom', /\.yaml$/, /\.json$/, /\.css$/, /vite-ssr-loader/],
+  external: ['tsx', 'puppeteer-core', 'vite', 'react', 'react-dom', 'bun', /\.yaml$/, /\.json$/, /\.css$/, /vite-ssr-loader/, /vite-dev-loader/],
   platform: 'node',
   target: 'node18',
   shims: false,

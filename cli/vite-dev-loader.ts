@@ -1,7 +1,7 @@
 /**
  * Vite Dev Server Loader (live render path)
  *
- * Runs with tsx from inside .facet/, resolving Vite from .facet/node_modules
+ * Runs with Bun from inside .facet/, resolving Vite from .facet/node_modules
  * (Vite is NOT embedded in the CLI bundle). Starts a Vite dev server bound to
  * an OS-assigned port, prints `FACET_DEV_URL=<url>` to stdout once listening,
  * then stays alive until the parent process kills it.

@@ -6,7 +6,7 @@
  * render does not need pnpm on PATH at runtime — only at install time.
  */
 
-import { $ } from './shell.js';
+import { $ } from 'bun';
 import { existsSync } from 'fs';
 import { join } from 'path';
 

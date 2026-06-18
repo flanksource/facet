@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import { resolve, extname, join, basename } from 'path';
 import { pathToFileURL } from 'url';
-import { $ } from './shell.js';
+import { $ } from 'bun';
 import { Logger } from './logger.js';
 import { parseRemoteRef, resolveRemoteRef } from './remote-resolver.js';
 import type { LoadedData, GenerateOptions } from '../types.js';

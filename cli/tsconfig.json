@@ -24,7 +24,8 @@
     "allowSyntheticDefaultImports": true,
     "jsx": "react",
     "types": [
-      "node"
+      "node",
+      "bun"
     ]
   },
   "include": [
@@ -34,7 +35,6 @@
     "node_modules",
     "dist",
     "test",
-    "**/*.test.ts",
-    "src/**/*.bun.ts"
+    "**/*.test.ts"
   ]
 }

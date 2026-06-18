@@ -66,12 +66,12 @@ tasks:
       - src/version-generated.ts
 
   test:unit:
-    desc: "Run cli unit tests with Vitest"
+    desc: "Run cli unit tests with bun"
     dir: cli
     deps:
       - gen-version
     cmds:
-      - pnpm test
+      - bun test
 
   test:storybook:
     desc: "Build Storybook and verify all stories load without errors"

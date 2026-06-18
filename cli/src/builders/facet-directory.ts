@@ -14,13 +14,15 @@
  */
 
 import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync, chmodSync } from 'fs';
-import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname } from 'path';
 import { homedir } from 'os';
 import type { Logger } from '../utils/logger.js';
 
-import { assetPath } from '../utils/assets.js';
+import rootPackageJson from '../../../package.json' with { type: 'file' };
+import stylesCss from '../../../src/styles.css' with { type: 'file' };
+import viteSsrLoader from '../../vite-ssr-loader.ts' with { type: 'file' };
+import viteDevLoader from '../../vite-dev-loader.ts' with { type: 'file' };
 
 export interface FacetDirectoryOptions {
   /** Consumer's project root directory */
@@ -654,7 +656,7 @@ export default defineConfig({
     // directory; otherwise use the package metadata embedded into the CLI build.
     const rootPackageText = facetOverride?.kind === 'directory'
       ? this.readLocalFacetFile(facetOverride.path, 'package.json', true)
-      : readFileSync(assetPath('package.json'), 'utf-8');
+      : readFileSync(rootPackageJson, 'utf-8');
     const rootPackage = JSON.parse(rootPackageText);
     const allDeps = { ...rootPackage.dependencies, ...rootPackage.devDependencies };
 
@@ -954,19 +956,17 @@ export default defineConfig({
 
   private runLocalFacetBuildScript(packageRoot: string, script: string): void {
     this.logger.info(`FACET_PACKAGE_PATH local override is stale; running pnpm run ${script}`);
-    const result = spawnSync('pnpm', ['run', script], {
+    const result = Bun.spawnSync(['pnpm', 'run', script], {
       cwd: packageRoot,
-      encoding: 'utf-8',
     });
-    if (result.stdout) this.logger.debug(result.stdout);
-    if (result.stderr) this.logger.debug(result.stderr);
-    if (result.error) {
-      throw new Error(`Failed to run pnpm run ${script} in ${packageRoot}: ${result.error.message}`);
-    }
-    if (result.status !== 0) {
+    const stdout = result.stdout.toString();
+    const stderr = result.stderr.toString();
+    if (stdout) this.logger.debug(stdout);
+    if (stderr) this.logger.debug(stderr);
+    if (!result.success) {
       throw new Error(
-        `pnpm run ${script} failed in ${packageRoot} with exit code ${result.status ?? 'unknown'}:\n` +
-        `${result.stdout ?? ''}${result.stderr ?? ''}`
+        `pnpm run ${script} failed in ${packageRoot} with exit code ${result.exitCode ?? 'unknown'}:\n` +
+        `${stdout}${stderr}`
       );
     }
   }
@@ -1195,7 +1195,7 @@ export default {
     this.logger.debug('Copying default styles.css');
 
     try {
-      const styles = this.readFacetAsset('src/styles.css', assetPath('styles.css'), 'styles.css');
+      const styles = this.readFacetAsset('src/styles.css', stylesCss, 'styles.css');
       writeFileSync(join(this.facetSrc, 'styles.css'), styles, 'utf-8');
       this.logger.debug('Copied styles.css');
     } catch (error) {
@@ -1210,7 +1210,7 @@ export default {
     this.logger.debug('Copying vite-ssr-loader.ts');
 
     try {
-      const loaderScript = this.readFacetAsset('cli/vite-ssr-loader.ts', assetPath('vite-ssr-loader.ts'), 'vite-ssr-loader.ts');
+      const loaderScript = this.readFacetAsset('cli/vite-ssr-loader.ts', viteSsrLoader, 'vite-ssr-loader.ts');
       const destPath = join(this.facetRoot, 'vite-ssr-loader.ts');
       writeFileSync(destPath, loaderScript, 'utf-8');
       this.logger.debug('Copied vite-ssr-loader.ts');
@@ -1225,7 +1225,7 @@ export default {
   copyViteDevLoader(): void {
     this.logger.debug('Copying vite-dev-loader.ts');
     try {
-      const loaderScript = this.readFacetAsset('cli/vite-dev-loader.ts', assetPath('vite-dev-loader.ts'), 'vite-dev-loader.ts');
+      const loaderScript = this.readFacetAsset('cli/vite-dev-loader.ts', viteDevLoader, 'vite-dev-loader.ts');
       writeFileSync(join(this.facetRoot, 'vite-dev-loader.ts'), loaderScript, 'utf-8');
       this.logger.debug('Copied vite-dev-loader.ts');
     } catch (error) {
