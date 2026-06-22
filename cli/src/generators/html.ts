@@ -9,6 +9,7 @@ import { buildTemplate } from '../bundler/vite-builder.js';
 import { startViteServer } from '../bundler/vite-server.js';
 import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
+import { scopeHTML } from '../utils/css-scoper.js';
 import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
 import { runTailwind } from '../utils/tailwind.js';
 
@@ -89,7 +90,9 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     logger.info('Live rendering template in browser...');
     const server = await startViteServer({ templatePath, data, consumerRoot, logger });
     try {
-      const html = await snapshotHTML(server.url, logger);
+      const snapshot = await snapshotHTML(server.url, logger);
+      const html = options.cssScope ? scopeHTML(snapshot, { scopeClass: options.cssScope }) : snapshot;
+      if (options.cssScope) logger.info(`CSS scoped with class: ${options.cssScope}`);
       const outputDir = resolve(process.cwd(), options.outputDir);
       await mkdir(outputDir, { recursive: true });
       const outputPath = join(outputDir, `${outputName}.html`);
@@ -149,7 +152,11 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
 
     // Step 3: Read generated CSS and combine with HTML
     const generatedCSS = await readFile(outputCssPath, 'utf-8');
-    const finalHTML = combineHTMLAndCSS(htmlWithoutCSS, generatedCSS);
+    const combinedHTML = combineHTMLAndCSS(htmlWithoutCSS, generatedCSS);
+    const finalHTML = options.cssScope
+      ? scopeHTML(combinedHTML, { scopeClass: options.cssScope })
+      : combinedHTML;
+    if (options.cssScope) logger.info(`CSS scoped with class: ${options.cssScope}`);
 
     // Step 4: Write final HTML file
     const outputPath = join(outputDir, `${outputName}.html`);

@@ -10,6 +10,7 @@ import {
   needsLocalFacetComponentsBuild,
   needsLocalFacetCssBuild,
   resolveFacetPackageOverride,
+  serializeInjectedData,
 } from './facet-directory.js';
 
 let consumerRoot: string;
@@ -320,5 +321,28 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
 
     expect(existsSync(installedRoot)).toBe(false);
     expect(existsSync(join(facetRoot, 'pnpm-lock.yaml'))).toBe(false);
+  });
+});
+
+describe('serializeInjectedData', () => {
+  it('escapes </script> so injected data cannot break out of the script tag', () => {
+    const script = serializeInjectedData({ note: '</script><script>alert(1)</script>' });
+    expect(script).not.toContain('</script>');
+    expect(script).toContain('\\u003c/script>');
+  });
+
+  it('escapes U+2028 and U+2029 line separators', () => {
+    const script = serializeInjectedData({ note: 'a\u2028b\u2029c' });
+    expect(script).not.toContain('\u2028');
+    expect(script).not.toContain('\u2029');
+    expect(script).toContain('\\u2028');
+    expect(script).toContain('\\u2029');
+  });
+
+  it('round-trips back to the original data', () => {
+    const data = { a: 1, b: '</script>', c: ['x y'] };
+    const script = serializeInjectedData(data);
+    const json = script.replace(/^window\.__FACET_DATA__ = /, '').replace(/;\n$/, '');
+    expect(JSON.parse(json)).toEqual(data);
   });
 });

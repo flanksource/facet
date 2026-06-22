@@ -61,6 +61,10 @@ export interface FacetPackageOverride {
   path: string;
 }
 
+// Upper bound on a local FACET_PACKAGE_PATH rebuild (`pnpm run <script>`); a
+// stuck script must not hang the CLI's install/build path indefinitely.
+const LOCAL_BUILD_TIMEOUT_MS = 5 * 60 * 1000;
+
 const SOURCE_DIR_SKIP = new Set(['node_modules', 'dist', '.git', '.facet', 'storybook-static']);
 const COMPONENT_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
 const CSS_BUILD_INPUTS = [
@@ -262,6 +266,19 @@ function resolveOverrideValues(
   return out;
 }
 
+/**
+ * Build the `window.__FACET_DATA__ = ...;` payload for the live-render scaffold.
+ * Escapes `<` and the U+2028/U+2029 line separators so data containing
+ * `</script>` (or a JS line separator) cannot break out of the script context.
+ */
+export function serializeInjectedData(data: Record<string, unknown>): string {
+  const json = JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+  return `window.__FACET_DATA__ = ${json};\n`;
+}
+
 export class FacetDirectory {
   // Subset of build deps whose absence reliably signals a broken install:
   // react/vite/the React Vite plugin/facet itself. Hits before pnpm hoists
@@ -442,7 +459,9 @@ export default defineConfig({
     }),
   ],
   resolve: {
-    preserveSymlinks: true,  // Follow symlinks to their real paths
+    // Resolve symlinks to real paths so pnpm's symlinked transitive deps stay
+    // reachable; dedupe keeps a single React copy across the symlinked packages.
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
       '@facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
@@ -507,7 +526,7 @@ root.render(React.createElement(Template, { data }));
 
     // Data is injected as a global rather than bundled so the existing
     // --data/--data-loader loaders remain the single source of truth.
-    const dataScript = `window.__FACET_DATA__ = ${JSON.stringify(data)};\n`;
+    const dataScript = serializeInjectedData(data);
     writeFileSync(join(this.facetRoot, 'facet-data.js'), dataScript, 'utf-8');
 
     const indexHtml = `<!DOCTYPE html>
@@ -538,7 +557,10 @@ export default defineConfig({
     react({ include: /\\.(md|mdx|js|jsx|ts|tsx)$/ }),
   ],
   resolve: {
-    preserveSymlinks: true,
+    // Resolve symlinks to real paths so pnpm's symlinked transitive deps
+    // (e.g. d3-array → internmap) are reachable during esbuild dep optimization.
+    // dedupe keeps a single React copy, which preserveSymlinks otherwise guarded.
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
       '@facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
@@ -958,15 +980,18 @@ export default defineConfig({
     this.logger.info(`FACET_PACKAGE_PATH local override is stale; running pnpm run ${script}`);
     const result = Bun.spawnSync(['pnpm', 'run', script], {
       cwd: packageRoot,
+      timeout: LOCAL_BUILD_TIMEOUT_MS,
     });
     const stdout = result.stdout.toString();
     const stderr = result.stderr.toString();
     if (stdout) this.logger.debug(stdout);
     if (stderr) this.logger.debug(stderr);
     if (!result.success) {
+      const reason = result.exitedDueToTimeout
+        ? `timed out after ${LOCAL_BUILD_TIMEOUT_MS / 1000}s`
+        : `failed with exit code ${result.exitCode ?? 'unknown'}`;
       throw new Error(
-        `pnpm run ${script} failed in ${packageRoot} with exit code ${result.exitCode ?? 'unknown'}:\n` +
-        `${stdout}${stderr}`
+        `pnpm run ${script} ${reason} in ${packageRoot}:\n${stdout}${stderr}`
       );
     }
   }
