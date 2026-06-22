@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { runDoctor } from './doctor.js';
+import { runDoctor, preflight, PreflightError } from './doctor.js';
 
 let consumerRoot: string;
 let savedStdoutWrite: typeof process.stdout.write;
@@ -34,6 +34,7 @@ describe('runDoctor JSON contract', () => {
       'node-version',
       'architecture',
       'pnpm',
+      'bun',
       'native-bindings',
       'chromium',
       'git',
@@ -95,5 +96,43 @@ describe('runDoctor --fix', () => {
     const gi = readFileSync(join(consumerRoot, '.gitignore'), 'utf-8');
     const matches = gi.split('\n').filter(l => l.trim() === '.facet/');
     expect(matches.length).toBe(1);
+  });
+});
+
+describe('preflight', () => {
+  const result = (id: string, status: string, extra: Record<string, unknown> = {}) =>
+    ({ id, name: id, status, message: `${id} message`, ...extra });
+
+  const runnerFor = (results: Record<string, any>) =>
+    async (id: string) => results[id];
+
+  it('resolves when every required check passes', async () => {
+    const run = runnerFor({ bun: result('bun', 'pass'), pnpm: result('pnpm', 'pass') });
+    await expect(preflight(['bun', 'pnpm'], '/tmp', run)).resolves.toBeUndefined();
+  });
+
+  it('aggregates all non-passing checks with hints and points at doctor', async () => {
+    const run = runnerFor({
+      bun: result('bun', 'warn', { name: 'bun', message: 'not on PATH', hint: 'Install: https://bun.sh' }),
+      pnpm: result('pnpm', 'pass'),
+      chromium: result('chromium', 'fail', { name: 'Chromium', message: 'no chrome', hint: 'set PUPPETEER_EXECUTABLE_PATH' }),
+    });
+
+    let error: unknown;
+    try {
+      await preflight(['bun', 'pnpm', 'chromium'], '/tmp', run);
+    } catch (e) {
+      error = e;
+    }
+
+    expect(error).toBeInstanceOf(PreflightError);
+    const message = (error as Error).message;
+    expect(message).toContain('bun');
+    expect(message).toContain('Chromium');
+    expect(message).toContain('https://bun.sh');
+    expect(message).toContain('set PUPPETEER_EXECUTABLE_PATH');
+    expect(message).toContain('facet doctor');
+    // A passing check must not appear in the failure list.
+    expect(message).not.toContain('pnpm message');
   });
 });

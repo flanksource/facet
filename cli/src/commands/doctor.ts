@@ -50,6 +50,7 @@ const CHECK_REGISTRY: ReadonlyArray<readonly [string, CheckFn]> = [
   ['node-version', () => checkNodeVersion()],
   ['architecture', () => checkArchitecture()],
   ['pnpm', (root) => checkPnpm(root)],
+  ['bun', () => checkBun()],
   ['native-bindings', (root) => checkNativeBindings(root)],
   ['chromium', () => checkChromium()],
   ['git', () => checkGit()],
@@ -72,6 +73,43 @@ async function runAllChecks(consumerRoot: string): Promise<CheckResult[]> {
 async function runCheckById(id: string, consumerRoot: string): Promise<CheckResult | undefined> {
   const entry = CHECK_REGISTRY.find(([k]) => k === id);
   return entry ? await entry[1](consumerRoot) : undefined;
+}
+
+export class PreflightError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PreflightError';
+  }
+}
+
+/**
+ * Verify the external tools a command needs are present before doing any work,
+ * aggregating every problem into one actionable error instead of failing deep
+ * in the render pipeline. A required check that is not `pass` (missing tool,
+ * wrong arch, ...) blocks. `run` is injectable for testing.
+ */
+export async function preflight(
+  requiredIds: string[],
+  consumerRoot: string,
+  run: (id: string, root: string) => Promise<CheckResult | undefined> = runCheckById,
+): Promise<void> {
+  const failures: CheckResult[] = [];
+  for (const id of requiredIds) {
+    const result = await run(id, consumerRoot);
+    if (result && result.status !== 'pass') failures.push(result);
+  }
+  if (failures.length === 0) return;
+
+  const lines = failures.map(f => {
+    const hint = f.hint ? `\n      ${f.hint}` : '';
+    return `  ✗ ${f.name}: ${f.message}${hint}`;
+  });
+  const noun = failures.length === 1 ? 'dependency is' : 'dependencies are';
+  throw new PreflightError(
+    `${failures.length} required ${noun} missing or misconfigured:\n\n` +
+    `${lines.join('\n')}\n\n` +
+    'Run `facet doctor` for a full environment report.',
+  );
 }
 
 export async function runDoctor(options: DoctorOptions): Promise<number> {
@@ -487,6 +525,20 @@ async function probeOptionalBin(name: string, args: string[]): Promise<{ ok: tru
   } catch {
     return { ok: false };
   }
+}
+
+async function checkBun(): Promise<CheckResult> {
+  const probe = await probeOptionalBin('bun', ['--version']);
+  if (probe.ok) {
+    return { id: 'bun', name: 'bun', status: 'pass', message: probe.output.split('\n')[0] };
+  }
+  return {
+    id: 'bun',
+    name: 'bun',
+    status: 'warn',
+    message: 'not on PATH',
+    hint: 'Required to render — `facet html`/`facet pdf` shell out to `bun run`. Install: https://bun.sh',
+  };
 }
 
 async function checkGit(): Promise<CheckResult> {

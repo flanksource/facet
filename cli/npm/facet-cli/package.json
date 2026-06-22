@@ -1,0 +1,34 @@
+{
+  "name": "@flanksource/facet-cli",
+  "version": "0.0.0",
+  "description": "CLI for @flanksource/facet — generate print-ready PDFs and HTML from React templates",
+  "bin": {
+    "facet": "bin/facet.js"
+  },
+  "files": [
+    "bin/"
+  ],
+  "optionalDependencies": {
+    "@flanksource/facet-cli-linux-x64": "0.0.0",
+    "@flanksource/facet-cli-linux-arm64": "0.0.0",
+    "@flanksource/facet-cli-darwin-arm64": "0.0.0",
+    "@flanksource/facet-cli-win32-x64": "0.0.0"
+  },
+  "keywords": [
+    "facet",
+    "pdf",
+    "datasheet",
+    "react",
+    "cli"
+  ],
+  "author": "Flanksource",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flanksource/facet.git"
+  },
+  "homepage": "https://github.com/flanksource/facet#readme",
+  "engines": {
+    "node": ">=18"
+  }
+}

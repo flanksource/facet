@@ -15,25 +15,30 @@ Build beautiful, print-ready datasheets and PDFs from React templates.
 
 ## Installation
 
-### Option 1: npm Package (Recommended)
+### Option 1: npm (recommended)
 
 ```bash
-pnpm add -g @flanksource/facet
-# or: npm install -g @flanksource/facet
+npm install -g @flanksource/facet-cli
+# or: pnpm add -g @flanksource/facet-cli
 ```
 
-### Option 2: Standalone Binary
+This installs the `facet` command. The prebuilt binary for your platform
+(Linux x64/arm64, macOS arm64, Windows x64) is fetched automatically; no Bun or
+Node runtime is required at run time, since the binary embeds its own runtime.
 
-Download platform-specific binaries from [GitHub Releases](https://github.com/flanksource/facet/releases):
+### Option 2: Standalone binary
 
-- **Linux**: `facet-linux`
-- **macOS**: `facet-macos`
-- **Windows**: `facet-windows.exe`
+Download the binary for your platform from [GitHub Releases](https://github.com/flanksource/facet/releases):
 
-Make executable (Linux/macOS):
+- **Linux (x64)**: `facet-linux-x64`
+- **Linux (arm64)**: `facet-linux-arm64`
+- **macOS (Apple Silicon)**: `facet-macos-arm64`
+- **Windows (x64)**: `facet-windows-x64.exe`
+
+Make it executable and put it on your `PATH` (substitute the file you downloaded):
 ```bash
-chmod +x facet-*
-sudo mv facet-* /usr/local/bin/facet
+chmod +x facet-linux-x64
+sudo mv facet-linux-x64 /usr/local/bin/facet
 ```
 
 ## Quick Start
