@@ -9,7 +9,7 @@ export default defineConfig({
   clean: true,
   splitting: false,
   minify: false,
-  external: ['tsx', 'puppeteer', 'vite', 'react', 'react-dom', 'bun', /\.yaml$/, /\.json$/, /\.css$/, /vite-ssr-loader/],
+  external: ['tsx', 'puppeteer-core', 'vite', 'react', 'react-dom', 'bun', /\.yaml$/, /\.json$/, /\.css$/, /vite-ssr-loader/, /vite-dev-loader/],
   platform: 'node',
   target: 'node18',
   shims: false,

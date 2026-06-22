@@ -59,7 +59,7 @@ function errorOutput(err: any): string {
   return err?.stdout?.toString?.() || err?.stderr?.toString?.() || err?.message || String(err);
 }
 
-async function installWithRetry(facetDir: FacetDirectory, logger: Logger): Promise<void> {
+export async function installWithRetry(facetDir: FacetDirectory, logger: Logger): Promise<void> {
   const facetRoot = facetDir.getFacetRoot();
   if (!facetDir.needsInstall()) {
     logger.debug('Dependencies up to date, skipping pnpm install');

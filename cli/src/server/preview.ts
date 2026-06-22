@@ -38,7 +38,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   const s3 = config.s3 ? new S3Uploader(config.s3) : undefined;
   if (s3) logger.info(`S3 upload enabled: ${config.s3!.bucket}`);
 
-  const cacheDir = resolve(process.cwd(), '.facet');
+  const cacheDir = config.cacheDir ? resolve(config.cacheDir) : resolve(process.cwd(), '.facet');
   const cache = new RenderCache(cacheDir, config.cacheMaxSize);
   logger.info(`Render cache: ${cacheDir}/render-cache (max ${(config.cacheMaxSize / 1048576).toFixed(0)}MB)`);
 

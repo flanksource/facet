@@ -8,13 +8,14 @@
 
 import { join } from 'path';
 import { execSync } from 'child_process';
-import { mkdtemp, writeFile } from 'fs/promises';
+import { mkdtemp, writeFile, readFile } from 'fs/promises';
+import { statSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { PDFDocument } from 'pdf-lib';
 import { createServer, type ServerHandle } from '../src/server/preview.js';
 
-const EXAMPLES_DIR = join(__dirname, '../examples');
-const REPO_ROOT = join(__dirname, '../..');
+const EXAMPLES_DIR = join(import.meta.dirname, '../examples');
+const REPO_ROOT = join(import.meta.dirname, '../..');
 
 // Point to the local repo so npm install doesn't need a published package
 process.env['FACET_PACKAGE_PATH'] = REPO_ROOT;
@@ -29,6 +30,10 @@ describe('Render API', () => {
   let server: ServerHandle;
 
   beforeAll(async () => {
+    // Isolate the render cache per run so cache hits from prior runs don't
+    // change the emitted progress stream (a cache hit skips the 'building'
+    // stage the stream test asserts on).
+    const cacheDir = await mkdtemp(join(tmpdir(), 'facet-cache-'));
     server = await createServer({
       port: 0,
       templatesDir: EXAMPLES_DIR,
@@ -36,6 +41,7 @@ describe('Render API', () => {
       renderTimeout: 60000,
       maxUploadSize: 52428800,
       cacheMaxSize: 104857600,
+      cacheDir,
       verbose: false,
     });
   }, 30000);
@@ -137,10 +143,11 @@ export default function InlineTemplate({ data }: { data: any }) {
 }`;
     await writeFile(join(tmpDir, 'Template.tsx'), templateContent);
     execSync(`tar -czf "${join(tmpDir, 'template.tar.gz')}" -C "${tmpDir}" Template.tsx`);
-    const tarball = Bun.file(join(tmpDir, 'template.tar.gz'));
+    const tarballBytes = readFileSync(join(tmpDir, 'template.tar.gz'));
+    const tarball = new Blob([tarballBytes], { type: 'application/gzip' });
 
     const formData = new FormData();
-    formData.append('archive', tarball);
+    formData.append('archive', tarball, 'template.tar.gz');
     formData.append('data', JSON.stringify({ heading: 'Inline PDF Test' }));
     formData.append('options', JSON.stringify({ format: 'pdf' }));
 
@@ -190,14 +197,13 @@ export default function InlineTemplate({ data }: { data: any }) {
     execSync(`magick -density 72 "${pdfPath}[0]" "${pngPath}"`, { timeout: 15000 });
 
     // Verify the PNG was created and has reasonable size (not blank)
-    const pngSize = Bun.file(pngPath).size;
+    const pngSize = statSync(pngPath).size;
     expect(pngSize).toBeGreaterThan(1000);
 
     // Convert to raw PPM and verify not all-white
     const ppmPath = join(tmpDir, 'page.ppm');
     execSync(`magick "${pngPath}" -depth 8 "${ppmPath}"`, { timeout: 10000 });
-    const ppmData = await Bun.file(ppmPath).arrayBuffer();
-    const pixels = Buffer.from(ppmData);
+    const pixels = await readFile(ppmPath);
 
     // Skip PPM header (3 lines), then check we have non-white pixels
     let headerEnd = 0;

@@ -16,7 +16,7 @@ import { PDFDocument } from 'pdf-lib';
 import { generatePDFBuffer, launchBrowser } from '../src/utils/pdf-generator.js';
 import { renderHeaderFooterPdfs, detectPageTypes, resolvePageSize, areaScale, scaledHeight } from '../src/utils/pdf-multipass.js';
 import { fail } from 'assert/strict';
-const KITCHEN_SINK = join(__dirname, '../../examples/kitchen-sink');
+const KITCHEN_SINK = join(import.meta.dirname, '../../examples/kitchen-sink');
 const MAX_BLEED_GAP_PX = 4;
 const MAX_FOOTER_GAP_MM = 15;
 const RENDER_DPI = 150;
@@ -272,7 +272,7 @@ describe.skip('PDF bleed analysis', () => {
     let results: BleedResult[];
 
     beforeAll(async () => {
-      const facetBin = join(__dirname, '../../dist/facet');
+      const facetBin = join(import.meta.dirname, '../../dist/facet');
       const outDir = await mkdtemp(join(tmpdir(), 'mp-html-'));
       const htmlFile = file.replace('.tsx', '.html');
       execSync(`${facetBin} html ${file} -o ${outDir}`, {
@@ -298,7 +298,7 @@ describe.skip('PDF bleed analysis', () => {
   });
 
   it('MultiPageTable should have multiple pages', async () => {
-    const facetBin = join(__dirname, '../../dist/facet');
+    const facetBin = join(import.meta.dirname, '../../dist/facet');
     const outDir = await mkdtemp(join(tmpdir(), 'mp-html-'));
     execSync(`${facetBin} html MultiPageTable.tsx -o ${outDir}`, {
       cwd: KITCHEN_SINK, timeout: 120000, stdio: 'pipe',
@@ -384,7 +384,7 @@ describe.skip('PDF bleed analysis', () => {
     let pages: PagePixels[];
 
     beforeAll(async () => {
-      const facetBin = join(__dirname, '../../dist/facet');
+      const facetBin = join(import.meta.dirname, '../../dist/facet');
       const outDir = await mkdtemp(join(tmpdir(), 'bleed-html-'));
       execSync(`${facetBin} html BleedTest.tsx -o ${outDir}`, {
         cwd: KITCHEN_SINK,
@@ -586,7 +586,7 @@ describe.skip('PDF bleed analysis', () => {
     let pdfDoc: Awaited<ReturnType<typeof PDFDocument.load>>;
 
     beforeAll(async () => {
-      const facetBin = join(__dirname, '../../dist/facet');
+      const facetBin = join(import.meta.dirname, '../../dist/facet');
       const outDir = await mkdtemp(join(tmpdir(), 'pagesize-html-'));
       execSync(`${facetBin} html PageSizeTest.tsx -o ${outDir}`, {
         cwd: KITCHEN_SINK, timeout: 120000, stdio: 'pipe',

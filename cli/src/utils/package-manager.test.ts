@@ -79,3 +79,41 @@ describe('resolvePackageManager', () => {
     expect(pm.cmd).toBe('pnpm');
   });
 });
+
+describe('resolvePackageManager: pnpm-missing error messages', () => {
+  let savedPath: string | undefined;
+  let emptyBin: string;
+
+  beforeEach(async () => {
+    // Strip PATH down to an empty dir so `pnpm --version` and `corepack enable pnpm`
+    // both fail. We're testing the *error message shape*, not the bootstrap path itself.
+    emptyBin = await mkdtemp(join(tmpdir(), 'facet-empty-bin-'));
+    savedPath = process.env.PATH;
+    process.env.PATH = emptyBin;
+    _resetPackageManagerCache();
+  });
+
+  afterEach(async () => {
+    if (savedPath !== undefined) process.env.PATH = savedPath;
+    else delete process.env.PATH;
+    await rm(emptyBin, { recursive: true, force: true });
+    _resetPackageManagerCache();
+  });
+
+  it('suggests adding a packageManager pin when none exists', async () => {
+    await writeFile(join(workDir, 'package.json'), JSON.stringify({ name: 'x' }));
+    await expect(resolvePackageManager(workDir)).rejects.toThrow(
+      /Add `"packageManager": "pnpm@<version>"`/
+    );
+  });
+
+  it('reports that corepack was tried when a pnpm pin exists', async () => {
+    await writeFile(
+      join(workDir, 'package.json'),
+      JSON.stringify({ name: 'x', packageManager: 'pnpm@8.13.1' })
+    );
+    await expect(resolvePackageManager(workDir)).rejects.toThrow(
+      /Tried `corepack enable pnpm`.*pnpm@8\.13\.1/s
+    );
+  });
+});

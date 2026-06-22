@@ -435,7 +435,7 @@ export default function Badge({
 
   // Render label section (darker background for two-part badges)
   const renderLabel = () => {
-    if (!label && !Icon) return null;
+    if (label == null && !Icon) return null;
 
     const labelClasses = clsx(
       'inline-flex items-center leading-none',

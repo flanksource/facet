@@ -115,13 +115,13 @@ export default function LogoGrid({
       <section className="my-4">
         {title && <h3>{title}</h3>}
         <table className={`w-full border-collapse ${sizeClassMap[size]}`}>
-          <thead className="bg-gray-700">
+          <thead className="table-header">
             <tr>
-              <th className="text-left font-semibold text-white w-[40%]">Product</th>
-              <th className="text-center font-semibold text-white w-[15%]">Health</th>
-              <th className="text-center font-semibold text-white w-[15%]">Configuration</th>
-              <th className="text-center font-semibold text-white w-[15%]">Change</th>
-              <th className="text-center font-semibold text-white w-[15%]">Playbooks</th>
+              <th className="text-left w-[40%]">Product</th>
+              <th className="text-center w-[15%]">Health</th>
+              <th className="text-center w-[15%]">Configuration</th>
+              <th className="text-center w-[15%]">Change</th>
+              <th className="text-center w-[15%]">Playbooks</th>
             </tr>
           </thead>
           <tbody>

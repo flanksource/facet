@@ -8,13 +8,14 @@
  */
 
 import { $ } from 'bun';
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync, appendFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import chalk from 'chalk';
 import semver from 'semver';
 import { Logger } from '../utils/logger.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
 import { resolveChromePath } from '../utils/pdf-generator.js';
+import { resolveTailwindBin, tailwindBinExists } from '../utils/tailwind.js';
 import { VERSION } from '../version-generated.js';
 import rootPackageJson from '../../../package.json' with { type: 'file' };
 
@@ -32,6 +33,7 @@ interface DoctorOptions {
   consumerRoot: string;
   verbose: boolean;
   json: boolean;
+  fix?: boolean;
 }
 
 const CRITICAL_NATIVE_PACKAGES = [
@@ -41,18 +43,44 @@ const CRITICAL_NATIVE_PACKAGES = [
   '@swc/core',
 ];
 
+type CheckFn = (consumerRoot: string) => CheckResult | Promise<CheckResult>;
+
+// Ordered registry — same sequence as the human-readable output below.
+const CHECK_REGISTRY: ReadonlyArray<readonly [string, CheckFn]> = [
+  ['node-version', () => checkNodeVersion()],
+  ['architecture', () => checkArchitecture()],
+  ['pnpm', (root) => checkPnpm(root)],
+  ['native-bindings', (root) => checkNativeBindings(root)],
+  ['chromium', () => checkChromium()],
+  ['git', () => checkGit()],
+  ['tar', () => checkTar()],
+  ['tsx', () => checkTsx()],
+  ['tailwindcss', (root) => checkTailwindBin(root)],
+  ['facet-package-path', () => checkFacetPackagePath()],
+  ['facet-version', (root) => checkFacetVersionAlignment(root)],
+  ['npmrc-leakage', (root) => checkNpmrcLeakage(root)],
+];
+
+async function runAllChecks(consumerRoot: string): Promise<CheckResult[]> {
+  const results: CheckResult[] = [];
+  for (const [, fn] of CHECK_REGISTRY) {
+    results.push(await fn(consumerRoot));
+  }
+  return results;
+}
+
+async function runCheckById(id: string, consumerRoot: string): Promise<CheckResult | undefined> {
+  const entry = CHECK_REGISTRY.find(([k]) => k === id);
+  return entry ? await entry[1](consumerRoot) : undefined;
+}
+
 export async function runDoctor(options: DoctorOptions): Promise<number> {
   const logger = new Logger(options.verbose);
-  const results: CheckResult[] = [];
+  let results = await runAllChecks(options.consumerRoot);
 
-  results.push(checkNodeVersion());
-  results.push(checkArchitecture());
-  results.push(await checkPnpm(options.consumerRoot));
-  results.push(checkNativeBindings(options.consumerRoot));
-  results.push(checkChromium());
-  results.push(checkFacetPackagePath());
-  results.push(checkFacetVersionAlignment(options.consumerRoot));
-  results.push(checkNpmrcLeakage(options.consumerRoot));
+  if (options.fix) {
+    results = await applyFixes(results, options.consumerRoot, logger);
+  }
 
   if (options.json) {
     process.stdout.write(JSON.stringify({ results }, null, 2) + '\n');
@@ -61,6 +89,75 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
   }
 
   return results.some(r => r.status === 'fail') ? 1 : 0;
+}
+
+async function applyFixes(results: CheckResult[], consumerRoot: string, logger: Logger): Promise<CheckResult[]> {
+  const fixed = [...results];
+  for (let i = 0; i < fixed.length; i++) {
+    const r = fixed[i];
+    if (r.status !== 'fail') continue;
+    const after = await tryFix(r.id, consumerRoot, logger);
+    if (after) fixed[i] = after;
+  }
+  return fixed;
+}
+
+async function tryFix(id: string, consumerRoot: string, logger: Logger): Promise<CheckResult | undefined> {
+  switch (id) {
+    case 'pnpm': {
+      logger.info('[fix] running `corepack enable pnpm`');
+      try { await $`corepack enable pnpm`.quiet(); } catch (err) {
+        logger.warn(`[fix] corepack enable pnpm failed: ${err instanceof Error ? err.message : String(err)}`);
+        return undefined;
+      }
+      return await runCheckById('pnpm', consumerRoot);
+    }
+    case 'chromium': {
+      logger.info('[fix] running `npx puppeteer browsers install chrome`');
+      try { await $`npx puppeteer browsers install chrome`.quiet(); } catch (err) {
+        logger.warn(`[fix] puppeteer install failed: ${err instanceof Error ? err.message : String(err)}`);
+        return undefined;
+      }
+      return await runCheckById('chromium', consumerRoot);
+    }
+    case 'native-bindings': {
+      const target = join(consumerRoot, '.facet', 'node_modules');
+      const lock = join(consumerRoot, '.facet', 'pnpm-lock.yaml');
+      logger.info(`[fix] removing ${target} and ${lock}`);
+      try {
+        rmSync(target, { recursive: true, force: true });
+        rmSync(lock, { force: true });
+      } catch (err) {
+        logger.warn(`[fix] cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
+        return undefined;
+      }
+      return await runCheckById('native-bindings', consumerRoot);
+    }
+    case 'npmrc-leakage': {
+      const gitignore = join(consumerRoot, '.gitignore');
+      if (!existsSync(gitignore)) {
+        logger.warn(`[fix] no .gitignore at ${gitignore}; not creating one automatically`);
+        return undefined;
+      }
+      const current = readFileSync(gitignore, 'utf-8');
+      const hasEntry = current.split(/\r?\n/).some(line => {
+        const t = line.trim();
+        return t === '.facet' || t === '.facet/' || t === '/.facet' || t === '/.facet/';
+      });
+      if (!hasEntry) {
+        const sep = current.endsWith('\n') ? '' : '\n';
+        appendFileSync(gitignore, `${sep}.facet/\n`);
+        logger.info(`[fix] appended \`.facet/\` to ${gitignore}`);
+      } else {
+        logger.info(`[fix] .gitignore already lists .facet — nothing to append`);
+      }
+      return await runCheckById('npmrc-leakage', consumerRoot);
+    }
+    default:
+      // node-version, architecture, facet-package-path, facet-version: not auto-fixable.
+      logger.warn(`[fix] ${id}: manual fix required`);
+      return undefined;
+  }
 }
 
 function renderHuman(results: CheckResult[], logger: Logger): void {
@@ -126,11 +223,10 @@ function checkArchitecture(): CheckResult {
   const arch = process.arch;
   const platform = process.platform;
   // Rosetta detection: process.arch reports x64 but the machine reports arm64.
-  // We can't run `uname -m` reliably from inside Bun in every env; best effort.
-  let hostArch = arch;
+  // best effort — `uname` may be absent on some platforms.
+  let hostArch: string = arch;
   try {
-    const uname = Bun.spawnSync(['uname', '-m']);
-    hostArch = uname.stdout.toString().trim();
+    hostArch = Bun.spawnSync(['uname', '-m']).stdout.toString().trim();
   } catch { /* fall through */ }
 
   const rosetta = platform === 'darwin' && arch === 'x64' && hostArch === 'arm64';
@@ -378,5 +474,74 @@ function checkNpmrcLeakage(consumerRoot: string): CheckResult {
     name: '.facet/.npmrc leakage',
     status: 'pass',
     message: 'auth tokens present but .facet/ is gitignored',
+  };
+}
+
+// Optional/lazy-binary probes. Each WARNs (never FAILs) on missing because
+// the binary is only required for a specific facet workflow.
+
+async function probeOptionalBin(name: string, args: string[]): Promise<{ ok: true; output: string } | { ok: false }> {
+  try {
+    const out = await $`${name} ${args}`.quiet();
+    return { ok: true, output: out.stdout.toString().trim() };
+  } catch {
+    return { ok: false };
+  }
+}
+
+async function checkGit(): Promise<CheckResult> {
+  const probe = await probeOptionalBin('git', ['--version']);
+  if (probe.ok) {
+    return { id: 'git', name: 'git', status: 'pass', message: probe.output };
+  }
+  return {
+    id: 'git',
+    name: 'git',
+    status: 'warn',
+    message: 'not on PATH',
+    hint: 'Required only for `github:` / `https://` template refs. Install: `brew install git` / `apt install git`.',
+  };
+}
+
+async function checkTar(): Promise<CheckResult> {
+  const probe = await probeOptionalBin('tar', ['--version']);
+  if (probe.ok) {
+    return { id: 'tar', name: 'tar', status: 'pass', message: probe.output.split('\n')[0] };
+  }
+  return {
+    id: 'tar',
+    name: 'tar',
+    status: 'warn',
+    message: 'not on PATH',
+    hint: 'Required only for server-mode `.tar.gz` uploads (`facet serve`).',
+  };
+}
+
+async function checkTsx(): Promise<CheckResult> {
+  const probe = await probeOptionalBin('tsx', ['--version']);
+  if (probe.ok) {
+    return { id: 'tsx', name: 'tsx', status: 'pass', message: probe.output.split('\n')[0] };
+  }
+  return {
+    id: 'tsx',
+    name: 'tsx',
+    status: 'warn',
+    message: 'not on PATH',
+    hint: 'Required only for `.ts` data loaders (`-l file.ts`). Install: `npm i -g tsx`.',
+  };
+}
+
+function checkTailwindBin(consumerRoot: string): CheckResult {
+  const facetRoot = join(consumerRoot, '.facet');
+  const bin = resolveTailwindBin(facetRoot);
+  if (tailwindBinExists(facetRoot)) {
+    return { id: 'tailwindcss', name: 'tailwindcss (.facet bin)', status: 'pass', message: bin };
+  }
+  return {
+    id: 'tailwindcss',
+    name: 'tailwindcss (.facet bin)',
+    status: 'warn',
+    message: `not present at ${bin}`,
+    hint: 'Run a render to populate `.facet/node_modules/`, or `cd .facet && pnpm install`.',
   };
 }

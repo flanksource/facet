@@ -21,16 +21,16 @@ export interface PackageManager {
   version: string;
 }
 
+// Memoize only the `pnpm --version` probe — it's process-stable.
+// The pin check must run for every cwd, otherwise long-lived processes
+// (e.g. `facet serve`) could reuse a cwd-specific result for a project
+// tree that pins a different package manager.
 let cachedVersion: string | undefined;
-const pinCache = new Map<string, PackageManager>();
 
 /**
  * Verify pnpm is usable and honor any `packageManager` pin in the project tree.
- * Throws with an actionable message if pnpm is missing or a foreign manager is pinned.
- *
- * The pnpm version is memoized process-wide (cheap but not free); the pin check
- * is keyed per project so a long-lived process serving multiple consumer trees
- * re-evaluates each project's `packageManager` field.
+ * If pnpm is missing and a pnpm pin exists, attempts `corepack enable pnpm`
+ * before failing. Throws with an actionable message on unrecoverable failure.
  */
 export async function resolvePackageManager(cwd: string): Promise<PackageManager> {
   const pin = findPackageManagerPin(cwd);
@@ -41,32 +41,63 @@ export async function resolvePackageManager(cwd: string): Promise<PackageManager
     );
   }
 
-  const pinKey = pin?.source ?? '<none>';
-  const cached = pinCache.get(pinKey);
-  if (cached) return cached;
+  if (cachedVersion === undefined) {
+    cachedVersion = await probePnpmVersionWithBootstrap(pin);
+  }
 
-  if (!cachedVersion) {
-    try {
-      const result = await $`pnpm --version`.quiet();
-      cachedVersion = result.stdout.toString().trim();
-    } catch (err) {
-      throw new Error(
-        `facet requires pnpm, but it was not found on PATH. ` +
-        `Install it with \`npm i -g pnpm\` or \`corepack enable\`. ` +
-        `(underlying error: ${err instanceof Error ? err.message : String(err)})`
-      );
+  return { cmd: 'pnpm', exec: 'pnpm exec', version: cachedVersion };
+}
+
+async function probePnpmVersionWithBootstrap(pin: PackageManagerPin | null): Promise<string> {
+  const first = await tryProbePnpmVersion();
+  if (first.ok) return first.version;
+
+  // pnpm missing. If the project pins pnpm, corepack can install/activate it
+  // automatically (Node ships with corepack since v16). Otherwise corepack
+  // refuses without a pin, so don't bother trying.
+  if (pin && pin.name === 'pnpm') {
+    const enabled = await tryCorepackEnablePnpm();
+    if (enabled) {
+      const second = await tryProbePnpmVersion();
+      if (second.ok) return second.version;
     }
   }
 
-  const resolved: PackageManager = { cmd: 'pnpm', exec: 'pnpm exec', version: cachedVersion };
-  pinCache.set(pinKey, resolved);
-  return resolved;
+  const baseHint = pin && pin.name === 'pnpm'
+    ? `Tried \`corepack enable pnpm\` (your ${pin.source} pins ${pin.raw}) but it did not produce a working pnpm. ` +
+      `Install pnpm manually: \`npm i -g pnpm\`, or ensure corepack is on PATH.`
+    : `Add \`"packageManager": "pnpm@<version>"\` to your package.json (corepack will then auto-install pnpm), ` +
+      `or install pnpm globally: \`npm i -g pnpm\` / \`corepack enable\`.`;
+
+  throw new Error(
+    `facet requires pnpm, but it was not found on PATH. ${baseHint} ` +
+    `(underlying error: ${first.error})`
+  );
+}
+
+type ProbeResult = { ok: true; version: string } | { ok: false; error: string };
+
+async function tryProbePnpmVersion(): Promise<ProbeResult> {
+  try {
+    const result = await $`pnpm --version`.quiet();
+    return { ok: true, version: result.stdout.toString().trim() };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function tryCorepackEnablePnpm(): Promise<boolean> {
+  try {
+    await $`corepack enable pnpm`.quiet();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Reset the memoized resolution. Test-only. */
 export function _resetPackageManagerCache(): void {
   cachedVersion = undefined;
-  pinCache.clear();
 }
 
 interface PackageManagerPin {

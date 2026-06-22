@@ -51,7 +51,7 @@ export default function HeaderSolid() {
       </Page>
 
       <Page
-        title="Page 2 — 10mm compact chrome"
+        title="Page 2 — 14mm compact chrome"
         margins={{ top: 5, bottom: 5 }}
       >
         <div className="space-y-4">
@@ -61,7 +61,7 @@ export default function HeaderSolid() {
       </Page>
 
       <Page
-        title="Page 3 — 10mm compact chrome"
+        title="Page 3 — 14mm compact chrome"
         margins={{ top: 5, bottom: 5 }}
       >
         <div className="space-y-4">
@@ -70,7 +70,7 @@ export default function HeaderSolid() {
       </Page>
 
       <Page
-        title="Last Page — 10mm compact chrome"
+        title="Last Page — 14mm compact chrome"
         type="last"
         margins={{ top: 5, bottom: 5 }}
       >

@@ -124,17 +124,22 @@ const DENSITY_CONFIG = {
   comfortable: { py: 'py-1.5', border: 'border-b border-slate-200', bodyMt: 'mt-px' },
 } as const;
 
-function splitColorClasses(classes: string): { textColor?: string; color?: string; borderColor?: string } {
-  return classes.split(/\s+/).reduce<{ textColor?: string; color?: string; borderColor?: string }>((acc, token) => {
+function splitColorClasses(classes: string): { textColor?: string; color?: string; borderColor?: string; passthrough?: string } {
+  const passthrough: string[] = [];
+  const acc = classes.split(/\s+/).reduce<{ textColor?: string; color?: string; borderColor?: string }>((acc, token) => {
+    if (!token) return acc;
     if (token.startsWith('text-')) {
       acc.textColor = token;
     } else if (token.startsWith('bg-')) {
       acc.color = token;
     } else if (token.startsWith('border-')) {
       acc.borderColor = token;
+    } else {
+      passthrough.push(token);
     }
     return acc;
   }, {});
+  return passthrough.length > 0 ? { ...acc, passthrough: passthrough.join(' ') } : acc;
 }
 
 function resolveTagClasses(tagMapping: TagMapping | TagMapping[] | undefined, key: string, value: any): string {
@@ -248,7 +253,7 @@ function TagBadge({ tagKey, value, tagMapping, sc }: {
   tagMapping: TagMapping | TagMapping[] | undefined;
   sc: (typeof SIZE_CONFIG)[keyof typeof SIZE_CONFIG];
 }) {
-  const { color, textColor, borderColor } = splitColorClasses(resolveTagClasses(tagMapping, tagKey, value));
+  const { color, textColor, borderColor, passthrough } = splitColorClasses(resolveTagClasses(tagMapping, tagKey, value));
   return (
     <Badge
       variant="custom"
@@ -258,6 +263,7 @@ function TagBadge({ tagKey, value, tagMapping, sc }: {
       color={color}
       textColor={textColor}
       borderColor={borderColor}
+      className={passthrough}
     />
   );
 }

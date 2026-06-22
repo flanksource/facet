@@ -167,3 +167,7 @@ hack/
 *.html
 .agent/
 .sandbox.yaml
+.container-sandbox/
+.facet/
+**/.facet/
+.jest/

@@ -4,22 +4,34 @@ import { existsSync, symlinkSync, utimesSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
-import { FacetDirectory } from './facet-directory.js';
+import {
+  FacetDirectory,
+  localFacetBuildFingerprint,
+  needsLocalFacetComponentsBuild,
+  needsLocalFacetCssBuild,
+  resolveFacetPackageOverride,
+  serializeInjectedData,
+} from './facet-directory.js';
 
 let consumerRoot: string;
 let facetRoot: string;
 let logger: Logger;
+let savedFacetPackagePath: string | undefined;
 
 beforeEach(async () => {
   consumerRoot = await mkdtemp(join(tmpdir(), 'facet-fd-test-'));
   facetRoot = join(consumerRoot, '.facet');
   await mkdir(facetRoot, { recursive: true });
+  savedFacetPackagePath = process.env.FACET_PACKAGE_PATH;
+  delete process.env.FACET_PACKAGE_PATH;
   // Quiet logger — verbose=false suppresses debug, but warn/info still
   // print. Tests assert on return values, not on logger output.
   logger = new Logger(false);
 });
 
 afterEach(async () => {
+  if (savedFacetPackagePath === undefined) delete process.env.FACET_PACKAGE_PATH;
+  else process.env.FACET_PACKAGE_PATH = savedFacetPackagePath;
   await rm(consumerRoot, { recursive: true, force: true });
 });
 
@@ -38,6 +50,45 @@ async function writeSentinels(deps: string[] = ['react', 'vite', '@vitejs/plugin
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'package.json'), JSON.stringify({ name: dep, version: '0.0.0' }));
   }
+}
+
+async function writeLocalFacetPackage(options: { scripts?: Record<string, string> } = {}) {
+  const root = join(consumerRoot, 'local-facet');
+  await mkdir(join(root, 'src/components'), { recursive: true });
+  await mkdir(join(root, 'cli'), { recursive: true });
+  await mkdir(join(root, 'dist/components'), { recursive: true });
+  await writeFile(join(root, 'package.json'), JSON.stringify({
+    name: '@flanksource/facet',
+    version: '9.9.9-local',
+    dependencies: {
+      react: '^18.2.0',
+      vite: '^9.9.9',
+      tailwindcss: '^3.4.0',
+    },
+    devDependencies: {
+      '@vitejs/plugin-react': '^9.9.9',
+    },
+    scripts: options.scripts ?? {
+      'build:components': 'echo build-components',
+      'build:css': 'echo build-css',
+    },
+  }, null, 2));
+  await writeFile(join(root, 'src/styles.css'), '/* local facet styles */\n.local-only { color: red; }\n');
+  await writeFile(join(root, 'src/components/index.tsx'), 'export const Marker = "source";\n');
+  await writeFile(join(root, 'cli/vite-dev-loader.ts'), 'export const loader = "local-dev";\n');
+  await writeFile(join(root, 'cli/vite-ssr-loader.ts'), 'export const loader = "local-ssr";\n');
+  await writeFile(join(root, 'dist/styles.css'), '/* built local css */\n');
+  await writeFile(join(root, 'dist/components/index.js'), 'export const Marker = "built";\n');
+
+  const oldTime = new Date(Date.now() - 60_000);
+  const newTime = new Date(Date.now() + 60_000);
+  for (const rel of ['package.json', 'src/styles.css', 'src/components/index.tsx']) {
+    utimesSync(join(root, rel), oldTime, oldTime);
+  }
+  for (const rel of ['dist/styles.css', 'dist/components/index.js']) {
+    utimesSync(join(root, rel), newTime, newTime);
+  }
+  return root;
 }
 
 describe('FacetDirectory.needsInstall', () => {
@@ -159,5 +210,139 @@ describe('FacetDirectory.generatePackageJson .npmrc', () => {
     newFacetDir().generatePackageJson();
     const npmrc = await readFile(join(facetRoot, '.npmrc'), 'utf-8');
     expect(npmrc).toContain('confirm-modules-purge=false');
+  });
+});
+
+describe('FACET_PACKAGE_PATH local directory override', () => {
+  it('resolves directory and tarball overrides distinctly', async () => {
+    const localRoot = await writeLocalFacetPackage();
+    expect(resolveFacetPackageOverride(localRoot)).toEqual({ kind: 'directory', path: localRoot });
+
+    const tarball = join(consumerRoot, 'facet.tgz');
+    await writeFile(tarball, 'fake tarball');
+    expect(resolveFacetPackageOverride(tarball)).toEqual({ kind: 'tarball', path: tarball });
+  });
+
+  it('copies default styles and live loaders from the local checkout', async () => {
+    const localRoot = await writeLocalFacetPackage();
+    process.env.FACET_PACKAGE_PATH = localRoot;
+    const facetDir = newFacetDir();
+    facetDir.create();
+
+    facetDir.copyStylesCss();
+    facetDir.copyViteDevLoader();
+    facetDir.copyViteSsrLoader();
+
+    expect(await readFile(join(facetRoot, 'src/styles.css'), 'utf-8')).toContain('local facet styles');
+    expect(await readFile(join(facetRoot, 'vite-dev-loader.ts'), 'utf-8')).toContain('local-dev');
+    expect(await readFile(join(facetRoot, 'vite-ssr-loader.ts'), 'utf-8')).toContain('local-ssr');
+  });
+
+  it('uses local package metadata and writes a build fingerprint into .facet/package.json', async () => {
+    const localRoot = await writeLocalFacetPackage();
+    process.env.FACET_PACKAGE_PATH = localRoot;
+
+    newFacetDir().generatePackageJson();
+
+    const generated = JSON.parse(await readFile(join(facetRoot, 'package.json'), 'utf-8'));
+    expect(generated.dependencies['@flanksource/facet']).toBe(`file:${localRoot}`);
+    expect(generated.dependencies.vite).toBe('^9.9.9');
+    expect(generated.dependencies['@vitejs/plugin-react']).toBe('^9.9.9');
+    expect(generated.facetLocalOverride).toEqual({
+      path: localRoot,
+      fingerprint: localFacetBuildFingerprint(localRoot),
+    });
+  });
+
+  it('keeps tarball overrides dependency-only', async () => {
+    const tarball = join(consumerRoot, 'facet.tgz');
+    await writeFile(tarball, 'fake tarball');
+    process.env.FACET_PACKAGE_PATH = tarball;
+
+    newFacetDir().generatePackageJson();
+
+    const generated = JSON.parse(await readFile(join(facetRoot, 'package.json'), 'utf-8'));
+    expect(generated.dependencies['@flanksource/facet']).toBe(`file:${tarball}`);
+    expect(generated.facetLocalOverride).toBeUndefined();
+  });
+
+  it('changes the local build fingerprint when local dist output changes', async () => {
+    const localRoot = await writeLocalFacetPackage();
+    const before = localFacetBuildFingerprint(localRoot);
+
+    await writeFile(join(localRoot, 'dist/components/index.js'), 'export const Marker = "changed";\n');
+    const future = new Date(Date.now() + 120_000);
+    utimesSync(join(localRoot, 'dist/components/index.js'), future, future);
+
+    expect(localFacetBuildFingerprint(localRoot)).not.toBe(before);
+  });
+
+  it('detects stale component and css outputs without invoking pnpm', async () => {
+    const localRoot = await writeLocalFacetPackage();
+    const oldTime = new Date(Date.now() - 120_000);
+    const future = new Date(Date.now() + 120_000);
+
+    utimesSync(join(localRoot, 'dist/components/index.js'), oldTime, oldTime);
+    utimesSync(join(localRoot, 'src/components/index.tsx'), future, future);
+    expect(needsLocalFacetComponentsBuild(localRoot)).toBe(true);
+
+    utimesSync(join(localRoot, 'dist/styles.css'), oldTime, oldTime);
+    utimesSync(join(localRoot, 'src/styles.css'), future, future);
+    expect(needsLocalFacetCssBuild(localRoot)).toBe(true);
+  });
+
+  it('detects css output removal after components clean dist', async () => {
+    const localRoot = await writeLocalFacetPackage();
+    const oldTime = new Date(Date.now() - 120_000);
+    const future = new Date(Date.now() + 120_000);
+
+    utimesSync(join(localRoot, 'src/styles.css'), oldTime, oldTime);
+    utimesSync(join(localRoot, 'dist/styles.css'), future, future);
+    expect(needsLocalFacetCssBuild(localRoot)).toBe(false);
+
+    await rm(join(localRoot, 'dist/styles.css'), { force: true });
+    expect(needsLocalFacetCssBuild(localRoot)).toBe(true);
+  });
+
+  it('removes a stale installed local package copy when package.json is unchanged', async () => {
+    const localRoot = await writeLocalFacetPackage();
+    process.env.FACET_PACKAGE_PATH = localRoot;
+    const facetDir = newFacetDir();
+
+    facetDir.generatePackageJson();
+
+    const installedRoot = join(facetRoot, 'node_modules/@flanksource/facet');
+    await mkdir(join(installedRoot, 'dist/components'), { recursive: true });
+    await writeFile(join(installedRoot, 'package.json'), await readFile(join(localRoot, 'package.json'), 'utf-8'));
+    await writeFile(join(installedRoot, 'dist/components/index.js'), 'export const Marker = "stale";\n');
+    await writeFile(join(facetRoot, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n');
+
+    facetDir.generatePackageJson();
+
+    expect(existsSync(installedRoot)).toBe(false);
+    expect(existsSync(join(facetRoot, 'pnpm-lock.yaml'))).toBe(false);
+  });
+});
+
+describe('serializeInjectedData', () => {
+  it('escapes </script> so injected data cannot break out of the script tag', () => {
+    const script = serializeInjectedData({ note: '</script><script>alert(1)</script>' });
+    expect(script).not.toContain('</script>');
+    expect(script).toContain('\\u003c/script>');
+  });
+
+  it('escapes U+2028 and U+2029 line separators', () => {
+    const script = serializeInjectedData({ note: 'a\u2028b\u2029c' });
+    expect(script).not.toContain('\u2028');
+    expect(script).not.toContain('\u2029');
+    expect(script).toContain('\\u2028');
+    expect(script).toContain('\\u2029');
+  });
+
+  it('round-trips back to the original data', () => {
+    const data = { a: 1, b: '</script>', c: ['x y'] };
+    const script = serializeInjectedData(data);
+    const json = script.replace(/^window\.__FACET_DATA__ = /, '').replace(/;\n$/, '');
+    expect(JSON.parse(json)).toEqual(data);
   });
 });
