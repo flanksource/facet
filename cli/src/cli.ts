@@ -9,6 +9,14 @@ import { VERSION, BUILD_DATE, GIT_COMMIT } from './version-generated.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
 
+// Loader dispatch: when this process is re-exec'd as a render subprocess
+// (FACET_LOADER set), run the bundled Vite loader instead of the CLI. Kept
+// first and behind a dynamic import so Vite is only ever loaded here.
+if (process.env.FACET_LOADER === 'ssr') {
+  const { runSsrLoader } = await import('./loaders/ssr.js');
+  await runSsrLoader();
+}
+
 function parseDataLoaderArgs(): string[] {
   const dashIndex = process.argv.indexOf('--');
   return dashIndex !== -1 ? process.argv.slice(dashIndex + 1) : [];
