@@ -42,5 +42,15 @@ const args = [postject, outBinary, 'NODE_SEA_BLOB', blob, '--sentinel-fuse', fus
 if (process.platform === 'darwin') args.push('--macho-segment-name', 'NODE_SEA');
 execFileSync(process.execPath, args, { stdio: 'inherit' });
 
+// macOS invalidates the code signature on injection; re-sign ad-hoc so the
+// binary will run (Gatekeeper still requires the user to clear quarantine).
+if (process.platform === 'darwin') {
+  try {
+    execFileSync('codesign', ['--sign', '-', outBinary], { stdio: 'inherit' });
+  } catch (err) {
+    console.warn(`codesign failed; binary may not run on macOS: ${err.message}`);
+  }
+}
+
 chmodSync(outBinary, 0o755);
 console.log(`SEA binary: ${outBinary}`);
