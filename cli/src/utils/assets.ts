@@ -6,11 +6,33 @@
  * Node feature. Works in the source tree (run via tsx) and in the built package
  * (assets copied beside the bundle into dist/assets/ by copy-assets.cjs).
  */
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { dirname, resolve, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
+const requireCjs = createRequire(import.meta.url);
+
+// Inside a Node SEA binary there is no asset on disk beside this module; the
+// files are embedded in the executable. Materialize them to a temp file once so
+// the path-based readFileSync consumers keep working.
+let seaTempDir: string | undefined;
+const seaAssetCache = new Map<string, string>();
+
+function seaAssetPath(name: string): string | undefined {
+  let sea: { isSea?: () => boolean; getRawAsset?: (n: string) => ArrayBuffer };
+  try { sea = requireCjs('node:sea'); } catch { return undefined; }
+  if (!sea.isSea?.() || !sea.getRawAsset) return undefined;
+  const cached = seaAssetCache.get(name);
+  if (cached) return cached;
+  seaTempDir ??= mkdtempSync(join(tmpdir(), 'facet-assets-'));
+  const out = join(seaTempDir, name);
+  writeFileSync(out, Buffer.from(sea.getRawAsset(name)));
+  seaAssetCache.set(name, out);
+  return out;
+}
 
 // Candidate locations relative to this module, first existing wins:
 //   - source layout: this module sits at cli/src/utils/, so repo-root files are
@@ -29,6 +51,9 @@ export type AssetName = keyof typeof ASSET_CANDIDATES;
 
 /** Absolute path to a bundled asset. Throws if it cannot be located. */
 export function assetPath(name: AssetName): string {
+  const fromSea = seaAssetPath(name);
+  if (fromSea) return fromSea;
+
   const candidates = ASSET_CANDIDATES[name];
   if (!candidates) throw new Error(`Unknown asset: ${name}`);
   for (const rel of candidates) {
