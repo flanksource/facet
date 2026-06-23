@@ -8,9 +8,8 @@
 
 import { $ } from '../utils/shell.js';
 import { spawn } from 'node:child_process';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { join, dirname, resolve } from 'path';
+import { selfExecBase } from '../utils/self-exec.js';
+import { join } from 'path';
 import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
@@ -40,23 +39,6 @@ interface LoaderResult {
  * Build template using Vite SSR mode (via external script)
  * Errors will point to original source files with full stack traces
  */
-const requireCjs = createRequire(import.meta.url);
-
-// How to re-exec this CLI. A Node SEA binary runs its embedded entry directly;
-// an interpreter (node/bun running this) needs the CLI entry passed. We resolve
-// the entry by path (not process.argv[1], which is the test file under a test
-// runner, or a worker script when embedded) so the dispatch always loads.
-function selfExecBase(): string[] {
-  try {
-    const sea = requireCjs('node:sea');
-    if (typeof sea.isSea === 'function' && sea.isSea()) return [process.execPath];
-  } catch { /* not a Node SEA build */ }
-  const here = fileURLToPath(import.meta.url);
-  // Built bundle: re-run it directly. Source: re-run cli.ts beside this dir.
-  const entry = /\.(mjs|cjs|js)$/.test(here) ? here : resolve(dirname(here), '..', 'cli.ts');
-  return [process.execPath, entry];
-}
-
 async function pnpmInstall(facetRoot: string, logger: Logger): Promise<void> {
   // --ignore-workspace: when the consumer is a pnpm workspace whose globs
   //   absorb .facet/, pnpm runs across "all N workspace projects" and ignores

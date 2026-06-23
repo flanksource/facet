@@ -15,6 +15,9 @@ import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-secu
 if (process.env.FACET_LOADER === 'ssr') {
   const { runSsrLoader } = await import('./loaders/ssr.js');
   await runSsrLoader();
+} else if (process.env.FACET_LOADER === 'dev') {
+  const { runDevLoader } = await import('./loaders/dev.js');
+  await runDevLoader();
 }
 
 function parseDataLoaderArgs(): string[] {

@@ -1,18 +1,18 @@
 /**
  * Vite Dev Server (live render path)
  *
- * Scaffolds .facet/ exactly like the SSR builder, then boots a Vite dev server
- * (via vite-dev-loader.ts, run with Bun) instead of an SSR build. Returns the
- * served URL so a browser can render the template with a live DOM — required
- * for diagram components (react-xarrows) that measure rects.
+ * Scaffolds .facet/ exactly like the SSR builder, then re-execs the CLI as a
+ * dev-server loader subprocess (FACET_LOADER=dev, cwd .facet/) so Vite runs from
+ * .facet/node_modules. Returns the served URL so a browser can render the
+ * template with a live DOM — required for diagram components (react-xarrows).
  */
 
-import { join } from 'path';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { once } from 'node:events';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
 import { installWithRetry } from './vite-builder.js';
-
-type DevServerProcess = Bun.Subprocess<'ignore', 'pipe', 'inherit'>;
+import { selfExecBase } from '../utils/self-exec.js';
 
 export interface ViteServerOptions {
   templatePath: string;
@@ -42,7 +42,6 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
   facetDir.generatePackageJson();
   facetDir.symlinkConsumerFiles();
   facetDir.copyStylesCss();
-  facetDir.copyViteDevLoader();
   facetDir.generateEntryWrapper();
   facetDir.generateTsConfig();
   facetDir.generateTailwindConfig();
@@ -51,14 +50,13 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
   await installWithRetry(facetDir, logger);
 
   const facetRoot = facetDir.getFacetRoot();
-  const loaderPath = join(facetRoot, 'vite-dev-loader.ts');
 
   logger.info('Starting Vite dev server for live render...');
-  const proc = Bun.spawn(['bun', 'run', loaderPath, `--facet-root=${facetRoot}`], {
+  const [cmd, ...baseArgs] = selfExecBase();
+  const proc = spawn(cmd, [...baseArgs, `--facet-root=${facetRoot}`], {
     cwd: facetRoot,
-    stdin: 'ignore',
-    stdout: 'pipe',
-    stderr: 'inherit',
+    env: { ...process.env, FACET_LOADER: 'dev' },
+    stdio: ['ignore', 'pipe', 'inherit'],
   });
 
   const url = await readHandshake(proc);
@@ -70,7 +68,7 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
       try {
         if (proc.exitCode === null && proc.signalCode === null) {
           proc.kill();
-          await proc.exited;
+          await once(proc, 'exit');
         }
       } catch (err) {
         logger.warn(`Failed to stop Vite dev server: ${err instanceof Error ? err.message : String(err)}`);
@@ -80,38 +78,33 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
 }
 
 /** Read the dev server's stdout until the FACET_DEV_URL handshake line appears. */
-async function readHandshake(proc: DevServerProcess): Promise<string> {
-  const reader = proc.stdout.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
+function readHandshake(proc: ChildProcess): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    let settled = false;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn();
+    };
 
-  const readLoop = (async () => {
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) {
-        throw new Error('Vite dev server exited before emitting FACET_DEV_URL handshake');
-      }
-      buffer += decoder.decode(value, { stream: true });
+    const timer = setTimeout(() => {
+      finish(() => {
+        try { proc.kill(); } catch { /* best effort */ }
+        reject(new Error('Vite dev server failed to start within timeout (no FACET_DEV_URL handshake)'));
+      });
+    }, STARTUP_TIMEOUT_MS);
+
+    proc.stdout?.setEncoding('utf-8');
+    proc.stdout?.on('data', (chunk: string) => {
+      buffer += chunk;
       const line = buffer.split('\n').find((l) => l.startsWith(HANDSHAKE_PREFIX));
-      if (line) return line.slice(HANDSHAKE_PREFIX.length).trim();
-    }
-  })();
-
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error('Vite dev server failed to start within timeout (no FACET_DEV_URL handshake)')),
-      STARTUP_TIMEOUT_MS,
-    );
+      if (line) finish(() => resolve(line.slice(HANDSHAKE_PREFIX.length).trim()));
+    });
+    proc.once('exit', () => {
+      finish(() => reject(new Error('Vite dev server exited before emitting FACET_DEV_URL handshake')));
+    });
+    proc.once('error', (err) => finish(() => reject(err)));
   });
-
-  try {
-    return await Promise.race([readLoop, timeout]);
-  } catch (err) {
-    try { proc.kill(); } catch { /* best effort */ }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-    try { reader.releaseLock(); } catch { /* best effort */ }
-  }
 }
