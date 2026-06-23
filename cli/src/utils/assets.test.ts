@@ -1,6 +1,6 @@
 // Verifies asset resolution returns the correct on-disk files — in particular
 // the repo-root @flanksource/facet manifest, not cli/package.json.
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'fs';
 import { assetPath } from './assets.js';
 

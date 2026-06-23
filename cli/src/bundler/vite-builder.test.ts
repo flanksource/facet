@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { isMissingDepError } from './vite-builder.js';
 
 describe('isMissingDepError', () => {

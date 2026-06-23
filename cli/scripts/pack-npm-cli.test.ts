@@ -1,7 +1,7 @@
 // Tests for the facet-cli npm package assembly logic: platform package
 // metadata, version pinning, and that the launcher's optionalDependencies stay
 // in sync with the supported target list.
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -51,7 +51,7 @@ describe('pinVersions', () => {
 describe('launcher package.json', () => {
   it('lists exactly one optional dependency per supported target', () => {
     const launcher = JSON.parse(
-      readFileSync(join(import.meta.dir, '..', 'npm', 'facet-cli', 'package.json'), 'utf8'),
+      readFileSync(join(import.meta.dirname, '..', 'npm', 'facet-cli', 'package.json'), 'utf8'),
     );
     const expected = TARGETS.map(platformPackageName).sort();
     expect(Object.keys(launcher.optionalDependencies).sort()).toEqual(expected);
