@@ -23,8 +23,6 @@ const ASSET_CANDIDATES = {
   'package.json': ['../../../package.json', 'assets/package.json'],
   'openapi.yaml': ['../../../openapi.yaml', 'assets/openapi.yaml'],
   'styles.css': ['../../../src/styles.css', 'assets/styles.css'],
-  'vite-ssr-loader.ts': ['../../vite-ssr-loader.ts', 'assets/vite-ssr-loader.ts'],
-  'vite-dev-loader.ts': ['../../vite-dev-loader.ts', 'assets/vite-dev-loader.ts'],
 } satisfies Record<string, string[]>;
 
 export type AssetName = keyof typeof ASSET_CANDIDATES;

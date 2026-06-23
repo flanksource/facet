@@ -11,8 +11,8 @@ describe('assetPath', () => {
     expect(JSON.parse(readFileSync(p, 'utf-8')).name).toBe('@flanksource/facet');
   });
 
-  it('resolves styles.css, openapi.yaml, and the vite loaders to existing files', () => {
-    for (const name of ['styles.css', 'openapi.yaml', 'vite-ssr-loader.ts', 'vite-dev-loader.ts'] as const) {
+  it('resolves styles.css and openapi.yaml to existing files', () => {
+    for (const name of ['styles.css', 'openapi.yaml'] as const) {
       expect(existsSync(assetPath(name))).toBe(true);
     }
   });

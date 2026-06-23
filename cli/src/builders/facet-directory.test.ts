@@ -75,8 +75,6 @@ async function writeLocalFacetPackage(options: { scripts?: Record<string, string
   }, null, 2));
   await writeFile(join(root, 'src/styles.css'), '/* local facet styles */\n.local-only { color: red; }\n');
   await writeFile(join(root, 'src/components/index.tsx'), 'export const Marker = "source";\n');
-  await writeFile(join(root, 'cli/vite-dev-loader.ts'), 'export const loader = "local-dev";\n');
-  await writeFile(join(root, 'cli/vite-ssr-loader.ts'), 'export const loader = "local-ssr";\n');
   await writeFile(join(root, 'dist/styles.css'), '/* built local css */\n');
   await writeFile(join(root, 'dist/components/index.js'), 'export const Marker = "built";\n');
 
@@ -223,19 +221,15 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     expect(resolveFacetPackageOverride(tarball)).toEqual({ kind: 'tarball', path: tarball });
   });
 
-  it('copies default styles and live loaders from the local checkout', async () => {
+  it('copies default styles from the local checkout', async () => {
     const localRoot = await writeLocalFacetPackage();
     process.env.FACET_PACKAGE_PATH = localRoot;
     const facetDir = newFacetDir();
     facetDir.create();
 
     facetDir.copyStylesCss();
-    facetDir.copyViteDevLoader();
-    facetDir.copyViteSsrLoader();
 
     expect(await readFile(join(facetRoot, 'src/styles.css'), 'utf-8')).toContain('local facet styles');
-    expect(await readFile(join(facetRoot, 'vite-dev-loader.ts'), 'utf-8')).toContain('local-dev');
-    expect(await readFile(join(facetRoot, 'vite-ssr-loader.ts'), 'utf-8')).toContain('local-ssr');
   });
 
   it('uses local package metadata and writes a build fingerprint into .facet/package.json', async () => {

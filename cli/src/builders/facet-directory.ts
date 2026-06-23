@@ -24,8 +24,6 @@ import { assetPath } from '../utils/assets.js';
 
 const rootPackageJson = assetPath('package.json');
 const stylesCss = assetPath('styles.css');
-const viteSsrLoader = assetPath('vite-ssr-loader.ts');
-const viteDevLoader = assetPath('vite-dev-loader.ts');
 
 export interface FacetDirectoryOptions {
   /** Consumer's project root directory */
@@ -1233,35 +1231,6 @@ export default {
     }
   }
 
-  /**
-   * Copy embedded vite-ssr-loader.ts to .facet/
-   */
-  copyViteSsrLoader(): void {
-    this.logger.debug('Copying vite-ssr-loader.ts');
-
-    try {
-      const loaderScript = this.readFacetAsset('cli/vite-ssr-loader.ts', viteSsrLoader, 'vite-ssr-loader.ts');
-      const destPath = join(this.facetRoot, 'vite-ssr-loader.ts');
-      writeFileSync(destPath, loaderScript, 'utf-8');
-      this.logger.debug('Copied vite-ssr-loader.ts');
-    } catch (error) {
-      throw new Error(`Failed to copy vite-ssr-loader.ts: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /**
-   * Copy embedded vite-dev-loader.ts to .facet/ (live render path)
-   */
-  copyViteDevLoader(): void {
-    this.logger.debug('Copying vite-dev-loader.ts');
-    try {
-      const loaderScript = this.readFacetAsset('cli/vite-dev-loader.ts', viteDevLoader, 'vite-dev-loader.ts');
-      writeFileSync(join(this.facetRoot, 'vite-dev-loader.ts'), loaderScript, 'utf-8');
-      this.logger.debug('Copied vite-dev-loader.ts');
-    } catch (error) {
-      throw new Error(`Failed to copy vite-dev-loader.ts: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
 
   /**
    * Get the path to the .facet/ directory
