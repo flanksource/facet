@@ -24,7 +24,10 @@ export async function runDevLoader(): Promise<void> {
   // Resolve Vite from .facet/node_modules, not the CLI's own deps (ESM import()
   // ignores NODE_PATH, so resolve explicitly relative to .facet).
   const facetRequire = createRequire(join(facetRoot, 'package.json'));
-  const { createServer } = await import(pathToFileURL(facetRequire.resolve('vite')).href);
+  // Vite resolves to its CJS build; under Node the API lands on `.default`
+  // (Bun hoists the named exports), so fall back to it.
+  const viteMod = await import(pathToFileURL(facetRequire.resolve('vite')).href);
+  const createServer = (viteMod.createServer ?? viteMod.default?.createServer) as typeof import('vite').createServer;
 
   // Vite logs to stdout by default; redirect to stderr so the FACET_DEV_URL
   // handshake line is the only thing on stdout.

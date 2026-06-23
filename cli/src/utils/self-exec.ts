@@ -19,5 +19,7 @@ export function selfExecBase(): string[] {
   const here = fileURLToPath(import.meta.url);
   // Built bundle: re-run it directly. Source: re-run cli.ts beside this dir.
   const entry = /\.(mjs|cjs|js)$/.test(here) ? here : resolve(dirname(here), '..', 'cli.ts');
-  return [process.execPath, entry];
+  // Preserve runtime flags (e.g. node's `--import tsx`) so the child can load
+  // the same TypeScript entry; empty under bun and a built bundle.
+  return [process.execPath, ...process.execArgv, entry];
 }

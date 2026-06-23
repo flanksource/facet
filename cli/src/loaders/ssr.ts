@@ -94,8 +94,12 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   // import() ignores NODE_PATH, so resolve explicitly relative to .facet — using
   // the CLI's Vite/React would produce a bundle incompatible with .facet's React.
   const facetRequire = createRequire(join(facetRoot, 'package.json'));
-  const { build } = await import(pathToFileURL(facetRequire.resolve('vite')).href);
-  const { renderToString } = await import(pathToFileURL(facetRequire.resolve('react-dom/server')).href);
+  // Vite/react-dom resolve to CJS builds; under Node the API lands on `.default`
+  // (Bun hoists the named exports), so fall back to it.
+  const viteMod = await import(pathToFileURL(facetRequire.resolve('vite')).href);
+  const build = (viteMod.build ?? viteMod.default?.build) as typeof import('vite').build;
+  const rdsMod = await import(pathToFileURL(facetRequire.resolve('react-dom/server')).href);
+  const renderToString = rdsMod.renderToString ?? rdsMod.default?.renderToString;
 
   const viteConfigPath = join(facetRoot, 'vite.config.ts');
   const outDir = join(facetRoot, `dist-${crypto.randomUUID()}`);
