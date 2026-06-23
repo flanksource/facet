@@ -11,11 +11,10 @@ import { playgroundHtml } from './playground-html.js';
 import { RenderCache } from './render-cache.js';
 import { facetTypes } from './facet-types.js';
 import { readFileSync } from 'fs';
-import rootPackageJson from '../../../package.json' with { type: 'file' };
-import openapiPath from '../../../openapi.yaml' with { type: 'file' };
+import { assetPath } from '../utils/assets.js';
 
-const facetVersion: string = JSON.parse(readFileSync(rootPackageJson, 'utf-8')).version;
-const openapiSpec: string = readFileSync(openapiPath, 'utf-8');
+const facetVersion: string = JSON.parse(readFileSync(assetPath('package.json'), 'utf-8')).version;
+const openapiSpec: string = readFileSync(assetPath('openapi.yaml'), 'utf-8');
 
 export interface ServerHandle {
   port: number;

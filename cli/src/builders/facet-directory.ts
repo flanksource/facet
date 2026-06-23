@@ -20,10 +20,12 @@ import { join, relative, dirname, resolve, extname } from 'path';
 import { homedir } from 'os';
 import type { Logger } from '../utils/logger.js';
 
-import rootPackageJson from '../../../package.json' with { type: 'file' };
-import stylesCss from '../../../src/styles.css' with { type: 'file' };
-import viteSsrLoader from '../../vite-ssr-loader.ts' with { type: 'file' };
-import viteDevLoader from '../../vite-dev-loader.ts' with { type: 'file' };
+import { assetPath } from '../utils/assets.js';
+
+const rootPackageJson = assetPath('package.json');
+const stylesCss = assetPath('styles.css');
+const viteSsrLoader = assetPath('vite-ssr-loader.ts');
+const viteDevLoader = assetPath('vite-dev-loader.ts');
 
 export interface FacetDirectoryOptions {
   /** Consumer's project root directory */

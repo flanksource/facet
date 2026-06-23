@@ -18,7 +18,7 @@ import { resolvePackageManager } from '../utils/package-manager.js';
 import { resolveChromePath } from '../utils/pdf-generator.js';
 import { resolveTailwindBin, tailwindBinExists } from '../utils/tailwind.js';
 import { VERSION } from '../version-generated.js';
-import rootPackageJson from '../../../package.json' with { type: 'file' };
+import { assetPath } from '../utils/assets.js';
 
 type CheckStatus = 'pass' | 'warn' | 'fail';
 
@@ -250,7 +250,7 @@ function checkNodeVersion(): CheckResult {
 
 function readRootEnginesNode(): string | undefined {
   try {
-    const raw = readFileSync(rootPackageJson, 'utf-8');
+    const raw = readFileSync(assetPath('package.json'), 'utf-8');
     const pkg = JSON.parse(raw);
     return pkg?.engines?.node;
   } catch {
