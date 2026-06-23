@@ -9,17 +9,6 @@ import { VERSION, BUILD_DATE, GIT_COMMIT } from './version-generated.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
 
-// Loader dispatch: when this process is re-exec'd as a render subprocess
-// (FACET_LOADER set), run the bundled Vite loader instead of the CLI. Kept
-// first and behind a dynamic import so Vite is only ever loaded here.
-if (process.env.FACET_LOADER === 'ssr') {
-  const { runSsrLoader } = await import('./loaders/ssr.js');
-  await runSsrLoader();
-} else if (process.env.FACET_LOADER === 'dev') {
-  const { runDevLoader } = await import('./loaders/dev.js');
-  await runDevLoader();
-}
-
 function parseDataLoaderArgs(): string[] {
   const dashIndex = process.argv.indexOf('--');
   return dashIndex !== -1 ? process.argv.slice(dashIndex + 1) : [];
@@ -338,4 +327,22 @@ program.on('command:*', () => {
   process.exit(2);
 });
 
-program.parse();
+async function run(): Promise<void> {
+  // Loader dispatch: when re-exec'd as a render subprocess (FACET_LOADER set),
+  // run the bundled Vite loader instead of the CLI. Behind a dynamic import so
+  // Vite is only ever loaded in a render subprocess. No top-level await here so
+  // the bundle stays CommonJS-compatible for the Node SEA binary.
+  if (process.env.FACET_LOADER === 'ssr') {
+    const { runSsrLoader } = await import('./loaders/ssr.js');
+    await runSsrLoader();
+    return;
+  }
+  if (process.env.FACET_LOADER === 'dev') {
+    const { runDevLoader } = await import('./loaders/dev.js');
+    await runDevLoader();
+    return;
+  }
+  program.parse();
+}
+
+run();
