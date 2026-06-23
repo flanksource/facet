@@ -6,7 +6,7 @@
  * Errors will point to original .tsx files with full source maps.
  */
 
-import { $ } from 'bun';
+import { $ } from '../utils/shell.js';
 import { join } from 'path';
 import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';

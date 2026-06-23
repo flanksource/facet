@@ -7,8 +7,9 @@
  * auth leakage into .facet/.
  */
 
-import { $ } from 'bun';
+import { $ } from '../utils/shell.js';
 import { existsSync, readFileSync, readdirSync, statSync, appendFileSync, rmSync } from 'fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'path';
 import chalk from 'chalk';
 import semver from 'semver';
@@ -264,7 +265,7 @@ function checkArchitecture(): CheckResult {
   // best effort — `uname` may be absent on some platforms.
   let hostArch: string = arch;
   try {
-    hostArch = Bun.spawnSync(['uname', '-m']).stdout.toString().trim();
+    hostArch = (spawnSync('uname', ['-m'], { encoding: 'utf-8' }).stdout ?? '').trim();
   } catch { /* fall through */ }
 
   const rosetta = platform === 'darwin' && arch === 'x64' && hostArch === 'arm64';

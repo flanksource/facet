@@ -14,6 +14,7 @@
  */
 
 import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync, chmodSync } from 'fs';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname } from 'path';
 import { homedir } from 'os';
@@ -978,18 +979,20 @@ export default defineConfig({
 
   private runLocalFacetBuildScript(packageRoot: string, script: string): void {
     this.logger.info(`FACET_PACKAGE_PATH local override is stale; running pnpm run ${script}`);
-    const result = Bun.spawnSync(['pnpm', 'run', script], {
+    const result = spawnSync('pnpm', ['run', script], {
       cwd: packageRoot,
       timeout: LOCAL_BUILD_TIMEOUT_MS,
     });
-    const stdout = result.stdout.toString();
-    const stderr = result.stderr.toString();
+    const stdout = (result.stdout ?? Buffer.from('')).toString();
+    const stderr = (result.stderr ?? Buffer.from('')).toString();
     if (stdout) this.logger.debug(stdout);
     if (stderr) this.logger.debug(stderr);
-    if (!result.success) {
-      const reason = result.exitedDueToTimeout
+    const timedOut = (result.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT';
+    if (result.error && !timedOut) throw result.error;
+    if (timedOut || result.status !== 0) {
+      const reason = timedOut
         ? `timed out after ${LOCAL_BUILD_TIMEOUT_MS / 1000}s`
-        : `failed with exit code ${result.exitCode ?? 'unknown'}`;
+        : `failed with exit code ${result.status ?? 'unknown'}`;
       throw new Error(
         `pnpm run ${script} ${reason} in ${packageRoot}:\n${stdout}${stderr}`
       );
