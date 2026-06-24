@@ -22,9 +22,10 @@ npm install -g @flanksource/facet-cli
 # or: pnpm add -g @flanksource/facet-cli
 ```
 
-This installs the `facet` command. The prebuilt binary for your platform
-(Linux x64/arm64, macOS arm64, Windows x64) is fetched automatically; no Bun or
-Node runtime is required at run time, since the binary embeds its own runtime.
+This installs the `facet` command, which runs on your Node.js (>=18). Rendering
+additionally needs `pnpm` on PATH and, for PDF output, a system Chrome/Chromium —
+run `facet doctor` to check. For a Node-free environment, use the standalone
+binary below.
 
 ### Option 2: Standalone binary
 
