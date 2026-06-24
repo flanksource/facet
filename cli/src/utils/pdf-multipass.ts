@@ -1,6 +1,6 @@
 import { writeFileSync } from 'fs';
 import * as zlib from 'zlib';
-import { PDFDocument, PDFName, PDFRawStream, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import type { Browser, Page } from 'puppeteer-core';
 import type { Logger } from './logger.js';
 
@@ -429,51 +429,6 @@ export function replaceInBuffer(buf: Buffer, placeholder: string, value: string)
     idx += replace.length;
   }
   return result;
-}
-
-async function replaceInPdfStreams(buf: Buffer, replacements: [string, string][]): Promise<Buffer> {
-  const doc = await PDFDocument.load(buf);
-  for (const [ref, obj] of doc.context.enumerateIndirectObjects()) {
-    if (!(obj instanceof PDFRawStream)) continue;
-    const dict = obj.dict;
-    const filter = dict.get(PDFName.of('Filter'));
-    let bytes = Buffer.from(obj.contents);
-    let compressed = false;
-
-    if (filter?.toString() === '/FlateDecode') {
-      try { bytes = zlib.inflateSync(bytes); compressed = true; } catch { continue; }
-    }
-
-    let modified = false;
-    for (const [placeholder, value] of replacements) {
-      const padded = value.padEnd(placeholder.length, ' ');
-      const searchAscii = Buffer.from(placeholder);
-      const replAscii = Buffer.from(padded);
-      let idx = 0;
-      while ((idx = bytes.indexOf(searchAscii, idx)) !== -1) {
-        replAscii.copy(bytes, idx);
-        idx += replAscii.length;
-        modified = true;
-      }
-      const searchHex = Buffer.from(Buffer.from(placeholder).toString('hex').toUpperCase());
-      const replHex = Buffer.from(Buffer.from(padded).toString('hex').toUpperCase());
-      idx = 0;
-      while ((idx = bytes.indexOf(searchHex, idx)) !== -1) {
-        replHex.copy(bytes, idx);
-        idx += replHex.length;
-        modified = true;
-      }
-    }
-
-    if (modified) {
-      const final = compressed ? zlib.deflateSync(bytes) : bytes;
-      const newDict = dict.clone(doc.context);
-      newDict.set(PDFName.of('Length'), doc.context.obj(final.length));
-      const newStream = PDFRawStream.of(newDict, new Uint8Array(final));
-      doc.context.assign(ref, newStream);
-    }
-  }
-  return Buffer.from(await doc.save());
 }
 
 async function embedOverlay(doc: PDFDocument, buf: Buffer): Promise<Awaited<ReturnType<typeof doc.embedPages>>[0]> {

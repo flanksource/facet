@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import {
   PDFDocument, PDFName, PDFDict, PDFArray,
-  PDFString, PDFHexString, PDFObject,
+  PDFString, PDFHexString, PDFObject, PDFRef,
 } from 'pdf-lib';
 import {
   DEFAULT_SIGNATURE_LENGTH,
@@ -164,7 +164,11 @@ function addSignaturePlaceholder(doc: PDFDocument, options: PDFSignatureOptions)
 
   // Rebuild catalog to avoid pdf-lib's raw-bytes serialization bug where
   // appending a new key to a loaded dict places it after the closing ">>".
-  const oldCatalog = ctx.lookup(ctx.trailerInfo.Root) as PDFDict;
+  const rootRef = ctx.trailerInfo.Root;
+  if (!(rootRef instanceof PDFRef)) {
+    throw new Error('PDF trailer has no Root catalog reference; cannot add a signature field');
+  }
+  const oldCatalog = ctx.lookup(rootRef) as PDFDict;
   const newCatalog = ctx.obj({}) as PDFDict;
   for (const [key, value] of oldCatalog.entries()) {
     newCatalog.set(key, value);
@@ -173,7 +177,7 @@ function addSignaturePlaceholder(doc: PDFDocument, options: PDFSignatureOptions)
     SigFlags: SIG_FLAGS.SIGNATURES_EXIST | SIG_FLAGS.APPEND_ONLY,
     Fields: [widgetRef],
   }));
-  ctx.assign(ctx.trailerInfo.Root, newCatalog);
+  ctx.assign(rootRef, newCatalog);
 }
 
 async function signPDF(buffer: Buffer, options: PDFSignatureOptions): Promise<Buffer> {

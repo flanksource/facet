@@ -53,6 +53,9 @@ jobs:
           pnpm install
           cd cli && pnpm install
 
+      - name: Typecheck
+        run: cd cli && pnpm run lint
+
       - name: Run tests
         run: task test:unit
 
