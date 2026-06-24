@@ -27,7 +27,7 @@ export function handleResultsRoute(id: string, cache: RenderCache): Response {
   const cached = cache.get(id);
   if (!cached) return Response.json({ error: { code: 'NOT_FOUND', message: 'Result not found or expired' } }, { status: 404 });
   const ext = cached.contentType === 'application/pdf' ? 'pdf' : 'html';
-  return new Response(cached.data, {
+  return new Response(new Uint8Array(cached.data), {
     headers: {
       'content-type': cached.contentType,
       'content-disposition': `inline; filename="render.${ext}"`,
@@ -183,7 +183,7 @@ async function doRender(
     if (cached.contentType === 'application/pdf') {
       return Response.json({ url: `/results/${cacheKey}` });
     }
-    return new Response(cached.data, {
+    return new Response(new Uint8Array(cached.data), {
       headers: {
         'content-type': cached.contentType,
         'content-disposition': `inline; filename="render.html"`,
@@ -524,7 +524,7 @@ async function respondWithOutput(
   }
 
   const filename = parsed.filename ?? `${templateName}.${extension}`;
-  return new Response(content, {
+  return new Response(typeof content === 'string' ? content : new Uint8Array(content), {
     headers: {
       'content-type': contentType,
       'content-disposition': `inline; filename="${filename}"`,

@@ -1,23 +1,15 @@
-#!/usr/bin/env bun
-
 /**
- * Vite SSR Loader
- *
- * Standalone script that loads React components with Vite SSR mode.
- * Runs outside the CLI bundle to avoid embedding Vite.
- *
- * Usage:
- *   bun run vite-ssr-loader.ts --facet-root=/path/to/.facet --data-file=/path/to/data.json [--verbose]
+ * Vite SSR loader, run as a self-exec subprocess (FACET_LOADER=ssr) from
+ * inside .facet/. Builds the template's SSR bundle with Vite (resolved from
+ * .facet/node_modules), renders it with React, and writes {html,css} JSON to
+ * the --output-file. Kept out of the normal CLI path so Vite is never loaded
+ * unless a render is in progress.
  */
-
-import 'source-map-support/register';
-import { build } from 'vite';
-import { renderToString } from 'react-dom/server';
-import { join } from 'path';
-import { readFileSync, writeFileSync, readdirSync, rmSync } from 'fs';
-
-import { Console } from 'console';
-
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
+import { Console } from 'node:console';
 
 interface LoaderArgs {
   facetRoot: string;
@@ -32,9 +24,6 @@ interface LoaderResult {
   error?: string;
 }
 
-/**
- * Parse CLI arguments
- */
 function parseArgs(): LoaderArgs {
   const args = process.argv.slice(2);
   let facetRoot = '';
@@ -76,19 +65,13 @@ function parseArgs(): LoaderArgs {
   return { facetRoot, data, outputFile, verbose };
 }
 
-/**
- * Extract CSS from Vite build output
- */
 function extractCSS(distDir: string): string {
   try {
     const files = readdirSync(distDir);
     const cssFile = files.find(f => f.endsWith('.css'));
-
     if (cssFile) {
-      const cssPath = join(distDir, cssFile);
-      return readFileSync(cssPath, 'utf-8');
+      return readFileSync(join(distDir, cssFile), 'utf-8');
     }
-
     return '';
   } catch (error) {
     console.error('Warning: Failed to extract CSS from build output:', error);
@@ -96,56 +79,47 @@ function extractCSS(distDir: string): string {
   }
 }
 
-/**
- * Main loader function
- */
 async function load(args: LoaderArgs): Promise<LoaderResult> {
   const { facetRoot, data, verbose } = args;
 
-  // Add facet's node_modules to NODE_PATH for proper module resolution
-  const facetNodeModules = join(facetRoot, 'node_modules');
-  const originalNodePath = process.env.NODE_PATH || '';
-  process.env.NODE_PATH = originalNodePath ? `${facetNodeModules}:${originalNodePath}` : facetNodeModules;
-
-  // Reload module resolution with new NODE_PATH
-  require('module').Module._initPaths();
+  // Resolve Vite + React from .facet/node_modules, not the CLI's own deps. ESM
+  // import() resolves via file URLs, so resolve explicitly relative to .facet — using
+  // the CLI's Vite/React would produce a bundle incompatible with .facet's React.
+  const facetRequire = createRequire(join(facetRoot, 'package.json'));
+  // Vite/react-dom resolve to CJS builds; under Node the API lands on `.default`
+  // (Bun hoists the named exports), so fall back to it.
+  const viteMod = await import(pathToFileURL(facetRequire.resolve('vite')).href);
+  const build = (viteMod.build ?? viteMod.default?.build) as typeof import('vite').build;
+  const rdsMod = await import(pathToFileURL(facetRequire.resolve('react-dom/server')).href);
+  const renderToString = rdsMod.renderToString ?? rdsMod.default?.renderToString;
 
   const viteConfigPath = join(facetRoot, 'vite.config.ts');
   const outDir = join(facetRoot, `dist-${crypto.randomUUID()}`);
 
-  // @ts-expect-error node's Console and Bun's augmented Console differ; at runtime
-  // the assignment only needs to provide the log/info/error/warn methods Vite uses.
+  // Route Vite's stdout logging to stderr so it can't corrupt the result JSON.
   console = new Console(process.stderr, process.stderr);
 
-  // Build the SSR bundle with Vite
   await build({
     configFile: viteConfigPath,
     root: facetRoot,
     logLevel: verbose ? 'info' : 'error',
-    build: {
-      ssr: true,
-      outDir: outDir,
-      emptyOutDir: true,
-    },
+    build: { ssr: true, outDir, emptyOutDir: true },
   });
 
-  // On success, clean the bundle up; on failure, preserve it so the stack
-  // trace (which names entry.cjs:<line>) stays resolvable for debugging.
-  // FACET_KEEP_BUNDLE=1 forces retention even on success.
+  // On success clean the bundle up; on failure preserve it so the stack trace
+  // (which names entry.cjs:<line>) stays resolvable. FACET_KEEP_BUNDLE=1 keeps it.
   const keepOnSuccess = process.env.FACET_KEEP_BUNDLE === '1';
   try {
     const files = readdirSync(outDir);
     const cjsFile = files.find(f => f.endsWith('.cjs'));
-
     if (!cjsFile) {
       throw new Error('No .cjs bundle found in build output');
     }
 
-    const bundlePath = join(outDir, cjsFile);
-    const module = require(bundlePath);
-
+    // Load the bundle with a .facet-rooted require so its externalized
+    // react/react-dom (and react/jsx-dev-runtime) resolve from .facet, not the CLI.
+    const module = facetRequire(join(outDir, cjsFile));
     const Component = module.default || module;
-
     if (typeof Component !== 'function') {
       throw new Error('Template must export a React component function');
     }
@@ -165,11 +139,7 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
 
 /**
  * Format a Vite/Rollup/MDX build error so the user sees the failing file,
- * line:col, source frame, and plugin name — not just the bare error message.
- *
- * Vite errors carry these fields on the error object even when toString()
- * collapses them: `id` (file path), `loc` ({ file, line, column }), `frame`
- * (source excerpt with a caret), `plugin`, and `pluginCode`.
+ * line:col, source frame, and plugin name — not just the bare message.
  */
 function formatBuildError(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
@@ -195,14 +165,10 @@ function formatBuildError(error: unknown): string {
   return parts.join('\n');
 }
 
-/**
- * Entry point
- */
-async function main() {
+export async function runSsrLoader(): Promise<void> {
   try {
     const args = parseArgs();
     const result = await load(args);
-
     const json = JSON.stringify(result);
     if (args.outputFile) {
       writeFileSync(args.outputFile, json);
@@ -213,14 +179,10 @@ async function main() {
   } catch (error) {
     console.error('\n❌ Vite SSR Error:');
     console.error(formatBuildError(error));
-
     if (process.env.FACET_DEBUG_STACK === '1' && error instanceof Error && error.stack) {
       console.error('\nStack trace:');
       console.error(error.stack);
     }
-
     process.exit(1);
   }
 }
-
-main();

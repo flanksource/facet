@@ -1,12 +1,14 @@
 /**
  * Vite Builder for Dynamic Template Compilation
  *
- * Shells out to vite-ssr-loader.ts script (runs with Bun).
- * Vite is NOT embedded in CLI bundle - it runs from .facet/node_modules.
- * Errors will point to original .tsx files with full source maps.
+ * Re-execs the CLI as an SSR loader subprocess (FACET_LOADER=ssr) with cwd set
+ * to .facet/, so Vite resolves from .facet/node_modules and is never embedded
+ * in the CLI bundle. Errors point to original .tsx files with full source maps.
  */
 
-import { $ } from 'bun';
+import { $ } from '../utils/shell.js';
+import { spawn } from 'node:child_process';
+import { selfExecBase } from '../utils/self-exec.js';
 import { join } from 'path';
 import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -37,12 +39,6 @@ interface LoaderResult {
  * Build template using Vite SSR mode (via external script)
  * Errors will point to original source files with full stack traces
  */
-function srtPrefix(sandbox?: string | boolean): string {
-  if (!sandbox) return '';
-  const settings = typeof sandbox === 'string' ? sandbox : '/etc/facet/srt-settings.json';
-  return `srt --settings ${settings} `;
-}
-
 async function pnpmInstall(facetRoot: string, logger: Logger): Promise<void> {
   // --ignore-workspace: when the consumer is a pnpm workspace whose globs
   //   absorb .facet/, pnpm runs across "all N workspace projects" and ignores
@@ -108,16 +104,44 @@ export function isMissingDepError(stderr: string): boolean {
 }
 
 interface LoaderArgs {
-  loaderPath: string;
   facetRoot: string;
   dataFilePath: string;
   resultFilePath: string;
   sandbox?: string | boolean;
 }
 
-async function runLoaderOnce(args: LoaderArgs): Promise<{ stderr?: Buffer | string; }> {
-  const prefix = srtPrefix(args.sandbox);
-  return await $`${{ raw: prefix }}bun run ${args.loaderPath} --facet-root=${args.facetRoot} --data-file=${args.dataFilePath} --output-file=${args.resultFilePath}`.quiet();
+function runLoaderOnce(args: LoaderArgs): Promise<{ stderr?: Buffer | string; }> {
+  const loaderArgs = [
+    `--facet-root=${args.facetRoot}`,
+    `--data-file=${args.dataFilePath}`,
+    `--output-file=${args.resultFilePath}`,
+  ];
+  const settings = typeof args.sandbox === 'string' ? args.sandbox : '/etc/facet/srt-settings.json';
+  const parts = args.sandbox
+    ? ['srt', '--settings', settings, ...selfExecBase(), ...loaderArgs]
+    : [...selfExecBase(), ...loaderArgs];
+  const [cmd, ...argv] = parts;
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, argv, {
+      cwd: args.facetRoot,
+      env: { ...process.env, FACET_LOADER: 'ssr' },
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    const stderrChunks: Buffer[] = [];
+    child.stderr?.on('data', (c: Buffer) => stderrChunks.push(c));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      const stderr = Buffer.concat(stderrChunks);
+      if (code !== 0) {
+        const err = new Error(`SSR loader exited with code ${code}`) as Error & { stderr: Buffer };
+        err.stderr = stderr;
+        reject(err);
+        return;
+      }
+      resolve({ stderr });
+    });
+  });
 }
 
 async function runLoaderWithRetry(
@@ -168,7 +192,6 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
 
   facetDir.symlinkConsumerFiles();
   facetDir.copyStylesCss();
-  facetDir.copyViteSsrLoader(); // Copy the loader script
   facetDir.generateEntryWrapper();
   facetDir.generateTsConfig();
   facetDir.generateViteConfig();
@@ -179,9 +202,8 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   // us fast reuse across renders — no facet-side cache needed.
   await installWithRetry(facetDir, logger);
 
-  // Shell out to vite-ssr-loader.ts script
+  // Re-exec the CLI as an SSR loader subprocess (Vite runs from .facet/).
   logger.info('Loading template with Vite SSR...');
-  const loaderPath = join(facetRoot, 'vite-ssr-loader.ts');
   const tmpDir = mkdtempSync(join(tmpdir(), 'facet-'));
   const dataFilePath = join(tmpDir, 'data.json');
   const resultFilePath = join(tmpDir, 'result.json');
@@ -189,7 +211,7 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   try {
     const loaderResult = await runLoaderWithRetry(
       facetDir,
-      { loaderPath, facetRoot, dataFilePath, resultFilePath, sandbox: options.sandbox },
+      { facetRoot, dataFilePath, resultFilePath, sandbox: options.sandbox },
       logger,
     );
     logger.debug(`Rendered HTML: ${loaderResult.html.length} bytes, CSS: ${loaderResult.css.length} bytes`);

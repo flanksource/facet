@@ -6,7 +6,7 @@
  * render does not need pnpm on PATH at runtime — only at install time.
  */
 
-import { $ } from 'bun';
+import { $ } from './shell.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
@@ -55,7 +55,9 @@ export async function runTailwind(opts: RunTailwindOptions): Promise<void> {
   }
   const cmd = $`${bin} -i ${opts.stylesInput} --content ${opts.contentPath} -o ${opts.outputCssPath}`;
   if (opts.verbose) {
-    await cmd;
+    const result = await cmd;
+    if (result.stdout.length) process.stdout.write(result.stdout);
+    if (result.stderr.length) process.stderr.write(result.stderr);
   } else {
     await cmd.quiet();
   }

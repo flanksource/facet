@@ -1,11 +1,11 @@
 # Multi-stage Dockerfile for facet CLI with Chromium browser
 # Supports multi-arch builds (amd64, arm64)
 
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 
 ARG GIT_COMMIT=unknown
 
-# Install system dependencies and bun
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
@@ -14,9 +14,6 @@ RUN apt-get update && apt-get install -y \
     curl \
     unzip \
     && rm -rf /var/lib/apt/lists/*
-
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:$PATH"
 
 # Install pnpm
 RUN npm install -g pnpm@9.15.9
@@ -38,7 +35,7 @@ COPY . .
 # Build the component library + styles that rendered templates import from
 # "@flanksource/facet", then pack the package while dist/ holds only the library
 # (the CLI binary is added to dist/ afterwards and would bloat the tarball),
-# then build the standalone CLI binary (bun compile) into dist/facet.
+# then build the standalone CLI binary (Node SEA) into dist/facet.
 ENV GIT_COMMIT=${GIT_COMMIT}
 RUN pnpm run build:components && pnpm run build:css
 RUN cd /app && npm pack --pack-destination /app/ \
@@ -47,7 +44,7 @@ RUN cd /app && npm pack --pack-destination /app/ \
 RUN cd cli && pnpm run build
 
 # Final stage with Chromium browser
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 ARG VERSION=dev
 
@@ -80,10 +77,6 @@ RUN npm install -g @anthropic-ai/sandbox-runtime
 
 # Allow ImageMagick to read/write PDFs (blocked by default policy)
 RUN sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
-
-# Install bun (needed to run vite-ssr-loader.ts at template build time)
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:$PATH"
 
 # Set Chromium executable path for Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \

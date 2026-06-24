@@ -1,43 +1,7 @@
 /**
- * React SSR Renderer
- *
- * Renders React components to static HTML using Server-Side Rendering.
- * Extracted and adapted from scripts/build-datasheet.js
+ * HTML assembly utilities — inline rendered CSS into the rendered HTML so the
+ * output is a single self-contained document.
  */
-
-import React from 'react';
-import ReactDOMServer from 'react-dom/server';
-import type { RenderedTemplate } from '../types.js';
-
-export interface RenderOptions {
-  component: React.ComponentType<{ data: Record<string, unknown>; css?: string }>;
-  data: Record<string, unknown>;
-  css?: string;
-}
-
-/**
- * Render React component to static HTML
- *
- * @param options - Rendering options
- * @returns Rendered HTML and CSS
- */
-export function renderToHTML(options: RenderOptions): RenderedTemplate {
-  const { component, data, css = '' } = options;
-
-  // Create React element with data prop
-  const element = React.createElement(component, { data, css });
-
-  // Render to static HTML string
-  const htmlString = ReactDOMServer.renderToStaticMarkup(element);
-
-  // Prepend DOCTYPE
-  const html = '<!DOCTYPE html>\n' + htmlString;
-
-  return {
-    html,
-    css,
-  };
-}
 
 /**
  * Combine HTML and CSS into a self-contained HTML document

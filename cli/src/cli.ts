@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { Logger } from './utils/logger.js';
+import { preflight, PreflightError } from './commands/doctor.js';
 import { resolveOutput } from './utils/resolve-output.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from './version-generated.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
@@ -11,6 +12,30 @@ import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-secu
 function parseDataLoaderArgs(): string[] {
   const dashIndex = process.argv.indexOf('--');
   return dashIndex !== -1 ? process.argv.slice(dashIndex + 1) : [];
+}
+
+// External tools a render command shells out to. Every render needs `pnpm`
+// (installs `.facet/`); PDF and live rendering additionally need Chromium;
+// `.ts` data loaders need tsx.
+function renderRequirements(command: 'html' | 'pdf', options: any): string[] {
+  const ids = ['pnpm'];
+  if (command === 'pdf' || options.live) ids.push('chromium');
+  if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
+  return ids;
+}
+
+// Fail fast with one actionable message listing every missing tool, rather than
+// crashing deep in the pipeline with a cryptic spawn/import error.
+async function ensureRenderReady(command: 'html' | 'pdf', options: any, logger: Logger): Promise<void> {
+  try {
+    await preflight(renderRequirements(command, options), process.cwd());
+  } catch (error) {
+    if (error instanceof PreflightError) {
+      logger.error(error.message);
+      process.exit(1);
+    }
+    throw error;
+  }
 }
 
 function buildMargins(options: any): PDFMargins | undefined {
@@ -84,6 +109,7 @@ addSharedOptions(
 ).action(async (templates: string[], options: any) => {
   const logger = new Logger(options.verbose);
   try {
+    await ensureRenderReady('html', options, logger);
     for (const template of templates) {
       logger.info(`Generating HTML from template: ${template}`);
       const { outputDir, outputName } = resolveOutput(options.output);
@@ -150,6 +176,7 @@ addSharedOptions(
 ).action(async (templates: string[], options: any) => {
   const logger = new Logger(options.verbose);
   try {
+    await ensureRenderReady('pdf', options, logger);
     for (const template of templates) {
       logger.info(`Generating PDF from template: ${template}`);
       const { outputDir, outputName } = resolveOutput(options.output);
@@ -300,4 +327,26 @@ program.on('command:*', () => {
   process.exit(2);
 });
 
-program.parse();
+async function run(): Promise<void> {
+  // Loader dispatch: when re-exec'd as a render subprocess (FACET_LOADER set),
+  // run the bundled Vite loader instead of the CLI. Behind a dynamic import so
+  // Vite is only ever loaded in a render subprocess. No top-level await here so
+  // the bundle stays CommonJS-compatible for the Node SEA binary.
+  if (process.env.FACET_LOADER === 'ssr') {
+    const { runSsrLoader } = await import('./loaders/ssr.js');
+    await runSsrLoader();
+    return;
+  }
+  if (process.env.FACET_LOADER === 'dev') {
+    const { runDevLoader } = await import('./loaders/dev.js');
+    await runDevLoader();
+    return;
+  }
+  program.parse();
+}
+
+run().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`facet: ${message}`);
+  process.exitCode = 1;
+});

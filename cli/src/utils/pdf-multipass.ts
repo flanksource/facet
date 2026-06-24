@@ -1,6 +1,6 @@
 import { writeFileSync } from 'fs';
 import * as zlib from 'zlib';
-import { PDFDocument, PDFName, PDFRawStream, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import type { Browser, Page } from 'puppeteer-core';
 import type { Logger } from './logger.js';
 
@@ -418,7 +418,7 @@ export function bufferHasPlaceholders(buf: Buffer): boolean {
   return false;
 }
 
-export function replaceInBuffer(buf: Buffer, placeholder: string, value: string): Buffer {
+function replacePlain(buf: Buffer, placeholder: string, value: string): Buffer {
   const padded = value.padEnd(placeholder.length, ' ');
   const result = Buffer.from(buf);
   const search = Buffer.from(placeholder);
@@ -428,52 +428,59 @@ export function replaceInBuffer(buf: Buffer, placeholder: string, value: string)
     replace.copy(result, idx);
     idx += replace.length;
   }
+  const hexSearchUpper = Buffer.from(placeholder).toString('hex').toUpperCase();
+  const hexReplaceUpper = Buffer.from(padded).toString('hex').toUpperCase();
+  idx = 0;
+  while ((idx = result.indexOf(hexSearchUpper, idx)) !== -1) {
+    Buffer.from(hexReplaceUpper).copy(result, idx);
+    idx += hexReplaceUpper.length;
+  }
+  const hexSearchLower = hexSearchUpper.toLowerCase();
+  const hexReplaceLower = hexReplaceUpper.toLowerCase();
+  idx = 0;
+  while ((idx = result.indexOf(hexSearchLower, idx)) !== -1) {
+    Buffer.from(hexReplaceLower).copy(result, idx);
+    idx += hexReplaceLower.length;
+  }
   return result;
 }
 
-async function replaceInPdfStreams(buf: Buffer, replacements: [string, string][]): Promise<Buffer> {
-  const doc = await PDFDocument.load(buf);
-  for (const [ref, obj] of doc.context.enumerateIndirectObjects()) {
-    if (!(obj instanceof PDFRawStream)) continue;
-    const dict = obj.dict;
-    const filter = dict.get(PDFName.of('Filter'));
-    let bytes = Buffer.from(obj.contents);
-    let compressed = false;
+export function replaceInBuffer(buf: Buffer, placeholder: string, value: string): Buffer {
+  let result = replacePlain(buf, placeholder, value);
+  let offset = 0;
+  while (true) {
+    const streamPos = result.indexOf('stream', offset);
+    if (streamPos === -1) break;
+    let dataStart = streamPos + 'stream'.length;
+    if (result[dataStart] === 0x0d && result[dataStart + 1] === 0x0a) dataStart += 2;
+    else if (result[dataStart] === 0x0a) dataStart += 1;
 
-    if (filter?.toString() === '/FlateDecode') {
-      try { bytes = zlib.inflateSync(bytes); compressed = true; } catch { continue; }
-    }
+    const endstreamPos = result.indexOf('endstream', dataStart);
+    if (endstreamPos === -1) break;
+    let dataEnd = endstreamPos;
+    if (result[dataEnd - 2] === 0x0d && result[dataEnd - 1] === 0x0a) dataEnd -= 2;
+    else if (result[dataEnd - 1] === 0x0a) dataEnd -= 1;
 
-    let modified = false;
-    for (const [placeholder, value] of replacements) {
-      const padded = value.padEnd(placeholder.length, ' ');
-      const searchAscii = Buffer.from(placeholder);
-      const replAscii = Buffer.from(padded);
-      let idx = 0;
-      while ((idx = bytes.indexOf(searchAscii, idx)) !== -1) {
-        replAscii.copy(bytes, idx);
-        idx += replAscii.length;
-        modified = true;
+    try {
+      const inflated = zlib.inflateSync(result.subarray(dataStart, dataEnd));
+      const replaced = replacePlain(inflated, placeholder, value);
+      if (!replaced.equals(inflated)) {
+        const deflated = zlib.deflateSync(replaced);
+        const dictStart = result.lastIndexOf('<<', streamPos);
+        if (dictStart !== -1) {
+          const beforeDict = result.subarray(0, dictStart);
+          const dict = result.subarray(dictStart, dataStart).toString('latin1')
+            .replace(/\/Length\s+\d+/, `/Length ${deflated.length}`);
+          const afterStream = result.subarray(dataEnd);
+          result = Buffer.concat([beforeDict, Buffer.from(dict, 'latin1'), deflated, afterStream]);
+          offset = beforeDict.length + dict.length + deflated.length;
+          continue;
+        }
       }
-      const searchHex = Buffer.from(Buffer.from(placeholder).toString('hex').toUpperCase());
-      const replHex = Buffer.from(Buffer.from(padded).toString('hex').toUpperCase());
-      idx = 0;
-      while ((idx = bytes.indexOf(searchHex, idx)) !== -1) {
-        replHex.copy(bytes, idx);
-        idx += replHex.length;
-        modified = true;
-      }
-    }
-
-    if (modified) {
-      const final = compressed ? zlib.deflateSync(bytes) : bytes;
-      const newDict = dict.clone(doc.context);
-      newDict.set(PDFName.of('Length'), doc.context.obj(final.length));
-      const newStream = PDFRawStream.of(newDict, new Uint8Array(final));
-      doc.context.assign(ref, newStream);
-    }
+    } catch { /* stream is not zlib-compressed */ }
+    offset = endstreamPos + 'endstream'.length;
   }
-  return Buffer.from(await doc.save());
+  return result;
 }
 
 async function embedOverlay(doc: PDFDocument, buf: Buffer): Promise<Awaited<ReturnType<typeof doc.embedPages>>[0]> {
@@ -535,6 +542,12 @@ export async function compositeHeaderFooter(
         const buf = await renderElementPdf(browser, pageHtml, `[data-header-type="${type}"]`, h, dims.width);
         embedded = await embedOverlay(doc, buf);
       }
+      if (!embedded) {
+        const fallbackBuf = headerHasPlaceholders.get(key)
+          ? replaceInBuffer(replaceInBuffer(headerBuf, PAGE_MARKER, pageNum), TOTAL_MARKER, totalStr)
+          : headerBuf;
+        embedded = await embedOverlay(doc, fallbackBuf);
+      }
       if (embedded) {
         page.drawPage(embedded, {
           x: 0,
@@ -554,6 +567,12 @@ export async function compositeHeaderFooter(
         const h = scaledHeight(def.footerHeight, scale);
         const buf = await renderElementPdf(browser, pageHtml, `[data-footer-type="${type}"]`, h, dims.width);
         embedded = await embedOverlay(doc, buf);
+      }
+      if (!embedded) {
+        const fallbackBuf = footerHasPlaceholders.get(key)
+          ? replaceInBuffer(replaceInBuffer(footerBuf, PAGE_MARKER, pageNum), TOTAL_MARKER, totalStr)
+          : footerBuf;
+        embedded = await embedOverlay(doc, fallbackBuf);
       }
       if (embedded) {
         page.drawPage(embedded, {

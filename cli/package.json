@@ -15,15 +15,15 @@
   "scripts": {
     "gen-version": "node scripts/gen-version.cjs",
     "build:lib": "tsdown",
-    "prebuild:cli": "pnpm run gen-version",
-    "build:cli": "bun build src/cli.ts --outfile=../dist/facet --compile --target=bun",
-    "postbuild": "chmod +x ../dist/facet",
+    "prebuild:bundle": "pnpm run gen-version",
+    "build:bundle": "tsdown --config tsdown.sea.config.ts",
+    "build:cli": "pnpm run build:bundle && node scripts/build-sea.cjs",
     "prebuild": "pnpm run gen-version",
-    "build": "pnpm run build:lib && pnpm run build:cli && pnpm run postbuild",
+    "build": "pnpm run build:lib && pnpm run build:cli",
     "dev": "tsdown --watch",
     "pretest": "pnpm run gen-version",
-    "test": "bun test",
-    "test:watch": "bun test --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prelint": "pnpm run gen-version",
     "lint": "tsc --noEmit"
   },
@@ -69,7 +69,6 @@
     "tsx": "^4.7.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.0",
     "@types/node": "^20.11.0",
     "@types/node-forge": "^1.3.14",
     "@types/semver": "^7.5.0",
@@ -77,8 +76,10 @@
     "@types/react-dom": "^18.3.1",
     "node-forge": "^1.3.3",
     "pdfassembler": "^0.1.0-beta.8",
+    "postject": "^1.0.0-alpha.6",
     "tsdown": "^0.16.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.5"
   },
   "pnpm": {
     "overrides": {

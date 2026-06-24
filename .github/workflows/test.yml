@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "pnpm"
           cache-dependency-path: |
             pnpm-lock.yaml
@@ -36,7 +36,7 @@ jobs:
       - name: Setup tools
         uses: flanksource/deps@1c71b668cbb01ac7df430538c3023e6c934ec510 # v1.0.24
         with:
-          tools: bun@v1.3.10,task@v3.39.2
+          tools: task@v3.39.2
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install system dependencies
@@ -53,8 +53,14 @@ jobs:
           pnpm install
           cd cli && pnpm install
 
+      - name: Typecheck
+        run: cd cli && pnpm run lint
+
       - name: Run tests
         run: task test:unit
 
-      - name: Build
-        run: cd cli && pnpm run build:lib
+      - name: Build (library + SEA binary)
+        run: cd cli && pnpm run build
+
+      - name: Smoke-test the binary
+        run: ./dist/facet --version

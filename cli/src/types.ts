@@ -33,6 +33,8 @@ export interface GenerateOptions {
    * Required for templates using DOM-measuring components (diagrams/react-xarrows).
    */
   live?: boolean;
+  /** Run the SSR loader inside a sandbox-runtime jail (path to settings, or true for the default). */
+  sandbox?: string | boolean;
   debug?: boolean;
   pageSize?: string;
   landscape?: boolean;

@@ -14,15 +14,16 @@
  */
 
 import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync, chmodSync } from 'fs';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname } from 'path';
 import { homedir } from 'os';
 import type { Logger } from '../utils/logger.js';
 
-import rootPackageJson from '../../../package.json' with { type: 'file' };
-import stylesCss from '../../../src/styles.css' with { type: 'file' };
-import viteSsrLoader from '../../vite-ssr-loader.ts' with { type: 'file' };
-import viteDevLoader from '../../vite-dev-loader.ts' with { type: 'file' };
+import { assetPath } from '../utils/assets.js';
+
+const rootPackageJson = assetPath('package.json');
+const stylesCss = assetPath('styles.css');
 
 export interface FacetDirectoryOptions {
   /** Consumer's project root directory */
@@ -839,9 +840,9 @@ export default defineConfig({
       'prefer-frozen-lockfile=false',
       'verify-store-integrity=false',
       'engine-strict=false',
-      // facet runs pnpm under non-interactive shells (Bun's $, CI). Without
-      // this, pnpm aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when
-      // it wants to confirm purging a node_modules dir it considers foreign
+      // facet runs pnpm under a non-interactive shell (and CI). Without this,
+      // pnpm aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when it
+      // wants to confirm purging a node_modules dir it considers foreign
       // (lockfile mismatch, store change, foreign manager).
       'confirm-modules-purge=false',
     ];
@@ -978,18 +979,21 @@ export default defineConfig({
 
   private runLocalFacetBuildScript(packageRoot: string, script: string): void {
     this.logger.info(`FACET_PACKAGE_PATH local override is stale; running pnpm run ${script}`);
-    const result = Bun.spawnSync(['pnpm', 'run', script], {
+    const result = spawnSync('pnpm', ['run', script], {
       cwd: packageRoot,
       timeout: LOCAL_BUILD_TIMEOUT_MS,
+      maxBuffer: 50 * 1024 * 1024,
     });
-    const stdout = result.stdout.toString();
-    const stderr = result.stderr.toString();
+    const stdout = (result.stdout ?? Buffer.from('')).toString();
+    const stderr = (result.stderr ?? Buffer.from('')).toString();
     if (stdout) this.logger.debug(stdout);
     if (stderr) this.logger.debug(stderr);
-    if (!result.success) {
-      const reason = result.exitedDueToTimeout
+    const timedOut = (result.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT';
+    if (result.error && !timedOut) throw result.error;
+    if (timedOut || result.status !== 0) {
+      const reason = timedOut
         ? `timed out after ${LOCAL_BUILD_TIMEOUT_MS / 1000}s`
-        : `failed with exit code ${result.exitCode ?? 'unknown'}`;
+        : `failed with exit code ${result.status ?? 'unknown'}`;
       throw new Error(
         `pnpm run ${script} ${reason} in ${packageRoot}:\n${stdout}${stderr}`
       );
@@ -1228,35 +1232,6 @@ export default {
     }
   }
 
-  /**
-   * Copy embedded vite-ssr-loader.ts to .facet/
-   */
-  copyViteSsrLoader(): void {
-    this.logger.debug('Copying vite-ssr-loader.ts');
-
-    try {
-      const loaderScript = this.readFacetAsset('cli/vite-ssr-loader.ts', viteSsrLoader, 'vite-ssr-loader.ts');
-      const destPath = join(this.facetRoot, 'vite-ssr-loader.ts');
-      writeFileSync(destPath, loaderScript, 'utf-8');
-      this.logger.debug('Copied vite-ssr-loader.ts');
-    } catch (error) {
-      throw new Error(`Failed to copy vite-ssr-loader.ts: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /**
-   * Copy embedded vite-dev-loader.ts to .facet/ (live render path)
-   */
-  copyViteDevLoader(): void {
-    this.logger.debug('Copying vite-dev-loader.ts');
-    try {
-      const loaderScript = this.readFacetAsset('cli/vite-dev-loader.ts', viteDevLoader, 'vite-dev-loader.ts');
-      writeFileSync(join(this.facetRoot, 'vite-dev-loader.ts'), loaderScript, 'utf-8');
-      this.logger.debug('Copied vite-dev-loader.ts');
-    } catch (error) {
-      throw new Error(`Failed to copy vite-dev-loader.ts: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
 
   /**
    * Get the path to the .facet/ directory

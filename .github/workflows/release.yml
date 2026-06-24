@@ -62,21 +62,27 @@ jobs:
     name: Build Binary (${{ matrix.platform }}-${{ matrix.arch }})
     needs: version-bump
     runs-on: ${{ matrix.os }}
+    # Node SEA embeds the host's node binary, so each target builds on a native
+    # runner (no cross-compilation, unlike bun --compile).
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             platform: linux
             arch: x64
-            target: bun-linux-x64
-          - os: ubuntu-latest
+            ext: ""
+          - os: ubuntu-24.04-arm
             platform: linux
             arch: arm64
-            target: bun-linux-arm64
+            ext: ""
           - os: macos-latest
             platform: macos
             arch: arm64
-            target: bun-darwin-arm64
+            ext: ""
+          - os: windows-latest
+            platform: windows
+            arch: x64
+            ext: ".exe"
 
     steps:
       - name: Checkout code
@@ -93,39 +99,37 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "20"
-
-      - name: Setup Bun
-        uses: flanksource/deps@1c71b668cbb01ac7df430538c3023e6c934ec510 # v1.0.24
-        with:
-          tools: bun@v1.3.10
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          node-version: "22"
 
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          cd cli
-          pnpm install --frozen-lockfile
+        shell: bash
+        run: cd cli && pnpm install --frozen-lockfile
 
-      - name: Build CLI binary
+      - name: Build CLI binary (Node SEA)
+        shell: bash
         run: |
-          cd cli
-          pnpm run prebuild:cli
-          bun build src/cli.ts --outfile=../dist/facet-${{ matrix.platform }}-${{ matrix.arch }} --compile --target=${{ matrix.target }}
+          cd cli && pnpm run build:cli && cd ..
+          mv "dist/facet${{ matrix.ext }}" "dist/facet-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}"
+
+      - name: Smoke-test the binary
+        shell: bash
+        run: ./dist/facet-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }} --version
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: facet-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist/facet-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/facet-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}
           retention-days: 1
 
   create-release:
     name: Create GitHub Release
-    # Depend on publish-npm so a binary is never released without the matching
-    # @flanksource/facet npm package. The CLI installs that package at render
-    # time, so a release/npm version skew breaks `facet pdf` for every consumer.
-    needs: [version-bump, build-binaries, publish-npm]
+    # Depend on the publish jobs so a binary is never released without its
+    # matching npm packages: @flanksource/facet (component library the CLI
+    # installs at render time) and @flanksource/facet-cli (the CLI launcher +
+    # per-platform binary packages). A release/npm version skew would break
+    # `facet pdf` for every consumer.
+    needs: [version-bump, build-binaries, publish-npm, publish-cli]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -146,7 +150,8 @@ jobs:
             --notes "Release ${{ needs.version-bump.outputs.new_version }}" \
             binaries/facet-linux-x64/facet-linux-x64 \
             binaries/facet-linux-arm64/facet-linux-arm64 \
-            binaries/facet-macos-arm64/facet-macos-arm64
+            binaries/facet-macos-arm64/facet-macos-arm64 \
+            binaries/facet-windows-x64/facet-windows-x64.exe
 
   build-image-and-chart:
     name: Build Image and Publish Chart
@@ -202,3 +207,44 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --access public --provenance
+
+  publish-cli:
+    name: Publish CLI to npm
+    needs: [version-bump]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.version-bump.outputs.new_tag }}
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Pin npm
+        run: npm install -g --force npm@11.11.0
+
+      - name: Install dependencies
+        run: cd cli && pnpm install --frozen-lockfile
+
+      - name: Build CLI bundle
+        run: cd cli && pnpm run build:bundle
+
+      - name: Assemble npm package
+        env:
+          NEW_VERSION: ${{ needs.version-bump.outputs.new_version }}
+        run: node cli/scripts/pack-npm-cli.cjs "$NEW_VERSION" npm-dist
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: cd npm-dist && npm publish --access public --provenance

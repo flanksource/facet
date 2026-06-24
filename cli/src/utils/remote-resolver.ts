@@ -1,9 +1,9 @@
 import { createHash } from 'crypto';
 import { existsSync, rmSync } from 'fs';
-import { mkdir, writeFile, readFile } from 'fs/promises';
+import { mkdir, writeFile, readFile, chmod, mkdtemp } from 'fs/promises';
 import { join, dirname, basename } from 'path';
-import { homedir } from 'os';
-import { $ } from 'bun';
+import { homedir, tmpdir } from 'os';
+import { $ } from './shell.js';
 import type { RemoteRef, ResolvedTemplate } from '../types.js';
 import { resolvePackageManager } from './package-manager.js';
 
@@ -150,11 +150,21 @@ async function resolveGitRef(ref: RemoteRef, targetDir: string): Promise<string>
   }
 
   const env: Record<string, string> = { ...process.env as Record<string, string> };
-  if (process.env['GIT_TOKEN']) {
-    // Inject token into HTTPS URL
-    const authedUrl = repoUrl.replace('https://', `https://oauth2:${process.env['GIT_TOKEN']}@`);
-    env['GIT_ASKPASS'] = 'echo';
-    await $`git clone ${cloneArgs} ${authedUrl} ${targetDir}`.env(env).quiet();
+  if (process.env['GIT_TOKEN'] && repoUrl.startsWith('https://')) {
+    const askpassDir = await mkdtemp(join(tmpdir(), 'facet-git-askpass-'));
+    const askpass = join(askpassDir, process.platform === 'win32' ? 'askpass.cmd' : 'askpass.sh');
+    const script = process.platform === 'win32'
+      ? `@echo off\r\necho %~1 | findstr /I Username >nul && (echo oauth2) || (echo %GIT_TOKEN%)\r\n`
+      : `#!/bin/sh\ncase "$1" in *Username*) printf '%s\\n' oauth2 ;; *) printf '%s\\n' "$GIT_TOKEN" ;; esac\n`;
+    await writeFile(askpass, script, 'utf-8');
+    if (process.platform !== 'win32') await chmod(askpass, 0o700);
+    env['GIT_ASKPASS'] = askpass;
+    env['GIT_TERMINAL_PROMPT'] = '0';
+    try {
+      await $`git clone ${cloneArgs} ${repoUrl} ${targetDir}`.env(env).quiet();
+    } finally {
+      rmSync(askpassDir, { recursive: true, force: true });
+    }
   } else {
     await $`git clone ${cloneArgs} ${repoUrl} ${targetDir}`.env(env).quiet();
   }
@@ -181,7 +191,7 @@ const REMOTE_NPMRC = [
   'prefer-frozen-lockfile=false',
   'verify-store-integrity=false',
   'engine-strict=false',
-  // Bun's $ is non-interactive; without this, pnpm aborts with
+  // Our shell runs pnpm non-interactively; without this, pnpm aborts with
   // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when it wants to purge a
   // node_modules dir it considers foreign.
   'confirm-modules-purge=false',
@@ -213,7 +223,7 @@ async function resolveNpmRef(ref: RemoteRef, targetDir: string): Promise<string>
   await resolvePackageManager(targetDir);
 
   // CI=true + --config.confirmModulesPurge=false: prevents
-  // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY under Bun's non-interactive $.
+  // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY under our non-interactive shell.
   const runAdd = () =>
     $`CI=true pnpm -C ${targetDir} --ignore-workspace add --ignore-scripts --config.confirmModulesPurge=false ${packageSpec}`.quiet();
   try {

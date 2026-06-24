@@ -7,8 +7,9 @@
  * auth leakage into .facet/.
  */
 
-import { $ } from 'bun';
+import { $ } from '../utils/shell.js';
 import { existsSync, readFileSync, readdirSync, statSync, appendFileSync, rmSync } from 'fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'path';
 import chalk from 'chalk';
 import semver from 'semver';
@@ -17,7 +18,7 @@ import { resolvePackageManager } from '../utils/package-manager.js';
 import { resolveChromePath } from '../utils/pdf-generator.js';
 import { resolveTailwindBin, tailwindBinExists } from '../utils/tailwind.js';
 import { VERSION } from '../version-generated.js';
-import rootPackageJson from '../../../package.json' with { type: 'file' };
+import { assetPath } from '../utils/assets.js';
 
 type CheckStatus = 'pass' | 'warn' | 'fail';
 
@@ -72,6 +73,53 @@ async function runAllChecks(consumerRoot: string): Promise<CheckResult[]> {
 async function runCheckById(id: string, consumerRoot: string): Promise<CheckResult | undefined> {
   const entry = CHECK_REGISTRY.find(([k]) => k === id);
   return entry ? await entry[1](consumerRoot) : undefined;
+}
+
+export class PreflightError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PreflightError';
+  }
+}
+
+/**
+ * Verify the external tools a command needs are present before doing any work,
+ * aggregating every problem into one actionable error instead of failing deep
+ * in the render pipeline. A required check that is not `pass` (missing tool,
+ * wrong arch, ...) blocks. `run` is injectable for testing.
+ */
+export async function preflight(
+  requiredIds: string[],
+  consumerRoot: string,
+  run: (id: string, root: string) => Promise<CheckResult | undefined> = runCheckById,
+): Promise<void> {
+  const failures: CheckResult[] = [];
+  for (const id of requiredIds) {
+    const result = await run(id, consumerRoot);
+    if (!result) {
+      failures.push({
+        id,
+        name: id,
+        status: 'fail',
+        message: 'Required check is not registered',
+        hint: 'Update CHECK_REGISTRY to include this preflight check.',
+      });
+    } else if (result.status !== 'pass') {
+      failures.push(result);
+    }
+  }
+  if (failures.length === 0) return;
+
+  const lines = failures.map(f => {
+    const hint = f.hint ? `\n      ${f.hint}` : '';
+    return `  ✗ ${f.name}: ${f.message}${hint}`;
+  });
+  const noun = failures.length === 1 ? 'dependency is' : 'dependencies are';
+  throw new PreflightError(
+    `${failures.length} required ${noun} missing or misconfigured:\n\n` +
+    `${lines.join('\n')}\n\n` +
+    'Run `facet doctor` for a full environment report.',
+  );
 }
 
 export async function runDoctor(options: DoctorOptions): Promise<number> {
@@ -211,7 +259,7 @@ function checkNodeVersion(): CheckResult {
 
 function readRootEnginesNode(): string | undefined {
   try {
-    const raw = readFileSync(rootPackageJson, 'utf-8');
+    const raw = readFileSync(assetPath('package.json'), 'utf-8');
     const pkg = JSON.parse(raw);
     return pkg?.engines?.node;
   } catch {
@@ -226,7 +274,7 @@ function checkArchitecture(): CheckResult {
   // best effort — `uname` may be absent on some platforms.
   let hostArch: string = arch;
   try {
-    hostArch = Bun.spawnSync(['uname', '-m']).stdout.toString().trim();
+    hostArch = (spawnSync('uname', ['-m'], { encoding: 'utf-8' }).stdout ?? '').trim();
   } catch { /* fall through */ }
 
   const rosetta = platform === 'darwin' && arch === 'x64' && hostArch === 'arm64';

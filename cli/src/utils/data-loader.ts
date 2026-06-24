@@ -1,10 +1,13 @@
+import { createRequire } from 'node:module';
 import { readFile } from 'fs/promises';
-import { resolve, extname, join, basename } from 'path';
+import { resolve, extname, join, basename, dirname } from 'path';
 import { pathToFileURL } from 'url';
-import { $ } from 'bun';
+import { $ } from './shell.js';
 import { Logger } from './logger.js';
 import { parseRemoteRef, resolveRemoteRef } from './remote-resolver.js';
 import type { LoadedData, GenerateOptions } from '../types.js';
+
+const requireCjs = createRequire(import.meta.url);
 
 export class DataLoader {
   constructor(private logger: Logger) { }
@@ -53,10 +56,12 @@ export class DataLoader {
     const ext = extname(absolutePath);
 
     try {
-      // For TypeScript files, execute with tsx via bun shell
+      // For TypeScript files, execute with tsx
       if (ext === '.ts') {
         this.logger.debug('Executing TypeScript file with tsx');
-        const result = await $`tsx ${absolutePath} ${args}`.text();
+        const tsxPackageJson = requireCjs.resolve('tsx/package.json');
+        const tsxBin = join(dirname(tsxPackageJson), 'dist', 'cli.mjs');
+        const result = await $`${process.execPath} ${tsxBin} ${absolutePath} ${args}`.text();
         this.logger.debug(`Executed ${absolutePath} with args: ${args.join(' ')}`);
 
         const module = { data: JSON.parse(result) };

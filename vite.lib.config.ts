@@ -24,6 +24,10 @@ export default defineConfig({
         'react',
         'react-dom',
         'react/jsx-runtime',
+        // Keep the dev JSX runtime external too, so a dev-mode build (jsxDEV)
+        // still resolves it from the consumer's React at render time rather than
+        // mis-bundling it (which surfaces as "jsxDEV is not a function").
+        'react/jsx-dev-runtime',
         /^@flanksource\//,
         /^react-icons\//,
         '@iconify/react',

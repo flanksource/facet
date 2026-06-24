@@ -42,10 +42,10 @@ export function scopeCSS(css: string, options: ScopeOptions = {}): string {
     }
 
     // Split multiple selectors (e.g., "h1, h2, .class")
-    const selectors = selector.split(',').map((s) => s.trim());
+    const selectors = selector.split(',').map((s: string) => s.trim());
 
     // Prefix each selector
-    const scopedSelectors = selectors.map((sel) => {
+    const scopedSelectors = selectors.map((sel: string) => {
       // Skip if already scoped
       if (sel.includes(`.${scopeClass}`)) {
         return sel;
@@ -75,7 +75,7 @@ export function scopeCSS(css: string, options: ScopeOptions = {}): string {
  * Extract inline styles from HTML and scope them
  */
 export function scopeInlineStyles(html: string, options: ScopeOptions = {}): string {
-  return html.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, css) => {
+  return html.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_match, css) => {
     const scopedCSS = scopeCSS(css, options);
     return `<style>${scopedCSS}</style>`;
   });

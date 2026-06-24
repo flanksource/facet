@@ -34,3 +34,4 @@ output/
 *.pdf
 assets/
 .facet/
+dist-sea/
