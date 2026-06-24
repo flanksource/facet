@@ -68,7 +68,13 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
       try {
         if (proc.exitCode === null && proc.signalCode === null) {
           proc.kill();
-          await once(proc, 'exit');
+          await Promise.race([
+            once(proc, 'exit'),
+            new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+          ]);
+          if (proc.exitCode === null && proc.signalCode === null) {
+            proc.kill('SIGKILL');
+          }
         }
       } catch (err) {
         logger.warn(`Failed to stop Vite dev server: ${err instanceof Error ? err.message : String(err)}`);

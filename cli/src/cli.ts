@@ -345,4 +345,8 @@ async function run(): Promise<void> {
   program.parse();
 }
 
-run();
+run().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`facet: ${message}`);
+  process.exitCode = 1;
+});

@@ -982,6 +982,7 @@ export default defineConfig({
     const result = spawnSync('pnpm', ['run', script], {
       cwd: packageRoot,
       timeout: LOCAL_BUILD_TIMEOUT_MS,
+      maxBuffer: 50 * 1024 * 1024,
     });
     const stdout = (result.stdout ?? Buffer.from('')).toString();
     const stderr = (result.stderr ?? Buffer.from('')).toString();

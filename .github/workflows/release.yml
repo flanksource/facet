@@ -240,7 +240,9 @@ jobs:
         run: cd cli && pnpm run build:bundle
 
       - name: Assemble npm package
-        run: node cli/scripts/pack-npm-cli.cjs "${{ needs.version-bump.outputs.new_version }}" npm-dist
+        env:
+          NEW_VERSION: ${{ needs.version-bump.outputs.new_version }}
+        run: node cli/scripts/pack-npm-cli.cjs "$NEW_VERSION" npm-dist
 
       - name: Publish to npm
         env:

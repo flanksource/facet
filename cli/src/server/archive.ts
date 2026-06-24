@@ -1,8 +1,9 @@
-import { mkdtemp, writeFile, readdir } from 'fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtemp, writeFile, readdir, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { rmSync } from 'fs';
-import { $ } from '../utils/shell.js';
 import { RenderError } from './errors.js';
 
 export interface ExtractedArchive {
@@ -13,6 +14,7 @@ export interface ExtractedArchive {
 }
 
 const ENTRY_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];
+const execFileAsync = promisify(execFile);
 
 export async function extractArchive(
   data: Buffer,
@@ -28,8 +30,12 @@ export async function extractArchive(
   const extractDir = join(tempDir, 'content');
 
   try {
+    if (process.platform === 'win32') {
+      throw new RenderError('ARCHIVE_ERROR', 'Archive uploads are not supported on Windows', 400);
+    }
     await writeFile(tarPath, data);
-    await $`mkdir -p ${extractDir} && tar xzf ${tarPath} -C ${extractDir}`.quiet();
+    await mkdir(extractDir, { recursive: true });
+    await execFileAsync('tar', ['xzf', tarPath, '-C', extractDir]);
 
     const resolved = entryFile ?? await autoDetectEntry(extractDir);
     if (!resolved) {

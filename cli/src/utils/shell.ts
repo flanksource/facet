@@ -73,7 +73,7 @@ class ShellPromise implements PromiseLike<ShellResult> {
   /** Run the command and return trimmed stdout. */
   async text(): Promise<string> {
     const result = await this.run();
-    return result.stdout.toString();
+    return result.stdout.toString().trim();
   }
 
   then<T1 = ShellResult, T2 = never>(

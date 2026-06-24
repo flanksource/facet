@@ -126,9 +126,10 @@ function runLoaderOnce(args: LoaderArgs): Promise<{ stderr?: Buffer | string; }>
     const child = spawn(cmd, argv, {
       cwd: args.facetRoot,
       env: { ...process.env, FACET_LOADER: 'ssr' },
+      stdio: ['ignore', 'ignore', 'pipe'],
     });
     const stderrChunks: Buffer[] = [];
-    child.stderr.on('data', (c: Buffer) => stderrChunks.push(c));
+    child.stderr?.on('data', (c: Buffer) => stderrChunks.push(c));
     child.on('error', reject);
     child.on('close', (code) => {
       const stderr = Buffer.concat(stderrChunks);

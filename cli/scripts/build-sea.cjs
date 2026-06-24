@@ -5,7 +5,7 @@
 'use strict';
 
 const { execFileSync } = require('node:child_process');
-const { writeFileSync, copyFileSync, mkdirSync, chmodSync } = require('node:fs');
+const { writeFileSync, copyFileSync, mkdirSync, chmodSync, existsSync } = require('node:fs');
 const { join } = require('node:path');
 
 const cliRoot = join(__dirname, '..');
@@ -27,6 +27,9 @@ const seaConfig = {
   },
 };
 const seaConfigPath = join(distSea, 'sea-config.json');
+if (!existsSync(bundle)) {
+  throw new Error(`Missing CLI bundle at ${bundle}. Run build:bundle before build:sea.`);
+}
 writeFileSync(seaConfigPath, JSON.stringify(seaConfig, null, 2));
 
 console.log('Generating SEA blob...');

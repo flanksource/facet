@@ -11,8 +11,6 @@ import { join } from 'node:path';
 import { readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
 import { Console } from 'node:console';
 
-const require = createRequire(import.meta.url);
-
 interface LoaderArgs {
   facetRoot: string;
   data: Record<string, unknown>;
@@ -84,14 +82,8 @@ function extractCSS(distDir: string): string {
 async function load(args: LoaderArgs): Promise<LoaderResult> {
   const { facetRoot, data, verbose } = args;
 
-  // Add facet's node_modules to NODE_PATH for proper module resolution.
-  const facetNodeModules = join(facetRoot, 'node_modules');
-  const originalNodePath = process.env.NODE_PATH || '';
-  process.env.NODE_PATH = originalNodePath ? `${facetNodeModules}:${originalNodePath}` : facetNodeModules;
-  require('module').Module._initPaths();
-
   // Resolve Vite + React from .facet/node_modules, not the CLI's own deps. ESM
-  // import() ignores NODE_PATH, so resolve explicitly relative to .facet — using
+  // import() resolves via file URLs, so resolve explicitly relative to .facet — using
   // the CLI's Vite/React would produce a bundle incompatible with .facet's React.
   const facetRequire = createRequire(join(facetRoot, 'package.json'));
   // Vite/react-dom resolve to CJS builds; under Node the API lands on `.default`

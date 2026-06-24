@@ -86,7 +86,9 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   }
 
   const httpServer = createHttpServer((req, res) => {
-    handleRequest(nodeToWebRequest(req))
+    Promise.resolve()
+      .then(() => nodeToWebRequest(req))
+      .then((request) => handleRequest(request))
       .then((response) => writeWebResponse(res, response))
       .catch((err) => {
         logger.error(`Request handler error: ${err instanceof Error ? err.message : String(err)}`);
@@ -98,7 +100,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
 
   const port = await new Promise<number>((resolveListen, rejectListen) => {
     httpServer.once('error', rejectListen);
-    httpServer.listen(config.port, () => {
+    httpServer.listen(config.port, '127.0.0.1', () => {
       const addr = httpServer.address();
       resolveListen(typeof addr === 'object' && addr ? addr.port : config.port);
     });

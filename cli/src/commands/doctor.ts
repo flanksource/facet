@@ -96,7 +96,17 @@ export async function preflight(
   const failures: CheckResult[] = [];
   for (const id of requiredIds) {
     const result = await run(id, consumerRoot);
-    if (result && result.status !== 'pass') failures.push(result);
+    if (!result) {
+      failures.push({
+        id,
+        name: id,
+        status: 'fail',
+        message: 'Required check is not registered',
+        hint: 'Update CHECK_REGISTRY to include this preflight check.',
+      });
+    } else if (result.status !== 'pass') {
+      failures.push(result);
+    }
   }
   if (failures.length === 0) return;
 
