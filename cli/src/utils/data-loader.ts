@@ -53,7 +53,7 @@ export class DataLoader {
     const ext = extname(absolutePath);
 
     try {
-      // For TypeScript files, execute with tsx via bun shell
+      // For TypeScript files, execute with tsx
       if (ext === '.ts') {
         this.logger.debug('Executing TypeScript file with tsx');
         const result = await $`tsx ${absolutePath} ${args}`.text();

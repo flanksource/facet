@@ -181,7 +181,7 @@ const REMOTE_NPMRC = [
   'prefer-frozen-lockfile=false',
   'verify-store-integrity=false',
   'engine-strict=false',
-  // Bun's $ is non-interactive; without this, pnpm aborts with
+  // Our shell runs pnpm non-interactively; without this, pnpm aborts with
   // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when it wants to purge a
   // node_modules dir it considers foreign.
   'confirm-modules-purge=false',
@@ -213,7 +213,7 @@ async function resolveNpmRef(ref: RemoteRef, targetDir: string): Promise<string>
   await resolvePackageManager(targetDir);
 
   // CI=true + --config.confirmModulesPurge=false: prevents
-  // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY under Bun's non-interactive $.
+  // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY under our non-interactive shell.
   const runAdd = () =>
     $`CI=true pnpm -C ${targetDir} --ignore-workspace add --ignore-scripts --config.confirmModulesPurge=false ${packageSpec}`.quiet();
   try {

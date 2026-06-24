@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Assembles the publishable @flanksource/facet-cli npm packages from the
-// Bun-compiled release binaries: one platform package per target (carrying the
+// Node SEA release binaries: one platform package per target (carrying the
 // binary, gated by os/cpu) plus the launcher package with all versions pinned.
 'use strict';
 

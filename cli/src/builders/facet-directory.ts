@@ -840,9 +840,9 @@ export default defineConfig({
       'prefer-frozen-lockfile=false',
       'verify-store-integrity=false',
       'engine-strict=false',
-      // facet runs pnpm under non-interactive shells (Bun's $, CI). Without
-      // this, pnpm aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when
-      // it wants to confirm purging a node_modules dir it considers foreign
+      // facet runs pnpm under a non-interactive shell (and CI). Without this,
+      // pnpm aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when it
+      // wants to confirm purging a node_modules dir it considers foreign
       // (lockfile mismatch, store change, foreign manager).
       'confirm-modules-purge=false',
     ];
