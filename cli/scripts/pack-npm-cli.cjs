@@ -1,112 +1,52 @@
 #!/usr/bin/env node
-// Assembles the publishable @flanksource/facet-cli npm packages from the
-// Node SEA release binaries: one platform package per target (carrying the
-// binary, gated by os/cpu) plus the launcher package with all versions pinned.
+// Assemble the publishable @flanksource/facet-cli npm package: the single-file
+// CLI bundle (run by the user's Node) plus the runtime assets it reads at render
+// time (the @flanksource/facet manifest, styles.css, openapi.yaml).
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SCOPE = '@flanksource';
+function buildPackage({ version, bundlePath, repoRoot, templateDir, outDir }) {
+  fs.mkdirSync(path.join(outDir, 'assets'), { recursive: true });
 
-// Single source of truth for supported targets. `artifact` matches the binary
-// base name produced by the release matrix; `key` is `${platform}-${arch}` as
-// reported by Node at runtime, and forms the platform package name suffix.
-const TARGETS = [
-  { artifact: 'facet-linux-x64', key: 'linux-x64', os: 'linux', cpu: 'x64', exe: false },
-  { artifact: 'facet-linux-arm64', key: 'linux-arm64', os: 'linux', cpu: 'arm64', exe: false },
-  { artifact: 'facet-macos-arm64', key: 'darwin-arm64', os: 'darwin', cpu: 'arm64', exe: false },
-  { artifact: 'facet-windows-x64', key: 'win32-x64', os: 'win32', cpu: 'x64', exe: true },
-];
+  fs.copyFileSync(bundlePath, path.join(outDir, 'facet.cjs'));
+  fs.chmodSync(path.join(outDir, 'facet.cjs'), 0o755);
 
-function platformPackageName(target) {
-  return `${SCOPE}/facet-cli-${target.key}`;
-}
+  // Runtime assets resolved by assetPath() at render time.
+  fs.copyFileSync(path.join(repoRoot, 'package.json'), path.join(outDir, 'assets', 'package.json'));
+  fs.copyFileSync(path.join(repoRoot, 'src', 'styles.css'), path.join(outDir, 'assets', 'styles.css'));
+  fs.copyFileSync(path.join(repoRoot, 'openapi.yaml'), path.join(outDir, 'assets', 'openapi.yaml'));
 
-function binFileName(target) {
-  return target.exe ? 'facet.exe' : 'facet';
-}
+  fs.copyFileSync(path.join(templateDir, 'README.md'), path.join(outDir, 'README.md'));
+  const pkg = JSON.parse(fs.readFileSync(path.join(templateDir, 'package.json'), 'utf8'));
+  pkg.version = version;
+  fs.writeFileSync(path.join(outDir, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
 
-function platformPackageJson(target, version) {
-  return {
-    name: platformPackageName(target),
-    version,
-    description: `facet CLI binary for ${target.os}/${target.cpu}`,
-    os: [target.os],
-    cpu: [target.cpu],
-    files: [binFileName(target)],
-    license: 'Apache-2.0',
-    repository: { type: 'git', url: 'https://github.com/flanksource/facet.git' },
-  };
-}
-
-// Pin the launcher's own version and every optionalDependency to `version`.
-function pinVersions(launcherPkg, version) {
-  const out = { ...launcherPkg, version };
-  if (out.optionalDependencies) {
-    out.optionalDependencies = Object.fromEntries(
-      Object.keys(out.optionalDependencies).map((name) => [name, version]),
-    );
-  }
-  return out;
-}
-
-function writeJson(file, obj) {
-  fs.writeFileSync(file, JSON.stringify(obj, null, 2) + '\n');
-}
-
-function buildPackages({ version, binariesDir, outDir, launcherDir }) {
-  const created = [];
-
-  for (const target of TARGETS) {
-    const pkgDir = path.join(outDir, `facet-cli-${target.key}`);
-    fs.mkdirSync(pkgDir, { recursive: true });
-
-    const sourceName = target.exe ? `${target.artifact}.exe` : target.artifact;
-    const srcBinary = path.join(binariesDir, target.artifact, sourceName);
-    const destBinary = path.join(pkgDir, binFileName(target));
-    fs.copyFileSync(srcBinary, destBinary);
-    if (!target.exe) fs.chmodSync(destBinary, 0o755);
-
-    writeJson(path.join(pkgDir, 'package.json'), platformPackageJson(target, version));
-    created.push(pkgDir);
-  }
-
-  const launcherOut = path.join(outDir, 'facet-cli');
-  fs.mkdirSync(path.join(launcherOut, 'bin'), { recursive: true });
-  fs.copyFileSync(path.join(launcherDir, 'bin', 'facet.js'), path.join(launcherOut, 'bin', 'facet.js'));
-  const readme = path.join(launcherDir, 'README.md');
-  if (fs.existsSync(readme)) fs.copyFileSync(readme, path.join(launcherOut, 'README.md'));
-
-  const launcherPkg = JSON.parse(fs.readFileSync(path.join(launcherDir, 'package.json'), 'utf8'));
-  writeJson(path.join(launcherOut, 'package.json'), pinVersions(launcherPkg, version));
-  created.push(launcherOut);
-
-  return created;
+  return outDir;
 }
 
 function main(argv) {
   const version = argv[0] || process.env.FACET_VERSION;
-  const binariesDir = argv[1] || 'binaries';
-  const outDir = argv[2] || 'npm-dist';
   if (!version) {
-    console.error('usage: pack-npm-cli.cjs <version> [binariesDir] [outDir]');
+    console.error('usage: pack-npm-cli.cjs <version> [outDir]');
     process.exit(1);
   }
-  const launcherDir = path.join(__dirname, '..', 'npm', 'facet-cli');
-  const created = buildPackages({ version, binariesDir, outDir, launcherDir });
-  for (const dir of created) console.log(`packed ${dir}`);
+  const cliRoot = path.join(__dirname, '..');
+  const repoRoot = path.join(cliRoot, '..');
+  const outDir = argv[1] || path.join(cliRoot, 'npm-dist');
+  buildPackage({
+    version,
+    bundlePath: path.join(cliRoot, 'dist-sea', 'cli.cjs'),
+    repoRoot,
+    templateDir: path.join(cliRoot, 'npm', 'facet-cli'),
+    outDir,
+  });
+  console.log(`packed ${outDir}`);
 }
 
 if (require.main === module) {
   main(process.argv.slice(2));
 }
 
-module.exports = {
-  TARGETS,
-  platformPackageName,
-  binFileName,
-  platformPackageJson,
-  pinVersions,
-  buildPackages,
-};
+module.exports = { buildPackage };

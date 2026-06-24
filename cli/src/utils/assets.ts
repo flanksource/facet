@@ -41,10 +41,14 @@ function seaAssetPath(name: string): string | undefined {
 //     cli/dist/assets/ — so `assets/<name>` resolves beside the bundle.
 // Paths are explicit (not a fuzzy multi-base walk) so package.json always
 // resolves the repo-root @flanksource/facet manifest, never cli/package.json.
+// `assets/` (shipped beside the bundle in the npm package) is checked first;
+// the `../../../` source-tree fallback is only reached when running from source,
+// where no `assets/` dir exists. Order matters: in an installed package the
+// source-tree path would otherwise collide with the consumer's own package.json.
 const ASSET_CANDIDATES = {
-  'package.json': ['../../../package.json', 'assets/package.json'],
-  'openapi.yaml': ['../../../openapi.yaml', 'assets/openapi.yaml'],
-  'styles.css': ['../../../src/styles.css', 'assets/styles.css'],
+  'package.json': ['assets/package.json', '../../../package.json'],
+  'openapi.yaml': ['assets/openapi.yaml', '../../../openapi.yaml'],
+  'styles.css': ['assets/styles.css', '../../../src/styles.css'],
 } satisfies Record<string, string[]>;
 
 export type AssetName = keyof typeof ASSET_CANDIDATES;

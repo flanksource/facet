@@ -3,17 +3,12 @@
   "version": "0.0.0",
   "description": "CLI for @flanksource/facet — generate print-ready PDFs and HTML from React templates",
   "bin": {
-    "facet": "bin/facet.js"
+    "facet": "facet.cjs"
   },
   "files": [
-    "bin/"
+    "facet.cjs",
+    "assets/"
   ],
-  "optionalDependencies": {
-    "@flanksource/facet-cli-linux-x64": "0.0.0",
-    "@flanksource/facet-cli-linux-arm64": "0.0.0",
-    "@flanksource/facet-cli-darwin-arm64": "0.0.0",
-    "@flanksource/facet-cli-win32-x64": "0.0.0"
-  },
   "keywords": [
     "facet",
     "pdf",

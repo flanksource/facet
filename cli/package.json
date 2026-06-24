@@ -15,8 +15,9 @@
   "scripts": {
     "gen-version": "node scripts/gen-version.cjs",
     "build:lib": "tsdown",
-    "prebuild:cli": "pnpm run gen-version",
-    "build:cli": "tsdown --config tsdown.sea.config.ts && node scripts/build-sea.cjs",
+    "prebuild:bundle": "pnpm run gen-version",
+    "build:bundle": "tsdown --config tsdown.sea.config.ts",
+    "build:cli": "pnpm run build:bundle && node scripts/build-sea.cjs",
     "prebuild": "pnpm run gen-version",
     "build": "pnpm run build:lib && pnpm run build:cli",
     "dev": "tsdown --watch",

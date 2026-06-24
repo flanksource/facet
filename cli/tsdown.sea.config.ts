@@ -16,6 +16,8 @@ export default defineConfig({
   platform: 'node',
   target: 'node20',
   shims: true,
-  // SEA embeds a single main script — force everything into one chunk.
+  // SEA embeds a single main script — force everything into one chunk. The
+  // entry's own `#!/usr/bin/env node` shebang is preserved, which the SEA
+  // runtime ignores and the @flanksource/facet-cli npm bin uses.
   outputOptions: { inlineDynamicImports: true },
 });
