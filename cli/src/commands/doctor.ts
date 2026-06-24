@@ -51,7 +51,6 @@ const CHECK_REGISTRY: ReadonlyArray<readonly [string, CheckFn]> = [
   ['node-version', () => checkNodeVersion()],
   ['architecture', () => checkArchitecture()],
   ['pnpm', (root) => checkPnpm(root)],
-  ['bun', () => checkBun()],
   ['native-bindings', (root) => checkNativeBindings(root)],
   ['chromium', () => checkChromium()],
   ['git', () => checkGit()],
@@ -526,20 +525,6 @@ async function probeOptionalBin(name: string, args: string[]): Promise<{ ok: tru
   } catch {
     return { ok: false };
   }
-}
-
-async function checkBun(): Promise<CheckResult> {
-  const probe = await probeOptionalBin('bun', ['--version']);
-  if (probe.ok) {
-    return { id: 'bun', name: 'bun', status: 'pass', message: probe.output.split('\n')[0] };
-  }
-  return {
-    id: 'bun',
-    name: 'bun',
-    status: 'warn',
-    message: 'not on PATH',
-    hint: 'Required to render — `facet html`/`facet pdf` shell out to `bun run`. Install: https://bun.sh',
-  };
 }
 
 async function checkGit(): Promise<CheckResult> {

@@ -34,7 +34,6 @@ describe('runDoctor JSON contract', () => {
       'node-version',
       'architecture',
       'pnpm',
-      'bun',
       'native-bindings',
       'chromium',
       'git',

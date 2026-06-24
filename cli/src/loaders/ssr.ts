@@ -104,8 +104,7 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   const viteConfigPath = join(facetRoot, 'vite.config.ts');
   const outDir = join(facetRoot, `dist-${crypto.randomUUID()}`);
 
-  // @ts-expect-error node's Console and Bun's augmented Console differ; at runtime
-  // the assignment only needs to provide the log/info/error/warn methods Vite uses.
+  // Route Vite's stdout logging to stderr so it can't corrupt the result JSON.
   console = new Console(process.stderr, process.stderr);
 
   await build({

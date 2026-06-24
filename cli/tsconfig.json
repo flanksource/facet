@@ -24,8 +24,7 @@
     "allowSyntheticDefaultImports": true,
     "jsx": "react",
     "types": [
-      "node",
-      "bun"
+      "node"
     ]
   },
   "include": [

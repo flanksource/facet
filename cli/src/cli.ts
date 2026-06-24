@@ -14,11 +14,11 @@ function parseDataLoaderArgs(): string[] {
   return dashIndex !== -1 ? process.argv.slice(dashIndex + 1) : [];
 }
 
-// External tools a render command shells out to. Every render needs `bun`
-// (the SSR/live loaders run via `bun run`) and `pnpm` (installs `.facet/`);
-// PDF and live rendering additionally need Chromium; `.ts` data loaders need tsx.
+// External tools a render command shells out to. Every render needs `pnpm`
+// (installs `.facet/`); PDF and live rendering additionally need Chromium;
+// `.ts` data loaders need tsx.
 function renderRequirements(command: 'html' | 'pdf', options: any): string[] {
-  const ids = ['bun', 'pnpm'];
+  const ids = ['pnpm'];
   if (command === 'pdf' || options.live) ids.push('chromium');
   if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
   return ids;
