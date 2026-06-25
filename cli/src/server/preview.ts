@@ -10,6 +10,14 @@ import { shutdownPersistentSsrLoaders } from '../bundler/ssr-pool.js';
 import { discoverTemplates, type TemplateInfo } from './templates.js';
 import { S3Uploader } from './s3.js';
 import { handleHealthz, handleTemplates, handleRender, handleRenderStream, handleResultsRoute } from './routes.js';
+import {
+  handleFillPdf,
+  handleFillSamples,
+  handleFillSampleSchema,
+  handleFillSampleData,
+  handlePlaygroundFormJs,
+  handlePlaygroundFormCss,
+} from './routes-fill.js';
 import { playgroundHtml } from './playground-html.js';
 import { RenderCache } from './render-cache.js';
 import { facetTypes } from './facet-types.js';
@@ -69,8 +77,29 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
       return handleHealthz(pool);
     }
 
+    // Fill-PDF playground assets + samples are public, like the playground HTML.
+    if (url.pathname === '/playground-form.js' && request.method === 'GET') {
+      return handlePlaygroundFormJs();
+    }
+    if (url.pathname === '/playground-form.css' && request.method === 'GET') {
+      return handlePlaygroundFormCss();
+    }
+    if (url.pathname === '/fill-pdf/samples' && request.method === 'GET') {
+      return handleFillSamples();
+    }
+    const sampleMatch = url.pathname.match(/^\/fill-pdf\/samples\/([a-zA-Z0-9_-]+)\/(schema|data)$/);
+    if (sampleMatch && request.method === 'GET') {
+      return sampleMatch[2] === 'schema'
+        ? handleFillSampleSchema(sampleMatch[1])
+        : handleFillSampleData(sampleMatch[1]);
+    }
+
     const authErr = checkAuth(request, config.apiKey);
     if (authErr) return errorResponse(authErr);
+
+    if (url.pathname === '/fill-pdf' && request.method === 'POST') {
+      return handleFillPdf(request);
+    }
 
     if (url.pathname === '/templates' && request.method === 'GET') {
       return handleTemplates(templates);

@@ -202,6 +202,30 @@ describe('FacetDirectory.isInstallBroken foreign markers', () => {
   });
 });
 
+describe('FacetDirectory.generateViteConfig remark plugins', () => {
+  it('keeps remark-frontmatter + remark-gfm defaults and appends frontmatter plugins', async () => {
+    const dir = new FacetDirectory({
+      consumerRoot,
+      templateFile: 'doc.mdx',
+      logger,
+      remarkConfig: { remarkPlugins: ['./remark-financial-table.ts'], rehypePlugins: ['rehype-slug'] },
+    });
+    dir.generateViteConfig();
+    const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
+    expect(config).toContain("import remarkFrontmatter from 'remark-frontmatter';");
+    expect(config).toContain(`import _remarkPlugin0 from "${join(consumerRoot, 'remark-financial-table.ts')}";`);
+    expect(config).toContain('remarkPlugins: [remarkFrontmatter, remarkGfm, _remarkPlugin0]');
+    expect(config).toContain('rehypePlugins: [_rehypePlugin0]');
+  });
+
+  it('emits only the always-on defaults when no frontmatter plugins are declared', async () => {
+    newFacetDir().generateViteConfig();
+    const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
+    expect(config).toContain('remarkPlugins: [remarkFrontmatter, remarkGfm]');
+    expect(config).not.toContain('rehypePlugins:');
+  });
+});
+
 describe('FacetDirectory.generatePackageJson .npmrc', () => {
   it('disables modules-purge confirmation so non-interactive pnpm runs do not abort', async () => {
     await writeFile(join(consumerRoot, 'package.json'), JSON.stringify({ name: 'consumer', version: '0.0.0' }));

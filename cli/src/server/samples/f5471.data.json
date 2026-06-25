@@ -1,0 +1,14 @@
+{
+  "filer": {
+    "name": "Acme Holdings Inc",
+    "identifying_number": "12-3456789",
+    "address": "100 Market Street, Wilmington, DE 19801",
+    "tax_year_beginning": "2024-01-01",
+    "tax_year_ending": "2024-12-31",
+    "voting_stock_percentage": 100
+  },
+  "foreign_corporation": {
+    "name": "Acme Holdings (Ireland) Ltd",
+    "country": "Ireland"
+  }
+}

@@ -9,11 +9,12 @@
 import { $ } from '../utils/shell.js';
 import { spawn } from 'node:child_process';
 import { selfExecBase } from '../utils/self-exec.js';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
+import { readRemarkFrontmatter } from '../utils/frontmatter.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
 import { RenderProfiler } from '../utils/performance.js';
 import { computeTemplateBuildKey, pruneBuildCache } from './build-cache.js';
@@ -218,6 +219,7 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
     consumerRoot,
     templateFile: templatePath,
     logger,
+    remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
   });
 
   facetDir.create();
