@@ -12,6 +12,7 @@ Build beautiful, print-ready datasheets and PDFs from React templates.
 - 🔗 **Component imports** - `import { StatCard } from '@flanksource/facet'`
 - ⚡ **Fast builds** - Powered by Vite with smart caching
 - 📦 **Isolated builds** - `.facet/` build directory (like `.next` in Next.js)
+- 🔀 **Live diagrams** - Box-and-arrow diagrams baked to static SVG via `// @live`
 
 ## Installation
 
@@ -338,6 +339,66 @@ A single React document with mixed page sizes (e.g. `<Page size="a4" type="cover
 
 ![](assets/pdf-layout.svg)
 
+## Diagrams
+
+Facet ships box-and-arrow diagram primitives for data-flow and architecture
+diagrams. Boxes are pure CSS (server-rendered), while arrows are drawn by
+[`react-xarrows`](https://www.npmjs.com/package/react-xarrows), which measures
+the rendered DOM positions of the boxes at runtime.
+
+| Component | Description |
+|-----------|-------------|
+| `Diagram` | Render-prop container. Yields an `id(name)` helper for stable, per-instance element ids and defers arrows until after mount. |
+| `BoxNode` | Pure-CSS box with optional header/body. Connected to other boxes via its `id`. |
+| `Arrow` | Connector between two box ids (`from` / `to`), with `primary` / `secondary` presets. |
+| `NodeSection` | Labeled vertical column of boxes (e.g. "Sources", "Outputs"). |
+| `COLORS` | Shared 5-color diagram palette. |
+
+```tsx
+import { Diagram, BoxNode, Arrow, NodeSection, COLORS } from '@flanksource/facet';
+
+<Diagram className="flex items-center justify-between gap-8">
+  {(id) => (
+    <>
+      <NodeSection label="Sources">
+        <BoxNode id={id('db')} title="PostgreSQL" />
+      </NodeSection>
+      <BoxNode id={id('engine')} title="Facet Engine"
+        headerColor={COLORS.primary} borderColor={COLORS.primary} />
+      <NodeSection label="Outputs">
+        <BoxNode id={id('pdf')} title="PDF" />
+      </NodeSection>
+
+      <Arrow from={id('db')} to={id('engine')} variant="secondary" />
+      <Arrow from={id('engine')} to={id('pdf')} />
+    </>
+  )}
+</Diagram>
+```
+
+### `// @live` — hydrate and bake
+
+Because arrows are measured from the DOM, they can't be produced by server-side
+rendering alone. Mark a template **live** by making its first line the `// @live`
+directive:
+
+```tsx
+// @live
+import React from 'react';
+import { Diagram, BoxNode, Arrow } from '@flanksource/facet';
+// ...
+```
+
+For live templates, facet runs one extra headless-browser pass: it hydrates the
+SSR HTML, lets `react-xarrows` draw the arrows into the DOM, then captures the
+now-static HTML with arrows baked as plain SVG. That baked HTML flows through the
+unchanged HTML/PDF pipeline. The bake fails loudly if hydration never completes —
+there is no silent arrow-less fallback.
+
+This works in `facet html`, `facet pdf`, and `facet serve` (including the
+playground). In the playground, pick **Live Diagram** from the **Example**
+dropdown to try it.
+
 ## CLI Commands
 
 ### `facet html <template>`
@@ -425,7 +486,7 @@ facet serve --api-key my-secret-key
 facet serve --s3-endpoint https://s3.amazonaws.com --s3-bucket my-bucket
 ```
 
-The playground is available at `http://localhost:3010/` with a Monaco editor, live preview, and render logs.
+The playground is available at `http://localhost:3010/` with a Monaco editor, live preview, and render logs. Use the **Example** dropdown to load a starting point — a multi-component **Datasheet** or a **Live Diagram** (which exercises the `// @live` box-and-arrow bake described above).
 
 See [openapi.yaml](openapi.yaml) for the full API specification.
 

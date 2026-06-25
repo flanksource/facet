@@ -231,6 +231,12 @@ export default function InlineTemplate({ data }: { data: any }) {
     const html = await res.text();
     expect(html).toContain('monaco');
     expect(html).toContain('Facet Playground');
+    // Example dropdown offers the live diagram starting point.
+    expect(html).toContain('id="example"');
+    expect(html).toContain('Live Diagram');
+    // The diagram example is a live template that imports the diagram primitives.
+    expect(html).toContain('// @live');
+    expect(html).toContain('Diagram, BoxNode, Arrow, NodeSection');
   });
 
   test('POST /render with inline code returns valid HTML', async () => {

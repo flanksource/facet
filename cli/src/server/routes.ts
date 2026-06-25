@@ -19,6 +19,7 @@ import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { generatePDFBuffer } from '../utils/pdf-generator.js';
+import { isLiveTemplate, injectLiveAssets, bakeLiveHTML, hasLiveAssets } from '../utils/live-bake.js';
 import { applyPDFSecurity } from '../utils/pdf-security.js';
 import { Logger } from '../utils/logger.js';
 import { runTailwindCached } from '../utils/tailwind.js';
@@ -217,8 +218,13 @@ async function doRender(
     archiveCleanup = resolved.archiveCleanup;
 
     let html = await renderHTML(resolved.consumerRoot, resolved.entryFile, parsed.data, logger, config.sandbox, config.persistentSsr);
-    html = await injectHeaderFooter(html, parsed, resolved.consumerRoot, logger, undefined, config.persistentSsr);
     const templateName = resolved.templateName;
+
+    // Live diagrams (// @live) draw arrows by measuring the DOM, so they cannot be
+    // server-rendered. Bake them in a headless browser (hydrate + draw + capture
+    // static SVG) before header/footer injection — for HTML preview and PDF alike.
+    if (hasLiveAssets(html)) html = await bakeLiveHTML({ html, logger });
+    html = await injectHeaderFooter(html, parsed, resolved.consumerRoot, logger, undefined, config.persistentSsr);
 
     if (parsed.format === 'html') {
       cache.set(cacheKey, 'text/html', Buffer.from(html));
@@ -272,6 +278,14 @@ async function doRenderStreamed(
 
     progress.emit('building', 'Building template with Vite SSR...');
     let html = await renderHTMLStreamed(resolved.consumerRoot, resolved.entryFile, parsed.data, logger, progress, config.persistentSsr);
+
+    // Live diagrams (// @live) draw arrows by measuring the DOM, so they cannot be
+    // server-rendered. Bake them in a headless browser (hydrate + draw + capture
+    // static SVG) before header/footer injection — for HTML preview and PDF alike.
+    if (hasLiveAssets(html)) {
+      progress.emit('building', 'Baking live diagram (hydrate + draw arrows)...');
+      html = await bakeLiveHTML({ html, logger });
+    }
     html = await injectHeaderFooter(html, parsed, resolved.consumerRoot, logger, progress, config.persistentSsr);
 
     if (parsed.format === 'html') {
@@ -407,6 +421,7 @@ async function renderHTML(
   sandbox?: string | boolean,
   persistentLoader = true,
 ): Promise<string> {
+  const live = isLiveTemplate(join(consumerRoot, entryFile));
   const buildResult = await buildTemplate({
     templatePath: entryFile,
     data,
@@ -431,6 +446,8 @@ async function renderHTMLStreamed(
   progress: RenderProgress,
   persistentLoader = true,
 ): Promise<string> {
+  const live = isLiveTemplate(join(consumerRoot, entryFile));
+  if (live) progress.emit('building', 'Live template (// @live) — building client hydration bundle...');
   progress.emit('building', 'Compiling template with Vite SSR...');
   const buildResult = await buildTemplate({
     templatePath: entryFile,
