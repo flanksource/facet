@@ -231,12 +231,27 @@ export default function InlineTemplate({ data }: { data: any }) {
     const html = await res.text();
     expect(html).toContain('monaco');
     expect(html).toContain('Facet Playground');
-    // Example dropdown offers the live diagram starting point.
+    // Example dropdown offers the live diagram + markdown/mdx starting points.
     expect(html).toContain('id="example"');
     expect(html).toContain('Live Diagram');
+    expect(html).toContain('>Markdown<');
+    expect(html).toContain('>MDX<');
     // The diagram example is a live template that imports the diagram primitives.
     expect(html).toContain('// @live');
     expect(html).toContain('Diagram, BoxNode, Arrow, NodeSection');
+  });
+
+  test('GET / playground serializes toolbar state to the URL', async () => {
+    const res = await fetch(`${server.url}/`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    // Toolbar state is written to the query string via history.replaceState...
+    expect(html).toContain('function writeUrlState()');
+    expect(html).toContain('history.replaceState');
+    // ...and read back on load from URLSearchParams.
+    expect(html).toContain('function applyUrlToolbar(');
+    expect(html).toContain('new URLSearchParams(location.search)');
+    expect(html).toContain('initUrlRouting()');
   });
 
   test('POST /render with inline code returns valid HTML', async () => {
@@ -261,6 +276,44 @@ export default function Template({ data }: { data: any }) {
     expect(res.headers.get('content-type')).toContain('text/html');
     const html = await res.text();
     expect(html).toContain('Hello Inline');
+  }, 120000);
+
+  test('POST /render with inline markdown (ext: md) returns valid HTML', async () => {
+    const code = `# Hello Markdown
+
+Rendered from an inline **.md** file, auto-wrapped in a printable page.`;
+    const res = await fetch(`${server.url}/render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, format: 'html', ext: 'md', data: {} }),
+    });
+    if (res.status !== 200) console.error('Inline markdown render error:', await res.text());
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const html = await res.text();
+    expect(html).toContain('Hello Markdown');
+    // The markdown wrapper applies prose styling.
+    expect(html).toContain('prose');
+  }, 120000);
+
+  test('POST /render with inline MDX (ext: mdx) interpolates data and renders components', async () => {
+    const code = `import { StatCard } from '@flanksource/facet';
+
+# {props.title}
+
+<StatCard label="Users" value="10,000+" />`;
+    const res = await fetch(`${server.url}/render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, format: 'html', ext: 'mdx', data: { title: 'MDX Report' } }),
+    });
+    if (res.status !== 200) console.error('Inline MDX render error:', await res.text());
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    // {props.title} interpolated from the data field.
+    expect(html).toContain('MDX Report');
+    // The imported StatCard component rendered its value.
+    expect(html).toContain('10,000+');
   }, 120000);
 
   test('POST /render with inline code returns valid PDF', async () => {

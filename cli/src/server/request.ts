@@ -7,7 +7,7 @@ export type TemplateSource =
   | { kind: 'local'; name: string }
   | { kind: 'remote'; template: string }
   | { kind: 'archive'; data: Buffer; entryFile?: string }
-  | { kind: 'inline'; code: string };
+  | { kind: 'inline'; code: string; ext?: string };
 
 export interface ParsedRenderRequest {
   source: TemplateSource;
@@ -63,7 +63,7 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
   const output = (body.output as string) === 's3' ? 's3' as const : 'direct' as const;
 
   const source: TemplateSource = typeof code === 'string'
-    ? { kind: 'inline', code }
+    ? { kind: 'inline', code, ext: parseInlineExt(body.ext) }
     : parseRemoteRef(template as string)
       ? { kind: 'remote', template: template as string }
       : { kind: 'local', name: template as string };
@@ -82,6 +82,16 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     encryption: parseEncryptionOptions(body.encryption),
     signature: parseSignatureOptions(body.signature),
   };
+}
+
+// File extension for inline code. Whitelisted so the value is safe to use in a
+// `Template.<ext>` filename, and limited to what the build pipeline can compile.
+const INLINE_EXTENSIONS = new Set(['tsx', 'jsx', 'ts', 'js', 'md', 'mdx']);
+
+function parseInlineExt(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const ext = raw.replace(/^\./, '').toLowerCase();
+  return INLINE_EXTENSIONS.has(ext) ? ext : undefined;
 }
 
 function parseDependencies(raw: unknown): Record<string, string> | undefined {

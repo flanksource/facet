@@ -486,7 +486,14 @@ facet serve --api-key my-secret-key
 facet serve --s3-endpoint https://s3.amazonaws.com --s3-bucket my-bucket
 ```
 
-The playground is available at `http://localhost:3010/` with a Monaco editor, live preview, and render logs. Use the **Example** dropdown to load a starting point — a multi-component **Datasheet** or a **Live Diagram** (which exercises the `// @live` box-and-arrow bake described above).
+The playground is available at `http://localhost:3010/` with a Monaco editor, live preview, and render logs. Use the **Example** dropdown to load a starting point:
+
+- **Datasheet** — a multi-component TSX template
+- **Live Diagram** — a `// @live` box-and-arrow diagram (see [Diagrams](#diagrams))
+- **Markdown** — a plain `.md` document auto-wrapped in a printable page
+- **MDX** — Markdown prose mixed with Facet React components
+
+Switching examples sets the editor language and the file extension sent to the server (`.tsx`, `.md`, or `.mdx`).
 
 See [openapi.yaml](openapi.yaml) for the full API specification.
 
@@ -563,9 +570,31 @@ module.exports = {
 }
 ```
 
-## MDX Support
+## Markdown & MDX
 
-Templates support MDX for content-rich pages:
+Markdown (`.md`) and MDX (`.mdx`) files are first-class templates — `facet html`,
+`facet pdf`, `facet serve`, and inline renders all accept them directly. A
+Markdown/MDX template is auto-wrapped in a printable `<Page>` with prose styling,
+so you can render a plain document with zero React boilerplate:
+
+```bash
+facet pdf Report.md
+```
+
+MDX additionally lets you mix prose with Facet React components, and exposes the
+loaded data as props:
+
+```mdx
+import { StatCard } from '@flanksource/facet';
+
+# {props.title}
+
+This is **MDX content** with a React component:
+
+<StatCard label="Users" value="10,000+" />
+```
+
+MDX can also be imported into a TSX template when you need a custom layout:
 
 ```tsx
 // MyDatasheet.tsx
@@ -580,18 +609,7 @@ export default function MyDatasheet() {
 }
 ```
 
-```mdx
-# content.mdx
-
-## Overview
-
-This is **MDX content** with React components:
-
-<StatCard label="Users" value="10,000+" />
-
-- Bullet point one
-- Bullet point two
-```
+Try the **Markdown** and **MDX** entries in the playground's **Example** dropdown.
 
 ## Development
 

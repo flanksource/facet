@@ -233,7 +233,14 @@ components:
       properties:
         code:
           type: string
-          description: Inline TSX template code.
+          description: Inline template code (TSX, Markdown, or MDX — see `ext`).
+        ext:
+          type: string
+          enum: [tsx, jsx, ts, js, md, mdx]
+          default: tsx
+          description: >-
+            File extension for inline `code`, selecting how it is compiled.
+            `md`/`mdx` are auto-wrapped in a printable page with prose styling.
         template:
           type: string
           description: Template name (local) or remote ref (e.g. `github.com/org/repo/path`).

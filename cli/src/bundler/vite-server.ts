@@ -9,10 +9,12 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
+import { resolve } from 'node:path';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
 import { installWithRetry } from './vite-builder.js';
 import { selfExecBase } from '../utils/self-exec.js';
+import { readRemarkFrontmatter } from '../utils/frontmatter.js';
 
 export interface ViteServerOptions {
   templatePath: string;
@@ -37,7 +39,12 @@ const STARTUP_TIMEOUT_MS = 60_000;
 export async function startViteServer(options: ViteServerOptions): Promise<ViteServer> {
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
 
-  const facetDir = new FacetDirectory({ consumerRoot, templateFile: templatePath, logger });
+  const facetDir = new FacetDirectory({
+    consumerRoot,
+    templateFile: templatePath,
+    logger,
+    remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
+  });
   facetDir.create();
   facetDir.generatePackageJson();
   facetDir.symlinkConsumerFiles();
