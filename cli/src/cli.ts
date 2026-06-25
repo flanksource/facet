@@ -220,6 +220,37 @@ addSharedOptions(
   }
 });
 
+// fill-pdf command
+program
+  .command('fill-pdf <template>')
+  .description('Fill AcroForm fields in a template PDF from JSON data using x-pdf-field schema annotations')
+  .requiredOption('-s, --schema <file>', 'Path to JSON Schema file with x-pdf-field annotations')
+  .option('-d, --data <file>', 'Path to JSON data file')
+  .option('-o, --output <path>', 'Output file path or directory', '.')
+  .option('-v, --verbose', 'Enable verbose logging')
+  .action(async (template: string, options: any) => {
+    const logger = new Logger(options.verbose);
+    try {
+      const { outputDir, outputName } = resolveOutput(options.output);
+      const { generateFilledPdf } = await import('./generators/fill-pdf.js');
+      await generateFilledPdf({
+        template,
+        data: options.data,
+        schema: options.schema,
+        outputDir,
+        outputName,
+        verbose: options.verbose,
+      });
+      process.exit(0);
+    } catch (error) {
+      logger.error(`Form filling failed: ${error instanceof Error ? error.message : String(error)}`);
+      if (options.verbose && error instanceof Error && error.stack) {
+        logger.debug(error.stack);
+      }
+      process.exit(1);
+    }
+  });
+
 // serve command
 program
   .command('serve')

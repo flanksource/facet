@@ -15,18 +15,18 @@
   "scripts": {
     "gen-version": "node scripts/gen-version.cjs",
     "build:lib": "tsdown",
-    "prebuild:bundle": "pnpm run gen-version",
+    "prebuild:bundle": "pnpm run gen-version && node scripts/gen-playground-form.cjs",
     "build:bundle": "tsdown --config tsdown.sea.config.ts",
     "build:cli": "pnpm run build:bundle && node scripts/build-sea.cjs",
-    "prebuild": "pnpm run gen-version",
+    "prebuild": "pnpm run gen-version && node scripts/gen-playground-form.cjs",
     "build": "pnpm run build:lib && pnpm run build:cli",
     "dev": "tsdown --watch",
-    "pretest": "pnpm run gen-version",
+    "pretest": "pnpm run gen-version && node scripts/gen-playground-form.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "bench:render": "node scripts/benchmark-render.mjs",
     "bench:server": "node scripts/benchmark-server.mjs",
-    "prelint": "pnpm run gen-version",
+    "prelint": "pnpm run gen-version && node scripts/gen-playground-form.cjs",
     "lint": "tsc --noEmit"
   },
   "keywords": [

@@ -19,6 +19,12 @@ import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname } from 'path';
 import { homedir } from 'os';
 import type { Logger } from '../utils/logger.js';
+import {
+  generatePluginCodegen,
+  remarkPluginsArray,
+  EMPTY_REMARK_CONFIG,
+  type RemarkConfig,
+} from './remark-config.js';
 
 import { assetPath } from '../utils/assets.js';
 
@@ -32,6 +38,8 @@ export interface FacetDirectoryOptions {
   templateFile: string;
   /** Logger instance */
   logger: Logger;
+  /** Extra remark/rehype plugins declared in the template's frontmatter. */
+  remarkConfig?: RemarkConfig;
 }
 
 /**
@@ -291,6 +299,7 @@ export class FacetDirectory {
   private facetSrc: string;
   private templateFile: string;
   private logger: Logger;
+  private remarkConfig: RemarkConfig;
 
   constructor(options: FacetDirectoryOptions) {
     this.consumerRoot = options.consumerRoot;
@@ -298,6 +307,23 @@ export class FacetDirectory {
     this.facetSrc = join(this.facetRoot, 'src');
     this.templateFile = options.templateFile;
     this.logger = options.logger;
+    this.remarkConfig = options.remarkConfig ?? EMPTY_REMARK_CONFIG;
+  }
+
+  /**
+   * MDX plugin source for the generated vite configs: extra imports, the
+   * remarkPlugins array (always-on defaults + frontmatter-declared plugins),
+   * and an optional rehypePlugins line. Local plugin paths resolve relative to
+   * the template file's directory.
+   */
+  private mdxPluginSource(): { imports: string; remarkArray: string; rehypeLine: string } {
+    const templateDir = dirname(resolve(this.consumerRoot, this.templateFile));
+    const codegen = generatePluginCodegen(this.remarkConfig, templateDir);
+    const imports = codegen.imports.length ? '\n' + codegen.imports.join('\n') : '';
+    const rehypeLine = codegen.rehypeItems.length
+      ? `\n      rehypePlugins: [${codegen.rehypeItems.join(', ')}],`
+      : '';
+    return { imports, remarkArray: remarkPluginsArray(codegen.remarkItems), rehypeLine };
   }
 
   /**
@@ -470,17 +496,19 @@ export default Template;
   generateViteConfig(): void {
     this.logger.debug('Generating vite.config.ts');
 
+    const { imports, remarkArray, rehypeLine } = this.mdxPluginSource();
     const config = `
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import mdx from '@mdx-js/rollup';
 import remarkGfm from 'remark-gfm';
-import { resolve } from 'path';
+import remarkFrontmatter from 'remark-frontmatter';
+import { resolve } from 'path';${imports}
 
 export default defineConfig({
   plugins: [
     mdx({
-      remarkPlugins: [remarkGfm],
+      remarkPlugins: ${remarkArray},${rehypeLine}
       include: ['**/*.md', '**/*.mdx'],
     }),
     react({
@@ -574,17 +602,24 @@ root.render(React.createElement(Template, { data }));
 `;
     writeFileSync(join(this.facetRoot, 'index.html'), indexHtml, 'utf-8');
 
+    const { imports, remarkArray, rehypeLine } = this.mdxPluginSource();
     const config = `
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import mdx from '@mdx-js/rollup';
 import remarkGfm from 'remark-gfm';
-import { resolve } from 'path';
+import remarkFrontmatter from 'remark-frontmatter';
+import { resolve } from 'path';${imports}
 
 export default defineConfig({
   plugins: [
-    mdx({ remarkPlugins: [remarkGfm], include: ['**/*.md', '**/*.mdx'] }),
-    react({ include: /\\.(md|mdx|js|jsx|ts|tsx)$/ }),
+    mdx({
+      remarkPlugins: ${remarkArray},${rehypeLine}
+      include: ['**/*.md', '**/*.mdx'],
+    }),
+    react({
+      include: /\\.(md|mdx|js|jsx|ts|tsx)$/,
+    }),
   ],
   resolve: {
     // Resolve symlinks to real paths so pnpm's symlinked transitive deps
@@ -720,6 +755,7 @@ export default defineConfig({
       '@vitejs/plugin-react',
       '@mdx-js/rollup',
       'remark-gfm',
+      'remark-frontmatter',
       'react-icons',
       'react-xarrows',
       '@flanksource/icons',

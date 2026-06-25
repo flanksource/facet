@@ -1,0 +1,2897 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "filer": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of US person filing",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Address[0].f1_5[0]",
+          "x-pdf-type": "text"
+        },
+        "identifying_number": {
+          "type": "string",
+          "description": "SSN or EIN of the filer",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Address[0].f1_6[0]",
+          "x-pdf-type": "text"
+        },
+        "address": {
+          "x-pdf-field": "topmostSubform[0].Page1[0].Address[0].f1_7[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "city_state_zip": {
+          "x-pdf-field": "topmostSubform[0].Page1[0].Address[0].f1_8[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "tax_year_beginning": {
+          "x-pdf-field": "topmostSubform[0].Page1[0].PgHeader[0].f1_1[0]",
+          "x-pdf-type": "text",
+          "x-pdf-transform": "date",
+          "type": "string"
+        },
+        "tax_year_ending": {
+          "x-pdf-field": "topmostSubform[0].Page1[0].PgHeader[0].f1_3[0]",
+          "x-pdf-type": "text",
+          "x-pdf-transform": "date",
+          "type": "string"
+        },
+        "filing_category": {
+          "description": "Categories of filer (1 through 5) per Form 5471 instructions",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "voting_stock_percentage": {
+          "description": "Percentage of total voting stock owned",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_17[0]",
+          "x-pdf-type": "text",
+          "x-pdf-transform": "number",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "identifying_number"
+      ],
+      "additionalProperties": false
+    },
+    "foreign_corporation": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_30[0]",
+          "x-pdf-type": "text"
+        },
+        "ein": {
+          "description": "EIN of the foreign corporation (if any)",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_31[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "reference_id": {
+          "description": "Reference ID number assigned by the filer",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_32[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "address": {
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_33[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "country_of_incorporation": {
+          "type": "string",
+          "description": "Country of incorporation (ISO 3166)",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_34[0]",
+          "x-pdf-type": "text"
+        },
+        "date_of_incorporation": {
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_35[0]",
+          "x-pdf-type": "text",
+          "x-pdf-transform": "date",
+          "type": "string"
+        },
+        "principal_place_of_business": {
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_36[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "principal_business_activity_code": {
+          "description": "NAICS or SIC code",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_37[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "principal_business_activity": {
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_38[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "functional_currency": {
+          "description": "Functional currency (ISO 4217)",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_39[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "tax_year_beginning": {
+          "description": "Foreign corporation tax year start",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_40[0]",
+          "x-pdf-type": "text",
+          "x-pdf-transform": "date",
+          "type": "string"
+        },
+        "tax_year_ending": {
+          "description": "Foreign corporation tax year end",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_41[0]",
+          "x-pdf-type": "text",
+          "x-pdf-transform": "date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "country_of_incorporation"
+      ],
+      "additionalProperties": false
+    },
+    "pdf_fields": {
+      "description": "Raw Form 5471 PDF fields not yet promoted to semantic schema properties",
+      "type": "object",
+      "properties": {
+        "page1_f1_2": {
+          "description": "PDF field topmostSubform[0].Page1[0].PgHeader[0].f1_2[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].PgHeader[0].f1_2[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_f1_4": {
+          "description": "PDF field topmostSubform[0].Page1[0].PgHeader[0].f1_4[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].PgHeader[0].f1_4[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_f1_9": {
+          "description": "PDF field topmostSubform[0].Page1[0].Address[0].f1_9[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Address[0].f1_9[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_f1_10": {
+          "description": "PDF field topmostSubform[0].Page1[0].Address[0].f1_10[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Address[0].f1_10[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_f1_11": {
+          "description": "PDF field topmostSubform[0].Page1[0].f1_11[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_11[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_c1_1": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_1[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_1[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_c1_2": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_2[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_2[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_c1_3": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_3[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_3[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_c1_4": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_4[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_4[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_c1_5": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_5[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_5[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_c1_6": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_6[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_6[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_c1_7": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_7[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_7[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_c1_8": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_8[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_8[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_c1_9": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_9[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_9[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_f1_12": {
+          "description": "PDF field topmostSubform[0].Page1[0].f1_12[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_12[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_f1_13": {
+          "description": "PDF field topmostSubform[0].Page1[0].f1_13[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_13[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_f1_14": {
+          "description": "PDF field topmostSubform[0].Page1[0].f1_14[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_14[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_f1_15": {
+          "description": "PDF field topmostSubform[0].Page1[0].f1_15[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_15[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_f1_16": {
+          "description": "PDF field topmostSubform[0].Page1[0].f1_16[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_16[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_c1_10": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_10[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_10[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_c1_11": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_11[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_11[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_c1_12": {
+          "description": "PDF field topmostSubform[0].Page1[0].c1_12[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].c1_12[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_f1_18": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].f1_18[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].f1_18[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_f1_19": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].f1_19[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].f1_19[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_f1_20": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].f1_20[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].f1_20[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_c1_13": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].c1_13[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].c1_13[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_c1_14": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].c1_14[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].c1_14[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_c1_15": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].c1_15[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row1[0].c1_15[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_f1_21": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].f1_21[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].f1_21[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_f1_22": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].f1_22[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].f1_22[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_f1_23": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].f1_23[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].f1_23[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_c1_16": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].c1_16[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].c1_16[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_c1_17": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].c1_17[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].c1_17[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_c1_18": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].c1_18[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row2[0].c1_18[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_f1_24": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].f1_24[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].f1_24[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_f1_25": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].f1_25[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].f1_25[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_f1_26": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].f1_26[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].f1_26[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_c1_19": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].c1_19[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].c1_19[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_c1_20": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].c1_20[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].c1_20[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_c1_21": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].c1_21[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row3[0].c1_21[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_f1_27": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].f1_27[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].f1_27[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_f1_28": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].f1_28[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].f1_28[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_f1_29": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].f1_29[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].f1_29[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_linef_c1_22": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].c1_22[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].c1_22[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_c1_23": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].c1_23[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].c1_23[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_table_linef_c1_24": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].c1_24[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_LineF[0].Row4[0].c1_24[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page1_f1_42": {
+          "description": "PDF field topmostSubform[0].Page1[0].f1_42[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_42[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_f1_43": {
+          "description": "PDF field topmostSubform[0].Page1[0].f1_43[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_43[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_f1_44": {
+          "description": "PDF field topmostSubform[0].Page1[0].f1_44[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].f1_44[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_45": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row1[0].f1_45[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row1[0].f1_45[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_46": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row1[0].f1_46[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row1[0].f1_46[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_47": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row1[0].f1_47[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row1[0].f1_47[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_48": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row2[0].f1_48[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row2[0].f1_48[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_49": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row2[0].f1_49[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row2[0].f1_49[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_50": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row2[0].f1_50[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row2[0].f1_50[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_52": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row3[0].f1_52[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row3[0].f1_52[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_53": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row3[0].f1_53[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row3[0].f1_53[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_54": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row3[0].f1_54[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row3[0].f1_54[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_55": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row4[0].f1_55[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row4[0].f1_55[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_56": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row4[0].f1_56[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row4[0].f1_56[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page1_table_scha_f1_57": {
+          "description": "PDF field topmostSubform[0].Page1[0].Table_SchA[0].Row4[0].f1_57[0]",
+          "x-pdf-field": "topmostSubform[0].Page1[0].Table_SchA[0].Row4[0].f1_57[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_1": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].f2_1[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].f2_1[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_2": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1b[0].f2_2[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1b[0].f2_2[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_3": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1b[0].f2_3[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1b[0].f2_3[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_4": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1b[0].f2_4[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1b[0].f2_4[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_5": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1b[0].f2_5[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1b[0].f2_5[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_6": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1c[0].f2_6[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1c[0].f2_6[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_7": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1c[0].f2_7[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1c[0].f2_7[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_8": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1c[0].f2_8[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1c[0].f2_8[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_9": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1c[0].f2_9[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1c[0].f2_9[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_10": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1d[0].f2_10[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1d[0].f2_10[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_11": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1d[0].f2_11[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1d[0].f2_11[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_12": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1d[0].f2_12[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1d[0].f2_12[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_13": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1d[0].f2_13[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].Row1d[0].f2_13[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_14": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].f2_14[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row1[0].f2_14[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_15": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].f2_15[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].f2_15[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_16": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2b[0].f2_16[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2b[0].f2_16[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_17": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2b[0].f2_17[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2b[0].f2_17[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_18": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2b[0].f2_18[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2b[0].f2_18[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_19": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2b[0].f2_19[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2b[0].f2_19[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_21": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2c[0].f2_21[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2c[0].f2_21[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_22": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2c[0].f2_22[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2c[0].f2_22[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_23": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2c[0].f2_23[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2c[0].f2_23[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_24": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2c[0].f2_24[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2c[0].f2_24[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_25": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2d[0].f2_25[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2d[0].f2_25[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_26": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2d[0].f2_26[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2d[0].f2_26[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_27": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2d[0].f2_27[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2d[0].f2_27[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_28": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2d[0].f2_28[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].Row2d[0].f2_28[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_29": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].f2_29[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row2[0].f2_29[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_30": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].f2_30[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].f2_30[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_31": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3b[0].f2_31[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3b[0].f2_31[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_32": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3b[0].f2_32[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3b[0].f2_32[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_33": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3b[0].f2_33[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3b[0].f2_33[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_34": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3b[0].f2_34[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3b[0].f2_34[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_35": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3c[0].f2_35[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3c[0].f2_35[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_36": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3c[0].f2_36[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3c[0].f2_36[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_37": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3c[0].f2_37[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3c[0].f2_37[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_38": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3c[0].f2_38[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3c[0].f2_38[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_39": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3d[0].f2_39[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3d[0].f2_39[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_40": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3d[0].f2_40[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3d[0].f2_40[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_41": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3d[0].f2_41[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3d[0].f2_41[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_42": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3d[0].f2_42[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].Row3d[0].f2_42[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_43": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].f2_43[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row3[0].f2_43[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_44": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].f2_44[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].f2_44[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_45": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4b[0].f2_45[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4b[0].f2_45[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_46": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4b[0].f2_46[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4b[0].f2_46[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_47": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4b[0].f2_47[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4b[0].f2_47[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_48": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4b[0].f2_48[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4b[0].f2_48[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_49": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4c[0].f2_49[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4c[0].f2_49[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_50": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4c[0].f2_50[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4c[0].f2_50[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_51": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4c[0].f2_51[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4c[0].f2_51[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_52": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4c[0].f2_52[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4c[0].f2_52[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_53": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4d[0].f2_53[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4d[0].f2_53[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_54": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4d[0].f2_54[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4d[0].f2_54[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_55": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4d[0].f2_55[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4d[0].f2_55[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_56": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4d[0].f2_56[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].Row4d[0].f2_56[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_57": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].f2_57[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row4[0].f2_57[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_58": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].f2_58[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].f2_58[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_59": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5b[0].f2_59[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5b[0].f2_59[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_60": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5b[0].f2_60[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5b[0].f2_60[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_61": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5b[0].f2_61[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5b[0].f2_61[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_62": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5b[0].f2_62[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5b[0].f2_62[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_63": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5c[0].f2_63[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5c[0].f2_63[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_64": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5c[0].f2_64[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5c[0].f2_64[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_65": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5c[0].f2_65[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5c[0].f2_65[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_66": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5c[0].f2_66[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5c[0].f2_66[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_67": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5d[0].f2_67[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5d[0].f2_67[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_68": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5d[0].f2_68[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5d[0].f2_68[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_69": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5d[0].f2_69[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5d[0].f2_69[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_70": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5d[0].f2_70[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].Row5d[0].f2_70[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_parti_f2_71": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].f2_71[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartI[0].Row5[0].f2_71[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_72": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].f2_72[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].f2_72[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_73": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1b[0].f2_73[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1b[0].f2_73[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_74": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1b[0].f2_74[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1b[0].f2_74[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_75": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1b[0].f2_75[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1b[0].f2_75[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_76": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1b[0].f2_76[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1b[0].f2_76[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_77": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1c[0].f2_77[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1c[0].f2_77[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_78": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1c[0].f2_78[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1c[0].f2_78[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_79": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1c[0].f2_79[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1c[0].f2_79[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_80": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1c[0].f2_80[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1c[0].f2_80[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_81": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1d[0].f2_81[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1d[0].f2_81[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_82": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1d[0].f2_82[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1d[0].f2_82[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_83": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1d[0].f2_83[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1d[0].f2_83[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_84": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1d[0].f2_84[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row1[0].Row1d[0].f2_84[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_85": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].f2_85[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].f2_85[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_86": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2b[0].f2_86[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2b[0].f2_86[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_87": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2b[0].f2_87[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2b[0].f2_87[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_88": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2b[0].f2_88[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2b[0].f2_88[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_89": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2b[0].f2_89[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2b[0].f2_89[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_90": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2c[0].f2_90[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2c[0].f2_90[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_91": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2c[0].f2_91[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2c[0].f2_91[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_92": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2c[0].f2_92[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2c[0].f2_92[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_93": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2c[0].f2_93[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2c[0].f2_93[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_94": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2d[0].f2_94[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2d[0].f2_94[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_95": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2d[0].f2_95[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2d[0].f2_95[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_96": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2d[0].f2_96[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2d[0].f2_96[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_97": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2d[0].f2_97[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row2[0].Row2d[0].f2_97[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_98": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].f2_98[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].f2_98[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_99": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3b[0].f2_99[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3b[0].f2_99[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_100": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3b[0].f2_100[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3b[0].f2_100[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_101": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3b[0].f2_101[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3b[0].f2_101[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_102": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3b[0].f2_102[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3b[0].f2_102[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_103": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3c[0].f2_103[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3c[0].f2_103[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_104": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3c[0].f2_104[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3c[0].f2_104[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_105": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3c[0].f2_105[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3c[0].f2_105[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_106": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3c[0].f2_106[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3c[0].f2_106[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_107": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3d[0].f2_107[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3d[0].f2_107[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_108": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3d[0].f2_108[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3d[0].f2_108[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_109": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3d[0].f2_109[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3d[0].f2_109[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_110": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3d[0].f2_110[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row3[0].Row3d[0].f2_110[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_111": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].f2_111[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].f2_111[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_112": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4b[0].f2_112[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4b[0].f2_112[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_113": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4b[0].f2_113[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4b[0].f2_113[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_114": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4b[0].f2_114[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4b[0].f2_114[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_115": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4b[0].f2_115[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4b[0].f2_115[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_116": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4c[0].f2_116[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4c[0].f2_116[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_117": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4c[0].f2_117[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4c[0].f2_117[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_118": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4c[0].f2_118[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4c[0].f2_118[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_119": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4c[0].f2_119[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4c[0].f2_119[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_120": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4d[0].f2_120[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4d[0].f2_120[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_121": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4d[0].f2_121[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4d[0].f2_121[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_122": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4d[0].f2_122[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4d[0].f2_122[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_123": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4d[0].f2_123[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row4[0].Row4d[0].f2_123[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_124": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].f2_124[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].f2_124[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_125": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5b[0].f2_125[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5b[0].f2_125[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_126": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5b[0].f2_126[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5b[0].f2_126[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_127": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5b[0].f2_127[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5b[0].f2_127[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_128": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5b[0].f2_128[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5b[0].f2_128[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_129": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5c[0].f2_129[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5c[0].f2_129[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_130": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5c[0].f2_130[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5c[0].f2_130[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_131": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5c[0].f2_131[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5c[0].f2_131[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_132": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5c[0].f2_132[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5c[0].f2_132[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_133": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5d[0].f2_133[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5d[0].f2_133[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_134": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5d[0].f2_134[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5d[0].f2_134[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_135": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5d[0].f2_135[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5d[0].f2_135[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page2_table_schb_partii_f2_136": {
+          "description": "PDF field topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5d[0].f2_136[0]",
+          "x-pdf-field": "topmostSubform[0].Page2[0].Table_SchB_PartII[0].Row5[0].Row5d[0].f2_136[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_1": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row1a[0].f3_1[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row1a[0].f3_1[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_2": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row1a[0].f3_2[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row1a[0].f3_2[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_3": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row1b[0].f3_3[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row1b[0].f3_3[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_4": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row1b[0].f3_4[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row1b[0].f3_4[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_5": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row1c[0].f3_5[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row1c[0].f3_5[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_6": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row1c[0].f3_6[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row1c[0].f3_6[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_7": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row2[0].f3_7[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row2[0].f3_7[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_8": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row2[0].f3_8[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row2[0].f3_8[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_9": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row3[0].f3_9[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row3[0].f3_9[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_10": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row3[0].f3_10[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row3[0].f3_10[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_11": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row4[0].f3_11[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row4[0].f3_11[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_12": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row4[0].f3_12[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row4[0].f3_12[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_13": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row5[0].f3_13[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row5[0].f3_13[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_14": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row5[0].f3_14[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row5[0].f3_14[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_15": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row6a[0].f3_15[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row6a[0].f3_15[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_16": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row6a[0].f3_16[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row6a[0].f3_16[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_17": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row6b[0].f3_17[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row6b[0].f3_17[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_18": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row6b[0].f3_18[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row6b[0].f3_18[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_19": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row7[0].f3_19[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row7[0].f3_19[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_20": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row7[0].f3_20[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row7[0].f3_20[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_21": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row8a[0].f3_21[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row8a[0].f3_21[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_22": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row8a[0].f3_22[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row8a[0].f3_22[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_23": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row8b[0].f3_23[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row8b[0].f3_23[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_24": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row8b[0].f3_24[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row8b[0].f3_24[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_25": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row9[0].f3_25[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row9[0].f3_25[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_26": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row9[0].f3_26[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row9[0].f3_26[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_27": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row10[0].f3_27[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row10[0].f3_27[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_28": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row10[0].f3_28[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row10[0].f3_28[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_29": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row11[0].f3_29[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row11[0].f3_29[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_30": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row11[0].f3_30[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row11[0].f3_30[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_31": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row12a[0].f3_31[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row12a[0].f3_31[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_32": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row12a[0].f3_32[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row12a[0].f3_32[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_33": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row12b[0].f3_33[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row12b[0].f3_33[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_34": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row12b[0].f3_34[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row12b[0].f3_34[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_35": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row13[0].f3_35[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row13[0].f3_35[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_36": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row13[0].f3_36[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row13[0].f3_36[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_37": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row14[0].f3_37[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row14[0].f3_37[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_38": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row14[0].f3_38[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row14[0].f3_38[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_39": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row15[0].f3_39[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row15[0].f3_39[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_40": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row15[0].f3_40[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row15[0].f3_40[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_41": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row16[0].f3_41[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row16[0].f3_41[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_42": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row16[0].f3_42[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row16[0].f3_42[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_43": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row17[0].f3_43[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row17[0].f3_43[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_44": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row17[0].f3_44[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row17[0].f3_44[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_45": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row18[0].f3_45[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row18[0].f3_45[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_46": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row18[0].f3_46[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row18[0].f3_46[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_47": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row19[0].f3_47[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row19[0].f3_47[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_48": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row19[0].f3_48[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row19[0].f3_48[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_49": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row20[0].f3_49[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row20[0].f3_49[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_50": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row20[0].f3_50[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row20[0].f3_50[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_51": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row21a[0].f3_51[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row21a[0].f3_51[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_52": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row21a[0].f3_52[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row21a[0].f3_52[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_53": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row21b[0].f3_53[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row21b[0].f3_53[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_54": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row21b[0].f3_54[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row21b[0].f3_54[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_55": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row22[0].f3_55[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row22[0].f3_55[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_56": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row22[0].f3_56[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row22[0].f3_56[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_57": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row23a[0].f3_57[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row23a[0].f3_57[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_58": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row23a[0].f3_58[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row23a[0].f3_58[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_59": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row23b[0].f3_59[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row23b[0].f3_59[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_60": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row23b[0].f3_60[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row23b[0].f3_60[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_61": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row23c[0].f3_61[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row23c[0].f3_61[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_62": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row23c[0].f3_62[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row23c[0].f3_62[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_63": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row24[0].f3_63[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row24[0].f3_63[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page3_table_schc_f3_64": {
+          "description": "PDF field topmostSubform[0].Page3[0].Table_SchC[0].Row24[0].f3_64[0]",
+          "x-pdf-field": "topmostSubform[0].Page3[0].Table_SchC[0].Row24[0].f3_64[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_1": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row1[0].f4_1[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row1[0].f4_1[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_2": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row1[0].f4_2[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row1[0].f4_2[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_3": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row2a[0].f4_3[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row2a[0].f4_3[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_4": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row2a[0].f4_4[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row2a[0].f4_4[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_5": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row2b[0].f4_5[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row2b[0].f4_5[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_6": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row2b[0].f4_6[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row2b[0].f4_6[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_7": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row3[0].f4_7[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row3[0].f4_7[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_8": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row3[0].f4_8[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row3[0].f4_8[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_9": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row4[0].f4_9[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row4[0].f4_9[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_10": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row4[0].f4_10[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row4[0].f4_10[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_11": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row5[0].f4_11[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row5[0].f4_11[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_12": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row5[0].f4_12[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row5[0].f4_12[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_13": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row6[0].f4_13[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row6[0].f4_13[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_14": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row6[0].f4_14[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row6[0].f4_14[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_15": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row7[0].f4_15[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row7[0].f4_15[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_16": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row7[0].f4_16[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row7[0].f4_16[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_17": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row8[0].f4_17[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row8[0].f4_17[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_18": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row8[0].f4_18[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row8[0].f4_18[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_19": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row9a[0].f4_19[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row9a[0].f4_19[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_20": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row9a[0].f4_20[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row9a[0].f4_20[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_21": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row9b[0].f4_21[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row9b[0].f4_21[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_22": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row9b[0].f4_22[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row9b[0].f4_22[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_23": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row10a[0].f4_23[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row10a[0].f4_23[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_24": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row10a[0].f4_24[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row10a[0].f4_24[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_25": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row10b[0].f4_25[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row10b[0].f4_25[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_26": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row10b[0].f4_26[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row10b[0].f4_26[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_27": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row11[0].f4_27[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row11[0].f4_27[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_28": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row11[0].f4_28[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row11[0].f4_28[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_29": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12a[0].f4_29[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12a[0].f4_29[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_30": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12a[0].f4_30[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12a[0].f4_30[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_31": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12b[0].f4_31[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12b[0].f4_31[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_32": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12b[0].f4_32[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12b[0].f4_32[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_33": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12c[0].f4_33[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12c[0].f4_33[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_34": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12c[0].f4_34[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12c[0].f4_34[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_35": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12d[0].f4_35[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12d[0].f4_35[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_36": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12d[0].f4_36[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row12d[0].f4_36[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_37": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row13[0].f4_37[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row13[0].f4_37[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_38": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row13[0].f4_38[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row13[0].f4_38[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_39": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row14[0].f4_39[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row14[0].f4_39[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_assets_f4_40": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row14[0].f4_40[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Assets[0].Row14[0].f4_40[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_41": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row15[0].f4_41[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row15[0].f4_41[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_42": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row15[0].f4_42[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row15[0].f4_42[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_43": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row16[0].f4_43[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row16[0].f4_43[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_44": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row16[0].f4_44[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row16[0].f4_44[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_45": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row17[0].f4_45[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row17[0].f4_45[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_46": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row17[0].f4_46[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row17[0].f4_46[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_47": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row18[0].f4_47[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row18[0].f4_47[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_48": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row18[0].f4_48[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row18[0].f4_48[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_49": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row19[0].f4_49[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row19[0].f4_49[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_50": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row19[0].f4_50[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row19[0].f4_50[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_51": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row20a[0].f4_51[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row20a[0].f4_51[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_52": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row20a[0].f4_52[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row20a[0].f4_52[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_53": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row20b[0].f4_53[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row20b[0].f4_53[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_54": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row20b[0].f4_54[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row20b[0].f4_54[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_55": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row21[0].f4_55[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row21[0].f4_55[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_56": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row21[0].f4_56[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row21[0].f4_56[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_57": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row22[0].f4_57[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row22[0].f4_57[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_58": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row22[0].f4_58[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row22[0].f4_58[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_59": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row23[0].f4_59[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row23[0].f4_59[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_60": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row23[0].f4_60[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row23[0].f4_60[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_61": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row24[0].f4_61[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row24[0].f4_61[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_table_schf_liabilities_f4_62": {
+          "description": "PDF field topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row24[0].f4_62[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].Table_SchF_Liabilities[0].Row24[0].f4_62[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_c4_1": {
+          "description": "PDF field topmostSubform[0].Page4[0].TagCorrectingSubform[0].c4_1[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].TagCorrectingSubform[0].c4_1[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page4_c4_1_2": {
+          "description": "PDF field topmostSubform[0].Page4[0].TagCorrectingSubform[0].c4_1[1]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].TagCorrectingSubform[0].c4_1[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page4_c4_2": {
+          "description": "PDF field topmostSubform[0].Page4[0].c4_2[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].c4_2[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page4_c4_2_2": {
+          "description": "PDF field topmostSubform[0].Page4[0].c4_2[1]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].c4_2[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page4_c4_3": {
+          "description": "PDF field topmostSubform[0].Page4[0].c4_3[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].c4_3[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page4_c4_3_2": {
+          "description": "PDF field topmostSubform[0].Page4[0].c4_3[1]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].c4_3[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page4_c4_4": {
+          "description": "PDF field topmostSubform[0].Page4[0].c4_4[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].c4_4[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page4_c4_4_2": {
+          "description": "PDF field topmostSubform[0].Page4[0].c4_4[1]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].c4_4[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page4_f4_63": {
+          "description": "PDF field topmostSubform[0].Page4[0].f4_63[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].f4_63[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_c4_5": {
+          "description": "PDF field topmostSubform[0].Page4[0].c4_5[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].c4_5[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page4_c4_5_2": {
+          "description": "PDF field topmostSubform[0].Page4[0].c4_5[1]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].c4_5[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page4_f4_64": {
+          "description": "PDF field topmostSubform[0].Page4[0].f4_64[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].f4_64[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page4_f4_65": {
+          "description": "PDF field topmostSubform[0].Page4[0].f4_65[0]",
+          "x-pdf-field": "topmostSubform[0].Page4[0].f4_65[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page5_c5_1": {
+          "description": "PDF field topmostSubform[0].Page5[0].TagCorrectionSubform[0].c5_1[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].TagCorrectionSubform[0].c5_1[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_1_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].TagCorrectionSubform[0].c5_1[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].TagCorrectionSubform[0].c5_1[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_f5_1": {
+          "description": "PDF field topmostSubform[0].Page5[0].f5_1[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].f5_1[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page5_c5_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_2[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_2[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_2_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_2[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_2[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_f5_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].f5_2[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].f5_2[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page5_f5_3": {
+          "description": "PDF field topmostSubform[0].Page5[0].f5_3[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].f5_3[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page5_f5_4": {
+          "description": "PDF field topmostSubform[0].Page5[0].f5_4[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].f5_4[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page5_c5_3": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_3[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_3[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_3_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_3[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_3[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_4": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_4[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_4[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_4_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_4[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_4[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_5": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_5[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_5[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_5_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_5[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_5[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_f5_5": {
+          "description": "PDF field topmostSubform[0].Page5[0].f5_5[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].f5_5[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page5_c5_6": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_6[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_6[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_6_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_6[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_6[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_7": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_7[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_7[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_7_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_7[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_7[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_8": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_8[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_8[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_8_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_8[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_8[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_9": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_9[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_9[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_9_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_9[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_9[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_10": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_10[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_10[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_10_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_10[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_10[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5": {
+          "description": "PDF field topmostSubform[0].Page5[0].ifyesenter[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].ifyesenter[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page5_c5_11": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_11[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_11[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_11_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_11[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_11[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_f5_6": {
+          "description": "PDF field topmostSubform[0].Page5[0].f5_6[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].f5_6[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page5_c5_12": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_12[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_12[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_12_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_12[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_12[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_f5_8": {
+          "description": "PDF field topmostSubform[0].Page5[0].f5_8[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].f5_8[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page5_c5_13": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_13[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_13[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_13_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_13[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_13[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_14": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_14[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_14[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_14_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_14[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_14[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_15": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_15[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_15[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_15_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_15[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_15[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_16": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_16[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_16[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_16_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_16[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_16[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_17": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_17[0]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_17[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page5_c5_17_2": {
+          "description": "PDF field topmostSubform[0].Page5[0].c5_17[1]",
+          "x-pdf-field": "topmostSubform[0].Page5[0].c5_17[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_f6_1": {
+          "description": "PDF field topmostSubform[0].Page6[0].TagCorrectingSubform[0].f6_1[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].TagCorrectingSubform[0].f6_1[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_2": {
+          "description": "PDF field topmostSubform[0].Page6[0].TagCorrectingSubform[0].f6_2[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].TagCorrectingSubform[0].f6_2[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_c6_1": {
+          "description": "PDF field topmostSubform[0].Page6[0].c6_1[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].c6_1[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_c6_1_2": {
+          "description": "PDF field topmostSubform[0].Page6[0].c6_1[1]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].c6_1[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_f6_3": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_3[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_3[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_4": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_4[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_4[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_5": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_5[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_5[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_c6_2": {
+          "description": "PDF field topmostSubform[0].Page6[0].c6_2[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].c6_2[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_c6_2_2": {
+          "description": "PDF field topmostSubform[0].Page6[0].c6_2[1]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].c6_2[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_f6_6": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_6[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_6[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_7": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_7[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_7[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_8": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_8[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_8[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_9": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_9[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_9[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_10": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_10[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_10[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_11": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_11[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_11[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_12": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_12[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_12[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_13": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_13[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_13[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_14": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_14[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_14[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_15": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_15[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_15[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_16": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_16[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_16[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_17": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_17[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_17[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_18": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_18[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_18[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_19": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_19[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_19[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_20": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_20[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_20[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_21": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_21[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_21[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_22": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_22[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_22[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_23": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_23[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_23[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_24": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_24[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_24[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_25": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_25[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_25[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_26": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_26[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_26[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_c6_3": {
+          "description": "PDF field topmostSubform[0].Page6[0].c6_3[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].c6_3[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_c6_3_2": {
+          "description": "PDF field topmostSubform[0].Page6[0].c6_3[1]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].c6_3[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_c6_4": {
+          "description": "PDF field topmostSubform[0].Page6[0].c6_4[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].c6_4[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_c6_4_2": {
+          "description": "PDF field topmostSubform[0].Page6[0].c6_4[1]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].c6_4[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_c6_5": {
+          "description": "PDF field topmostSubform[0].Page6[0].c6_5[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].c6_5[0]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_c6_5_2": {
+          "description": "PDF field topmostSubform[0].Page6[0].c6_5[1]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].c6_5[1]",
+          "x-pdf-type": "checkbox",
+          "type": "boolean"
+        },
+        "page6_f6_27": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_27[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_27[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_28": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_28[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_28[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_29": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_29[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_29[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_30": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_30[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_30[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        },
+        "page6_f6_31": {
+          "description": "PDF field topmostSubform[0].Page6[0].f6_31[0]",
+          "x-pdf-field": "topmostSubform[0].Page6[0].f6_31[0]",
+          "x-pdf-type": "text",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "schedule_a_stock": {
+      "description": "Schedule A: Stock of the foreign corporation",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "class_of_stock": {
+            "type": "string"
+          },
+          "shares_issued_and_outstanding": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "schedule_b_shareholders": {
+      "description": "Schedule B: US shareholders of the foreign corporation",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "identifying_number": {
+            "type": "string"
+          },
+          "description_of_shares_held": {
+            "type": "string"
+          },
+          "number_of_direct_shares": {
+            "type": "number"
+          },
+          "number_of_indirect_shares": {
+            "type": "number"
+          },
+          "number_of_constructive_shares": {
+            "type": "number"
+          },
+          "pro_rata_share_subpart_f_income": {
+            "description": "Pro rata share of subpart F income (IRC 952)",
+            "type": "number"
+          },
+          "percentage_of_voting_stock_direct": {
+            "type": "number"
+          },
+          "percentage_of_voting_stock_indirect": {
+            "type": "number"
+          },
+          "percentage_of_voting_stock_constructive": {
+            "type": "number"
+          },
+          "percentage_of_value_direct": {
+            "type": "number"
+          },
+          "percentage_of_value_indirect": {
+            "type": "number"
+          },
+          "percentage_of_value_constructive": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "schedule_c_income_statement": {
+      "description": "Schedule C: Income statement in functional currency and USD",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "schedule_f_balance_sheet": {
+      "description": "Schedule F: Balance sheet in functional currency",
+      "type": "object",
+      "properties": {
+        "assets": {
+          "description": "Assets: beginning and end of year balances",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "beginning_of_year": {
+                "type": "number"
+              },
+              "end_of_year": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "liabilities_and_equity": {
+          "description": "Liabilities and equity: beginning and end of year balances",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "beginning_of_year": {
+                "type": "number"
+              },
+              "end_of_year": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "schedule_e_taxes": {
+      "description": "Schedule E: Taxes paid or accrued (for foreign tax credit)",
+      "type": "object",
+      "properties": {
+        "taxes_paid": {
+          "description": "Taxes paid or accrued by country",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name_of_country": {
+                "type": "string"
+              },
+              "income_tax_paid": {
+                "type": "number"
+              },
+              "income_tax_accrued": {
+                "type": "number"
+              },
+              "war_profits_tax_paid": {
+                "type": "number"
+              },
+              "war_profits_tax_accrued": {
+                "type": "number"
+              },
+              "excess_profits_tax_paid": {
+                "type": "number"
+              },
+              "excess_profits_tax_accrued": {
+                "type": "number"
+              },
+              "total_paid": {
+                "type": "number"
+              },
+              "total_accrued": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "name_of_country"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "total_income_tax_paid": {
+          "type": "number"
+        },
+        "total_income_tax_accrued": {
+          "type": "number"
+        },
+        "total_taxes_paid": {
+          "type": "number"
+        },
+        "total_taxes_accrued": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "schedule_i_shareholder_income": {
+      "description": "Schedule I: Summary of shareholder income from foreign corporation",
+      "type": "object",
+      "properties": {
+        "subpart_f_income": {
+          "description": "Subpart F income components (IRC 952)",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "earnings_invested_in_us_property": {
+          "description": "Earnings invested in US property (IRC 956)",
+          "type": "number"
+        },
+        "factoring_income": {
+          "description": "Factoring income",
+          "type": "number"
+        },
+        "dividends": {
+          "description": "Dividend income by type",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "exchange_gain_loss": {
+          "description": "Foreign exchange gain or loss (IRC 986/987)",
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "filer",
+    "foreign_corporation"
+  ],
+  "additionalProperties": false,
+  "x-pdf-forms": [
+    {
+      "form_id": "f5471",
+      "title": "Form 5471 - Information Return of U.S. Persons With Respect To Certain Foreign Corporations",
+      "role": "companion_pdf",
+      "schema_type": "f5471",
+      "version": "2025",
+      "source_url": "https://www.irs.gov/pub/irs-pdf/f5471.pdf"
+    }
+  ]
+}

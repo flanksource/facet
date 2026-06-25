@@ -94,11 +94,26 @@ const HTML = `<!DOCTYPE html>
     .log-stage.error { color: #f87171; }
     .log-spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #555; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Mode toggle + Fill-PDF island */
+    .mode-toggle { display: inline-flex; border: 1px solid #555; border-radius: 6px; overflow: hidden; }
+    .mode-toggle button { background: #3c3c3c; color: #ccc; border: none; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+    .mode-toggle button.active { background: #2563eb; color: #fff; }
+    #fill-pdf-root { display: none; flex: 1; min-height: 0; }
+    body.mode-fill .main { display: none; }
+    body.mode-fill #fill-pdf-root { display: flex; }
+    body.mode-fill .render-only { display: none !important; }
   </style>
+  <link rel="stylesheet" href="/playground-form.css">
 </head>
 <body>
   <div class="toolbar">
     <strong style="color:#fff;font-size:14px;">Facet Playground</strong>
+    <div class="mode-toggle">
+      <button id="modeRender" class="active" onclick="setMode('render')">Render</button>
+      <button id="modeFill" onclick="setMode('fill')">Fill PDF</button>
+    </div>
+    <span class="render-only" style="display:contents">
     <div class="sep"></div>
     <label>Page Size:
       <select id="pageSize">
@@ -141,6 +156,7 @@ const HTML = `<!DOCTYPE html>
         <button onclick="setFormat('pdf')"><span class="check" id="checkPdf">&nbsp;</span>PDF</button>
       </div>
     </div>
+    </span>
   </div>
   <div class="main">
     <div class="editor-panel">
@@ -161,6 +177,7 @@ const HTML = `<!DOCTYPE html>
       <div class="empty">Click "Render" to preview your template</div>
     </div>
   </div>
+  <div id="fill-pdf-root"></div>
 
   <div class="log-overlay" id="logOverlay" onclick="onOverlayClick(event)">
     <div class="log-dialog">
@@ -783,6 +800,20 @@ export default function MyFooter() {
       } finally {
         btn.disabled = false;
         drop.disabled = false;
+      }
+    }
+  </script>
+  <script src="/playground-form.js"></script>
+  <script>
+    var __fillMounted = false;
+    function setMode(mode) {
+      var fill = mode === 'fill';
+      document.body.classList.toggle('mode-fill', fill);
+      document.getElementById('modeRender').classList.toggle('active', !fill);
+      document.getElementById('modeFill').classList.toggle('active', fill);
+      if (fill && !__fillMounted && window.FacetFillPdf && window.FacetFillPdf.mountFillPdf) {
+        window.FacetFillPdf.mountFillPdf('#fill-pdf-root');
+        __fillMounted = true;
       }
     }
   </script>

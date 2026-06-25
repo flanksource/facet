@@ -1,0 +1,17 @@
+{
+  "filer": {
+    "name": "Acme Holdings Inc",
+    "ein": "12-3456789",
+    "address": "100 Market Street",
+    "city": "Wilmington",
+    "state_or_province": "DE",
+    "zip_or_foreign_postal_code": "19801",
+    "date_incorporated": "2018-04-01",
+    "total_assets": 4250000
+  },
+  "tax_year_beginning": "2024-01-01",
+  "tax_year_ending": "2024-12-31",
+  "income": {
+    "gross_receipts_or_sales": 9800000
+  }
+}

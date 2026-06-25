@@ -29,13 +29,14 @@
   ],
   "packageManager": "pnpm@9.15.9",
   "scripts": {
-    "build": "pnpm run build:components && pnpm run build:css && pnpm run build:cli",
+    "build": "pnpm run build:components && pnpm run build:css && pnpm run build:playground && pnpm run build:cli",
     "build:components": "vite build --config vite.lib.config.ts",
     "build:css": "tailwindcss -i src/styles.css -o dist/styles.css",
+    "build:playground": "vite build --config vite.playground.config.ts && node cli/scripts/gen-playground-form.cjs && node cli/scripts/gen-samples.cjs",
     "build:cli": "cd cli && pnpm run build",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "prepublishOnly": "pnpm run build:components && pnpm run build:css && cd cli && pnpm run build:lib",
+    "prepublishOnly": "pnpm run build:components && pnpm run build:css && pnpm run build:playground && cd cli && pnpm run build:lib",
     "chromatic": "pnpm exec chromatic"
   },
   "peerDependencies": {
@@ -43,6 +44,7 @@
     "react-dom": ">=18"
   },
   "dependencies": {
+    "@flanksource/clicky-ui": "^0.3.5",
     "@flanksource/icons": "^1.0.53",
     "@iconify/react": "^5.1.0",
     "@xyflow/react": "^12.0.0",
@@ -56,6 +58,7 @@
     "d3-time-format": "^4.1.0",
     "dagre": "^0.8.5",
     "dayjs": "^1.11.13",
+    "js-yaml": "^5.1.0",
     "pdf-lib": "^1.17.1",
     "react-icons": "^5.4.0",
     "react-xarrows": "^2.0.2",
@@ -89,6 +92,7 @@
     "puppeteer": "^24.26.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.0",
     "storybook": "^8.6.14",
     "tailwindcss": "^3.4.3",
