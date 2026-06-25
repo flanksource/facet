@@ -115,6 +115,13 @@ const HTML = `<!DOCTYPE html>
     </div>
     <span class="render-only" style="display:contents">
     <div class="sep"></div>
+    <label>Example:
+      <select id="example" onchange="loadExample(this.value)">
+        <option value="datasheet">Datasheet</option>
+        <option value="diagram">Live Diagram</option>
+      </select>
+    </label>
+    <div class="sep"></div>
     <label>Page Size:
       <select id="pageSize">
         <option value="">Default</option>
@@ -329,6 +336,78 @@ export default function MyFooter() {
       "react-icons": "^5.4.0"
     }, null, 2);
 
+    // Live diagram example. The leading "// @live" directive opts this template
+    // into the hydrate-and-bake render path: react-xarrows measures the boxes in
+    // a real browser and bakes the arrows to static SVG before the PDF pipeline runs.
+    const DIAGRAM_TEMPLATE = \`// @live
+import React from 'react';
+import {
+  DatasheetTemplate, Page,
+  Diagram, BoxNode, Arrow, NodeSection, COLORS,
+} from '@flanksource/facet';
+
+export default function Template({ data }: { data: any }) {
+  return (
+    <DatasheetTemplate title={data.title}>
+      <Page title={data.title} product={data.product} margins={{ top: 5, bottom: 5 }}>
+        <Diagram className="flex items-center justify-between gap-8 py-16 px-6">
+          {(id) => (
+            <>
+              <NodeSection label="Sources">
+                {data.sources.map((s: string, i: number) => (
+                  <BoxNode key={i} id={id('src' + i)} title={s}
+                    headerColor={COLORS.muted} borderColor={COLORS.muted} />
+                ))}
+              </NodeSection>
+
+              <BoxNode id={id('engine')} title="Facet Engine"
+                headerColor={COLORS.primary} borderColor={COLORS.primary}>
+                <div className="text-[10px] text-center text-slate-600">
+                  React &#8594; HTML &#8594; PDF
+                </div>
+              </BoxNode>
+
+              <NodeSection label="Outputs">
+                {data.outputs.map((o: string, i: number) => (
+                  <BoxNode key={i} id={id('out' + i)} title={o}
+                    headerColor={COLORS.outputBorder} borderColor={COLORS.outputBorder} />
+                ))}
+              </NodeSection>
+
+              {data.sources.map((_: string, i: number) => (
+                <Arrow key={'a' + i} from={id('src' + i)} to={id('engine')} variant="secondary" />
+              ))}
+              {data.outputs.map((_: string, i: number) => (
+                <Arrow key={'b' + i} from={id('engine')} to={id('out' + i)} />
+              ))}
+            </>
+          )}
+        </Diagram>
+      </Page>
+    </DatasheetTemplate>
+  );
+}\`;
+
+    const DIAGRAM_DATA = JSON.stringify({
+      title: "Data Flow",
+      product: "Facet Pipeline",
+      sources: ["PostgreSQL", "S3 Bucket", "Webhooks"],
+      outputs: ["PDF", "HTML", "WebComponent"],
+    }, null, 2);
+
+    // Mirror the default deps so the shared Header/Footer (which import react-icons)
+    // still build when this example is loaded. react-xarrows ships with @flanksource/facet.
+    const DIAGRAM_DEPS = JSON.stringify({
+      "@flanksource/facet": "__FACET_VERSION__",
+      "react-icons": "^5.4.0"
+    }, null, 2);
+
+    // Selectable starting points for the editor, swapped via the Example dropdown.
+    const EXAMPLES = {
+      datasheet: { template: DEFAULT_TEMPLATE, data: DEFAULT_DATA, deps: DEFAULT_DEPS },
+      diagram: { template: DIAGRAM_TEMPLATE, data: DIAGRAM_DATA, deps: DIAGRAM_DEPS },
+    };
+
     let templateEditor, dataEditor, depsEditor, headerEditor, footerEditor;
     let currentFormat = 'html';
     let renderHadError = false;
@@ -457,6 +536,14 @@ export default function MyFooter() {
       });
       var editors = { template: templateEditor, header: headerEditor, footer: footerEditor, data: dataEditor, deps: depsEditor };
       if (editors[tab]) editors[tab].layout();
+    }
+
+    function loadExample(name) {
+      var ex = EXAMPLES[name];
+      if (!ex || !templateEditor) return;
+      templateEditor.setValue(ex.template);
+      dataEditor.setValue(ex.data);
+      depsEditor.setValue(ex.deps);
     }
 
     /* Render format menu */
