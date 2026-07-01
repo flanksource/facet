@@ -35,14 +35,28 @@ export function parseRemoteRef(input: string): RemoteRef | null {
 
 function parseGithubShorthand(input: string): RemoteRef | null {
   // github:owner/repo/path/to/File.tsx[@ref]
-  const match = input.match(/^github:([^/]+)\/([^/@]+)\/(.+?)(?:@(.+))?$/);
-  if (!match) return null;
-  const [, owner, repo, subPath, ref] = match;
+  if (!input.startsWith('github:')) return null;
+  const withoutPrefix = input.slice('github:'.length);
+  const firstSlash = withoutPrefix.indexOf('/');
+  if (firstSlash <= 0) return null;
+  const secondSlash = withoutPrefix.indexOf('/', firstSlash + 1);
+  if (secondSlash <= firstSlash + 1) return null;
+
+  const owner = withoutPrefix.slice(0, firstSlash);
+  const repo = withoutPrefix.slice(firstSlash + 1, secondSlash);
+  if (repo.includes('@')) return null;
+
+  const pathAndRef = withoutPrefix.slice(secondSlash + 1);
+  const at = pathAndRef.lastIndexOf('@');
+  const subPath = at > 0 ? pathAndRef.slice(0, at) : pathAndRef;
+  const ref = at > 0 ? pathAndRef.slice(at + 1) : 'HEAD';
+  if (!subPath || !ref) return null;
+
   return {
     type: 'github',
     repoUrl: `https://github.com/${owner}/${repo}.git`,
     subPath,
-    ref: ref ?? 'HEAD',
+    ref,
   };
 }
 
@@ -86,10 +100,23 @@ function parseHttpsUrl(input: string): RemoteRef | null {
 
 function parseGitSsh(input: string): RemoteRef | null {
   // git+ssh://git@github.com/owner/repo.git#ref/path/File.tsx
-  const match = input.match(/^git\+ssh:\/\/[^/]+\/(.+?)\.git(?:#(.+))?$/);
-  if (!match) return null;
-  const [, repoPath, fragment] = match;
-  const [ref, ...pathParts] = (fragment ?? 'HEAD').split('/');
+  const prefix = 'git+ssh://';
+  if (!input.startsWith(prefix)) return null;
+  const afterProtocol = input.slice(prefix.length);
+  const firstSlash = afterProtocol.indexOf('/');
+  if (firstSlash < 0) return null;
+
+  const repoAndFragment = afterProtocol.slice(firstSlash + 1);
+  const gitSuffix = '.git';
+  const suffixIndex = repoAndFragment.indexOf(gitSuffix);
+  if (suffixIndex <= 0) return null;
+
+  const repoPath = repoAndFragment.slice(0, suffixIndex);
+  const tail = repoAndFragment.slice(suffixIndex + gitSuffix.length);
+  if (tail && !tail.startsWith('#')) return null;
+
+  const fragment = tail.startsWith('#') ? tail.slice(1) : 'HEAD';
+  const [ref, ...pathParts] = fragment.split('/');
   return {
     type: 'git+ssh',
     repoUrl: `git+ssh://git@github.com/${repoPath}.git`,
@@ -98,21 +125,38 @@ function parseGitSsh(input: string): RemoteRef | null {
   };
 }
 
+const NPM_NAME_PART_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~';
+
+function isValidNpmName(pkg: string): boolean {
+  const parts = pkg.startsWith('@') ? pkg.slice(1).split('/') : [pkg];
+  if (pkg.startsWith('@') && parts.length !== 2) return false;
+  return parts.every(part => part.length > 0 && NPM_NAME_PART_CHARS.includes(part[0]!) && [...part].every(ch => NPM_NAME_PART_CHARS.includes(ch)));
+}
+
 function parseNpmPackage(input: string): RemoteRef | null {
   // @scope/pkg:relative/path[@version]  or  pkg:relative/path[@version]
-  // Must start with @ (scoped) or a valid npm name char (not a URL protocol like http/https/git)
-  const match = input.match(/^(@[^/]+\/[^:]+|[a-z0-9][^:]*):(.+?)(?:@([^@]+))?$/i);
-  if (!match) return null;
-  const [, pkg, subPath, version] = match;
+  const colon = input.indexOf(':');
+  if (colon <= 0) return null;
+
+  const pkg = input.slice(0, colon);
+  const pathAndVersion = input.slice(colon + 1);
+  if (!pathAndVersion) return null;
+
   // Reject URL-like package names (e.g. "http", "https", "git+ssh")
-  if (/^https?$|^git/.test(pkg)) return null;
-  // Sanity-check: must look like a valid npm package name
-  if (!/^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/i.test(pkg)) return null;
+  const lowerPkg = pkg.toLowerCase();
+  if (lowerPkg === 'http' || lowerPkg === 'https' || lowerPkg.startsWith('git')) return null;
+  if (!isValidNpmName(pkg)) return null;
+
+  const at = pathAndVersion.lastIndexOf('@');
+  const subPath = at > 0 ? pathAndVersion.slice(0, at) : pathAndVersion;
+  const version = at > 0 ? pathAndVersion.slice(at + 1) : 'latest';
+  if (!subPath || !version) return null;
+
   return {
     type: 'npm',
     repoUrl: pkg,
     subPath,
-    ref: version ?? 'latest',
+    ref: version,
   };
 }
 

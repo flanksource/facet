@@ -13,6 +13,7 @@ export default defineConfig({
     }),
   ],
   build: {
+    target: 'esnext',
     lib: {
       entry: resolve(__dirname, 'src/components/index.tsx'),
       formats: ['es'],
