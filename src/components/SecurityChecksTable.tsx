@@ -109,19 +109,51 @@ function parseDetails(details: string[] | undefined, checkName: string): ParsedD
   return sortDetailsByLevel(parsedDetails);
 }
 
+function parseLevelDetail(detail: string): { level: 'Info' | 'Warn'; content: string } | null {
+  if (detail.startsWith('Info:')) return { level: 'Info', content: detail.slice('Info:'.length).trimStart() };
+  if (detail.startsWith('Warn:')) return { level: 'Warn', content: detail.slice('Warn:'.length).trimStart() };
+  return null;
+}
+
+function trimBranchSuffix(content: string): string {
+  let result = content;
+  const marker = " on branch '";
+  let markerIndex = result.indexOf(marker);
+  while (markerIndex >= 0) {
+    const endQuote = result.indexOf("'", markerIndex + marker.length);
+    if (endQuote < 0) break;
+    result = result.slice(0, markerIndex) + result.slice(endQuote + 1);
+    markerIndex = result.indexOf(marker);
+  }
+  return result;
+}
+
+function parseIssueLocation(content: string): { issueType: string; file: string; line: number } | null {
+  const withoutTrailingText = content.split(':', 3);
+  if (withoutTrailingText.length < 3) return null;
+  const issueType = withoutTrailingText[0]?.trim();
+  const file = withoutTrailingText[1]?.trim();
+  const line = Number.parseInt(withoutTrailingText[2] ?? '', 10);
+  if (!issueType || !file || Number.isNaN(line)) return null;
+  return { issueType, file, line };
+}
+
 function parseLicenseDetails(details: string[]): ParsedDetail[] {
   const result: ParsedDetail[] = [];
   details.forEach(detail => {
-    const match = detail.match(/^(Info|Warn):\s*(.+)$/);
-    if (!match) return;
-    const [, level, content] = match;
-    const licenseMatch = content.match(/FSF or OSI recognized license:\s*(.+?):/);
-    if (licenseMatch) {
-      result.push({ level: 'Info', message: licenseMatch[1] });
+    const parsed = parseLevelDetail(detail);
+    if (!parsed) return;
+    const { level, content } = parsed;
+    const licensePrefix = 'FSF or OSI recognized license:';
+    if (content.includes(licensePrefix)) {
+      const licenseStart = content.indexOf(licensePrefix) + licensePrefix.length;
+      const rest = content.slice(licenseStart).trimStart();
+      const licenseEnd = rest.indexOf(':');
+      result.push({ level: 'Info', message: licenseEnd >= 0 ? rest.slice(0, licenseEnd) : rest });
       return;
     }
     if (content.includes('project has a license file')) return;
-    result.push({ level: level as 'Info' | 'Warn', message: content });
+    result.push({ level, message: content });
   });
   return result;
 }
@@ -129,13 +161,17 @@ function parseLicenseDetails(details: string[]): ParsedDetail[] {
 function parsePackagingDetails(details: string[]): ParsedDetail[] {
   const result: ParsedDetail[] = [];
   details.forEach(detail => {
-    const match = detail.match(/^(Info|Warn):\s*(.+)$/);
-    if (!match) return;
-    const [, , content] = match;
-    const packagingMatch = content.match(/Project packages its releases by way of (.+?)\.:\s*(.+?):/);
-    if (packagingMatch) {
-      const fileName = packagingMatch[2].split('/').pop() || packagingMatch[2];
-      result.push({ level: 'Info', message: `${packagingMatch[1]}: ${fileName}` });
+    const parsed = parseLevelDetail(detail);
+    if (!parsed) return;
+    const { content } = parsed;
+    const prefix = 'Project packages its releases by way of ';
+    const separator = '.:';
+    if (content.startsWith(prefix) && content.includes(separator)) {
+      const type = content.slice(prefix.length, content.indexOf(separator));
+      const afterType = content.slice(content.indexOf(separator) + separator.length).trimStart();
+      const file = afterType.slice(0, afterType.indexOf(':') >= 0 ? afterType.indexOf(':') : undefined);
+      const fileName = file.split('/').pop() || file;
+      result.push({ level: 'Info', message: `${type}: ${fileName}` });
       return;
     }
     result.push({ level: 'Info', message: content });
@@ -146,10 +182,9 @@ function parsePackagingDetails(details: string[]): ParsedDetail[] {
 function parseBranchProtectionDetails(details: string[]): ParsedDetail[] {
   const result: ParsedDetail[] = [];
   details.forEach(detail => {
-    const match = detail.match(/^(Info|Warn):\s*(.+)$/);
-    if (!match) return;
-    const [, level, content] = match;
-    result.push({ level: level as 'Info' | 'Warn', message: content.replace(/\s+on branch '[^']+'/g, '') });
+    const parsed = parseLevelDetail(detail);
+    if (!parsed) return;
+    result.push({ level: parsed.level, message: trimBranchSuffix(parsed.content) });
   });
   return result;
 }
@@ -157,13 +192,15 @@ function parseBranchProtectionDetails(details: string[]): ParsedDetail[] {
 function parsePinnedDependenciesDetails(details: string[]): ParsedDetail[] {
   const fileCount = new Map<string, { count: number; type: string; level: 'Info' | 'Warn' }>();
   details.forEach(detail => {
-    const match = detail.match(/^(Info|Warn):\s*(.+?):\s*(.+?):(\d+):/);
-    if (!match) return;
-    const [, level, issueType, file] = match;
+    const parsed = parseLevelDetail(detail);
+    if (!parsed) return;
+    const location = parseIssueLocation(parsed.content);
+    if (!location) return;
+    const { issueType, file } = location;
     if (fileCount.has(file)) {
       fileCount.get(file)!.count++;
     } else {
-      fileCount.set(file, { count: 1, type: issueType, level: level as 'Info' | 'Warn' });
+      fileCount.set(file, { count: 1, type: issueType, level: parsed.level });
     }
   });
   return Array.from(fileCount.entries()).map(([file, data]) => ({
@@ -180,9 +217,10 @@ function parseSignedReleasesDetails(details: string[]): ParsedDetail[] {
 function parseVulnerabilitiesDetails(details: string[]): ParsedDetail[] {
   const result: ParsedDetail[] = [];
   details.forEach(detail => {
-    const match = detail.match(/^Warn:\s*Project is vulnerable to:\s*(.+)$/);
-    if (!match) return;
-    const ids = match[1].split(/\s*\/\s*/);
+    const parsed = parseLevelDetail(detail);
+    const prefix = 'Project is vulnerable to:';
+    if (!parsed || parsed.level !== 'Warn' || !parsed.content.startsWith(prefix)) return;
+    const ids = parsed.content.slice(prefix.length).trimStart().split('/').map(id => id.trim());
     const links = ids.map(id => {
       if (id.startsWith('GHSA-')) return `<a href="https://github.com/advisories/${id}" target="_blank" class="text-blue-600 hover:underline">${id}</a>`;
       if (id.startsWith('GO-')) return `<a href="https://pkg.go.dev/vuln/${id}" target="_blank" class="text-blue-600 hover:underline">${id}</a>`;
@@ -197,22 +235,19 @@ function parseVulnerabilitiesDetails(details: string[]): ParsedDetail[] {
 function parseGenericDetails(details: string[]): ParsedDetail[] {
   const grouped = new Map<string, ParsedDetail>();
   details.forEach(detail => {
-    const match = detail.match(/^(Info|Warn):\s*(.+)$/);
-    if (!match) return;
-    const [, level, content] = match;
-    const fileMatch = content.match(/^(.+?):\s*(.+?):(\d+):/);
-    if (fileMatch) {
-      const [, issueType, file, line] = fileMatch;
+    const parsed = parseLevelDetail(detail);
+    if (!parsed) return;
+    const location = parseIssueLocation(parsed.content);
+    if (location) {
+      const { issueType, file, line } = location;
       const key = `${file}:${issueType}`;
       if (grouped.has(key)) {
         grouped.get(key)!.count = (grouped.get(key)!.count || 1) + 1;
       } else {
-        grouped.set(key, { level: level as 'Info' | 'Warn', message: issueType, file, line: parseInt(line, 10), count: 1 });
+        grouped.set(key, { level: parsed.level, message: issueType, file, line, count: 1 });
       }
-    } else {
-      if (!grouped.has(content)) {
-        grouped.set(content, { level: level as 'Info' | 'Warn', message: content });
-      }
+    } else if (!grouped.has(parsed.content)) {
+      grouped.set(parsed.content, { level: parsed.level, message: parsed.content });
     }
   });
   return Array.from(grouped.values());
