@@ -50,7 +50,19 @@ ARG VERSION=dev
 
 # Install Chromium browser and dependencies for Puppeteer
 # Using Chromium from Debian repos for better multi-arch support
-RUN apt-get update && apt-get install -y \
+#
+# Chromium is pinned to 149.0.7827.196: the 150.0.7871.46 security update
+# crashes on startup (https://bugs.debian.org/1141488), and current mirrors
+# only carry 150, so 149 comes from snapshot.debian.org. Remove the snapshot
+# source and the pin once a fixed chromium reaches bookworm-security.
+# ca-certificates is installed first: the snapshot source is https and the
+# base image ships no system certificates.
+RUN apt-get update && apt-get install -y ca-certificates \
+    && echo "deb [check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20260626T014759Z bookworm-security main" \
+        > /etc/apt/sources.list.d/chromium-snapshot.list \
+    && printf 'Package: chromium chromium-common chromium-sandbox\nPin: version 149.0.7827.196-1~deb12u1\nPin-Priority: 1001\n' \
+        > /etc/apt/preferences.d/chromium \
+    && apt-get update && apt-get install -y \
     chromium \
     chromium-sandbox \
     fonts-liberation \
@@ -99,6 +111,7 @@ COPY --from=builder /app/facet.tgz /app/facet.tgz
 
 # Copy example files for demonstration
 COPY cli/examples/SimpleReport.tsx /app/examples/
+COPY cli/examples/FacetReport.tsx /app/examples/
 COPY cli/examples/simple-data.json /app/examples/
 
 # Verify Chromium and facet binary are available
@@ -119,13 +132,15 @@ LABEL org.opencontainers.image.title="Facet" \
       org.opencontainers.image.vendor="Flanksource" \
       org.opencontainers.image.version="${VERSION}"
 
-# Warm the pnpm store by rendering the playground sample to HTML. HTML (not
-# PDF) so the build never launches Chromium: buildkit RUN steps lack the
-# dbus/userns environment a browser needs, while the pnpm store warming only
-# requires the vite build. FACET_PACKAGE_PATH is scoped to this step because
-# the image's own version may not be published to the registry at build time.
+# Warm the pnpm store by rendering a sample that imports @flanksource/facet,
+# which also verifies the tarball above is complete (a dist-less package fails
+# this build). HTML (not PDF) so the build never launches Chromium: buildkit
+# RUN steps lack the dbus/userns environment a browser needs, while the pnpm
+# store warming only requires the vite build. FACET_PACKAGE_PATH is scoped to
+# this step because the image's own version may not be published to the
+# registry at build time.
 RUN cd /app/examples && \
-    FACET_PACKAGE_PATH=/app/facet.tgz facet html SimpleReport.tsx --data simple-data.json --output /tmp/warmup.html && \
+    FACET_PACKAGE_PATH=/app/facet.tgz facet html FacetReport.tsx --data simple-data.json --output /tmp/warmup.html && \
     rm -f /tmp/warmup.html
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
