@@ -91,26 +91,18 @@ COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
 
-# Copy the @flanksource/facet tarball built in the builder stage. It contains
-# the component library dist/, which rendered templates import from.
+# Copy the @flanksource/facet tarball built in the builder stage. Renders
+# resolve @flanksource/facet from the npm registry (honoring the template's
+# pinned version); the tarball is only used for the build-time warmup below,
+# and can be opted into at runtime with FACET_PACKAGE_PATH=/app/facet.tgz.
 COPY --from=builder /app/facet.tgz /app/facet.tgz
 
 # Copy example files for demonstration
 COPY cli/examples/SimpleReport.tsx /app/examples/
 COPY cli/examples/simple-data.json /app/examples/
 
-# Pre-populate npm cache with the locally-built @flanksource/facet package.
-# This means `npm install @flanksource/facet@<version>` inside .facet/ at
-# runtime will resolve from cache rather than fetching from the registry.
-RUN npm cache add /app/facet.tgz
-
 # Verify Chromium and facet binary are available
 RUN chromium --version && facet --version
-
-# FACET_PACKAGE_PATH tells the CLI to use the local tarball (copied from the
-# builder stage above) instead of fetching from the npm registry (the version
-# may not yet be published).
-ENV FACET_PACKAGE_PATH=/app/facet.tgz
 
 RUN mkdir -p /workspace /templates /etc/facet
 COPY srt-settings.json /etc/facet/srt-settings.json
@@ -127,9 +119,11 @@ LABEL org.opencontainers.image.title="Facet" \
       org.opencontainers.image.vendor="Flanksource" \
       org.opencontainers.image.version="${VERSION}"
 
-# Warm the node_modules / .facet cache by rendering the playground sample
+# Warm the pnpm store by rendering the playground sample. FACET_PACKAGE_PATH is
+# scoped to this step because the image's own version may not be published to
+# the registry at build time.
 RUN cd /app/examples && \
-    facet pdf SimpleReport.tsx --data simple-data.json --output /tmp/warmup.pdf && \
+    FACET_PACKAGE_PATH=/app/facet.tgz facet pdf SimpleReport.tsx --data simple-data.json --output /tmp/warmup.pdf && \
     rm -f /tmp/warmup.pdf
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
