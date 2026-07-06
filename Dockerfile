@@ -119,12 +119,14 @@ LABEL org.opencontainers.image.title="Facet" \
       org.opencontainers.image.vendor="Flanksource" \
       org.opencontainers.image.version="${VERSION}"
 
-# Warm the pnpm store by rendering the playground sample. FACET_PACKAGE_PATH is
-# scoped to this step because the image's own version may not be published to
-# the registry at build time.
+# Warm the pnpm store by rendering the playground sample to HTML. HTML (not
+# PDF) so the build never launches Chromium: buildkit RUN steps lack the
+# dbus/userns environment a browser needs, while the pnpm store warming only
+# requires the vite build. FACET_PACKAGE_PATH is scoped to this step because
+# the image's own version may not be published to the registry at build time.
 RUN cd /app/examples && \
-    FACET_PACKAGE_PATH=/app/facet.tgz facet pdf SimpleReport.tsx --data simple-data.json --output /tmp/warmup.pdf && \
-    rm -f /tmp/warmup.pdf
+    FACET_PACKAGE_PATH=/app/facet.tgz facet html SimpleReport.tsx --data simple-data.json --output /tmp/warmup.html && \
+    rm -f /tmp/warmup.html
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:3010/healthz || exit 1
