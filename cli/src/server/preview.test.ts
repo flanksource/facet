@@ -1,9 +1,8 @@
 // Verifies the API server accepts connections on non-loopback interfaces,
 // which Kubernetes probes and pod-network traffic require.
 import { describe, it, expect, afterEach } from 'vitest';
-import { networkInterfaces } from 'node:os';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { networkInterfaces, tmpdir } from 'node:os';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { createServer, type ServerHandle } from './preview.js';
 
@@ -16,22 +15,23 @@ function externalIPv4(): string | undefined {
   return undefined;
 }
 
+const ip = externalIPv4();
+
 describe('server binding', () => {
   let handle: ServerHandle | undefined;
+  let dir: string | undefined;
 
   afterEach(async () => {
     await handle?.stop();
     handle = undefined;
+    if (dir) {
+      rmSync(dir, { recursive: true, force: true });
+      dir = undefined;
+    }
   });
 
-  it('accepts connections on non-loopback interfaces', async () => {
-    const ip = externalIPv4();
-    if (!ip) {
-      console.warn('no external IPv4 interface available; skipping');
-      return;
-    }
-
-    const dir = mkdtempSync(join(tmpdir(), 'facet-serve-test-'));
+  it.skipIf(!ip)('accepts connections on non-loopback interfaces', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'facet-serve-test-'));
     handle = await createServer({
       port: 0,
       templatesDir: dir,
