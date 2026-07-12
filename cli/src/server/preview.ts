@@ -100,7 +100,9 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
 
   const port = await new Promise<number>((resolveListen, rejectListen) => {
     httpServer.once('error', rejectListen);
-    httpServer.listen(config.port, '127.0.0.1', () => {
+    // Bind all interfaces: Kubernetes probes and pod-network traffic reach the
+    // server via the pod IP, not loopback.
+    httpServer.listen(config.port, () => {
       const addr = httpServer.address();
       resolveListen(typeof addr === 'object' && addr ? addr.port : config.port);
     });
