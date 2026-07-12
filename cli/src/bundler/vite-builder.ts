@@ -59,6 +59,7 @@ export async function installWithRetry(facetDir: FacetDirectory, logger: Logger)
   const facetRoot = facetDir.getFacetRoot();
   if (!facetDir.needsInstall()) {
     logger.debug('Dependencies up to date, skipping pnpm install');
+    facetDir.linkConsumerNodeModules();
     return;
   }
   // Pre-nuke when the install is detectably broken (legacy symlinked
@@ -84,6 +85,7 @@ export async function installWithRetry(facetDir: FacetDirectory, logger: Logger)
     }
   }
   logger.info(`pnpm install completed in ${Date.now() - t0}ms`);
+  facetDir.linkConsumerNodeModules();
 }
 
 // Patterns that indicate the loader failed because a *package* (not a relative
