@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'fs/promises';
-import { existsSync, symlinkSync, utimesSync } from 'fs';
+import { existsSync, symlinkSync, utimesSync, lstatSync, readlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
@@ -338,5 +338,38 @@ describe('serializeInjectedData', () => {
     const script = serializeInjectedData(data);
     const json = script.replace(/^window\.__FACET_DATA__ = /, '').replace(/;\n$/, '');
     expect(JSON.parse(json)).toEqual(data);
+  });
+});
+
+describe('FacetDirectory.linkConsumerNodeModules', () => {
+  it('symlinks consumer node_modules to .facet/node_modules when the consumer has none', async () => {
+    await writeSentinels();
+    newFacetDir().linkConsumerNodeModules();
+
+    const link = join(consumerRoot, 'node_modules');
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(link)).toBe(join(facetRoot, 'node_modules'));
+    expect(existsSync(join(link, 'react', 'package.json'))).toBe(true);
+  });
+
+  it('leaves a real consumer node_modules directory untouched', async () => {
+    await writeSentinels();
+    const own = join(consumerRoot, 'node_modules', 'left-pad');
+    await mkdir(own, { recursive: true });
+
+    newFacetDir().linkConsumerNodeModules();
+
+    expect(lstatSync(join(consumerRoot, 'node_modules')).isDirectory()).toBe(true);
+    expect(existsSync(own)).toBe(true);
+  });
+
+  it('replaces a dangling consumer node_modules symlink', async () => {
+    await writeSentinels();
+    const link = join(consumerRoot, 'node_modules');
+    symlinkSync(join(consumerRoot, 'gone'), link, 'junction');
+
+    newFacetDir().linkConsumerNodeModules();
+
+    expect(readlinkSync(link)).toBe(join(facetRoot, 'node_modules'));
   });
 });

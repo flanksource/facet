@@ -396,6 +396,34 @@ export class FacetDirectory {
   }
 
   /**
+   * Expose .facet/node_modules at the consumer root when the consumer has no
+   * install of its own. Vite resolves the symlinked template files in
+   * .facet/src/ to their real paths under the consumer root, so their bare
+   * imports resolve by walking up from there — which needs a node_modules.
+   */
+  linkConsumerNodeModules(): void {
+    const link = join(this.consumerRoot, 'node_modules');
+    const target = join(this.facetRoot, 'node_modules');
+
+    try {
+      const existing = lstatSync(link, { throwIfNoEntry: false });
+      if (existing) {
+        if (!existing.isSymbolicLink()) {
+          // The consumer has its own install; leave it alone.
+          return;
+        }
+        if (readlinkSync(link) === target) return;
+        unlinkSync(link);
+      }
+
+      symlinkSync(target, link, 'junction');
+      this.logger.debug('Symlinked consumer node_modules to .facet/node_modules');
+    } catch (error) {
+      this.logger.warn(`Failed to link consumer node_modules: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
    * Generate entry.tsx wrapper that imports the user's template
    */
   generateEntryWrapper(): void {
