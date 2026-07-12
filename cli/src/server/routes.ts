@@ -209,6 +209,7 @@ async function doRender(
     }
 
     const worker = await pool.acquire();
+    let workerHealthy = true;
     try {
       let pdfBuffer = await generatePDFBuffer(worker.browser, html, parsed.pdfOptions);
       if (parsed.encryption || parsed.signature) {
@@ -222,8 +223,11 @@ async function doRender(
         return respondWithOutput(pdfBuffer, 'application/pdf', 'pdf', templateName, parsed, s3, logger);
       }
       return Response.json({ url: `/results/${cacheKey}` });
+    } catch (error) {
+      workerHealthy = worker.browser.connected;
+      throw error;
     } finally {
-      await pool.release(worker);
+      await pool.release(worker, workerHealthy);
     }
   } finally {
     archiveCleanup?.();
@@ -260,6 +264,7 @@ async function doRenderStreamed(
 
     progress.emit('rendering-pdf', 'Acquiring browser worker...');
     const worker = await pool.acquire();
+    let workerHealthy = true;
     try {
       progress.emit('rendering-pdf', 'Generating PDF with Puppeteer...');
       let pdfBuffer = await generatePDFBuffer(worker.browser, html, parsed.pdfOptions);
@@ -277,8 +282,11 @@ async function doRenderStreamed(
       }
 
       return pdfBuffer;
+    } catch (error) {
+      workerHealthy = worker.browser.connected;
+      throw error;
     } finally {
-      await pool.release(worker);
+      await pool.release(worker, workerHealthy);
     }
   } finally {
     archiveCleanup?.();

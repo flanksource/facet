@@ -15,6 +15,7 @@ import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
+import { RenderProfiler } from '../utils/performance.js';
 
 export interface BuildResult {
   html: string;
@@ -177,6 +178,7 @@ async function runLoaderWithRetry(
 
 export async function buildTemplate(options: BuildOptions): Promise<BuildResult> {
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
+  const profiler = new RenderProfiler('template-build', logger);
 
   logger.debug(`Building template: ${templatePath}`);
 
@@ -202,7 +204,7 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
 
   // Install dependencies with pnpm. pnpm's content-addressable store gives
   // us fast reuse across renders — no facet-side cache needed.
-  await installWithRetry(facetDir, logger);
+  await profiler.measure('dependencies', () => installWithRetry(facetDir, logger));
 
   // Re-exec the CLI as an SSR loader subprocess (Vite runs from .facet/).
   logger.info('Loading template with Vite SSR...');
@@ -211,11 +213,11 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   const resultFilePath = join(tmpDir, 'result.json');
   writeFileSync(dataFilePath, JSON.stringify(data));
   try {
-    const loaderResult = await runLoaderWithRetry(
+    const loaderResult = await profiler.measure('vite-ssr-and-react-render', () => runLoaderWithRetry(
       facetDir,
       { facetRoot, dataFilePath, resultFilePath, sandbox: options.sandbox },
       logger,
-    );
+    ));
     logger.debug(`Rendered HTML: ${loaderResult.html.length} bytes, CSS: ${loaderResult.css.length} bytes`);
     return {
       html: loaderResult.html,
@@ -226,6 +228,7 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
     };
   } finally {
     try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    profiler.finish();
   }
 }
 

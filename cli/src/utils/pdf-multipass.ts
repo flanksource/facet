@@ -3,6 +3,7 @@ import * as zlib from 'zlib';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import type { Browser, Page } from 'puppeteer-core';
 import type { Logger } from './logger.js';
+import { setPreparedContent } from './browser-readiness.js';
 
 export type PageType = 'first' | 'default' | 'last';
 
@@ -200,9 +201,7 @@ export async function renderElementPdf(
   const page = await browser.newPage();
   try {
     await page.setViewport({ width: mmToPx(widthMm), height: mmToPx(heightMm) });
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-    await page.evaluateHandle('document.fonts.ready');
-    await new Promise(r => setTimeout(r, 300));
+    await setPreparedContent(page, html);
 
     await page.evaluate((sel: string, hMm: number, wMm: number) => {
       const target = document.querySelector(sel) as HTMLElement | null;
