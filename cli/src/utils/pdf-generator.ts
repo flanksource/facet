@@ -14,6 +14,7 @@ import { injectDebugAnnotations, injectTypographyAnnotations, extractTypographyI
 import { VERSION, BUILD_DATE, GIT_COMMIT } from '../version-generated.js';
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 import { Logger } from './logger.js';
+import { setPreparedContent } from './browser-readiness.js';
 
 function readVersion(): string {
   try {
@@ -92,8 +93,7 @@ async function loadAndPrepare(browser: Browser, html: string, widthMm?: number):
   if (widthMm) {
     await page.setViewport({ width: mmToPx(widthMm), height: mmToPx(297) });
   }
-  await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.evaluateHandle('document.fonts.ready');
+  await setPreparedContent(page, html);
   return page;
 }
 
@@ -126,7 +126,7 @@ async function detectMixedSizes(page: Page): Promise<PageTypeInfo | null> {
 
 async function removeEmptyPages(browser: Browser, html: string, emptyIndices: Set<number>): Promise<string> {
   const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await setPreparedContent(page, html);
   await page.evaluate((indices: number[]) => {
     const empties = new Set(indices);
     document.querySelectorAll('[data-page-size]').forEach((el, i) => {
@@ -232,7 +232,7 @@ async function renderLegacyElementPdf(
   const { renderElementPdf } = await import('./pdf-multipass.js');
   const page = await browser.newPage();
   try {
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await setPreparedContent(page, html);
     const exists = await page.evaluate((sel: string) => !!document.querySelector(sel), selector);
     await page.close();
     if (!exists) return null;
@@ -433,11 +433,10 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
     if (dims) {
       await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
     }
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await setPreparedContent(page, html);
     if (dims) {
       await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
     }
-    await page.evaluateHandle('document.fonts.ready');
 
     let fontCombos: FontCombo[] | undefined;
     if (debugTypography) {
@@ -494,11 +493,10 @@ export async function generatePDFWithBrowser(
     if (dims) {
       await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
     }
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await setPreparedContent(page, html);
     if (dims) {
       await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
     }
-    await page.evaluateHandle('document.fonts.ready');
 
     const typeInfo = await detectPageTypes(page, defaultPageSize) ?? await detectMixedSizes(page);
 
@@ -546,11 +544,10 @@ export async function generatePDFBuffer(
     if (dims) {
       await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
     }
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await setPreparedContent(page, html);
     if (dims) {
       await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
     }
-    await page.evaluateHandle('document.fonts.ready');
 
     const typeInfo = await detectPageTypes(page, options?.defaultPageSize) ?? await detectMixedSizes(page);
 

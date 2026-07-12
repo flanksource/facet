@@ -6,6 +6,7 @@ import { generateHTML } from './html.js';
 import { generatePDFFromHTML } from '../utils/pdf-generator.js';
 import { applyPDFSecurity } from '../utils/pdf-security.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
+import { RenderProfiler } from '../utils/performance.js';
 
 function extractBodyContent(html: string): string {
   const match = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
@@ -37,11 +38,12 @@ async function buildAndExtractFragment(
 
 export async function generatePDF(options: GenerateOptions): Promise<void> {
   const logger = new Logger(options.verbose);
+  const profiler = new RenderProfiler('pdf', logger);
 
   logger.debug('Starting PDF generation');
 
   logger.info('Generating HTML...');
-  const outputName = await generateHTML(options);
+  const outputName = await profiler.measure('html', () => generateHTML(options));
 
   const outputDir = resolve(process.cwd(), options.outputDir);
   const htmlPath = join(outputDir, `${outputName}.html`);
@@ -64,7 +66,7 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
   logger.info('Converting HTML to PDF...');
   const pdfPath = join(outputDir, `${outputName}.pdf`);
 
-  await generatePDFFromHTML({
+  await profiler.measure('chromium-and-pdf', () => generatePDFFromHTML({
     html: finalHTML,
     outputPath: pdfPath,
     logger,
@@ -74,7 +76,7 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
     defaultPageSize: options.pageSize,
     landscape: options.landscape,
     margins: options.margins,
-  });
+  }));
 
   if (options.encryption || options.signature) {
     logger.info('Applying PDF security...');
@@ -94,4 +96,5 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
   }
 
   logger.success(`PDF generated: ${pdfPath}`);
+  profiler.finish();
 }
