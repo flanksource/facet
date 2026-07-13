@@ -1,5 +1,6 @@
 import { readFile, writeFile as fsWriteFile, unlink } from 'fs/promises';
-import { resolve, join, dirname } from 'path';
+import { resolve, join, dirname, basename, extname } from 'path';
+import { existsSync } from 'fs';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
 import { generateHTML } from './html.js';
@@ -43,9 +44,12 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
   logger.debug('Starting PDF generation');
 
   logger.info('Generating HTML...');
+  const outputDir = resolve(process.cwd(), options.outputDir);
+  const expectedOutputName = options.outputName ?? basename(options.template, extname(options.template));
+  const existingHtmlPath = join(outputDir, `${expectedOutputName}.html`);
+  const preserveHtml = existsSync(existingHtmlPath);
   const outputName = await profiler.measure('html', () => generateHTML(options));
 
-  const outputDir = resolve(process.cwd(), options.outputDir);
   const htmlPath = join(outputDir, `${outputName}.html`);
   let finalHTML = await readFile(htmlPath, 'utf-8');
 
@@ -88,11 +92,13 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
     await fsWriteFile(pdfPath, secured);
   }
 
-  if (!options.debug) {
+  if (!options.debug && !preserveHtml) {
     await unlink(htmlPath).catch(() => {});
     logger.debug(`Cleaned up intermediate HTML: ${htmlPath}`);
-  } else {
+  } else if (options.debug) {
     logger.info(`Debug: keeping intermediate HTML: ${htmlPath}`);
+  } else {
+    logger.debug(`Preserved existing HTML output: ${htmlPath}`);
   }
 
   logger.success(`PDF generated: ${pdfPath}`);

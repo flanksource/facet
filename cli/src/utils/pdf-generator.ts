@@ -12,7 +12,9 @@ import { fileURLToPath } from 'url';
 import { PDFDocument } from 'pdf-lib';
 import { injectDebugAnnotations, injectTypographyAnnotations, extractTypographyInfo, type FontCombo } from './debug-annotations.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from '../version-generated.js';
-import puppeteer, { type Browser, type Page } from 'puppeteer-core';
+import puppeteer, { type Browser, type BrowserContext, type Page } from 'puppeteer-core';
+
+type PageProvider = Browser | BrowserContext;
 import { Logger } from './logger.js';
 import { setPreparedContent } from './browser-readiness.js';
 
@@ -38,12 +40,6 @@ function buildDebugInfo(): import('./pdf-multipass.js').DebugVersionInfo {
   return { cliVersion: VERSION, buildDate: BUILD_DATE, gitCommit: GIT_COMMIT, pkgVersion };
 }
 
-async function stampPDFMetadata(buffer: Buffer): Promise<Buffer> {
-  const doc = await PDFDocument.load(buffer);
-  doc.setCreator(FACET_CREATOR);
-  doc.setProducer(FACET_CREATOR);
-  return Buffer.from(await doc.save());
-}
 import {
   detectPageTypes,
   detectEmptyPages,
@@ -88,7 +84,7 @@ export function resolveChromePath(): string | undefined {
   return (SYSTEM_CHROME_PATHS[process.platform] ?? []).find(existsSync);
 }
 
-async function loadAndPrepare(browser: Browser, html: string, widthMm?: number): Promise<Page> {
+async function loadAndPrepare(browser: PageProvider, html: string, widthMm?: number): Promise<Page> {
   const page = await browser.newPage();
   if (widthMm) {
     await page.setViewport({ width: mmToPx(widthMm), height: mmToPx(297) });
@@ -124,7 +120,7 @@ async function detectMixedSizes(page: Page): Promise<PageTypeInfo | null> {
   };
 }
 
-async function removeEmptyPages(browser: Browser, html: string, emptyIndices: Set<number>): Promise<string> {
+async function removeEmptyPages(browser: PageProvider, html: string, emptyIndices: Set<number>): Promise<string> {
   const page = await browser.newPage();
   await setPreparedContent(page, html);
   await page.evaluate((indices: number[]) => {
@@ -153,7 +149,7 @@ function filterEmptyPages(info: PageTypeInfo, emptyIndices: Set<number>): PageTy
 }
 
 async function renderMultiPass(
-  browser: Browser,
+  browser: PageProvider,
   _html: string,
   typeInfo: PageTypeInfo,
   log: Logger,
@@ -190,31 +186,65 @@ async function renderMultiPass(
   const groups = buildPageGroups(typeInfo);
   log.info(`Multi-pass: ${groups.length} group(s) from ${typeInfo.types.length} element(s)`);
 
+  // Parse the full report once, then create a minimal document per content
+  // group. Previously every group parsed and laid out the entire report before
+  // deleting unrelated pages, which scaled poorly for large mixed documents.
+  const sourcePage = await loadAndPrepare(browser, html);
+  const groupHtml = async (indices: number[]): Promise<string> => sourcePage.evaluate((visibleIndices) => {
+    const clone = document.documentElement.cloneNode(true) as HTMLElement;
+    const visible = new Set(visibleIndices);
+    const pages = clone.querySelectorAll('[data-page-size]');
+    const keep = new Set<Element>();
+    pages.forEach((element, index) => {
+      if (visible.has(index)) keep.add(element);
+    });
+    pages.forEach((element, index) => {
+      if (!visible.has(index)) element.remove();
+    });
+    clone.querySelectorAll('.page-break').forEach((element) => {
+      const previous = element.previousElementSibling;
+      const next = element.nextElementSibling;
+      if (!previous || !next || !keep.has(previous) || !keep.has(next)) element.remove();
+    });
+    clone.querySelectorAll('script').forEach((script) => script.remove());
+    return `<!DOCTYPE html>${clone.outerHTML}`;
+  }, indices);
+
   const results: GroupResult[] = [];
-  for (const group of groups) {
-    const dims = resolvePageSize(group.size);
-    const margins = computeMarginsForSize(typeInfo.definitions, group.size);
-    const elemMargin = typeInfo.pageMargins[group.elementIndices[0]];
-    if (elemMargin) {
-      margins.left = elemMargin.left;
-      margins.right = elemMargin.right;
+  try {
+    for (const group of groups) {
+      const dims = resolvePageSize(group.size);
+      const margins = computeMarginsForSize(typeInfo.definitions, group.size);
+      const elemMargin = typeInfo.pageMargins[group.elementIndices[0]];
+      if (elemMargin) {
+        margins.left = elemMargin.left;
+        margins.right = elemMargin.right;
+      }
+      const minimalHtml = await groupHtml(group.elementIndices);
+      const page = await loadAndPrepare(browser, minimalHtml, dims.width);
+      try {
+        if (debug || debugTypography) await injectDebugAnnotations(page);
+        if (debugTypography) await injectTypographyAnnotations(page);
+        const localGroup = { ...group, elementIndices: group.elementIndices.map((_, index) => index) };
+        const result = await renderGroup(page, localGroup, dims, margins);
+        result.group = group;
+        log.info(`  Group ${group.type}/${group.size}: ${result.pageCount} pages (margins=${margins.top}/${margins.bottom}/${margins.left}/${margins.right}mm)`);
+        if (debugBasePath) {
+          const contentPath = `${debugBasePath}.debug-content-${group.type}-${group.size}.pdf`;
+          writeFileSync(contentPath, result.buffer);
+          log.info(`Debug: wrote ${contentPath}`);
+        }
+        results.push(result);
+      } finally {
+        await page.close();
+      }
     }
-    const page = await loadAndPrepare(browser, html, dims.width);
-    if (debug || debugTypography) await injectDebugAnnotations(page);
-    if (debugTypography) await injectTypographyAnnotations(page);
-    const result = await renderGroup(page, group, dims, margins);
-    await page.close();
-    log.info(`  Group ${group.type}/${group.size}: ${result.pageCount} pages (margins=${margins.top}/${margins.bottom}/${margins.left}/${margins.right}mm)`);
-    if (debugBasePath) {
-      const contentPath = `${debugBasePath}.debug-content-${group.type}-${group.size}.pdf`;
-      writeFileSync(contentPath, result.buffer);
-      log.info(`Debug: wrote ${contentPath}`);
-    }
-    results.push(result);
+  } finally {
+    await sourcePage.close();
   }
 
   const { buffer, pageMap, pageSizeMap, pageMarginMap } = await assembleGroups(results, log, typeInfo);
-  const composited = await compositeHeaderFooter(Buffer.from(buffer), overlays, pageMap, typeInfo, pageSizeMap, browser, html);
+  const composited = await compositeHeaderFooter(Buffer.from(buffer), overlays, pageMap, typeInfo, pageSizeMap, browser, html, FACET_CREATOR);
   if (debug) {
     const debugBuffer = await drawDebugOverlay(composited, pageMap, pageSizeMap, typeInfo, pageMarginMap, buildDebugInfo());
     return Buffer.from(debugBuffer);
@@ -223,7 +253,7 @@ async function renderMultiPass(
 }
 
 async function renderLegacyElementPdf(
-  browser: Browser,
+  browser: PageProvider,
   html: string,
   selector: string,
   heightMm: number,
@@ -245,7 +275,7 @@ async function renderLegacyElementPdf(
 
 // Single-pass overlay pipeline (no typed headers, uses .datasheet-header/.datasheet-footer)
 async function renderSinglePass(
-  browser: Browser,
+  browser: PageProvider,
   html: string,
   page: Page,
   log: Logger,
@@ -386,7 +416,7 @@ async function renderSinglePass(
     definitions: new Map([['default', { type: 'default' as PageType, headerHeight: pageInfo.top, footerHeight: pageInfo.bottom }]]),
   };
 
-  const composited = await compositeHeaderFooter(contentBuffer, overlays, pageMap, singleTypeInfo, pageSizeMap, browser, html);
+  const composited = await compositeHeaderFooter(contentBuffer, overlays, pageMap, singleTypeInfo, pageSizeMap, browser, html, FACET_CREATOR);
   if (debug) {
     const debugBuf = await drawDebugOverlay(composited, pageMap, pageSizeMap, singleTypeInfo, undefined, buildDebugInfo());
     return Buffer.from(debugBuf);
@@ -412,57 +442,92 @@ function injectFontSize(html: string, fontSize: number): string {
   return style + html;
 }
 
-export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
-  let { html } = options;
-  const { outputPath, logger, debug, debugTypography, fontSize, defaultPageSize, margins, landscape } = options;
-  if (fontSize) html = injectFontSize(html, fontSize);
-  const log = logger || new Logger(false);
+export interface PDFMargins {
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
+}
 
-  const chromePath = resolveChromePath();
-  log.debug(`Using browser: ${chromePath ?? 'Puppeteer bundled Chromium'}`);
+export interface BufferPDFOptions {
+  landscape?: boolean;
+  debug?: boolean;
+  debugTypography?: boolean;
+  fontSize?: number;
+  defaultPageSize?: string;
+  margins?: PDFMargins;
+  logger?: Logger;
+  debugOutputPath?: string;
+}
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: chromePath,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
-
+/** The single browser-backed PDF pipeline used by CLI, batch, and server APIs. */
+async function renderPDF(
+  browser: Browser,
+  inputHtml: string,
+  options: BufferPDFOptions = {},
+): Promise<Buffer> {
+  const log = options.logger ?? new Logger(false);
+  const html = options.fontSize ? injectFontSize(inputHtml, options.fontSize) : inputHtml;
+  const context = await browser.createBrowserContext();
+  const page = await context.newPage();
   try {
-    const page = await browser.newPage();
-    const dims = defaultPageSize ? resolvePageSize(defaultPageSize) : undefined;
-    if (dims) {
-      await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
-    }
+    const dims = options.defaultPageSize ? resolvePageSize(options.defaultPageSize) : undefined;
+    if (dims) await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
     await setPreparedContent(page, html);
-    if (dims) {
-      await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
-    }
+    if (dims) await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
 
     let fontCombos: FontCombo[] | undefined;
-    if (debugTypography) {
+    if (options.debugTypography) {
       fontCombos = await extractTypographyInfo(page);
       log.info(`Typography: found ${fontCombos.length} unique font combinations`);
     }
 
-    const typeInfo = await detectPageTypes(page, defaultPageSize) ?? await detectMixedSizes(page);
-
+    const typeInfo = await detectPageTypes(page, options.defaultPageSize) ?? await detectMixedSizes(page);
     let result: Buffer;
     if (typeInfo != null) {
       log.info(`Multi-pass mode: ${typeInfo.definitions.size} type(s), ${typeInfo.pageSizes.length} pages`);
       await page.close();
-      result = await renderMultiPass(browser, html, typeInfo, log, debug, outputPath, debugTypography);
+      result = await renderMultiPass(
+        context, html, typeInfo, log, options.debug,
+        options.debugOutputPath, options.debugTypography,
+      );
     } else {
       log.info('Single-pass mode (no typed headers/footers)');
-      result = await renderSinglePass(browser, html, page, log, debug, landscape, defaultPageSize, outputPath, margins, debugTypography);
-      await page.close();
+      result = await renderSinglePass(
+        context, html, page, log, options.debug, options.landscape,
+        options.defaultPageSize, options.debugOutputPath, options.margins,
+        options.debugTypography,
+      );
     }
 
-    if (debugTypography) {
-      result = Buffer.from(await appendDebugFontPage(result, fontSize, fontCombos));
+    if (options.debugTypography) {
+      result = Buffer.from(await appendDebugFontPage(result, options.fontSize, fontCombos));
     }
-    result = await stampPDFMetadata(result);
-    writeFileSync(outputPath, result);
-    log.debug(`PDF saved to: ${outputPath}`);
+    return result;
+  } finally {
+    if (!page.isClosed()) await page.close().catch(() => undefined);
+    await context.close().catch(() => undefined);
+  }
+}
+
+export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
+  const log = options.logger ?? new Logger(false);
+  const chromePath = resolveChromePath();
+  log.debug(`Using browser: ${chromePath ?? 'Puppeteer bundled Chromium'}`);
+  const browser = await launchBrowser();
+  try {
+    const result = await renderPDF(browser, options.html, {
+      landscape: options.landscape,
+      debug: options.debug,
+      debugTypography: options.debugTypography,
+      fontSize: options.fontSize,
+      defaultPageSize: options.defaultPageSize,
+      margins: options.margins,
+      logger: log,
+      debugOutputPath: options.outputPath,
+    });
+    writeFileSync(options.outputPath, result);
+    log.debug(`PDF saved to: ${options.outputPath}`);
   } finally {
     await browser.close();
     log.debug('Browser closed');
@@ -485,82 +550,21 @@ export async function generatePDFWithBrowser(
   debug?: boolean,
   defaultPageSize?: string,
 ): Promise<void> {
-  const log = logger || new Logger(false);
-  const page = await browser.newPage();
-
-  try {
-    const dims = defaultPageSize ? resolvePageSize(defaultPageSize) : undefined;
-    if (dims) {
-      await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
-    }
-    await setPreparedContent(page, html);
-    if (dims) {
-      await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
-    }
-
-    const typeInfo = await detectPageTypes(page, defaultPageSize) ?? await detectMixedSizes(page);
-
-    let result: Buffer;
-    if (typeInfo != null) {
-      log.debug(`Multi-pass mode: ${typeInfo.definitions.size} type(s) detected`);
-      await page.close();
-      result = await renderMultiPass(browser, html, typeInfo, log, debug, outputPath);
-    } else {
-      result = await renderSinglePass(browser, html, page, log, debug, undefined, defaultPageSize, outputPath);
-      await page.close();
-    }
-
-    result = await stampPDFMetadata(result);
-    writeFileSync(outputPath, result);
-    log.debug(`PDF saved to: ${outputPath}`);
-  } catch (err) {
-    await page.close().catch(() => {});
-    throw err;
-  }
+  const log = logger ?? new Logger(false);
+  const result = await renderPDF(browser, html, {
+    logger: log,
+    debug,
+    defaultPageSize,
+    debugOutputPath: outputPath,
+  });
+  writeFileSync(outputPath, result);
+  log.debug(`PDF saved to: ${outputPath}`);
 }
 
-export interface PDFMargins {
-  top?: number;
-  bottom?: number;
-  left?: number;
-  right?: number;
-}
-
-export interface BufferPDFOptions {
-  landscape?: boolean;
-  debug?: boolean;
-  defaultPageSize?: string;
-  margins?: PDFMargins;
-}
-
-export async function generatePDFBuffer(
+export function generatePDFBuffer(
   browser: Browser,
   html: string,
   options?: BufferPDFOptions,
 ): Promise<Buffer> {
-  const page = await browser.newPage();
-  try {
-    const dims = options?.defaultPageSize ? resolvePageSize(options.defaultPageSize) : undefined;
-    if (dims) {
-      await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
-    }
-    await setPreparedContent(page, html);
-    if (dims) {
-      await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
-    }
-
-    const typeInfo = await detectPageTypes(page, options?.defaultPageSize) ?? await detectMixedSizes(page);
-
-    if (typeInfo != null) {
-      await page.close();
-      return stampPDFMetadata(await renderMultiPass(browser, html, typeInfo, new Logger(false), options?.debug));
-    }
-
-    const result = await renderSinglePass(browser, html, page, new Logger(false), options?.debug, options?.landscape, options?.defaultPageSize, undefined, options?.margins);
-    await page.close();
-    return stampPDFMetadata(result);
-  } catch (err) {
-    await page.close().catch(() => {});
-    throw err;
-  }
+  return renderPDF(browser, html, options);
 }
