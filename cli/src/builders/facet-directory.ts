@@ -13,7 +13,7 @@
  * - dist/ - Vite build output
  */
 
-import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync, chmodSync } from 'fs';
+import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync, chmodSync, openSync, closeSync } from 'fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname } from 'path';
@@ -968,21 +968,56 @@ export default defineConfig({
   }
 
   private ensureLocalFacetPackageBuilt(packageRoot: string): void {
-    const shouldBuildComponents = needsLocalFacetComponentsBuild(packageRoot);
-    const shouldBuildCss = needsLocalFacetCssBuild(packageRoot);
-    if (!shouldBuildComponents && !shouldBuildCss) {
+    const isCurrent = (): boolean =>
+      !needsLocalFacetComponentsBuild(packageRoot) && !needsLocalFacetCssBuild(packageRoot);
+    if (isCurrent()) {
       this.logger.debug(`FACET_PACKAGE_PATH build outputs are current: ${packageRoot}`);
       return;
     }
 
-    if (shouldBuildComponents) {
-      this.runLocalFacetBuildScript(packageRoot, 'build:components');
-    }
+    this.withLocalFacetBuildLock(packageRoot, () => {
+      // Another process may have completed the build while this process waited.
+      if (isCurrent()) return;
+      const shouldBuildCss = needsLocalFacetCssBuild(packageRoot);
+      if (needsLocalFacetComponentsBuild(packageRoot)) {
+        this.runLocalFacetBuildScript(packageRoot, 'build:components');
+      }
+      // vite.lib.config.ts empties dist/ before building components. If CSS was
+      // current before that run, it may now be missing, so re-check afterward.
+      if (shouldBuildCss || needsLocalFacetCssBuild(packageRoot)) {
+        this.runLocalFacetBuildScript(packageRoot, 'build:css');
+      }
+    });
+  }
 
-    // vite.lib.config.ts empties dist/ before building components. If CSS was
-    // current before that run, it may now be missing, so re-check afterward.
-    if (shouldBuildCss || needsLocalFacetCssBuild(packageRoot)) {
-      this.runLocalFacetBuildScript(packageRoot, 'build:css');
+  private withLocalFacetBuildLock(packageRoot: string, action: () => void): void {
+    const lockPath = join(packageRoot, '.facet-local-build.lock');
+    const deadline = Date.now() + LOCAL_BUILD_TIMEOUT_MS;
+    let fd: number | undefined;
+    while (fd === undefined) {
+      try {
+        fd = openSync(lockPath, 'wx');
+        writeFileSync(fd, `${process.pid}\n`);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'EEXIST') throw error;
+        try {
+          if (Date.now() - statSync(lockPath).mtimeMs > LOCAL_BUILD_TIMEOUT_MS * 2) {
+            unlinkSync(lockPath);
+            continue;
+          }
+        } catch { continue; }
+        if (Date.now() >= deadline) {
+          throw new Error(`Timed out waiting for local Facet build lock: ${lockPath}`);
+        }
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+      }
+    }
+    try {
+      action();
+    } finally {
+      closeSync(fd);
+      try { unlinkSync(lockPath); } catch { /* already cleaned up */ }
     }
   }
 
