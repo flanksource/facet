@@ -1,7 +1,9 @@
 import { writeFileSync } from 'fs';
 import * as zlib from 'zlib';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import type { Browser, Page } from 'puppeteer-core';
+import type { Browser, BrowserContext, Page } from 'puppeteer-core';
+
+type PageProvider = Browser | BrowserContext;
 import type { Logger } from './logger.js';
 import { setPreparedContent } from './browser-readiness.js';
 
@@ -191,7 +193,7 @@ export function areaScale(dims: PageSizeDimensions): number {
 }
 
 export async function renderElementPdf(
-  browser: Browser,
+  browser: PageProvider,
   html: string,
   selector: string,
   heightMm: number,
@@ -260,8 +262,15 @@ export interface OverlayPdfs {
   footers: Map<string, Buffer>;
 }
 
+export function pageSizesForType(types: PageType[], pageSizes: string[], type: PageType): string[] {
+  const singleSize = pageSizes.length === 1 ? pageSizes[0] : undefined;
+  return [...new Set(types.flatMap((pageType, index) =>
+    pageType === type ? [pageSizes[index] ?? singleSize ?? 'a4'] : [],
+  ))];
+}
+
 export async function renderHeaderFooterPdfs(
-  browser: Browser,
+  browser: PageProvider,
   html: string,
   typeInfo: PageTypeInfo,
   pageSizes: string[],
@@ -269,32 +278,53 @@ export async function renderHeaderFooterPdfs(
 ): Promise<OverlayPdfs> {
   const headers = new Map<string, Buffer>();
   const footers = new Map<string, Buffer>();
+  const sourcePage = await browser.newPage();
+  await setPreparedContent(sourcePage, html);
 
-  const uniqueSizes = [...new Set(pageSizes.length > 0 ? pageSizes : ['a4'])];
+  const fragmentFor = (selector: string): Promise<string | null> => sourcePage.evaluate((sel) => {
+    const target = document.querySelector(sel);
+    if (!target) return null;
+    const clone = document.documentElement.cloneNode(true) as HTMLElement;
+    const body = clone.querySelector('body');
+    if (!body) return null;
+    body.replaceChildren(target.cloneNode(true));
+    body.querySelectorAll('script').forEach((script) => script.remove());
+    return `<!DOCTYPE html>${clone.outerHTML}`;
+  }, selector);
 
-  for (const [type, def] of typeInfo.definitions) {
-    for (const sizeName of uniqueSizes) {
-      const dims = resolvePageSize(sizeName);
-      const scale = areaScale(dims);
-      const key = overlayKey(type, sizeName);
-      if (def.headerHeight > 0) {
-        const h = scaledHeight(def.headerHeight, scale);
-        const debugPath = debugBasePath ? `${debugBasePath}.debug-header-${key}` : undefined;
-        headers.set(key, await renderElementPdf(
-          browser, html, `[data-header-type="${type}"]`, h, dims.width, debugPath,
-        ));
-      }
-      if (def.footerHeight > 0) {
-        const h = scaledHeight(def.footerHeight, scale);
-        const debugPath = debugBasePath ? `${debugBasePath}.debug-footer-${key}` : undefined;
-        footers.set(key, await renderElementPdf(
-          browser, html, `[data-footer-type="${type}"]`, h, dims.width, debugPath,
-        ));
+  try {
+    for (const [type, def] of typeInfo.definitions) {
+      const headerSelector = `[data-header-type="${type}"]`;
+      const footerSelector = `[data-footer-type="${type}"]`;
+      const headerHtml = def.headerHeight > 0 ? await fragmentFor(headerSelector) : null;
+      const footerHtml = def.footerHeight > 0 ? await fragmentFor(footerSelector) : null;
+      // Render only type/size combinations that actually occur. The previous
+      // Cartesian product rendered unused overlays for every type at every size.
+      const sizesForType = pageSizesForType(typeInfo.types, pageSizes, type);
+      for (const sizeName of sizesForType.length > 0 ? sizesForType : ['a4']) {
+        const dims = resolvePageSize(sizeName);
+        const scale = areaScale(dims);
+        const key = overlayKey(type, sizeName);
+        if (headerHtml) {
+          const h = scaledHeight(def.headerHeight, scale);
+          const debugPath = debugBasePath ? `${debugBasePath}.debug-header-${key}` : undefined;
+          headers.set(key, await renderElementPdf(
+            browser, headerHtml, headerSelector, h, dims.width, debugPath,
+          ));
+        }
+        if (footerHtml) {
+          const h = scaledHeight(def.footerHeight, scale);
+          const debugPath = debugBasePath ? `${debugBasePath}.debug-footer-${key}` : undefined;
+          footers.set(key, await renderElementPdf(
+            browser, footerHtml, footerSelector, h, dims.width, debugPath,
+          ));
+        }
       }
     }
+    return { headers, footers };
+  } finally {
+    await sourcePage.close();
   }
-
-  return { headers, footers };
 }
 
 // --- Phase 2: Per-group content rendering ---
@@ -494,10 +524,15 @@ export async function compositeHeaderFooter(
   pageMap: PageType[],
   typeInfo: PageTypeInfo,
   pageSizeMap?: string[],
-  browser?: Browser,
+  browser?: PageProvider,
   html?: string,
+  creator?: string,
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(contentBuffer);
+  if (creator) {
+    doc.setCreator(creator);
+    doc.setProducer(creator);
+  }
   const totalPages = doc.getPageCount();
 
   const embeddedHeaders = new Map<string, Awaited<ReturnType<typeof doc.embedPages>>[0]>();
@@ -584,6 +619,10 @@ export async function compositeHeaderFooter(
     }
   }
 
+  // Embedded pages are now owned by the destination document. Drop references
+  // to the standalone overlay PDFs before serializing the final document.
+  overlays.headers.clear();
+  overlays.footers.clear();
   return doc.save();
 }
 
@@ -600,8 +639,9 @@ export async function assembleGroups(
   const pageMarginMap: PageMargins[] = [];
   const defaultMargin: PageMargins = { top: 0, right: 0, bottom: 0, left: 0 };
 
-  for (const { group, buffer, pageCount } of results) {
-    const srcDoc = await PDFDocument.load(buffer);
+  for (const result of results) {
+    const { group, pageCount } = result;
+    const srcDoc = await PDFDocument.load(result.buffer);
     const indices = Array.from({ length: pageCount }, (_, i) => i);
     const copiedPages = await merged.copyPages(srcDoc, indices);
     const elemMargin = typeInfo?.pageMargins?.[group.elementIndices[0]] ?? defaultMargin;
@@ -612,6 +652,9 @@ export async function assembleGroups(
       pageMarginMap.push(elemMargin);
     }
     const { width, height } = copiedPages[0].getSize();
+    // The copied pages are owned by `merged`; allow the original Chromium PDF
+    // buffer to be collected before subsequent compositing stages.
+    result.buffer = Buffer.alloc(0);
     log.info(`  Group ${group.type}/${group.size} (${group.elementIndices.length} elements): ${pageCount} pages (${width.toFixed(0)}x${height.toFixed(0)}pt)`);
   }
 

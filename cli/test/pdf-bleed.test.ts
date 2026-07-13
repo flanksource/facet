@@ -130,7 +130,7 @@ async function pdfToPages(pdfBuffer: Buffer, tmpDir: string): Promise<PagePixels
   // color space misinterpretation with Chrome's Skia-generated PDFs
   execSync(
     `magick -density ${RENDER_DPI} "${pdfPath}" "${join(tmpDir, 'page-%d.png')}"`,
-    { timeout: 60000 },
+    { timeout: 180000 },
   );
   const pages: PagePixels[] = [];
   for (let i = 0; ; i++) {
@@ -249,8 +249,7 @@ function singleTypeHTML(): string {
 
 // ── Tests ──────────────────────────────────────────────────────────
 
-// FIXME: quarantined — these tests fail on CI (and main) due to ImageMagick/Puppeteer environment differences
-describe.skip('PDF bleed analysis', () => {
+describe('PDF bleed analysis', () => {
   let browser: Browser;
 
   beforeAll(async () => {
@@ -638,7 +637,7 @@ describe.skip('PDF bleed analysis', () => {
         const zoneStart = pages[i].height - Math.floor(FOOTER_H * RENDER_DPI / 25.4);
         const color = dominantColorInZone(pages[i], zoneStart, pages[i].height);
         console.log(`  PageSizeTest page ${i + 1} (${EXPECTED_SIZES[i].name}) footer: rgb(${color.r},${color.g},${color.b})`);
-        expect(isColorClose(color, expected)).toBe(true);
+        expect.soft(isColorClose(color, expected), `footer missing on ${EXPECTED_SIZES[i].name}`).toBe(true);
       }
     });
 

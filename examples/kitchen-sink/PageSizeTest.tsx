@@ -26,7 +26,7 @@ export default function PageSizeTest() {
         </div>
       </Header>
       <Footer type="default" height={FOOTER_HEIGHT}>
-        <div className="datasheet-footer" style={{ background: '#CC6600', padding: '2mm 10mm', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="datasheet-footer" style={{ background: '#CC6600', padding: '2mm 10mm', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%' }}>
           <span style={{ color: 'white', fontWeight: 'bold', fontSize: '10pt' }}>ORANGE FOOTER ({FOOTER_HEIGHT}mm)</span>
           <span style={{ color: 'white', fontSize: '8pt' }}>Shared across all page sizes</span>
         </div>
