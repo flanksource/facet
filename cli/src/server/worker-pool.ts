@@ -1,4 +1,5 @@
 import type { Browser } from 'puppeteer-core';
+import { readFileSync } from 'node:fs';
 import { launchBrowser } from '../utils/pdf-generator.js';
 import { RenderError } from './errors.js';
 import { Logger } from '../utils/logger.js';
@@ -7,11 +8,39 @@ export interface Worker {
   browser: Browser;
   renders: number;
   startedAt: number;
+  lastRssMb: number;
 }
 
-const MAX_RENDERS_PER_WORKER = Math.max(1, parseInt(process.env['FACET_MAX_RENDERS_PER_WORKER'] ?? '50', 10));
-const MAX_QUEUE_DEPTH = Math.max(1, parseInt(process.env['FACET_MAX_QUEUE_DEPTH'] ?? '20', 10));
-const MAX_WORKER_AGE_MS = Math.max(1_000, parseInt(process.env['FACET_MAX_WORKER_AGE_MS'] ?? '1800000', 10));
+export interface WorkerPoolOptions {
+  maxRendersPerWorker?: number;
+  maxQueueDepth?: number;
+  maxWorkerAgeMs?: number;
+  maxWorkerRssMb?: number;
+  acquireTimeoutMs?: number;
+}
+
+function chromiumTreeRssMb(browser: Browser): number {
+  if (process.platform !== 'linux') return 0;
+  const rootPid = browser.process()?.pid;
+  if (!rootPid) return 0;
+  const visited = new Set<number>();
+  const visit = (pid: number): number => {
+    if (visited.has(pid)) return 0;
+    visited.add(pid);
+    let pages = 0;
+    try {
+      const fields = readFileSync(`/proc/${pid}/statm`, 'utf-8').trim().split(/\s+/);
+      pages = parseInt(fields[1] ?? '0', 10);
+    } catch { return 0; }
+    let children: number[] = [];
+    try {
+      children = readFileSync(`/proc/${pid}/task/${pid}/children`, 'utf-8')
+        .trim().split(/\s+/).filter(Boolean).map(Number);
+    } catch { /* process may have exited */ }
+    return pages * 4096 + children.reduce((total, child) => total + visit(child), 0);
+  };
+  return visit(rootPid) / 1024 / 1024;
+}
 
 export class WorkerPool {
   private available: Worker[] = [];
@@ -21,12 +50,21 @@ export class WorkerPool {
   private total = 0;
   private shuttingDown = false;
   private logger: Logger;
+  private readonly limits: Required<WorkerPoolOptions>;
 
   constructor(
     private size: number,
     verbose = false,
+    options: WorkerPoolOptions = {},
   ) {
     this.logger = new Logger(verbose);
+    this.limits = {
+      maxRendersPerWorker: Math.max(1, options.maxRendersPerWorker ?? 50),
+      maxQueueDepth: Math.max(1, options.maxQueueDepth ?? 20),
+      maxWorkerAgeMs: Math.max(1_000, options.maxWorkerAgeMs ?? 1_800_000),
+      maxWorkerRssMb: Math.max(0, options.maxWorkerRssMb ?? 0),
+      acquireTimeoutMs: Math.max(1, options.acquireTimeoutMs ?? 30_000),
+    };
   }
 
   async start(): Promise<void> {
@@ -37,7 +75,7 @@ export class WorkerPool {
     // Start sequentially to avoid a large transient memory spike.
     for (let i = 0; i < this.size; i++) {
       const browser = await launchBrowser();
-      this.available.push({ browser, renders: 0, startedAt: Date.now() });
+      this.available.push({ browser, renders: 0, startedAt: Date.now(), lastRssMb: 0 });
       this.total++;
     }
     this.logger.info(`Worker pool ready (${this.total} browsers)`);
@@ -54,18 +92,29 @@ export class WorkerPool {
       return worker;
     }
 
-    if (this.waiting.length >= MAX_QUEUE_DEPTH) {
+    if (this.waiting.length >= this.limits.maxQueueDepth) {
       throw new RenderError('QUEUE_FULL', 'Too many concurrent requests', 503);
     }
 
     return new Promise<Worker>((resolve, reject) => {
-      this.waiting.push({
-        resolve: (worker) => {
+      let timer: ReturnType<typeof setTimeout>;
+      const waiter = {
+        resolve: (worker: Worker) => {
+          clearTimeout(timer);
           this.active.add(worker);
           resolve(worker);
         },
-        reject,
-      });
+        reject: (error: Error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      };
+      this.waiting.push(waiter);
+      timer = setTimeout(() => {
+        const index = this.waiting.indexOf(waiter);
+        if (index >= 0) this.waiting.splice(index, 1);
+        reject(new RenderError('RENDER_FAILED', 'Timed out waiting for a browser worker', 503));
+      }, this.limits.acquireTimeoutMs);
     });
   }
 
@@ -73,8 +122,13 @@ export class WorkerPool {
     this.active.delete(worker);
     worker.renders++;
 
-    const expired = Date.now() - worker.startedAt >= MAX_WORKER_AGE_MS;
-    if (!healthy || !worker.browser.connected || worker.renders >= MAX_RENDERS_PER_WORKER || expired || this.shuttingDown) {
+    worker.lastRssMb = chromiumTreeRssMb(worker.browser);
+    const expired = Date.now() - worker.startedAt >= this.limits.maxWorkerAgeMs;
+    const overMemoryLimit = this.limits.maxWorkerRssMb > 0 && worker.lastRssMb >= this.limits.maxWorkerRssMb;
+    if (overMemoryLimit) {
+      this.logger.info(`Recycling Chromium worker at ${worker.lastRssMb.toFixed(1)}MB RSS`);
+    }
+    if (!healthy || !worker.browser.connected || worker.renders >= this.limits.maxRendersPerWorker || expired || overMemoryLimit || this.shuttingDown) {
       await this.recycle(worker);
       return;
     }
@@ -103,7 +157,7 @@ export class WorkerPool {
 
     try {
       const browser = await launchBrowser();
-      const fresh: Worker = { browser, renders: 0, startedAt: Date.now() };
+      const fresh: Worker = { browser, renders: 0, startedAt: Date.now(), lastRssMb: 0 };
 
       if (this.waiting.length > 0) {
         this.waiting.shift()!.resolve(fresh);
@@ -123,13 +177,19 @@ export class WorkerPool {
     }
   }
 
-  stats(): { total: number; available: number; active: number; recycling: number; waiting: number } {
+  stats(): { total: number; available: number; active: number; recycling: number; waiting: number; chromiumRssMb: number } {
+    const workers = [...this.available, ...this.active];
     return {
       total: this.total,
       available: this.available.length,
       active: this.active.size,
       recycling: this.recycling,
       waiting: this.waiting.length,
+      chromiumRssMb: Number(workers.reduce((total, worker) => {
+        const rss = chromiumTreeRssMb(worker.browser);
+        worker.lastRssMb = rss;
+        return total + rss;
+      }, 0).toFixed(1)),
     };
   }
 

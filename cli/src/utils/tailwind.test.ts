@@ -6,8 +6,23 @@ import {
   resolveTailwindBin,
   tailwindBinExists,
   runTailwind,
+  renderedClassKey,
   TailwindBinNotFoundError,
 } from './tailwind.js';
+
+describe('renderedClassKey', () => {
+  it('ignores text and class ordering', () => {
+    const first = renderedClassKey('<p class="font-bold text-red-500">first</p>');
+    const second = renderedClassKey("<p class='text-red-500 font-bold'>different data</p>");
+    expect(first.key).toBe(second.key);
+    expect(first.content).toContain('font-bold text-red-500');
+  });
+
+  it('changes when conditional classes change', () => {
+    expect(renderedClassKey('<div class="block"/>').key)
+      .not.toBe(renderedClassKey('<div class="hidden"/>').key);
+  });
+});
 
 describe('resolveTailwindBin', () => {
   const originalPlatform = process.platform;

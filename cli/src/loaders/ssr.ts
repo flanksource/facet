@@ -8,14 +8,16 @@
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
-import { readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, rmSync, existsSync, mkdirSync, renameSync, utimesSync } from 'node:fs';
 import { Console } from 'node:console';
+import { createInterface } from 'node:readline';
 
 interface LoaderArgs {
   facetRoot: string;
   data: Record<string, unknown>;
   outputFile: string;
   verbose: boolean;
+  cacheKey?: string;
 }
 
 interface LoaderResult {
@@ -30,6 +32,7 @@ function parseArgs(): LoaderArgs {
   let data: Record<string, unknown> = {};
   let outputFile = '';
   let verbose = false;
+  let cacheKey: string | undefined;
 
   for (const arg of args) {
     if (arg.startsWith('--facet-root=')) {
@@ -54,6 +57,8 @@ function parseArgs(): LoaderArgs {
       outputFile = arg.substring('--output-file='.length);
     } else if (arg === '--verbose') {
       verbose = true;
+    } else if (arg.startsWith('--cache-key=')) {
+      cacheKey = arg.substring('--cache-key='.length);
     }
   }
 
@@ -62,7 +67,7 @@ function parseArgs(): LoaderArgs {
     process.exit(1);
   }
 
-  return { facetRoot, data, outputFile, verbose };
+  return { facetRoot, data, outputFile, verbose, cacheKey };
 }
 
 function extractCSS(distDir: string): string {
@@ -80,7 +85,7 @@ function extractCSS(distDir: string): string {
 }
 
 async function load(args: LoaderArgs): Promise<LoaderResult> {
-  const { facetRoot, data, verbose } = args;
+  const { facetRoot, data, verbose, cacheKey } = args;
 
   // Resolve Vite + React from .facet/node_modules, not the CLI's own deps. ESM
   // import() resolves via file URLs, so resolve explicitly relative to .facet — using
@@ -94,21 +99,40 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   const renderToString = rdsMod.renderToString ?? rdsMod.default?.renderToString;
 
   const viteConfigPath = join(facetRoot, 'vite.config.ts');
-  const outDir = join(facetRoot, `dist-${crypto.randomUUID()}`);
+  const cacheRoot = join(facetRoot, 'build-cache');
+  const outDir = cacheKey
+    ? join(cacheRoot, cacheKey)
+    : join(facetRoot, `dist-${crypto.randomUUID()}`);
 
   // Route Vite's stdout logging to stderr so it can't corrupt the result JSON.
   console = new Console(process.stderr, process.stderr);
 
-  await build({
-    configFile: viteConfigPath,
-    root: facetRoot,
-    logLevel: verbose ? 'info' : 'error',
-    build: { ssr: true, outDir, emptyOutDir: true },
-  });
+  const cachedBundle = cacheKey && existsSync(outDir) && readdirSync(outDir).some((file) => file.endsWith('.cjs'));
+  if (!cachedBundle) {
+    const buildDir = cacheKey ? `${outDir}.tmp-${crypto.randomUUID()}` : outDir;
+    if (cacheKey) mkdirSync(cacheRoot, { recursive: true });
+    await build({
+      configFile: viteConfigPath,
+      root: facetRoot,
+      logLevel: verbose ? 'info' : 'error',
+      build: { ssr: true, outDir: buildDir, emptyOutDir: true },
+    });
+    if (cacheKey) {
+      try {
+        renameSync(buildDir, outDir);
+      } catch (error) {
+        // Another process may have completed the same content-addressed build.
+        rmSync(buildDir, { recursive: true, force: true });
+        if (!existsSync(outDir)) throw error;
+      }
+    }
+  } else {
+    const now = new Date();
+    try { utimesSync(outDir, now, now); } catch { /* best effort */ }
+  }
 
-  // On success clean the bundle up; on failure preserve it so the stack trace
-  // (which names entry.cjs:<line>) stays resolvable. FACET_KEEP_BUNDLE=1 keeps it.
-  const keepOnSuccess = process.env.FACET_KEEP_BUNDLE === '1';
+  // Uncached bundles are temporary. Content-addressed bundles remain reusable.
+  const keepOnSuccess = cacheKey != null || process.env.FACET_KEEP_BUNDLE === '1';
   try {
     const files = readdirSync(outDir);
     const cjsFile = files.find(f => f.endsWith('.cjs'));
@@ -163,6 +187,35 @@ function formatBuildError(error: unknown): string {
   parts.push(`Error:  ${e.message}`);
   if (e.frame) parts.push(`\n${e.frame}`);
   return parts.join('\n');
+}
+
+interface DaemonRequest {
+  id: number;
+  data: Record<string, unknown>;
+  cacheKey: string;
+  verbose?: boolean;
+}
+
+/** Persistent newline-delimited JSON loader used by server workspaces. */
+export async function runSsrDaemon(): Promise<void> {
+  const base = parseArgs();
+  const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
+  for await (const line of lines) {
+    let request: DaemonRequest | undefined;
+    try {
+      request = JSON.parse(line) as DaemonRequest;
+      const result = await load({
+        ...base,
+        data: request.data,
+        cacheKey: request.cacheKey,
+        verbose: request.verbose ?? false,
+      });
+      process.stdout.write(`${JSON.stringify({ id: request.id, result })}\n`);
+    } catch (error) {
+      const message = formatBuildError(error);
+      process.stdout.write(`${JSON.stringify({ id: request?.id ?? -1, error: message })}\n`);
+    }
+  }
 }
 
 export async function runSsrLoader(): Promise<void> {

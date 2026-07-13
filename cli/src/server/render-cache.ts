@@ -2,10 +2,13 @@ import { createHash } from 'crypto';
 import { join } from 'path';
 import { mkdirSync, readdirSync, statSync, unlinkSync, readFileSync, writeFileSync, utimesSync } from 'fs';
 
-interface CacheEntry {
+export interface CachedFile {
   file: string;
   contentType: string;
   size: number;
+}
+
+interface CacheEntry extends CachedFile {
   mtimeMs: number;
 }
 
@@ -19,15 +22,24 @@ export class RenderCache {
     mkdirSync(this.dir, { recursive: true });
   }
 
-  get(key: string): { contentType: string; data: Buffer } | undefined {
+  lookup(key: string): CachedFile | undefined {
     const meta = this.readMeta(key);
     if (!meta) return undefined;
     try {
-      const data = readFileSync(meta.file);
-      // Touch file to mark as recently used
+      const fileStat = statSync(meta.file);
       const now = new Date();
       utimesSync(meta.file, now, now);
-      return { contentType: meta.contentType, data };
+      return { ...meta, size: fileStat.size };
+    } catch {
+      return undefined;
+    }
+  }
+
+  get(key: string): { contentType: string; data: Buffer } | undefined {
+    const cached = this.lookup(key);
+    if (!cached) return undefined;
+    try {
+      return { contentType: cached.contentType, data: readFileSync(cached.file) };
     } catch {
       return undefined;
     }
