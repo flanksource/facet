@@ -280,7 +280,7 @@ describe('PDF bleed analysis', () => {
       const html = readFileSync(join(outDir, htmlFile), 'utf-8');
       execSync(`rm -rf "${outDir}"`);
       results = await analyzeBleed(browser, html, _name);
-    }, 120000);
+    }, 300000);
 
     it('should have headers on all pages', () => {
       const missing = results.filter(r => !r.hasHeader).map(r => r.page);

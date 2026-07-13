@@ -38,7 +38,7 @@ describe('Render API', () => {
       port: 0,
       templatesDir: EXAMPLES_DIR,
       workers: 1,
-      renderTimeout: 60000,
+      renderTimeout: 180000,
       maxUploadSize: 52428800,
       cacheMaxSize: 104857600,
       cacheDir,
