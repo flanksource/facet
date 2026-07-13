@@ -107,6 +107,145 @@ This creates:
 facet pdf MyDatasheet.tsx
 ```
 
+## Performance benchmarks
+
+Facet includes a repeatable end-to-end benchmark for cold and warm HTML/PDF generation:
+
+```bash
+cd cli
+pnpm build
+pnpm bench:render
+pnpm bench:server
+
+# Optional fixture and warm-iteration count
+FACET_BENCH_ITERATIONS=5 pnpm bench:render -- \
+  examples/SimpleReport.tsx examples/simple-data.json
+
+# Large server document, including streamed PDF download
+FACET_BENCH_SECTIONS=250 pnpm bench:server
+
+# Select a benchmark template
+FACET_BENCH_TEMPLATE=BenchmarkMixedReport pnpm bench:server
+```
+
+The benchmark uses the release SEA binary, clears `.facet/` before each cold run,
+keeps caches for warm runs, enables `FACET_PROFILE`, and samples aggregate process-tree
+RSS (Facet, pnpm/Vite, and Chromium). RSS is the sum of process resident sizes and may
+count shared pages more than once; use it for comparisons rather than as an exact
+physical-memory measurement.
+
+### Performance checkpoints
+
+Fixture: `cli/examples/SimpleReport.tsx` with `simple-data.json`. The first three
+checkpoints report the mean of three warm runs. Stabilized checkpoints use the median
+of five runs. Server benchmarks report per-request RSS and include downloading the
+result PDF; `FACET_BENCH_SECTIONS` controls document size.
+
+| Checkpoint | HTML cold | HTML warm | PDF cold | PDF warm | HTML warm peak RSS | PDF warm peak RSS |
+|---|---:|---:|---:|---:|---:|---:|
+| 2026-07-12 — SSR/Tailwind caches, minimal PDF passes, isolated contexts | 8.19 s | 1.05 s | 7.20 s | 1.57 s | 380 MB | 947 MB |
+| 2026-07-12 — persistent server workspaces | 10.17 s | 1.10 s | 8.08 s | 1.97 s | 385 MB | 945 MB |
+| 2026-07-12 — streamed cache responses and early PDF buffer release | 9.34 s | 1.41 s | 9.86 s | 2.39 s | 384 MB | 947 MB |
+| 2026-07-12 — stabilized 5-run median, no metadata-only PDF rewrite | 11.30 s | 1.39 s | 9.83 s | 2.28 s | 379 MB | 961 MB |
+
+The persistent-workspace phase targets server throughput, not one-shot CLI latency.
+Its server benchmark sends unique data with every request to bypass final-output caching:
+
+| Server checkpoint | First HTML | Subsequent HTML | First PDF | Subsequent PDF | Peak process-tree RSS |
+|---|---:|---:|---:|---:|---:|
+| Before persistent workspaces | 6.46 s | 3.86 s | 4.17 s | 4.64 s | 1,547 MB |
+| After persistent workspaces | 8.04 s | 0.62 s | 0.95 s | 0.75 s | 1,544 MB |
+| After streamed cache responses/buffer release | 5.89 s | 0.58 s | 0.75 s | 0.72 s | 1,568 MB |
+
+The buffer-release checkpoint improved subsequent server HTML by approximately 6%
+and PDF by approximately 4% in this run. Its primary goal is lower memory retention for
+large documents and downloads; the small fixture and cold-install-dominated aggregate
+RSS measurement do not demonstrate that benefit. The CLI timings regressed while RSS
+was unchanged, despite this phase not changing the CLI rendering path materially; this
+illustrates the current machine/load variance and should not be interpreted as a causal
+regression without repeated controlled runs.
+
+Subsequent HTML and PDF request latency improved by approximately **84%** while peak
+RSS remained effectively unchanged. First-request values are dominated by dependency
+installation and global pnpm/filesystem cache state, so they are substantially noisier.
+The CLI checkpoint shows no expected improvement and some timing variance; its warm
+RSS remained stable.
+
+For the latest CLI checkpoint, warm PDF stages averaged approximately 567 ms for HTML
+and 546 ms for Chromium/PDF. Cold runs remain dominated by dependency installation.
+
+### Mixed-page multi-pass checkpoint
+
+The `BenchmarkMixedReport` fixture exercises three page types, three page sizes,
+headers, footers, content grouping, and `pdf-lib` compositing:
+
+```bash
+FACET_BENCH_TEMPLATE=BenchmarkMixedReport \
+FACET_BENCH_FORMATS=pdf \
+FACET_BENCH_SECTIONS=250 \
+pnpm --dir cli bench:server
+```
+
+| Multi-pass checkpoint | Median PDF latency | Median peak RSS | Output size |
+|---|---:|---:|---:|
+| Cartesian type × size overlays | 3.82 s | 1,876 MB | 305 KB |
+| Only overlays used by actual pages | 2.06 s | 1,891 MB | 208 KB |
+
+Rendering only page type/size combinations that occur reduced latency by **46%** and
+output size by **32%**. Peak RSS was effectively unchanged. This was retained because
+it removes 12 unnecessary Chromium overlay renders for this fixture; broader benchmark
+work was deferred until another concrete bottleneck justifies it. A bounded overlay
+concurrency experiment was rejected: median latency regressed to 2.86 s (39% slower)
+with no meaningful RSS improvement, confirming that Chromium overlay work contends
+more than it parallelizes within one browser.
+
+### Stabilized large-document baseline
+
+The five-run median baseline using `FACET_BENCH_SECTIONS=250` includes fetching the
+file-backed PDF result and records peak RSS separately for every request:
+
+| Format | Median latency | Median request peak RSS | Output size |
+|---|---:|---:|---:|
+| HTML baseline | 476 ms | 986 MB | 189 KB |
+| PDF baseline, including download | 1.37 s | 1,074 MB | 76 KB |
+| PDF without metadata-only `pdf-lib` pass | 1.05 s | 1,049 MB | 193 KB |
+| HTML after fragment concurrency safety | 526 ms | 988 MB | 189 KB |
+| PDF after fragment concurrency safety | 878 ms | 1,047 MB | 193 KB |
+| HTML with persistent SSR loader | 15 ms | 1,061 MB | 189 KB |
+| PDF with persistent SSR loader | 363 ms | 1,327 MB | 193 KB |
+
+Content-addressed header/footer fragments and workspace-wide build serialization fix
+concurrent rendering correctness. They do not affect sequential benchmark architecture;
+the lower latency in that checkpoint should be treated as run-to-run variance.
+
+Persistent SSR loaders remove the per-request Node/Vite process startup. In this
+checkpoint warm HTML became approximately **97% faster** and PDF approximately **59%
+faster**, while median process-tree RSS increased by about 73 MB for HTML and 280 MB
+for PDF because the Vite/React loader remains resident. Loaders are limited to four by
+default (`FACET_MAX_SSR_LOADERS`), close after five idle minutes
+(`FACET_SSR_LOADER_IDLE_MS`), and can be disabled with
+`--no-persistent-ssr` or `FACET_PERSISTENT_SSR=false`.
+
+Removing the metadata-only full-document load/save made the large PDF path approximately
+**24% faster** and reduced median request peak RSS by approximately **2%**. Direct
+Chromium PDFs are larger because they are no longer rewritten by `pdf-lib`; PDFs that
+already require header/footer compositing still receive Facet Creator/Producer metadata.
+
+The benchmark now also reports Chromium RSS and Node RSS/heap/external memory after
+every request. A 30-request PDF-only stress run measured Chromium between 549–552 MB
+while Node RSS rose from 194 MB to 254 MB and showed repeated heap collection cycles.
+This points to V8 heap/allocator high-water retention rather than Chromium leakage. An
+aggressive 545 MB Chromium recycle threshold increased median PDF latency from 1.05 s
+to 1.51 s while changing median peak RSS from 1,049 MB to 1,046 MB, so RSS recycling
+remains opt-in.
+
+Benchmark environment: Intel Core i7-1260P (12 cores/16 threads), 16 GiB RAM,
+Linux x86-64, Node.js 24.11.0, pnpm 9.15.9, and Chrome for Testing. Results from
+other machines or Chromium versions should not be directly compared.
+
+Add a new row after each performance change rather than replacing previous results.
+Keep the fixture, iteration count, worker settings, and environment unchanged.
+
 ## How It Works
 
 ![](assets/how-it-works.svg)
@@ -258,6 +397,12 @@ Options:
   -p, --port <number>          Server port (default: 3010)
   --templates-dir <dir>        Directory containing templates (default: ".")
   --workers <count>            Number of browser workers (default: 2)
+  --max-renders-per-worker <n> Recycle Chromium after N renders (default: 50)
+  --max-queue-depth <count>    Maximum queued browser requests (default: 20)
+  --max-worker-age <ms>        Maximum Chromium worker age (default: 1800000)
+  --max-worker-rss <mb>        Linux Chromium RSS recycle threshold (default: 0/off)
+  --worker-acquire-timeout <ms> Browser queue wait timeout (default: 30000)
+  --no-persistent-ssr          Disable persistent SSR loader processes
   --timeout <ms>               Render timeout in milliseconds (default: 60000)
   --api-key <key>              API key for authentication
   --max-upload <bytes>         Max upload size in bytes (default: 52428800)
