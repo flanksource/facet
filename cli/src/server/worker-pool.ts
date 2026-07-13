@@ -68,8 +68,8 @@ export class WorkerPool {
   }
 
   async start(): Promise<void> {
-    if (!Number.isInteger(this.size) || this.size < 1) {
-      throw new RenderError('RENDER_FAILED', 'Worker count must be a positive integer', 500);
+    if (!Number.isInteger(this.size) || this.size < 0) {
+      throw new RenderError('RENDER_FAILED', 'Worker count must be a non-negative integer', 500);
     }
     this.logger.info(`Starting worker pool with ${this.size} browsers...`);
     // Start sequentially to avoid a large transient memory spike.
