@@ -227,6 +227,12 @@ program
   .option('-p, --port <number>', 'Server port', '3010')
   .option('--templates-dir <dir>', 'Directory containing templates', '.')
   .option('--workers <count>', 'Number of browser workers', '2')
+  .option('--max-renders-per-worker <count>', 'Recycle Chromium after this many renders (default: 50)')
+  .option('--max-queue-depth <count>', 'Maximum requests waiting for a browser (default: 20)')
+  .option('--max-worker-age <ms>', 'Recycle Chromium after this age in milliseconds (default: 1800000)')
+  .option('--max-worker-rss <mb>', 'Recycle Chromium above this Linux process-tree RSS (default: 0/off)')
+  .option('--worker-acquire-timeout <ms>', 'Maximum time to wait for a browser worker (default: 30000)')
+  .option('--no-persistent-ssr', 'Disable persistent SSR loaders to reduce idle memory')
   .option('--timeout <ms>', 'Render timeout in milliseconds', '60000')
   .option('--api-key <key>', 'API key for authentication')
   .option('--max-upload <bytes>', 'Max upload size in bytes', '52428800')
@@ -246,6 +252,12 @@ program
         port: options.port,
         templatesDir: options.templatesDir,
         workers: options.workers,
+        maxRendersPerWorker: options.maxRendersPerWorker,
+        maxQueueDepth: options.maxQueueDepth,
+        maxWorkerAge: options.maxWorkerAge,
+        maxWorkerRss: options.maxWorkerRss,
+        workerAcquireTimeout: options.workerAcquireTimeout,
+        persistentSsr: options.persistentSsr,
         timeout: options.timeout,
         apiKey: options.apiKey,
         maxUpload: options.maxUpload,
@@ -332,9 +344,10 @@ async function run(): Promise<void> {
   // run the bundled Vite loader instead of the CLI. Behind a dynamic import so
   // Vite is only ever loaded in a render subprocess. No top-level await here so
   // the bundle stays CommonJS-compatible for the Node SEA binary.
-  if (process.env.FACET_LOADER === 'ssr') {
-    const { runSsrLoader } = await import('./loaders/ssr.js');
-    await runSsrLoader();
+  if (process.env.FACET_LOADER === 'ssr' || process.env.FACET_LOADER === 'ssr-daemon') {
+    const loader = await import('./loaders/ssr.js');
+    if (process.env.FACET_LOADER === 'ssr-daemon') await loader.runSsrDaemon();
+    else await loader.runSsrLoader();
     return;
   }
   if (process.env.FACET_LOADER === 'dev') {

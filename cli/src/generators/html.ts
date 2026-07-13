@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
+import { mkdir, writeFile } from 'fs/promises';
 import { resolve, join, basename, extname, relative, dirname } from 'path';
 import { existsSync, rmSync } from 'fs';
 import type { GenerateOptions } from '../types.js';
@@ -11,7 +11,7 @@ import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { scopeHTML } from '../utils/css-scoper.js';
 import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
-import { runTailwind } from '../utils/tailwind.js';
+import { runTailwindCached } from '../utils/tailwind.js';
 
 function findProjectRoot(templatePath: string): string | undefined {
   const absTemplate = resolve(templatePath);
@@ -122,36 +122,27 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     const outputDir = resolve(process.cwd(), options.outputDir);
     await mkdir(outputDir, { recursive: true });
 
-    // Step 1: Write HTML without CSS to temporary file
-    const tempHtmlPath = join(outputDir, `${outputName}.temp.html`);
     const htmlWithoutCSS = buildResult.html;
-    await writeFile(tempHtmlPath, htmlWithoutCSS, 'utf-8');
-    logger.debug(`Saved temporary HTML (no CSS): ${tempHtmlPath}`);
-
-    // Step 2: Run Tailwind CLI to generate CSS from the HTML
     logger.info('Generating CSS with Tailwind CLI...');
-    const outputCssPath = join(outputDir, `${outputName}.css`);
-    const facetRoot = join(consumerRoot ?? process.cwd(), '.facet');
-    const stylesInput = join(facetRoot, 'src/styles.css');
+    const stylesInput = join(buildResult.facetRoot, 'src/styles.css');
 
+    let generatedCSS = buildResult.css;
     try {
-      await runTailwind({
-        facetRoot,
+      generatedCSS = await runTailwindCached({
+        facetRoot: buildResult.facetRoot,
         stylesInput,
-        contentPath: tempHtmlPath,
-        outputCssPath,
+        html: htmlWithoutCSS,
+        buildCacheKey: buildResult.buildCacheKey,
         verbose: options.verbose,
       });
-      logger.debug('Tailwind CSS generated successfully');
+      logger.debug('Tailwind CSS generated or loaded from cache');
     } catch (error) {
       logger.warn(`Tailwind CSS generation failed: ${error instanceof Error ? error.message : String(error)}`);
-      // Fallback to Vite CSS if Tailwind fails
-      await writeFile(outputCssPath, buildResult.css, 'utf-8');
       logger.debug('Using Vite-generated CSS as fallback');
     }
 
-    // Step 3: Read generated CSS and combine with HTML
-    const generatedCSS = await readFile(outputCssPath, 'utf-8');
+    // Combine generated CSS with the static HTML.
+
     const combinedHTML = combineHTMLAndCSS(htmlWithoutCSS, generatedCSS);
     const finalHTML = options.cssScope
       ? scopeHTML(combinedHTML, { scopeClass: options.cssScope })
@@ -161,10 +152,6 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     // Step 4: Write final HTML file
     const outputPath = join(outputDir, `${outputName}.html`);
     await writeFile(outputPath, finalHTML, 'utf-8');
-
-    // Cleanup intermediate files
-    await unlink(tempHtmlPath).catch(() => {});
-    await unlink(outputCssPath).catch(() => {});
 
     logger.success(`HTML generated: ${outputPath}`);
 

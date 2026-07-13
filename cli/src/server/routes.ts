@@ -1,7 +1,9 @@
-import { mkdtemp, cp, writeFile, readFile } from 'fs/promises';
-import { join, basename } from 'path';
+import { mkdtemp, mkdir, writeFile } from 'fs/promises';
+import { createHash } from 'node:crypto';
+import { join, basename, resolve } from 'path';
 import { tmpdir } from 'os';
-import { rmSync, lstatSync } from 'fs';
+import { createReadStream, rmSync, lstatSync } from 'fs';
+import { Readable } from 'node:stream';
 
 import type { ServerConfig } from './config.js';
 import type { WorkerPool } from './worker-pool.js';
@@ -19,17 +21,20 @@ import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { generatePDFBuffer } from '../utils/pdf-generator.js';
 import { applyPDFSecurity } from '../utils/pdf-security.js';
 import { Logger } from '../utils/logger.js';
-import { runTailwind } from '../utils/tailwind.js';
+import { runTailwindCached } from '../utils/tailwind.js';
 import { RenderProgress } from './render-stream.js';
 import { computeCacheKey, RenderCache } from './render-cache.js';
+import { acquireTemplateWorkspace } from './template-workspaces.js';
 
 export function handleResultsRoute(id: string, cache: RenderCache): Response {
-  const cached = cache.get(id);
+  const cached = cache.lookup(id);
   if (!cached) return Response.json({ error: { code: 'NOT_FOUND', message: 'Result not found or expired' } }, { status: 404 });
   const ext = cached.contentType === 'application/pdf' ? 'pdf' : 'html';
-  return new Response(new Uint8Array(cached.data), {
+  const stream = Readable.toWeb(createReadStream(cached.file)) as ReadableStream<Uint8Array>;
+  return new Response(stream, {
     headers: {
       'content-type': cached.contentType,
+      'content-length': String(cached.size),
       'content-disposition': `inline; filename="render.${ext}"`,
       'cache-control': 'private, max-age=600',
     },
@@ -37,7 +42,17 @@ export function handleResultsRoute(id: string, cache: RenderCache): Response {
 }
 
 export function handleHealthz(pool: WorkerPool): Response {
-  return Response.json({ status: 'ok', workers: pool.stats() });
+  const memory = process.memoryUsage();
+  return Response.json({
+    status: 'ok',
+    workers: pool.stats(),
+    memory: {
+      rssMb: Number((memory.rss / 1024 / 1024).toFixed(1)),
+      heapUsedMb: Number((memory.heapUsed / 1024 / 1024).toFixed(1)),
+      externalMb: Number((memory.external / 1024 / 1024).toFixed(1)),
+      arrayBuffersMb: Number((memory.arrayBuffers / 1024 / 1024).toFixed(1)),
+    },
+  });
 }
 
 export function handleTemplates(templates: TemplateInfo[]): Response {
@@ -178,14 +193,16 @@ async function doRender(
   logger: Logger,
 ): Promise<Response> {
   const cacheKey = cacheKeyForRequest(parsed);
-  const cached = cache.get(cacheKey);
+  const cached = cache.lookup(cacheKey);
   if (cached) {
     if (cached.contentType === 'application/pdf') {
       return Response.json({ url: `/results/${cacheKey}` });
     }
-    return new Response(new Uint8Array(cached.data), {
+    const stream = Readable.toWeb(createReadStream(cached.file)) as ReadableStream<Uint8Array>;
+    return new Response(stream, {
       headers: {
         'content-type': cached.contentType,
+        'content-length': String(cached.size),
         'content-disposition': `inline; filename="render.html"`,
       },
     });
@@ -199,8 +216,8 @@ async function doRender(
     tempDir = resolved.tempDir;
     archiveCleanup = resolved.archiveCleanup;
 
-    let html = await renderHTML(resolved.consumerRoot, resolved.entryFile, parsed.data, logger);
-    html = await injectHeaderFooter(html, parsed, resolved.consumerRoot, logger);
+    let html = await renderHTML(resolved.consumerRoot, resolved.entryFile, parsed.data, logger, config.sandbox, config.persistentSsr);
+    html = await injectHeaderFooter(html, parsed, resolved.consumerRoot, logger, undefined, config.persistentSsr);
     const templateName = resolved.templateName;
 
     if (parsed.format === 'html') {
@@ -254,8 +271,8 @@ async function doRenderStreamed(
     archiveCleanup = resolved.archiveCleanup;
 
     progress.emit('building', 'Building template with Vite SSR...');
-    let html = await renderHTMLStreamed(resolved.consumerRoot, resolved.entryFile, parsed.data, logger, progress);
-    html = await injectHeaderFooter(html, parsed, resolved.consumerRoot, logger, progress);
+    let html = await renderHTMLStreamed(resolved.consumerRoot, resolved.entryFile, parsed.data, logger, progress, config.persistentSsr);
+    html = await injectHeaderFooter(html, parsed, resolved.consumerRoot, logger, progress, config.persistentSsr);
 
     if (parsed.format === 'html') {
       progress.emit('done', 'HTML render complete');
@@ -341,12 +358,13 @@ async function resolveTemplateSource(
     if (!ref) throw new RenderError('TEMPLATE_NOT_FOUND', `Cannot parse remote ref: ${source.template}`, 400);
 
     const resolved = await resolveRemoteRef(ref, { verbose: config.verbose });
-    const tempDir = await copyToTempDir(resolved.consumerRoot);
+    const cacheDir = config.cacheDir ? resolve(config.cacheDir) : resolve(process.cwd(), '.facet');
+    const workspace = await acquireTemplateWorkspace(resolved.consumerRoot, resolved.templateFile, cacheDir);
     return {
-      consumerRoot: tempDir,
+      consumerRoot: workspace.path,
       entryFile: resolved.templateFile,
       templateName: basename(source.template),
-      tempDir,
+      archiveCleanup: workspace.release,
     };
   }
 
@@ -356,19 +374,14 @@ async function resolveTemplateSource(
     throw new RenderError('TEMPLATE_NOT_FOUND', `Template not found: ${source.name}`, 404);
   }
 
-  const tempDir = await copyToTempDir(info.consumerRoot);
+  const cacheDir = config.cacheDir ? resolve(config.cacheDir) : resolve(process.cwd(), '.facet');
+  const workspace = await acquireTemplateWorkspace(info.consumerRoot, info.entryFile, cacheDir);
   return {
-    consumerRoot: tempDir,
+    consumerRoot: workspace.path,
     entryFile: info.entryFile,
     templateName: info.name,
-    tempDir,
+    archiveCleanup: workspace.release,
   };
-}
-
-async function copyToTempDir(sourceDir: string): Promise<string> {
-  const tempDir = await mkdtemp(join(tmpdir(), 'facet-render-'));
-  await cp(sourceDir, tempDir, { recursive: true });
-  return tempDir;
 }
 
 /**
@@ -392,6 +405,7 @@ async function renderHTML(
   data: Record<string, unknown>,
   logger: Logger,
   sandbox?: string | boolean,
+  persistentLoader = true,
 ): Promise<string> {
   const buildResult = await buildTemplate({
     templatePath: entryFile,
@@ -399,10 +413,11 @@ async function renderHTML(
     consumerRoot,
     logger,
     sandbox,
+    persistentLoader,
   });
 
   try {
-    return await applyTailwind(consumerRoot, buildResult.html, buildResult.css, logger);
+    return await applyTailwind(buildResult.html, buildResult.css, buildResult.facetRoot, buildResult.buildCacheKey, logger);
   } finally {
     await buildResult.cleanup();
   }
@@ -414,6 +429,7 @@ async function renderHTMLStreamed(
   data: Record<string, unknown>,
   logger: Logger,
   progress: RenderProgress,
+  persistentLoader = true,
 ): Promise<string> {
   progress.emit('building', 'Compiling template with Vite SSR...');
   const buildResult = await buildTemplate({
@@ -421,11 +437,12 @@ async function renderHTMLStreamed(
     data,
     consumerRoot,
     logger,
+    persistentLoader,
   });
 
   try {
     progress.emit('tailwind', 'Processing Tailwind CSS...');
-    return await applyTailwind(consumerRoot, buildResult.html, buildResult.css, logger);
+    return await applyTailwind(buildResult.html, buildResult.css, buildResult.facetRoot, buildResult.buildCacheKey, logger);
   } finally {
     await buildResult.cleanup();
   }
@@ -437,13 +454,19 @@ async function buildFragment(
   code: string,
   data: Record<string, unknown>,
   logger: Logger,
+  persistentLoader = true,
 ): Promise<string> {
-  await writeFile(join(consumerRoot, filename), code, 'utf-8');
+  const fragmentDir = join(consumerRoot, '.facet-fragments');
+  const contentKey = createHash('sha256').update(code).digest('hex').slice(0, 20);
+  const fragmentPath = join('.facet-fragments', `${filename.replace(/\.tsx$/, '')}-${contentKey}.tsx`);
+  await mkdir(fragmentDir, { recursive: true });
+  await writeFile(join(consumerRoot, fragmentPath), code, 'utf-8');
   const result = await buildTemplate({
-    templatePath: filename,
+    templatePath: fragmentPath,
     data,
     consumerRoot,
     logger,
+    persistentLoader,
   });
   try {
     return result.html;
@@ -470,18 +493,19 @@ async function injectHeaderFooter(
   consumerRoot: string,
   logger: Logger,
   progress?: RenderProgress,
+  persistentLoader = true,
 ): Promise<string> {
   if (!parsed.headerCode && !parsed.footerCode) return html;
 
   if (parsed.headerCode) {
     progress?.emit('building', 'Building header template...');
-    const headerHtml = await buildFragment(consumerRoot, '_Header.tsx', parsed.headerCode, parsed.data, logger);
+    const headerHtml = await buildFragment(consumerRoot, '_Header.tsx', parsed.headerCode, parsed.data, logger, persistentLoader);
     html = insertBeforeBodyClose(html, extractBodyContent(headerHtml));
   }
 
   if (parsed.footerCode) {
     progress?.emit('building', 'Building footer template...');
-    const footerHtml = await buildFragment(consumerRoot, '_Footer.tsx', parsed.footerCode, parsed.data, logger);
+    const footerHtml = await buildFragment(consumerRoot, '_Footer.tsx', parsed.footerCode, parsed.data, logger, persistentLoader);
     html = insertBeforeBodyClose(html, extractBodyContent(footerHtml));
   }
 
@@ -489,25 +513,22 @@ async function injectHeaderFooter(
 }
 
 async function applyTailwind(
-  consumerRoot: string,
   html: string,
   css: string,
+  facetRoot: string,
+  buildCacheKey: string,
   logger: Logger,
 ): Promise<string> {
-  const facetRoot = join(consumerRoot, '.facet');
-  const tempHtmlPath = join(consumerRoot, '_render.temp.html');
-  await writeFile(tempHtmlPath, html, 'utf-8');
-
-  const stylesInput = join(facetRoot, 'src/styles.css');
-  const outputCssPath = join(consumerRoot, '_render.css');
-
   try {
-    await runTailwind({ facetRoot, stylesInput, contentPath: tempHtmlPath, outputCssPath });
-    css = await readFile(outputCssPath, 'utf-8');
+    css = await runTailwindCached({
+      facetRoot,
+      stylesInput: join(facetRoot, 'src/styles.css'),
+      html,
+      buildCacheKey,
+    });
   } catch {
     logger.debug('Tailwind CSS failed, using Vite CSS fallback');
   }
-
   return combineHTMLAndCSS(html, css);
 }
 

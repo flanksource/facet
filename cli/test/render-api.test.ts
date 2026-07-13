@@ -287,6 +287,27 @@ export default function Template({ data }: { data: any }) {
     expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
   }, 60000);
 
+  test('concurrent header fragments do not conflict in persistent workspaces', async () => {
+    const request = (marker: string) => fetch(`${server.url}/render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        template: 'SimpleReport',
+        format: 'html',
+        data: { title: marker, sections: [] },
+        headerCode: `import React from 'react'; export default function Header({ data }) { return <div data-test-header="${marker}">{data.title}</div>; }`,
+      }),
+    });
+    const [first, second] = await Promise.all([request('HEADER_A'), request('HEADER_B')]);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const [firstHtml, secondHtml] = await Promise.all([first.text(), second.text()]);
+    expect(firstHtml).toContain('data-test-header="HEADER_A"');
+    expect(firstHtml).not.toContain('data-test-header="HEADER_B"');
+    expect(secondHtml).toContain('data-test-header="HEADER_B"');
+    expect(secondHtml).not.toContain('data-test-header="HEADER_A"');
+  }, 120000);
+
   test('POST /render/stream returns SSE with progress and result', async () => {
     const code = `
 import React from 'react';

@@ -12,6 +12,12 @@ export interface ServerConfig {
   port: number;
   templatesDir: string;
   workers: number;
+  maxRendersPerWorker: number;
+  maxQueueDepth: number;
+  maxWorkerAgeMs: number;
+  maxWorkerRssMb: number;
+  workerAcquireTimeoutMs: number;
+  persistentSsr: boolean;
   renderTimeout: number;
   apiKey?: string;
   maxUploadSize: number;
@@ -26,6 +32,12 @@ export interface ServerCLIFlags {
   port?: string;
   templatesDir?: string;
   workers?: string;
+  maxRendersPerWorker?: string;
+  maxQueueDepth?: string;
+  maxWorkerAge?: string;
+  maxWorkerRss?: string;
+  workerAcquireTimeout?: string;
+  persistentSsr?: boolean;
   timeout?: string;
   apiKey?: string;
   maxUpload?: string;
@@ -44,6 +56,12 @@ export function loadConfig(flags: ServerCLIFlags): ServerConfig {
     port: parseInt(flags.port ?? process.env['FACET_PORT'] ?? '3010', 10),
     templatesDir: flags.templatesDir ?? process.env['FACET_TEMPLATES_DIR'] ?? '.',
     workers: parseInt(flags.workers ?? process.env['FACET_WORKERS'] ?? '2', 10),
+    maxRendersPerWorker: parseInt(flags.maxRendersPerWorker ?? process.env['FACET_MAX_RENDERS_PER_WORKER'] ?? '50', 10),
+    maxQueueDepth: parseInt(flags.maxQueueDepth ?? process.env['FACET_MAX_QUEUE_DEPTH'] ?? '20', 10),
+    maxWorkerAgeMs: parseInt(flags.maxWorkerAge ?? process.env['FACET_MAX_WORKER_AGE_MS'] ?? '1800000', 10),
+    maxWorkerRssMb: parseInt(flags.maxWorkerRss ?? process.env['FACET_MAX_WORKER_RSS_MB'] ?? '0', 10),
+    workerAcquireTimeoutMs: parseInt(flags.workerAcquireTimeout ?? process.env['FACET_WORKER_ACQUIRE_TIMEOUT_MS'] ?? '30000', 10),
+    persistentSsr: flags.persistentSsr ?? process.env['FACET_PERSISTENT_SSR'] !== 'false',
     renderTimeout: parseInt(flags.timeout ?? process.env['FACET_RENDER_TIMEOUT'] ?? '60000', 10),
     apiKey: flags.apiKey ?? process.env['FACET_API_KEY'],
     maxUploadSize: parseInt(flags.maxUpload ?? process.env['FACET_MAX_UPLOAD'] ?? '52428800', 10),

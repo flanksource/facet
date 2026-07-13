@@ -6,6 +6,7 @@ import { loadConfig, type ServerCLIFlags, type ServerConfig } from './config.js'
 import { checkAuth } from './auth.js';
 import { errorResponse } from './errors.js';
 import { WorkerPool } from './worker-pool.js';
+import { shutdownPersistentSsrLoaders } from '../bundler/ssr-pool.js';
 import { discoverTemplates, type TemplateInfo } from './templates.js';
 import { S3Uploader } from './s3.js';
 import { handleHealthz, handleTemplates, handleRender, handleRenderStream, handleResultsRoute } from './routes.js';
@@ -33,7 +34,13 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   const templates = await discoverTemplates(templatesDir);
   logger.info(`Discovered ${templates.length} templates: ${templates.map((t: TemplateInfo) => t.name).join(', ') || '(none)'}`);
 
-  const pool = new WorkerPool(config.workers, config.verbose);
+  const pool = new WorkerPool(config.workers, config.verbose, {
+    maxRendersPerWorker: config.maxRendersPerWorker,
+    maxQueueDepth: config.maxQueueDepth,
+    maxWorkerAgeMs: config.maxWorkerAgeMs,
+    maxWorkerRssMb: config.maxWorkerRssMb,
+    acquireTimeoutMs: config.workerAcquireTimeoutMs,
+  });
   await pool.start();
 
   const s3 = config.s3 ? new S3Uploader(config.s3) : undefined;
@@ -115,7 +122,10 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
     url: `http://localhost:${port}`,
     stop: async () => {
       await new Promise<void>((resolveClose) => httpServer.close(() => resolveClose()));
-      await pool.shutdown();
+      await Promise.all([
+        pool.shutdown(),
+        shutdownPersistentSsrLoaders(),
+      ]);
     },
   };
 }

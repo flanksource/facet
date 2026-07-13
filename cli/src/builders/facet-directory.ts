@@ -509,6 +509,7 @@ export default defineConfig({
   },
   build: {
     ssr: true,
+    target: 'node20',
     outDir: 'dist',
     sourcemap: true,
     lib: {

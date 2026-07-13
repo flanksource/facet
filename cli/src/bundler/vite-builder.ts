@@ -16,10 +16,15 @@ import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
 import { RenderProfiler } from '../utils/performance.js';
+import { computeTemplateBuildKey, pruneBuildCache } from './build-cache.js';
+import { VERSION } from '../version-generated.js';
+import { runPersistentSsrLoader } from './ssr-pool.js';
 
 export interface BuildResult {
   html: string;
   css: string;
+  buildCacheKey: string;
+  facetRoot: string;
   cleanup: () => Promise<void>;
 }
 
@@ -29,6 +34,7 @@ export interface BuildOptions {
   consumerRoot?: string;
   logger: Logger;
   sandbox?: string | boolean;
+  persistentLoader?: boolean;
 }
 
 interface LoaderResult {
@@ -110,6 +116,7 @@ interface LoaderArgs {
   facetRoot: string;
   dataFilePath: string;
   resultFilePath: string;
+  cacheKey: string;
   sandbox?: string | boolean;
 }
 
@@ -118,6 +125,7 @@ function runLoaderOnce(args: LoaderArgs): Promise<{ stderr?: Buffer | string; }>
     `--facet-root=${args.facetRoot}`,
     `--data-file=${args.dataFilePath}`,
     `--output-file=${args.resultFilePath}`,
+    `--cache-key=${args.cacheKey}`,
   ];
   const settings = typeof args.sandbox === 'string' ? args.sandbox : '/etc/facet/srt-settings.json';
   const parts = args.sandbox
@@ -176,9 +184,32 @@ async function runLoaderWithRetry(
   }
 }
 
-export async function buildTemplate(options: BuildOptions): Promise<BuildResult> {
+const buildLocks = new Map<string, Promise<void>>();
+
+async function withBuildLock<T>(key: string, action: () => Promise<T>): Promise<T> {
+  const previous = buildLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => { release = resolve; });
+  const tail = previous.catch(() => undefined).then(() => current);
+  buildLocks.set(key, tail);
+  await previous.catch(() => undefined);
+  try {
+    return await action();
+  } finally {
+    release();
+    if (buildLocks.get(key) === tail) buildLocks.delete(key);
+  }
+}
+
+export function buildTemplate(options: BuildOptions): Promise<BuildResult> {
+  const consumerRoot = options.consumerRoot ?? process.cwd();
+  return withBuildLock(join(consumerRoot, '.facet'), () => buildTemplateUnlocked(options));
+}
+
+async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult> {
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
   const profiler = new RenderProfiler('template-build', logger);
+  const buildCacheKey = computeTemplateBuildKey(consumerRoot, VERSION, templatePath);
 
   logger.debug(`Building template: ${templatePath}`);
 
@@ -213,15 +244,27 @@ export async function buildTemplate(options: BuildOptions): Promise<BuildResult>
   const resultFilePath = join(tmpDir, 'result.json');
   writeFileSync(dataFilePath, JSON.stringify(data));
   try {
-    const loaderResult = await profiler.measure('vite-ssr-and-react-render', () => runLoaderWithRetry(
-      facetDir,
-      { facetRoot, dataFilePath, resultFilePath, sandbox: options.sandbox },
-      logger,
-    ));
+    const loaderResult = await profiler.measure('vite-ssr-and-react-render', async () => {
+      if (options.persistentLoader && !options.sandbox) {
+        try {
+          return await runPersistentSsrLoader({ facetRoot, cacheKey: buildCacheKey, data }, logger);
+        } catch (error) {
+          logger.warn(`Persistent SSR loader failed; falling back to one-shot loader: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      return runLoaderWithRetry(
+        facetDir,
+        { facetRoot, dataFilePath, resultFilePath, cacheKey: buildCacheKey, sandbox: options.sandbox },
+        logger,
+      );
+    });
+    pruneBuildCache(join(facetRoot, 'build-cache'));
     logger.debug(`Rendered HTML: ${loaderResult.html.length} bytes, CSS: ${loaderResult.css.length} bytes`);
     return {
       html: loaderResult.html,
       css: loaderResult.css,
+      buildCacheKey,
+      facetRoot,
       cleanup: async () => {
         logger.debug('Cleanup complete');
       },
