@@ -69,7 +69,7 @@ tasks:
     desc: "Run cli unit tests with vitest"
     dir: cli
     deps:
-      - gen-version
+      - build
     cmds:
       - pnpm exec vitest run
 

@@ -10,25 +10,13 @@ import { readFile, writeFile, mkdtemp } from 'fs/promises';
 import { lstatSync, readFileSync, readlinkSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { execFileSync, execSync } from 'child_process';
-import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { execSync } from 'child_process';
 import { type Browser } from 'puppeteer';
 import { PDFDocument } from 'pdf-lib';
 import { generatePDFBuffer, launchBrowser } from '../src/utils/pdf-generator.js';
 import { renderHeaderFooterPdfs, detectPageTypes, resolvePageSize, areaScale, scaledHeight } from '../src/utils/pdf-multipass.js';
 import { fail } from 'assert/strict';
 const KITCHEN_SINK = join(import.meta.dirname, '../../examples/kitchen-sink');
-const CLI_ENTRY = join(import.meta.dirname, '../src/cli.ts');
-const requireFromTest = createRequire(import.meta.url);
-const TSX_IMPORT = pathToFileURL(requireFromTest.resolve('tsx')).href;
-
-function generateHtml(template: string, outputDir: string): void {
-  execFileSync(process.execPath, [
-    '--import', TSX_IMPORT, CLI_ENTRY,
-    'html', template, '-o', outputDir,
-  ], { cwd: KITCHEN_SINK, timeout: 120000, stdio: 'pipe' });
-}
 
 function cleanupGeneratedNodeModulesLink(): void {
   const nodeModules = join(KITCHEN_SINK, 'node_modules');
@@ -295,9 +283,12 @@ describe('PDF bleed analysis', () => {
     let results: BleedResult[];
 
     beforeAll(async () => {
+      const facetBin = join(import.meta.dirname, '../../dist/facet');
       const outDir = await mkdtemp(join(tmpdir(), 'mp-html-'));
       const htmlFile = file.replace('.tsx', '.html');
-      generateHtml(file, outDir);
+      execSync(`${facetBin} html ${file} -o ${outDir}`, {
+        cwd: KITCHEN_SINK, timeout: 120000, stdio: 'pipe',
+      });
       const html = readFileSync(join(outDir, htmlFile), 'utf-8');
       execSync(`rm -rf "${outDir}"`);
       results = await analyzeBleed(browser, html, _name);
@@ -318,8 +309,11 @@ describe('PDF bleed analysis', () => {
   });
 
   it('MultiPageTable should have multiple pages', async () => {
+    const facetBin = join(import.meta.dirname, '../../dist/facet');
     const outDir = await mkdtemp(join(tmpdir(), 'mp-html-'));
-    generateHtml('MultiPageTable.tsx', outDir);
+    execSync(`${facetBin} html MultiPageTable.tsx -o ${outDir}`, {
+      cwd: KITCHEN_SINK, timeout: 120000, stdio: 'pipe',
+    });
     const html = readFileSync(join(outDir, 'MultiPageTable.html'), 'utf-8');
     execSync(`rm -rf "${outDir}"`);
     const buf = await generatePDFBuffer(browser, html);
@@ -401,8 +395,13 @@ describe('PDF bleed analysis', () => {
     let pages: PagePixels[];
 
     beforeAll(async () => {
+      const facetBin = join(import.meta.dirname, '../../dist/facet');
       const outDir = await mkdtemp(join(tmpdir(), 'bleed-html-'));
-      generateHtml('BleedTest.tsx', outDir);
+      execSync(`${facetBin} html BleedTest.tsx -o ${outDir}`, {
+        cwd: KITCHEN_SINK,
+        timeout: 120000,
+        stdio: 'pipe',
+      });
       const html = readFileSync(join(outDir, 'BleedTest.html'), 'utf-8');
       execSync(`rm -rf "${outDir}"`);
 
@@ -598,8 +597,11 @@ describe('PDF bleed analysis', () => {
     let pdfDoc: Awaited<ReturnType<typeof PDFDocument.load>>;
 
     beforeAll(async () => {
+      const facetBin = join(import.meta.dirname, '../../dist/facet');
       const outDir = await mkdtemp(join(tmpdir(), 'pagesize-html-'));
-      generateHtml('PageSizeTest.tsx', outDir);
+      execSync(`${facetBin} html PageSizeTest.tsx -o ${outDir}`, {
+        cwd: KITCHEN_SINK, timeout: 120000, stdio: 'pipe',
+      });
       const html = readFileSync(join(outDir, 'PageSizeTest.html'), 'utf-8');
       execSync(`rm -rf "${outDir}"`);
 
