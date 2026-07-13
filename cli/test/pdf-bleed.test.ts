@@ -7,16 +7,40 @@
  */
 
 import { readFile, writeFile, mkdtemp } from 'fs/promises';
-import { readFileSync } from 'fs';
+import { lstatSync, readFileSync, readlinkSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { type Browser } from 'puppeteer';
 import { PDFDocument } from 'pdf-lib';
 import { generatePDFBuffer, launchBrowser } from '../src/utils/pdf-generator.js';
 import { renderHeaderFooterPdfs, detectPageTypes, resolvePageSize, areaScale, scaledHeight } from '../src/utils/pdf-multipass.js';
 import { fail } from 'assert/strict';
 const KITCHEN_SINK = join(import.meta.dirname, '../../examples/kitchen-sink');
+const CLI_ENTRY = join(import.meta.dirname, '../src/cli.ts');
+const requireFromTest = createRequire(import.meta.url);
+const TSX_IMPORT = pathToFileURL(requireFromTest.resolve('tsx')).href;
+
+function generateHtml(template: string, outputDir: string): void {
+  execFileSync(process.execPath, [
+    '--import', TSX_IMPORT, CLI_ENTRY,
+    'html', template, '-o', outputDir,
+  ], { cwd: KITCHEN_SINK, timeout: 120000, stdio: 'pipe' });
+}
+
+function cleanupGeneratedNodeModulesLink(): void {
+  const nodeModules = join(KITCHEN_SINK, 'node_modules');
+  try {
+    if (lstatSync(nodeModules).isSymbolicLink() && readlinkSync(nodeModules).includes('.facet/node_modules')) {
+      unlinkSync(nodeModules);
+    }
+  } catch { /* absent or consumer-owned */ }
+}
+
+afterAll(cleanupGeneratedNodeModulesLink);
+
 const MAX_BLEED_GAP_PX = 4;
 const MAX_FOOTER_GAP_MM = 15;
 const RENDER_DPI = 150;
@@ -271,12 +295,9 @@ describe('PDF bleed analysis', () => {
     let results: BleedResult[];
 
     beforeAll(async () => {
-      const facetBin = join(import.meta.dirname, '../../dist/facet');
       const outDir = await mkdtemp(join(tmpdir(), 'mp-html-'));
       const htmlFile = file.replace('.tsx', '.html');
-      execSync(`${facetBin} html ${file} -o ${outDir}`, {
-        cwd: KITCHEN_SINK, timeout: 120000, stdio: 'pipe',
-      });
+      generateHtml(file, outDir);
       const html = readFileSync(join(outDir, htmlFile), 'utf-8');
       execSync(`rm -rf "${outDir}"`);
       results = await analyzeBleed(browser, html, _name);
@@ -297,11 +318,8 @@ describe('PDF bleed analysis', () => {
   });
 
   it('MultiPageTable should have multiple pages', async () => {
-    const facetBin = join(import.meta.dirname, '../../dist/facet');
     const outDir = await mkdtemp(join(tmpdir(), 'mp-html-'));
-    execSync(`${facetBin} html MultiPageTable.tsx -o ${outDir}`, {
-      cwd: KITCHEN_SINK, timeout: 120000, stdio: 'pipe',
-    });
+    generateHtml('MultiPageTable.tsx', outDir);
     const html = readFileSync(join(outDir, 'MultiPageTable.html'), 'utf-8');
     execSync(`rm -rf "${outDir}"`);
     const buf = await generatePDFBuffer(browser, html);
@@ -383,13 +401,8 @@ describe('PDF bleed analysis', () => {
     let pages: PagePixels[];
 
     beforeAll(async () => {
-      const facetBin = join(import.meta.dirname, '../../dist/facet');
       const outDir = await mkdtemp(join(tmpdir(), 'bleed-html-'));
-      execSync(`${facetBin} html BleedTest.tsx -o ${outDir}`, {
-        cwd: KITCHEN_SINK,
-        timeout: 120000,
-        stdio: 'pipe',
-      });
+      generateHtml('BleedTest.tsx', outDir);
       const html = readFileSync(join(outDir, 'BleedTest.html'), 'utf-8');
       execSync(`rm -rf "${outDir}"`);
 
@@ -585,11 +598,8 @@ describe('PDF bleed analysis', () => {
     let pdfDoc: Awaited<ReturnType<typeof PDFDocument.load>>;
 
     beforeAll(async () => {
-      const facetBin = join(import.meta.dirname, '../../dist/facet');
       const outDir = await mkdtemp(join(tmpdir(), 'pagesize-html-'));
-      execSync(`${facetBin} html PageSizeTest.tsx -o ${outDir}`, {
-        cwd: KITCHEN_SINK, timeout: 120000, stdio: 'pipe',
-      });
+      generateHtml('PageSizeTest.tsx', outDir);
       const html = readFileSync(join(outDir, 'PageSizeTest.html'), 'utf-8');
       execSync(`rm -rf "${outDir}"`);
 
