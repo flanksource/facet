@@ -24,6 +24,8 @@
     "pretest": "pnpm run gen-version",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench:render": "node scripts/benchmark-render.mjs",
+    "bench:server": "node scripts/benchmark-server.mjs",
     "prelint": "pnpm run gen-version",
     "lint": "tsc --noEmit"
   },
