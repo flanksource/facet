@@ -29,14 +29,14 @@
   ],
   "packageManager": "pnpm@9.15.9",
   "scripts": {
-    "build": "pnpm run build:components && pnpm run build:css && pnpm run build:playground && pnpm run build:cli",
+    "build": "pnpm run build:components && pnpm run build:css && pnpm run build:cli",
     "build:components": "vite build --config vite.lib.config.ts",
     "build:css": "tailwindcss -i src/styles.css -o dist/styles.css",
-    "build:playground": "vite build --config vite.playground.config.ts && node cli/scripts/gen-playground-form.cjs && node cli/scripts/gen-samples.cjs",
+    "build:playground": "vite build --config vite.playground.config.ts && node cli/scripts/gen-playground-form.cjs",
     "build:cli": "cd cli && pnpm run build",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "prepublishOnly": "pnpm run build:components && pnpm run build:css && pnpm run build:playground && cd cli && pnpm run build:lib",
+    "prepublishOnly": "pnpm run build:components && pnpm run build:css && cd cli && pnpm run build:lib",
     "chromatic": "pnpm exec chromatic"
   },
   "peerDependencies": {
