@@ -32,6 +32,7 @@ yarn-error.log*
 # Output files
 output/
 *.pdf
+!src/server/samples/*.pdf
 assets/
 .facet/
 dist-sea/

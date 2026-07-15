@@ -37,6 +37,7 @@ execFileSync(process.execPath, ['--experimental-sea-config', seaConfigPath], { s
 
 mkdirSync(join(repoRoot, 'dist'), { recursive: true });
 copyFileSync(process.execPath, outBinary);
+chmodSync(outBinary, 0o755);
 
 console.log('Injecting blob with postject...');
 const postject = require.resolve('postject/dist/cli.js');
