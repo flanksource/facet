@@ -103,12 +103,14 @@ jobs:
 
       - name: Install dependencies
         shell: bash
-        run: cd cli && pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir cli install --frozen-lockfile
 
       - name: Build CLI binary (Node SEA)
         shell: bash
         run: |
-          cd cli && pnpm run build:cli && cd ..
+          pnpm --dir cli run build:cli
           mv "dist/facet${{ matrix.ext }}" "dist/facet-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}"
 
       - name: Smoke-test the binary
@@ -234,10 +236,12 @@ jobs:
         run: npm install -g --force npm@11.11.0
 
       - name: Install dependencies
-        run: cd cli && pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir cli install --frozen-lockfile
 
       - name: Build CLI bundle
-        run: cd cli && pnpm run build:bundle
+        run: pnpm --dir cli run build:bundle
 
       - name: Assemble npm package
         env:

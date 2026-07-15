@@ -178,3 +178,4 @@ hack/
 cli/src/server/samples/generated.ts
 .grite/
 .playwright-cli/
+cli/src/server/playground-form-generated.ts

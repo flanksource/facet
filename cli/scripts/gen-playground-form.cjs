@@ -2,8 +2,8 @@
 // Inlines the built Fill-PDF playground island (dist/playground-form.{js,css})
 // into cli/src/server/playground-form-generated.ts as base64 strings, so the
 // compiled `facet` binary serves it with no runtime file dependency. Run after
-// `vite build --config vite.playground.config.ts`; the generated bundle is
-// committed so standalone CLI builds do not need the root playground toolchain.
+// the root `build:playground` script; CLI build hooks generate the module from
+// source before TypeScript compilation.
 const fs = require('fs');
 const path = require('path');
 
