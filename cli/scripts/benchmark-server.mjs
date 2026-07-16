@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
+import { processTreeRss } from './lib/proc-rss.mjs';
 
-const cli = resolve('../dist/facet');
-const templatesDir = resolve(process.argv[2] ?? 'examples');
+const scriptDir = fileURLToPath(new URL('.', import.meta.url));
+const cli = resolve(scriptDir, '../../dist/facet');
+const templatesDir = process.argv[2]
+  ? resolve(process.argv[2])
+  : resolve(scriptDir, '../examples');
 const iterations = Math.max(1, Number(process.env.FACET_BENCH_ITERATIONS ?? 5));
 const sectionCount = Math.max(1, Number(process.env.FACET_BENCH_SECTIONS ?? 1));
 const templateName = process.env.FACET_BENCH_TEMPLATE ?? 'SimpleReport';
@@ -16,20 +20,6 @@ const formats = (process.env.FACET_BENCH_FORMATS ?? 'html,pdf')
 if (formats.length === 0) throw new Error('FACET_BENCH_FORMATS must contain html and/or pdf');
 const port = Number(process.env.FACET_BENCH_PORT ?? 39123);
 const cacheDir = await mkdtemp(join(tmpdir(), 'facet-server-bench-'));
-
-function processTreeRss(pid, seen = new Set()) {
-  if (process.platform !== 'linux' || seen.has(pid)) return 0;
-  seen.add(pid);
-  let rss = 0;
-  try {
-    rss = Number(readFileSync(`/proc/${pid}/statm`, 'utf8').trim().split(/\s+/)[1] ?? 0) * 4096;
-  } catch { return 0; }
-  try {
-    const children = readFileSync(`/proc/${pid}/task/${pid}/children`, 'utf8').trim().split(/\s+/).filter(Boolean);
-    for (const child of children) rss += processTreeRss(Number(child), seen);
-  } catch { /* process exited while sampling */ }
-  return rss;
-}
 
 const server = spawn(cli, [
   'serve', '--port', String(port), '--templates-dir', templatesDir,

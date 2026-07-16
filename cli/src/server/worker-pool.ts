@@ -9,6 +9,7 @@ export interface Worker {
   renders: number;
   startedAt: number;
   lastRssMb: number;
+  lastRssAt: number;
 }
 
 export interface WorkerPoolOptions {
@@ -75,7 +76,7 @@ export class WorkerPool {
     // Start sequentially to avoid a large transient memory spike.
     for (let i = 0; i < this.size; i++) {
       const browser = await launchBrowser();
-      this.available.push({ browser, renders: 0, startedAt: Date.now(), lastRssMb: 0 });
+      this.available.push({ browser, renders: 0, startedAt: Date.now(), lastRssMb: 0, lastRssAt: 0 });
       this.total++;
     }
     this.logger.info(`Worker pool ready (${this.total} browsers)`);
@@ -123,6 +124,7 @@ export class WorkerPool {
     worker.renders++;
 
     worker.lastRssMb = chromiumTreeRssMb(worker.browser);
+    worker.lastRssAt = Date.now();
     const expired = Date.now() - worker.startedAt >= this.limits.maxWorkerAgeMs;
     const overMemoryLimit = this.limits.maxWorkerRssMb > 0 && worker.lastRssMb >= this.limits.maxWorkerRssMb;
     if (overMemoryLimit) {
@@ -145,32 +147,36 @@ export class WorkerPool {
   private async recycle(worker: Worker): Promise<void> {
     this.recycling++;
     try {
-      await worker.browser.close();
-    } catch {
-      // ignore close errors
-    }
-
-    if (this.shuttingDown) {
-      this.total--;
-      return;
-    }
-
-    try {
-      const browser = await launchBrowser();
-      const fresh: Worker = { browser, renders: 0, startedAt: Date.now(), lastRssMb: 0 };
-
-      if (this.waiting.length > 0) {
-        this.waiting.shift()!.resolve(fresh);
-      } else {
-        this.available.push(fresh);
+      try {
+        await worker.browser.close();
+      } catch {
+        // ignore close errors
       }
-    } catch (err) {
-      this.total--;
-      this.logger.error(`Failed to recycle browser: ${err}`);
-      if (this.waiting.length > 0) {
-        this.waiting.shift()!.reject(
-          new RenderError('RENDER_FAILED', 'No browsers available', 503),
-        );
+
+      if (this.shuttingDown) {
+        this.total = Math.max(0, this.total - 1);
+        return;
+      }
+
+      try {
+        const browser = await launchBrowser();
+        const fresh: Worker = {
+          browser, renders: 0, startedAt: Date.now(), lastRssMb: 0, lastRssAt: 0,
+        };
+
+        if (this.waiting.length > 0) {
+          this.waiting.shift()!.resolve(fresh);
+        } else {
+          this.available.push(fresh);
+        }
+      } catch (err) {
+        this.total = Math.max(0, this.total - 1);
+        this.logger.error(`Failed to recycle browser: ${err}`);
+        if (this.waiting.length > 0) {
+          this.waiting.shift()!.reject(
+            new RenderError('RENDER_FAILED', 'No browsers available', 503),
+          );
+        }
       }
     } finally {
       this.recycling--;
@@ -179,6 +185,7 @@ export class WorkerPool {
 
   stats(): { total: number; available: number; active: number; recycling: number; waiting: number; chromiumRssMb: number } {
     const workers = [...this.available, ...this.active];
+    const now = Date.now();
     return {
       total: this.total,
       available: this.available.length,
@@ -186,9 +193,11 @@ export class WorkerPool {
       recycling: this.recycling,
       waiting: this.waiting.length,
       chromiumRssMb: Number(workers.reduce((total, worker) => {
-        const rss = chromiumTreeRssMb(worker.browser);
-        worker.lastRssMb = rss;
-        return total + rss;
+        if (now - worker.lastRssAt >= 5_000) {
+          worker.lastRssMb = chromiumTreeRssMb(worker.browser);
+          worker.lastRssAt = now;
+        }
+        return total + worker.lastRssMb;
       }, 0).toFixed(1)),
     };
   }

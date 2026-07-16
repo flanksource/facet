@@ -229,7 +229,7 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
 describe('FacetDirectory.generatePackageJson .npmrc', () => {
   it('disables modules-purge confirmation so non-interactive pnpm runs do not abort', async () => {
     await writeFile(join(consumerRoot, 'package.json'), JSON.stringify({ name: 'consumer', version: '0.0.0' }));
-    newFacetDir().generatePackageJson();
+    await newFacetDir().generatePackageJson();
     const npmrc = await readFile(join(facetRoot, '.npmrc'), 'utf-8');
     expect(npmrc).toContain('confirm-modules-purge=false');
   });
@@ -260,7 +260,7 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     const localRoot = await writeLocalFacetPackage();
     process.env.FACET_PACKAGE_PATH = localRoot;
 
-    newFacetDir().generatePackageJson();
+    await newFacetDir().generatePackageJson();
 
     const generated = JSON.parse(await readFile(join(facetRoot, 'package.json'), 'utf-8'));
     expect(generated.dependencies['@flanksource/facet']).toBe(`file:${localRoot}`);
@@ -277,7 +277,7 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     await writeFile(tarball, 'fake tarball');
     process.env.FACET_PACKAGE_PATH = tarball;
 
-    newFacetDir().generatePackageJson();
+    await newFacetDir().generatePackageJson();
 
     const generated = JSON.parse(await readFile(join(facetRoot, 'package.json'), 'utf-8'));
     expect(generated.dependencies['@flanksource/facet']).toBe(`file:${tarball}`);
@@ -322,12 +322,35 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     expect(needsLocalFacetCssBuild(localRoot)).toBe(true);
   });
 
+  it('waits for a local build lock without blocking the event loop', async () => {
+    const localRoot = await writeLocalFacetPackage();
+    process.env.FACET_PACKAGE_PATH = localRoot;
+    const future = new Date(Date.now() + 120_000);
+    utimesSync(join(localRoot, 'src/components/index.tsx'), future, future);
+    const lockPath = join(localRoot, '.facet-local-build.lock');
+    await writeFile(lockPath, 'other-process\n');
+    let timerRan = false;
+    const timer = setTimeout(() => {
+      timerRan = true;
+      void rm(lockPath, { force: true });
+    }, 25);
+
+    try {
+      await newFacetDir().generatePackageJson();
+    } finally {
+      clearTimeout(timer);
+    }
+
+    expect(timerRan).toBe(true);
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
   it('removes a stale installed local package copy when package.json is unchanged', async () => {
     const localRoot = await writeLocalFacetPackage();
     process.env.FACET_PACKAGE_PATH = localRoot;
     const facetDir = newFacetDir();
 
-    facetDir.generatePackageJson();
+    await facetDir.generatePackageJson();
 
     const installedRoot = join(facetRoot, 'node_modules/@flanksource/facet');
     await mkdir(join(installedRoot, 'dist/components'), { recursive: true });
@@ -335,7 +358,7 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     await writeFile(join(installedRoot, 'dist/components/index.js'), 'export const Marker = "stale";\n');
     await writeFile(join(facetRoot, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n');
 
-    facetDir.generatePackageJson();
+    await facetDir.generatePackageJson();
 
     expect(existsSync(installedRoot)).toBe(false);
     expect(existsSync(join(facetRoot, 'pnpm-lock.yaml'))).toBe(false);

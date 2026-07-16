@@ -690,12 +690,12 @@ export default defineConfig({
    * Generate package.json with all required build dependencies
    * Reads versions from embedded root-package.json and merges with consumer's dependencies
    */
-  generatePackageJson(): void {
+  async generatePackageJson(): Promise<void> {
     this.logger.debug('Generating package.json');
 
     const facetOverride = resolveFacetPackageOverride();
     if (facetOverride?.kind === 'directory') {
-      this.ensureLocalFacetPackageBuilt(facetOverride.path);
+      await this.ensureLocalFacetPackageBuilt(facetOverride.path);
     }
 
     let dependencies: Record<string, string> = {};
@@ -1003,7 +1003,7 @@ export default defineConfig({
     return readFileSync(embeddedPath, 'utf-8');
   }
 
-  private ensureLocalFacetPackageBuilt(packageRoot: string): void {
+  private async ensureLocalFacetPackageBuilt(packageRoot: string): Promise<void> {
     const isCurrent = (): boolean =>
       !needsLocalFacetComponentsBuild(packageRoot) && !needsLocalFacetCssBuild(packageRoot);
     if (isCurrent()) {
@@ -1011,7 +1011,7 @@ export default defineConfig({
       return;
     }
 
-    this.withLocalFacetBuildLock(packageRoot, () => {
+    await this.withLocalFacetBuildLock(packageRoot, () => {
       // Another process may have completed the build while this process waited.
       if (isCurrent()) return;
       const shouldBuildCss = needsLocalFacetCssBuild(packageRoot);
@@ -1026,14 +1026,17 @@ export default defineConfig({
     });
   }
 
-  private withLocalFacetBuildLock(packageRoot: string, action: () => void): void {
+  private async withLocalFacetBuildLock(
+    packageRoot: string,
+    action: () => void | Promise<void>,
+  ): Promise<void> {
     const lockPath = join(packageRoot, '.facet-local-build.lock');
     const deadline = Date.now() + LOCAL_BUILD_TIMEOUT_MS;
     let fd: number | undefined;
     while (fd === undefined) {
+      let acquiredFd: number;
       try {
-        fd = openSync(lockPath, 'wx');
-        writeFileSync(fd, `${process.pid}\n`);
+        acquiredFd = openSync(lockPath, 'wx');
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
         if (code !== 'EEXIST') throw error;
@@ -1042,15 +1045,31 @@ export default defineConfig({
             unlinkSync(lockPath);
             continue;
           }
-        } catch { continue; }
+        } catch {
+          if (Date.now() >= deadline) {
+            throw new Error(`Timed out waiting for local Facet build lock: ${lockPath}`);
+          }
+          await new Promise<void>((resolveWait) => setTimeout(resolveWait, 100));
+          continue;
+        }
         if (Date.now() >= deadline) {
           throw new Error(`Timed out waiting for local Facet build lock: ${lockPath}`);
         }
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 100));
+        continue;
+      }
+
+      try {
+        writeFileSync(acquiredFd, `${process.pid}\n`);
+        fd = acquiredFd;
+      } catch (error) {
+        try { closeSync(acquiredFd); } catch { /* preserve the write error */ }
+        try { unlinkSync(lockPath); } catch { /* preserve the write error */ }
+        throw error;
       }
     }
     try {
-      action();
+      await action();
     } finally {
       closeSync(fd);
       try { unlinkSync(lockPath); } catch { /* already cleaned up */ }

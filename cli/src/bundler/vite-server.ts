@@ -46,7 +46,7 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
     remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
   });
   facetDir.create();
-  facetDir.generatePackageJson();
+  await facetDir.generatePackageJson();
   facetDir.symlinkConsumerFiles();
   facetDir.copyStylesCss();
   facetDir.generateEntryWrapper();

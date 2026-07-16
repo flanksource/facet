@@ -223,7 +223,7 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
   });
 
   facetDir.create();
-  facetDir.generatePackageJson();
+  await facetDir.generatePackageJson();
 
   const facetRoot = facetDir.getFacetRoot();
 
