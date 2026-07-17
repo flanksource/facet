@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile } from 'fs/promises';
+import { mkdtemp, mkdir, readdir, rm, stat, writeFile } from 'fs/promises';
 import { createHash } from 'node:crypto';
 import { join, basename, resolve } from 'path';
 import { tmpdir } from 'os';
@@ -480,6 +480,22 @@ async function renderHTMLStreamed(
   }
 }
 
+async function pruneFragments(fragmentDir: string, keepPath: string): Promise<void> {
+  const configured = Number(process.env['FACET_FRAGMENT_MAX_AGE_MS'] ?? 86_400_000);
+  const maxAgeMs = Number.isFinite(configured) && configured >= 60_000 ? configured : 86_400_000;
+  const cutoff = Date.now() - maxAgeMs;
+  try {
+    const entries = await readdir(fragmentDir, { withFileTypes: true });
+    await Promise.all(entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.tsx'))
+      .map(async (entry) => {
+        const path = join(fragmentDir, entry.name);
+        if (path === keepPath || (await stat(path)).mtimeMs >= cutoff) return;
+        await rm(path, { force: true });
+      }));
+  } catch { /* pruning is best effort under concurrent workspace activity */ }
+}
+
 async function buildFragment(
   consumerRoot: string,
   filename: string,
@@ -492,7 +508,9 @@ async function buildFragment(
   const contentKey = createHash('sha256').update(code).digest('hex').slice(0, 20);
   const fragmentPath = join('.facet-fragments', `${filename.replace(/\.tsx$/, '')}-${contentKey}.tsx`);
   await mkdir(fragmentDir, { recursive: true });
-  await writeFile(join(consumerRoot, fragmentPath), code, 'utf-8');
+  const absoluteFragmentPath = join(consumerRoot, fragmentPath);
+  await writeFile(absoluteFragmentPath, code, 'utf-8');
+  await pruneFragments(fragmentDir, absoluteFragmentPath);
   const result = await buildTemplate({
     templatePath: fragmentPath,
     data,

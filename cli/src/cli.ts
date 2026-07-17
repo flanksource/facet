@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander';
+import { Command, InvalidArgumentError } from 'commander';
 import chalk from 'chalk';
 import { Logger } from './utils/logger.js';
 import { preflight, PreflightError } from './commands/doctor.js';
@@ -8,6 +8,16 @@ import { resolveOutput } from './utils/resolve-output.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from './version-generated.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
+
+function numericOption(minimum: number): (value: string) => number {
+  return (value: string): number => {
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed < minimum) {
+      throw new InvalidArgumentError(`Expected an integer greater than or equal to ${minimum}`);
+    }
+    return parsed;
+  };
+}
 
 function parseDataLoaderArgs(): string[] {
   const dashIndex = process.argv.indexOf('--');
@@ -258,11 +268,11 @@ program
   .option('-p, --port <number>', 'Server port', '3010')
   .option('--templates-dir <dir>', 'Directory containing templates', '.')
   .option('--workers <count>', 'Number of browser workers', '2')
-  .option('--max-renders-per-worker <count>', 'Recycle Chromium after this many renders (default: 50)')
-  .option('--max-queue-depth <count>', 'Maximum requests waiting for a browser (default: 20)')
-  .option('--max-worker-age <ms>', 'Recycle Chromium after this age in milliseconds (default: 1800000)')
-  .option('--max-worker-rss <mb>', 'Recycle Chromium above this Linux process-tree RSS (default: 0/off)')
-  .option('--worker-acquire-timeout <ms>', 'Maximum time to wait for a browser worker (default: 30000)')
+  .option('--max-renders-per-worker <count>', 'Recycle Chromium after this many renders (default: 50)', numericOption(1))
+  .option('--max-queue-depth <count>', 'Maximum requests waiting for a browser (default: 20)', numericOption(1))
+  .option('--max-worker-age <ms>', 'Recycle Chromium after this age in milliseconds (default: 1800000)', numericOption(1))
+  .option('--max-worker-rss <mb>', 'Recycle Chromium above this Linux process-tree RSS (default: 0/off)', numericOption(0))
+  .option('--worker-acquire-timeout <ms>', 'Maximum time to wait for a browser worker (default: 30000)', numericOption(1))
   .option('--no-persistent-ssr', 'Disable persistent SSR loaders to reduce idle memory')
   .option('--timeout <ms>', 'Render timeout in milliseconds', '60000')
   .option('--api-key <key>', 'API key for authentication')

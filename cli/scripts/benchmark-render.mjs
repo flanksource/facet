@@ -1,29 +1,21 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { mkdir, rm } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
+import { processTreeRss } from './lib/proc-rss.mjs';
 
-const cli = resolve('../dist/facet');
-const template = resolve(process.argv[2] ?? 'examples/SimpleReport.tsx');
-const data = resolve(process.argv[3] ?? 'examples/simple-data.json');
+const scriptDir = fileURLToPath(new URL('.', import.meta.url));
+const cli = resolve(scriptDir, '../../dist/facet');
+const template = process.argv[2]
+  ? resolve(process.argv[2])
+  : resolve(scriptDir, '../examples/SimpleReport.tsx');
+const data = process.argv[3]
+  ? resolve(process.argv[3])
+  : resolve(scriptDir, '../examples/simple-data.json');
 const output = resolve('.benchmark-output');
 const iterations = Math.max(1, Number(process.env.FACET_BENCH_ITERATIONS ?? 5));
-
-function processTreeRss(pid, seen = new Set()) {
-  if (process.platform !== 'linux' || seen.has(pid)) return 0;
-  seen.add(pid);
-  let rss = 0;
-  try {
-    rss = Number(readFileSync(`/proc/${pid}/statm`, 'utf8').trim().split(/\s+/)[1] ?? 0) * 4096;
-  } catch { return 0; }
-  try {
-    const children = readFileSync(`/proc/${pid}/task/${pid}/children`, 'utf8').trim().split(/\s+/).filter(Boolean);
-    for (const child of children) rss += processTreeRss(Number(child), seen);
-  } catch { /* process exited while sampling */ }
-  return rss;
-}
 
 function run(format, cold) {
   return new Promise((resolveRun, reject) => {

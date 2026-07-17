@@ -111,20 +111,27 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   if (!cachedBundle) {
     const buildDir = cacheKey ? `${outDir}.tmp-${crypto.randomUUID()}` : outDir;
     if (cacheKey) mkdirSync(cacheRoot, { recursive: true });
-    await build({
-      configFile: viteConfigPath,
-      root: facetRoot,
-      logLevel: verbose ? 'info' : 'error',
-      build: { ssr: true, outDir: buildDir, emptyOutDir: true },
-    });
-    if (cacheKey) {
-      try {
-        renameSync(buildDir, outDir);
-      } catch (error) {
-        // Another process may have completed the same content-addressed build.
-        rmSync(buildDir, { recursive: true, force: true });
-        if (!existsSync(outDir)) throw error;
+    try {
+      await build({
+        configFile: viteConfigPath,
+        root: facetRoot,
+        logLevel: verbose ? 'info' : 'error',
+        build: { ssr: true, outDir: buildDir, emptyOutDir: true },
+      });
+      if (cacheKey) {
+        try {
+          renameSync(buildDir, outDir);
+        } catch (error) {
+          // Another process may have completed the same content-addressed build.
+          try { rmSync(buildDir, { recursive: true, force: true }); } catch { /* best effort */ }
+          if (!existsSync(outDir)) throw error;
+        }
       }
+    } catch (error) {
+      if (cacheKey) {
+        try { rmSync(buildDir, { recursive: true, force: true }); } catch { /* preserve build error */ }
+      }
+      throw error;
     }
   } else {
     const now = new Date();

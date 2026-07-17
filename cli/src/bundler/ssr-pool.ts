@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { selfExecBase } from '../utils/self-exec.js';
 import type { Logger } from '../utils/logger.js';
 
@@ -28,6 +29,7 @@ class SsrLoaderProcess {
   private stderr = '';
   private exited = false;
   private idleTimer?: ReturnType<typeof setTimeout>;
+  private lastUsedAt = Date.now();
 
   constructor(
     readonly facetRoot: string,
@@ -52,7 +54,8 @@ class SsrLoaderProcess {
       this.pending.delete(reply.id);
       if (reply.result) pending.resolve(reply.result);
       else pending.reject(new Error(reply.error ?? 'Persistent SSR loader failed'));
-      this.scheduleIdleShutdown();
+      this.lastUsedAt = Date.now();
+      if (!this.hasPending()) this.scheduleIdleShutdown();
     });
     const fail = (error: Error): void => {
       if (this.exited) return;
@@ -69,14 +72,23 @@ class SsrLoaderProcess {
 
   private scheduleIdleShutdown(): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    const idleMs = Math.max(1_000, parseInt(process.env['FACET_SSR_LOADER_IDLE_MS'] ?? '300000', 10));
+    const idleMs = validEnvInteger('FACET_SSR_LOADER_IDLE_MS', 300_000, 1_000);
     this.idleTimer = setTimeout(() => void this.close(), idleMs);
     this.idleTimer.unref();
+  }
+
+  hasPending(): boolean {
+    return this.pending.size > 0;
+  }
+
+  lastUsed(): number {
+    return this.lastUsedAt;
   }
 
   request(data: Record<string, unknown>, cacheKey: string, verbose = false): Promise<PersistentLoaderResult> {
     if (this.exited) return Promise.reject(new Error('Persistent SSR loader is not running'));
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.lastUsedAt = Date.now();
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
@@ -84,6 +96,7 @@ class SsrLoaderProcess {
         if (!error) return;
         this.pending.delete(id);
         reject(error);
+        if (!this.hasPending()) this.scheduleIdleShutdown();
       });
     });
   }
@@ -107,39 +120,108 @@ class SsrLoaderProcess {
   }
 }
 
-const loaders = new Map<string, SsrLoaderProcess>();
+function validEnvInteger(name: string, fallback: number, minimum: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) return fallback;
+  return Math.max(minimum, parsed);
+}
 
-export function runPersistentSsrLoader(
+export type PersistentSsrLoaderOwner = object;
+
+const loaders = new Map<string, SsrLoaderProcess>();
+const closingLoaders = new Set<SsrLoaderProcess>();
+const loaderOwners = new Map<string, Set<PersistentSsrLoaderOwner>>();
+const unownedLoaders = new Set<string>();
+const ownerContext = new AsyncLocalStorage<PersistentSsrLoaderOwner>();
+
+export function withPersistentSsrLoaderOwner<T>(
+  owner: PersistentSsrLoaderOwner,
+  action: () => Promise<T>,
+): Promise<T> {
+  return ownerContext.run(owner, action);
+}
+
+export async function runPersistentSsrLoader(
   request: PersistentLoaderRequest,
   logger: Logger,
 ): Promise<PersistentLoaderResult> {
   let loader = loaders.get(request.facetRoot);
   if (!loader) {
-    const maxLoaders = Math.max(1, parseInt(process.env['FACET_MAX_SSR_LOADERS'] ?? '4', 10));
-    if (loaders.size >= maxLoaders) {
-      const oldest = loaders.entries().next().value as [string, SsrLoaderProcess] | undefined;
-      if (oldest) {
-        loaders.delete(oldest[0]);
-        void oldest[1].close();
+    const maxLoaders = validEnvInteger('FACET_MAX_SSR_LOADERS', 4, 1);
+    if (loaders.size + closingLoaders.size >= maxLoaders) {
+      const oldest = [...loaders.entries()]
+        .filter(([, candidate]) => !candidate.hasPending())
+        .sort(([, left], [, right]) => left.lastUsed() - right.lastUsed())[0];
+      if (!oldest) {
+        throw new Error(`Persistent SSR loader pool exhausted (${maxLoaders} active loaders)`);
+      }
+      const [evictedRoot, evictedLoader] = oldest;
+      if (loaders.get(evictedRoot) === evictedLoader) {
+        loaders.delete(evictedRoot);
+        loaderOwners.delete(evictedRoot);
+        unownedLoaders.delete(evictedRoot);
+      }
+      closingLoaders.add(evictedLoader);
+      try {
+        await evictedLoader.close();
+      } finally {
+        closingLoaders.delete(evictedLoader);
       }
     }
-    let created!: SsrLoaderProcess;
-    created = new SsrLoaderProcess(request.facetRoot, logger, () => {
-      if (loaders.get(request.facetRoot) === created) loaders.delete(request.facetRoot);
-    });
-    loader = created;
-    loaders.set(request.facetRoot, loader);
-    logger.debug(`Started persistent SSR loader: ${request.facetRoot}`);
+    // Another request may have created this root while eviction was closing.
+    loader = loaders.get(request.facetRoot);
+    if (!loader) {
+      let created!: SsrLoaderProcess;
+      created = new SsrLoaderProcess(request.facetRoot, logger, () => {
+        if (loaders.get(request.facetRoot) === created) {
+          loaders.delete(request.facetRoot);
+          loaderOwners.delete(request.facetRoot);
+          unownedLoaders.delete(request.facetRoot);
+        }
+      });
+      loader = created;
+      loaders.set(request.facetRoot, loader);
+      logger.debug(`Started persistent SSR loader: ${request.facetRoot}`);
+    }
   } else {
     // Refresh insertion order for simple LRU eviction.
     loaders.delete(request.facetRoot);
     loaders.set(request.facetRoot, loader);
   }
+
+  const owner = ownerContext.getStore();
+  if (owner) {
+    const owners = loaderOwners.get(request.facetRoot) ?? new Set<PersistentSsrLoaderOwner>();
+    owners.add(owner);
+    loaderOwners.set(request.facetRoot, owners);
+  } else {
+    unownedLoaders.add(request.facetRoot);
+  }
   return loader.request(request.data, request.cacheKey, request.verbose);
 }
 
-export async function shutdownPersistentSsrLoaders(): Promise<void> {
-  const active = [...loaders.values()];
-  loaders.clear();
-  await Promise.allSettled(active.map((loader) => loader.close()));
+export async function shutdownPersistentSsrLoaders(owner?: PersistentSsrLoaderOwner): Promise<void> {
+  if (!owner) {
+    const active = [...loaders.values()];
+    loaders.clear();
+    loaderOwners.clear();
+    unownedLoaders.clear();
+    await Promise.allSettled(active.map((loader) => loader.close()));
+    return;
+  }
+
+  const closing: SsrLoaderProcess[] = [];
+  for (const [facetRoot, owners] of loaderOwners) {
+    owners.delete(owner);
+    if (owners.size > 0 || unownedLoaders.has(facetRoot)) continue;
+    loaderOwners.delete(facetRoot);
+    const loader = loaders.get(facetRoot);
+    if (loader) {
+      loaders.delete(facetRoot);
+      closing.push(loader);
+    }
+  }
+  await Promise.allSettled(closing.map((loader) => loader.close()));
 }

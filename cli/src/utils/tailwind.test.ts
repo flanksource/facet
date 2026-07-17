@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync } from 'fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync, statSync, utimesSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import {
@@ -7,6 +7,7 @@ import {
   tailwindBinExists,
   runTailwind,
   renderedClassKey,
+  runTailwindCached,
   TailwindBinNotFoundError,
 } from './tailwind.js';
 
@@ -21,6 +22,31 @@ describe('renderedClassKey', () => {
   it('changes when conditional classes change', () => {
     expect(renderedClassKey('<div class="block"/>').key)
       .not.toBe(renderedClassKey('<div class="hidden"/>').key);
+  });
+});
+
+describe('runTailwindCached', () => {
+  it('refreshes a cache hit timestamp', async () => {
+    const facetRoot = mkdtempSync(join(tmpdir(), 'facet-tw-cache-test-'));
+    try {
+      const html = '<div class="font-bold"></div>';
+      const cacheDir = join(facetRoot, 'tailwind-cache');
+      const cachePath = join(cacheDir, `build-${renderedClassKey(html).key}.css`);
+      mkdirSync(cacheDir, { recursive: true });
+      writeFileSync(cachePath, '.font-bold{font-weight:700}');
+      const old = new Date(Date.now() - 60_000);
+      utimesSync(cachePath, old, old);
+
+      await expect(runTailwindCached({
+        facetRoot,
+        stylesInput: join(facetRoot, 'styles.css'),
+        html,
+        buildCacheKey: 'build',
+      })).resolves.toContain('font-weight');
+      expect(statSync(cachePath).mtimeMs).toBeGreaterThan(old.getTime());
+    } finally {
+      rmSync(facetRoot, { recursive: true, force: true });
+    }
   });
 });
 

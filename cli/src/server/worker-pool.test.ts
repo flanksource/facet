@@ -15,4 +15,21 @@ describe('WorkerPool queue policy', () => {
     await expect(pool.acquire()).rejects.toThrow('Too many concurrent requests');
     await expect(first).rejects.toThrow('Timed out waiting for a browser worker');
   });
+
+  it('finishes recycle bookkeeping during shutdown', async () => {
+    const pool = new WorkerPool(0);
+    const internals = pool as unknown as {
+      shuttingDown: boolean;
+      recycle: (worker: unknown) => Promise<void>;
+    };
+    internals.shuttingDown = true;
+    await internals.recycle({
+      browser: { close: async () => undefined },
+      renders: 0,
+      startedAt: Date.now(),
+      lastRssMb: 0,
+      lastRssAt: 0,
+    });
+    expect(pool.stats().recycling).toBe(0);
+  });
 });

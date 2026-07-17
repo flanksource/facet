@@ -19,13 +19,16 @@ export async function waitForPageReady(
 
   await page.evaluate(
     async ({ timeout, facet }) => {
+      const deadline = performance.now() + timeout;
       const withTimeout = async (promise: Promise<unknown>): Promise<void> => {
+        const remaining = Math.max(0, deadline - performance.now());
+        if (remaining === 0) return;
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
           await Promise.race([
             promise,
             new Promise<void>((resolve) => {
-              timer = setTimeout(resolve, timeout);
+              timer = setTimeout(resolve, remaining);
             }),
           ]);
         } finally {

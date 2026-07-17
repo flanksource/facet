@@ -6,7 +6,7 @@ import { loadConfig, type ServerCLIFlags, type ServerConfig } from './config.js'
 import { checkAuth } from './auth.js';
 import { errorResponse } from './errors.js';
 import { WorkerPool } from './worker-pool.js';
-import { shutdownPersistentSsrLoaders } from '../bundler/ssr-pool.js';
+import { shutdownPersistentSsrLoaders, withPersistentSsrLoaderOwner } from '../bundler/ssr-pool.js';
 import { discoverTemplates, type TemplateInfo } from './templates.js';
 import { S3Uploader } from './s3.js';
 import { handleHealthz, handleTemplates, handleRender, handleRenderStream, handleResultsRoute } from './routes.js';
@@ -35,6 +35,7 @@ export interface ServerHandle {
 
 export async function createServer(config: ServerConfig): Promise<ServerHandle> {
   const logger = new Logger(config.verbose);
+  const ssrLoaderOwner = {};
 
   const templatesDir = resolve(process.cwd(), config.templatesDir);
   logger.info(`Templates directory: ${templatesDir}`);
@@ -124,7 +125,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   const httpServer = createHttpServer((req, res) => {
     Promise.resolve()
       .then(() => nodeToWebRequest(req))
-      .then((request) => handleRequest(request))
+      .then((request) => withPersistentSsrLoaderOwner(ssrLoaderOwner, () => handleRequest(request)))
       .then((response) => writeWebResponse(res, response))
       .catch((err) => {
         logger.error(`Request handler error: ${err instanceof Error ? err.message : String(err)}`);
@@ -153,7 +154,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
       await new Promise<void>((resolveClose) => httpServer.close(() => resolveClose()));
       await Promise.all([
         pool.shutdown(),
-        shutdownPersistentSsrLoaders(),
+        shutdownPersistentSsrLoaders(ssrLoaderOwner),
       ]);
     },
   };

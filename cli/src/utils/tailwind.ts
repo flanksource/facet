@@ -9,7 +9,7 @@
 import { $ } from './shell.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'fs';
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'path';
 
 export class TailwindBinNotFoundError extends Error {
@@ -77,14 +77,21 @@ const tailwindLocks = new Map<string, Promise<string>>();
 
 async function pruneTailwindCache(cacheDir: string): Promise<void> {
   const maxEntries = Math.max(1, parseInt(process.env['FACET_TAILWIND_CACHE_ENTRIES'] ?? '50', 10));
-  const names = (await readdir(cacheDir)).filter((name) => name.endsWith('.css'));
-  if (names.length <= maxEntries) return;
-  const entries = await Promise.all(names.map(async (name) => {
-    const path = join(cacheDir, name);
-    return { path, mtimeMs: (await stat(path)).mtimeMs };
-  }));
+  let entries: Array<{ path: string; mtimeMs: number }>;
+  try {
+    const names = (await readdir(cacheDir)).filter((name) => name.endsWith('.css'));
+    if (names.length <= maxEntries) return;
+    entries = await Promise.all(names.map(async (name) => {
+      const path = join(cacheDir, name);
+      return { path, mtimeMs: (await stat(path)).mtimeMs };
+    }));
+  } catch {
+    return;
+  }
   entries.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  await Promise.all(entries.slice(maxEntries).map((entry) => rm(entry.path, { force: true })));
+  await Promise.all(entries.slice(maxEntries).map((entry) =>
+    rm(entry.path, { force: true }).catch(() => undefined),
+  ));
 }
 
 /** Extract the data-dependent class set without including unrelated text. */
@@ -112,9 +119,15 @@ export async function runTailwindCached(opts: CachedTailwindOptions): Promise<st
   if (existing) return existing;
 
   const operation = (async () => {
+    let cachedCss: string | undefined;
     try {
-      return await readFile(cachePath, 'utf-8');
+      cachedCss = await readFile(cachePath, 'utf-8');
     } catch { /* cache miss */ }
+    if (cachedCss !== undefined) {
+      const now = new Date();
+      try { await utimes(cachePath, now, now); } catch { /* cache may be concurrently pruned */ }
+      return cachedCss;
+    }
 
     await mkdir(cacheDir, { recursive: true });
     const nonce = `${process.pid}-${randomUUID()}`;
