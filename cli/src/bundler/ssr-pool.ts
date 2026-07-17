@@ -131,6 +131,7 @@ function validEnvInteger(name: string, fallback: number, minimum: number): numbe
 export type PersistentSsrLoaderOwner = object;
 
 const loaders = new Map<string, SsrLoaderProcess>();
+const closingLoaders = new Set<SsrLoaderProcess>();
 const loaderOwners = new Map<string, Set<PersistentSsrLoaderOwner>>();
 const unownedLoaders = new Set<string>();
 const ownerContext = new AsyncLocalStorage<PersistentSsrLoaderOwner>();
@@ -142,34 +143,48 @@ export function withPersistentSsrLoaderOwner<T>(
   return ownerContext.run(owner, action);
 }
 
-export function runPersistentSsrLoader(
+export async function runPersistentSsrLoader(
   request: PersistentLoaderRequest,
   logger: Logger,
 ): Promise<PersistentLoaderResult> {
   let loader = loaders.get(request.facetRoot);
   if (!loader) {
     const maxLoaders = validEnvInteger('FACET_MAX_SSR_LOADERS', 4, 1);
-    if (loaders.size >= maxLoaders) {
+    if (loaders.size + closingLoaders.size >= maxLoaders) {
       const oldest = [...loaders.entries()]
         .filter(([, candidate]) => !candidate.hasPending())
         .sort(([, left], [, right]) => left.lastUsed() - right.lastUsed())[0];
       if (!oldest) {
-        return Promise.reject(new Error(`Persistent SSR loader pool exhausted (${maxLoaders} active loaders)`));
+        throw new Error(`Persistent SSR loader pool exhausted (${maxLoaders} active loaders)`);
       }
-      loaders.delete(oldest[0]);
-      loaderOwners.delete(oldest[0]);
-      unownedLoaders.delete(oldest[0]);
-      void oldest[1].close();
+      const [evictedRoot, evictedLoader] = oldest;
+      if (loaders.get(evictedRoot) === evictedLoader) {
+        loaders.delete(evictedRoot);
+        loaderOwners.delete(evictedRoot);
+        unownedLoaders.delete(evictedRoot);
+      }
+      closingLoaders.add(evictedLoader);
+      try {
+        await evictedLoader.close();
+      } finally {
+        closingLoaders.delete(evictedLoader);
+      }
     }
-    let created!: SsrLoaderProcess;
-    created = new SsrLoaderProcess(request.facetRoot, logger, () => {
-      if (loaders.get(request.facetRoot) === created) loaders.delete(request.facetRoot);
-      loaderOwners.delete(request.facetRoot);
-      unownedLoaders.delete(request.facetRoot);
-    });
-    loader = created;
-    loaders.set(request.facetRoot, loader);
-    logger.debug(`Started persistent SSR loader: ${request.facetRoot}`);
+    // Another request may have created this root while eviction was closing.
+    loader = loaders.get(request.facetRoot);
+    if (!loader) {
+      let created!: SsrLoaderProcess;
+      created = new SsrLoaderProcess(request.facetRoot, logger, () => {
+        if (loaders.get(request.facetRoot) === created) {
+          loaders.delete(request.facetRoot);
+          loaderOwners.delete(request.facetRoot);
+          unownedLoaders.delete(request.facetRoot);
+        }
+      });
+      loader = created;
+      loaders.set(request.facetRoot, loader);
+      logger.debug(`Started persistent SSR loader: ${request.facetRoot}`);
+    }
   } else {
     // Refresh insertion order for simple LRU eviction.
     loaders.delete(request.facetRoot);

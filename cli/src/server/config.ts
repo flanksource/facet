@@ -51,16 +51,22 @@ export interface ServerCLIFlags {
   sandbox?: string | boolean;
 }
 
+function workerLimit(value: string | number | undefined, fallback: number, minimum: number): number {
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= minimum ? parsed : fallback;
+}
+
 export function loadConfig(flags: ServerCLIFlags): ServerConfig {
   const config: ServerConfig = {
     port: parseInt(flags.port ?? process.env['FACET_PORT'] ?? '3010', 10),
     templatesDir: flags.templatesDir ?? process.env['FACET_TEMPLATES_DIR'] ?? '.',
     workers: parseInt(flags.workers ?? process.env['FACET_WORKERS'] ?? '2', 10),
-    maxRendersPerWorker: Number(flags.maxRendersPerWorker ?? process.env['FACET_MAX_RENDERS_PER_WORKER'] ?? 50),
-    maxQueueDepth: Number(flags.maxQueueDepth ?? process.env['FACET_MAX_QUEUE_DEPTH'] ?? 20),
-    maxWorkerAgeMs: Number(flags.maxWorkerAge ?? process.env['FACET_MAX_WORKER_AGE_MS'] ?? 1_800_000),
-    maxWorkerRssMb: Number(flags.maxWorkerRss ?? process.env['FACET_MAX_WORKER_RSS_MB'] ?? 0),
-    workerAcquireTimeoutMs: Number(flags.workerAcquireTimeout ?? process.env['FACET_WORKER_ACQUIRE_TIMEOUT_MS'] ?? 30_000),
+    maxRendersPerWorker: workerLimit(flags.maxRendersPerWorker ?? process.env['FACET_MAX_RENDERS_PER_WORKER'], 50, 1),
+    maxQueueDepth: workerLimit(flags.maxQueueDepth ?? process.env['FACET_MAX_QUEUE_DEPTH'], 20, 1),
+    maxWorkerAgeMs: workerLimit(flags.maxWorkerAge ?? process.env['FACET_MAX_WORKER_AGE_MS'], 1_800_000, 1),
+    maxWorkerRssMb: workerLimit(flags.maxWorkerRss ?? process.env['FACET_MAX_WORKER_RSS_MB'], 0, 0),
+    workerAcquireTimeoutMs: workerLimit(flags.workerAcquireTimeout ?? process.env['FACET_WORKER_ACQUIRE_TIMEOUT_MS'], 30_000, 1),
     persistentSsr: flags.persistentSsr ?? process.env['FACET_PERSISTENT_SSR'] !== 'false',
     renderTimeout: parseInt(flags.timeout ?? process.env['FACET_RENDER_TIMEOUT'] ?? '60000', 10),
     apiKey: flags.apiKey ?? process.env['FACET_API_KEY'],

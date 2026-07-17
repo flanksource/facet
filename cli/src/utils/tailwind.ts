@@ -125,7 +125,7 @@ export async function runTailwindCached(opts: CachedTailwindOptions): Promise<st
     } catch { /* cache miss */ }
     if (cachedCss !== undefined) {
       const now = new Date();
-      await utimes(cachePath, now, now);
+      try { await utimes(cachePath, now, now); } catch { /* cache may be concurrently pruned */ }
       return cachedCss;
     }
 

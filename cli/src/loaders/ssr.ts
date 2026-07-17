@@ -123,12 +123,14 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
           renameSync(buildDir, outDir);
         } catch (error) {
           // Another process may have completed the same content-addressed build.
-          rmSync(buildDir, { recursive: true, force: true });
+          try { rmSync(buildDir, { recursive: true, force: true }); } catch { /* best effort */ }
           if (!existsSync(outDir)) throw error;
         }
       }
     } catch (error) {
-      if (cacheKey) rmSync(buildDir, { recursive: true, force: true });
+      if (cacheKey) {
+        try { rmSync(buildDir, { recursive: true, force: true }); } catch { /* preserve build error */ }
+      }
       throw error;
     }
   } else {

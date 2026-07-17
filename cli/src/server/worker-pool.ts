@@ -164,6 +164,12 @@ export class WorkerPool {
           browser, renders: 0, startedAt: Date.now(), lastRssMb: 0, lastRssAt: 0,
         };
 
+        if (this.shuttingDown) {
+          try { await browser.close(); } catch { /* shutdown is best effort */ }
+          this.total = Math.max(0, this.total - 1);
+          return;
+        }
+
         if (this.waiting.length > 0) {
           this.waiting.shift()!.resolve(fresh);
         } else {

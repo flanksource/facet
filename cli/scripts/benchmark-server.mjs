@@ -35,6 +35,7 @@ const sampler = setInterval(() => {
   peakRss = Math.max(peakRss, rss);
   requestPeakRss = Math.max(requestPeakRss, rss);
 }, 25);
+sampler.unref();
 
 async function waitForServer() {
   const deadline = Date.now() + 30_000;
