@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readdir, rm, stat, writeFile } from 'fs/promises';
 import { createHash } from 'node:crypto';
 import { join, basename, resolve } from 'path';
 import { tmpdir } from 'os';
-import { createReadStream, rmSync, lstatSync, readFileSync } from 'fs';
+import { createReadStream, rmSync, lstatSync } from 'fs';
 import { Readable } from 'node:stream';
 
 import type { ServerConfig } from './config.js';
@@ -23,6 +23,7 @@ import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { generatePDFBuffer } from '../utils/pdf-generator.js';
 import { applyPDFSecurity } from '../utils/pdf-security.js';
 import { Logger } from '../utils/logger.js';
+import { isLiveTemplate } from '../utils/live-template.js';
 import { runTailwindCached } from '../utils/tailwind.js';
 import { RenderProgress } from './render-stream.js';
 import { computeCacheKey, RenderCache } from './render-cache.js';
@@ -402,12 +403,6 @@ function cleanupTempDir(tempDir: string): void {
     }
   } catch {}
   rmSync(tempDir, { recursive: true, force: true });
-}
-
-function isLiveTemplate(templatePath: string): boolean {
-  const source = readFileSync(templatePath, 'utf-8').slice(0, 4096);
-  const firstLine = source.split(/\r?\n/).find((line) => line.trim() !== '');
-  return /^\s*\/\/\s*@live\b/.test(firstLine ?? '');
 }
 
 async function renderHTML(
