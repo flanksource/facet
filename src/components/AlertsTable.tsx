@@ -8,6 +8,7 @@ interface AlertsTableProps {
 interface GroupedAlert {
   severity: string;
   title: string;
+  url?: string;
   location?: string;
   references?: Array<{ label: string; url: string }>;
   count: number;
@@ -56,6 +57,7 @@ export default function AlertsTable({ alerts, className = '' }: AlertsTableProps
       groupedAlerts.push({
         severity: alert.severity,
         title: alert.title,
+        url: alert.url,
         location: alert.location,
         references: alert.references,
         count: 1
@@ -70,9 +72,13 @@ export default function AlertsTable({ alerts, className = '' }: AlertsTableProps
       return severityOrder[alert.severity] < severityOrder[highest.severity] ? alert : highest;
     }).severity;
 
+    // The first alert is the representative for the group: its title, link
+    // and references are shown for the collapsed row.
     groupedAlerts.push({
       severity: highestSeverity,
       title: alerts[0].title,
+      url: alerts[0].url,
+      references: alerts[0].references,
       location,
       count: alerts.length
     });
@@ -93,7 +99,18 @@ export default function AlertsTable({ alerts, className = '' }: AlertsTableProps
             {alert.severity}
           </span>
           <span className="text-gray-700 truncate flex-1 min-w-0">
-            {alert.title}
+            {alert.url ? (
+              <a
+                href={alert.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-700 underline hover:text-blue-600"
+              >
+                {alert.title}
+              </a>
+            ) : (
+              alert.title
+            )}
           </span>
           {alert.location && (
             <code className="text-gray-500 truncate-prefix flex-shrink-0 max-w-[50%] text-[10px] bg-gray-100 px-1 rounded">
