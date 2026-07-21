@@ -12,6 +12,7 @@ import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { scopeHTML } from '../utils/css-scoper.js';
 import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
 import { runTailwindCached } from '../utils/tailwind.js';
+import { shouldUseLiveRendering } from '../utils/live-template.js';
 
 function findProjectRoot(templatePath: string): string | undefined {
   const absTemplate = resolve(templatePath);
@@ -86,7 +87,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
 
   // Live render path: boot a Vite dev server, render in a real browser, snapshot
   // the settled DOM. Required for DOM-measuring components (diagrams).
-  if (options.live) {
+  if (shouldUseLiveRendering(options.live, resolve(consumerRoot ?? process.cwd(), templatePath))) {
     logger.info('Live rendering template in browser...');
     const server = await startViteServer({ templatePath, data, consumerRoot, logger });
     try {

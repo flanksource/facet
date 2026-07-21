@@ -613,10 +613,16 @@ import { resolve } from 'path';${imports}
 
 export default defineConfig({
   plugins: [
-    mdx({
-      remarkPlugins: ${remarkArray},${rehypeLine}
-      include: ['**/*.md', '**/*.mdx'],
-    }),
+    // enforce: 'pre' — in dev mode plugin-react's transform runs before
+    // array-ordered plugins, so MDX must be hoisted to the pre stage or
+    // react-babel parses raw .mdx and fails. Build mode respects array order.
+    {
+      enforce: 'pre',
+      ...mdx({
+        remarkPlugins: ${remarkArray},${rehypeLine}
+        include: ['**/*.md', '**/*.mdx'],
+      }),
+    },
     react({
       include: /\\.(md|mdx|js|jsx|ts|tsx)$/,
     }),
