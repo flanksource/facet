@@ -69,3 +69,36 @@ export const Mixed: Story = {
     ],
   },
 };
+
+export const LinkedAlerts: Story = {
+  args: {
+    alerts: [
+      {
+        type: 'dependabot',
+        severity: 'critical',
+        title: 'Vulnerable package: minimist@1.2.0',
+        url: 'https://github.com/flanksource/mission-control/security/dependabot/1',
+      },
+      {
+        type: 'code-scanning',
+        severity: 'high',
+        title: 'Bad redirect check',
+        url: 'https://github.com/flanksource/mission-control/security/code-scanning/124',
+        location: 'go/bad-redirect-check',
+      },
+      {
+        type: 'code-scanning',
+        severity: 'high',
+        title: 'Bad redirect check',
+        url: 'https://github.com/flanksource/mission-control/security/code-scanning/125',
+        location: 'go/bad-redirect-check',
+      },
+      {
+        type: 'secret-scanning',
+        severity: 'high',
+        title: 'Exposed GitHub token',
+        url: 'https://github.com/flanksource/mission-control/security/secret-scanning/3',
+      },
+    ],
+  },
+};
