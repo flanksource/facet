@@ -53,7 +53,7 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/flanksource/clicky v1.21.11 // indirect
 	github.com/flanksource/commons v1.52.0 // indirect
-	github.com/flanksource/gomplate/v3 v3.24.81 // indirect
+	github.com/flanksource/gomplate/v3 v3.24.84 // indirect
 	github.com/flanksource/is-healthy v1.0.88 // indirect
 	github.com/flanksource/kubectl-neat v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
