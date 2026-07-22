@@ -16,9 +16,9 @@ import semver from 'semver';
 import { Logger } from '../utils/logger.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
 import { resolveChromePath } from '../utils/pdf-generator.js';
-import { resolveTailwindBin, tailwindBinExists } from '../utils/tailwind.js';
 import { VERSION } from '../version-generated.js';
 import { assetPath } from '../utils/assets.js';
+import { ensureGlobalModuleStore, inspectGlobalModuleStore } from '../bundler/module-store.js';
 
 type CheckStatus = 'pass' | 'warn' | 'fail';
 
@@ -35,6 +35,7 @@ interface DoctorOptions {
   verbose: boolean;
   json: boolean;
   fix?: boolean;
+  skipModules?: boolean;
 }
 
 const CRITICAL_NATIVE_PACKAGES = [
@@ -125,8 +126,13 @@ export async function preflight(
 export async function runDoctor(options: DoctorOptions): Promise<number> {
   const logger = new Logger(options.verbose);
   let results = await runAllChecks(options.consumerRoot);
+  results.push(checkGlobalModuleStore(options.skipModules));
 
   if (options.fix) {
+    const globalIndex = results.findIndex(result => result.id === 'global-modules');
+    if (options.skipModules && globalIndex >= 0 && results[globalIndex].status === 'fail') {
+      results[globalIndex] = await fixGlobalModuleStore(logger, options.skipModules);
+    }
     results = await applyFixes(results, options.consumerRoot, logger);
   }
 
@@ -137,6 +143,44 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
   }
 
   return results.some(r => r.status === 'fail') ? 1 : 0;
+}
+
+function embeddedFacetPackage(): Record<string, unknown> {
+  return JSON.parse(readFileSync(assetPath('package.json'), 'utf-8'));
+}
+
+function checkGlobalModuleStore(skipModules = false): CheckResult {
+  try {
+    const store = inspectGlobalModuleStore({ facetVersion: VERSION, facetPackage: embeddedFacetPackage() });
+    return {
+      id: 'global-modules',
+      name: 'Shared Facet modules',
+      status: 'pass',
+      message: `${store.root}${skipModules ? ' (active)' : ''}`,
+    };
+  } catch (error) {
+    return {
+      id: 'global-modules',
+      name: 'Shared Facet modules',
+      status: skipModules ? 'fail' : 'warn',
+      message: error instanceof Error ? error.message : String(error),
+      hint: 'Run `facet doctor --skip-modules --fix` to install the immutable module entry for this Facet and Node version.',
+    };
+  }
+}
+
+async function fixGlobalModuleStore(logger: Logger, skipModules = false): Promise<CheckResult> {
+  try {
+    await ensureGlobalModuleStore({ facetVersion: VERSION, facetPackage: embeddedFacetPackage(), logger });
+    return checkGlobalModuleStore(skipModules);
+  } catch (error) {
+    return {
+      id: 'global-modules',
+      name: 'Shared Facet modules',
+      status: 'fail',
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 async function applyFixes(results: CheckResult[], consumerRoot: string, logger: Logger): Promise<CheckResult[]> {
@@ -201,6 +245,8 @@ async function tryFix(id: string, consumerRoot: string, logger: Logger): Promise
       }
       return await runCheckById('npmrc-leakage', consumerRoot);
     }
+    case 'global-modules':
+      return undefined;
     default:
       // node-version, architecture, facet-package-path, facet-version: not auto-fixable.
       logger.warn(`[fix] ${id}: manual fix required`);
@@ -581,15 +627,28 @@ async function checkTsx(): Promise<CheckResult> {
 
 function checkTailwindBin(consumerRoot: string): CheckResult {
   const facetRoot = join(consumerRoot, '.facet');
-  const bin = resolveTailwindBin(facetRoot);
-  if (tailwindBinExists(facetRoot)) {
-    return { id: 'tailwindcss', name: 'tailwindcss (.facet bin)', status: 'pass', message: bin };
+  const packagePath = join(facetRoot, 'node_modules', 'tailwindcss', 'package.json');
+  if (!existsSync(packagePath)) {
+    return {
+      id: 'tailwindcss',
+      name: 'tailwindcss (.facet package)',
+      status: 'warn',
+      message: `not present at ${packagePath}`,
+      hint: 'Run a render to populate `.facet/node_modules/`, or `cd .facet && pnpm install`.',
+    };
+  }
+  const version = JSON.parse(readFileSync(packagePath, 'utf-8')).version as string;
+  const major = Number(version.split('.')[0]);
+  if (major === 3) return { id: 'tailwindcss', name: 'tailwindcss', status: 'pass', message: version };
+  const vitePlugin = join(facetRoot, 'node_modules', '@tailwindcss', 'vite', 'package.json');
+  if (major === 4 && existsSync(vitePlugin)) {
+    return { id: 'tailwindcss', name: 'tailwindcss + @tailwindcss/vite', status: 'pass', message: version };
   }
   return {
     id: 'tailwindcss',
-    name: 'tailwindcss (.facet bin)',
-    status: 'warn',
-    message: `not present at ${bin}`,
-    hint: 'Run a render to populate `.facet/node_modules/`, or `cd .facet && pnpm install`.',
+    name: 'tailwindcss',
+    status: 'fail',
+    message: major === 4 ? `v${version} without @tailwindcss/vite` : `unsupported v${version}`,
+    hint: major === 4 ? 'Install @tailwindcss/vite at the same version as tailwindcss.' : 'Use Tailwind CSS v3 or v4.',
   };
 }
