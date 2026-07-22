@@ -29,6 +29,6 @@ facet:
   verbose: false
 
 sandbox:
-  enabled: true
+  enabled: false
   settingsPath: /etc/facet/srt-settings.json
   extraAllowedDomains: []
