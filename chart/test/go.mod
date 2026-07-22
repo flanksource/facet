@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/flanksource/commons-db v0.1.11
-	github.com/flanksource/commons-test v0.1.14
+	github.com/flanksource/commons-test v0.1.15
 	github.com/onsi/ginkgo/v2 v2.28.0
 	github.com/onsi/gomega v1.39.1
 )
