@@ -43,6 +43,7 @@ describe('runDoctor JSON contract', () => {
       'facet-package-path',
       'facet-version',
       'npmrc-leakage',
+      'global-modules',
     ];
     expect(ids).toEqual(expected);
 
