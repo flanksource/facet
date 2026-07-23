@@ -607,7 +607,7 @@ async function checkTar(): Promise<CheckResult> {
     name: 'tar',
     status: 'warn',
     message: 'not on PATH',
-    hint: 'Required only for server-mode `.tar.gz` uploads (`facet serve`).',
+    hint: 'Required for remote rendering and server-mode `.tar.gz` uploads.',
   };
 }
 

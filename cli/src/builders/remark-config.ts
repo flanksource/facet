@@ -91,5 +91,18 @@ export function generatePluginCodegen(config: RemarkConfig, projectRoot: string)
 
 /** The mdx() `remarkPlugins` array source: always-on defaults plus user items. */
 export function remarkPluginsArray(userItems: string[]): string {
-  return `[remarkFrontmatter, remarkGfm${userItems.length ? ', ' + userItems.join(', ') : ''}]`;
+  return `[remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }]${userItems.length ? ', ' + userItems.join(', ') : ''}]`;
+}
+
+/** The mdx() `rehypePlugins` array source: always-on defaults plus user items. */
+export function rehypePluginsArray(userItems: string[]): string {
+  const mdxNodeTypes = [
+    'mdxFlowExpression',
+    'mdxJsxFlowElement',
+    'mdxJsxTextElement',
+    'mdxTextExpression',
+    'mdxjsEsm',
+  ];
+  const passThrough = mdxNodeTypes.map((type) => `'${type}'`).join(', ');
+  return `[[rehypeRaw, { passThrough: [${passThrough}] }]${userItems.length ? ', ' + userItems.join(', ') : ''}]`;
 }

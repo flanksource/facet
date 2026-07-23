@@ -16,7 +16,8 @@ interface LoaderArgs {
   facetRoot: string;
   data: Record<string, unknown>;
   outputFile: string;
-  verbose: boolean;
+  /** 0 quiet (Vite warn), 1 Vite info, 2 + vite:* debug, 3 + profile. */
+  verbosity: number;
   cacheKey?: string;
 }
 
@@ -31,7 +32,7 @@ function parseArgs(): LoaderArgs {
   let facetRoot = '';
   let data: Record<string, unknown> = {};
   let outputFile = '';
-  let verbose = false;
+  let verbosity = 0;
   let cacheKey: string | undefined;
 
   for (const arg of args) {
@@ -56,7 +57,10 @@ function parseArgs(): LoaderArgs {
     } else if (arg.startsWith('--output-file=')) {
       outputFile = arg.substring('--output-file='.length);
     } else if (arg === '--verbose') {
-      verbose = true;
+      verbosity = Math.max(verbosity, 1);
+    } else if (arg.startsWith('--verbosity=')) {
+      const parsed = Number(arg.substring('--verbosity='.length));
+      if (Number.isInteger(parsed) && parsed >= 0) verbosity = parsed;
     } else if (arg.startsWith('--cache-key=')) {
       cacheKey = arg.substring('--cache-key='.length);
     }
@@ -67,7 +71,7 @@ function parseArgs(): LoaderArgs {
     process.exit(1);
   }
 
-  return { facetRoot, data, outputFile, verbose, cacheKey };
+  return { facetRoot, data, outputFile, verbosity, cacheKey };
 }
 
 function extractCSS(distDir: string): string {
@@ -85,18 +89,26 @@ function extractCSS(distDir: string): string {
 }
 
 async function load(args: LoaderArgs): Promise<LoaderResult> {
-  const { facetRoot, data, verbose, cacheKey } = args;
+  const { facetRoot, data, verbosity, cacheKey } = args;
+  const profileEnabled = process.env.FACET_PROFILE === '1' || verbosity >= 3;
+  const startedAt = performance.now();
+  const stages: Record<string, number> = {};
+  const stageMark = (stage: string, since: number): number => {
+    const now = performance.now();
+    stages[stage] = Number((now - since).toFixed(1));
+    return now;
+  };
 
-  // Resolve Vite + React from .facet/node_modules, not the CLI's own deps. ESM
+  // Resolve React from .facet/node_modules, not the CLI's own deps. ESM
   // import() resolves via file URLs, so resolve explicitly relative to .facet — using
   // the CLI's Vite/React would produce a bundle incompatible with .facet's React.
+  // react-dom resolves to a CJS build; under Node the API lands on `.default`
+  // (Bun hoists the named exports), so fall back to it. Vite itself is imported
+  // lazily below — a bundle-cache hit never needs it.
   const facetRequire = createRequire(join(facetRoot, 'package.json'));
-  // Vite/react-dom resolve to CJS builds; under Node the API lands on `.default`
-  // (Bun hoists the named exports), so fall back to it.
-  const viteMod = await import(pathToFileURL(facetRequire.resolve('vite')).href);
-  const build = (viteMod.build ?? viteMod.default?.build) as typeof import('vite').build;
   const rdsMod = await import(pathToFileURL(facetRequire.resolve('react-dom/server')).href);
   const renderToString = rdsMod.renderToString ?? rdsMod.default?.renderToString;
+  let stageStart = stageMark('import-react', startedAt);
 
   const viteConfigPath = join(facetRoot, 'vite.config.ts');
   const cacheRoot = join(facetRoot, 'build-cache');
@@ -109,13 +121,20 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
 
   const cachedBundle = cacheKey && existsSync(outDir) && readdirSync(outDir).some((file) => file.endsWith('.cjs'));
   if (!cachedBundle) {
+    console.error(`[facet] SSR bundle cache miss for key ${cacheKey ?? '<uncached>'}; running vite build`);
+    // The debug package snapshots DEBUG at import time, so -vv must set it
+    // before Vite (and its plugins) are loaded.
+    if (verbosity >= 2 && !process.env.DEBUG) process.env.DEBUG = 'vite:*';
+    const viteMod = await import(pathToFileURL(facetRequire.resolve('vite')).href);
+    const build = (viteMod.build ?? viteMod.default?.build) as typeof import('vite').build;
+    stageStart = stageMark('import-vite', stageStart);
     const buildDir = cacheKey ? `${outDir}.tmp-${crypto.randomUUID()}` : outDir;
     if (cacheKey) mkdirSync(cacheRoot, { recursive: true });
     try {
       await build({
         configFile: viteConfigPath,
         root: facetRoot,
-        logLevel: verbose ? 'info' : 'error',
+        logLevel: verbosity >= 1 ? 'info' : 'warn',
         build: { ssr: true, outDir: buildDir, emptyOutDir: true },
       });
       if (cacheKey) {
@@ -133,6 +152,7 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
       }
       throw error;
     }
+    stageStart = stageMark('vite-build', stageStart);
   } else {
     const now = new Date();
     try { utimesSync(outDir, now, now); } catch { /* best effort */ }
@@ -155,11 +175,23 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
       throw new Error('Template must export a React component function');
     }
 
+    stageStart = stageMark('require-bundle', stageStart);
     const html = renderToString(Component({ data }));
     const css = extractCSS(outDir);
+    stageMark('react-render', stageStart);
 
     if (!keepOnSuccess) {
       try { rmSync(outDir, { recursive: true, force: true }); } catch { /* best effort */ }
+    }
+    if (profileEnabled) {
+      console.error(`[FACET_PROFILE] ${JSON.stringify({
+        operation: 'ssr-loader',
+        pid: process.pid,
+        cacheKey: cacheKey ?? null,
+        bundleCache: cachedBundle ? 'hit' : 'miss',
+        totalDurationMs: Number((performance.now() - startedAt).toFixed(1)),
+        stages,
+      })}`);
     }
     return { html, css };
   } catch (err) {
@@ -198,9 +230,11 @@ function formatBuildError(error: unknown): string {
 
 interface DaemonRequest {
   id: number;
-  data: Record<string, unknown>;
-  cacheKey: string;
-  verbose?: boolean;
+  kind?: 'render' | 'css';
+  data?: Record<string, unknown>;
+  cacheKey?: string;
+  content?: string;
+  verbosity?: number;
 }
 
 /** Persistent newline-delimited JSON loader used by server workspaces. */
@@ -211,11 +245,21 @@ export async function runSsrDaemon(): Promise<void> {
     let request: DaemonRequest | undefined;
     try {
       request = JSON.parse(line) as DaemonRequest;
+      if (request.kind === 'css') {
+        // The generated postcss.config.js reads FACET_POST_PROCESS at first
+        // import and is module-cached, so in-daemon CSS builds see the render
+        // config. Safe: with Tailwind v3 the config choice only changes inert
+        // content globs (facet.css ships pre-expanded), and v4 ignores the env.
+        const { buildPostProcessCss } = await import('./css.js');
+        const css = await buildPostProcessCss(base.facetRoot, { content: request.content });
+        process.stdout.write(`${JSON.stringify({ id: request.id, result: { html: '', css } })}\n`);
+        continue;
+      }
       const result = await load({
         ...base,
-        data: request.data,
+        data: request.data ?? {},
         cacheKey: request.cacheKey,
-        verbose: request.verbose ?? false,
+        verbosity: request.verbosity ?? 0,
       });
       process.stdout.write(`${JSON.stringify({ id: request.id, result })}\n`);
     } catch (error) {
