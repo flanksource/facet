@@ -18,6 +18,11 @@ afterEach(() => {
 });
 
 describe('loadConfig worker limits', () => {
+  it('propagates the global skip-modules flag without an environment fallback', () => {
+    expect(loadConfig({ skipModules: true }).skipModules).toBe(true);
+    expect(loadConfig({}).skipModules).toBe(false);
+  });
+
   it('falls back to defaults for invalid environment values', () => {
     process.env.FACET_MAX_RENDERS_PER_WORKER = 'NaN';
     process.env.FACET_MAX_QUEUE_DEPTH = '0';

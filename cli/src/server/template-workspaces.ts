@@ -14,7 +14,7 @@ const creationLocks = new Map<string, Promise<void>>();
 const references = new Map<string, number>();
 
 function workspaceKey(sourceDir: string, entryFile: string): string {
-  const sourceKey = computeTemplateBuildKey(sourceDir, VERSION);
+  const sourceKey = computeTemplateBuildKey({ consumerRoot: sourceDir, facetVersion: VERSION });
   return createHash('sha256')
     .update(sourceKey).update('\0').update(entryFile)
     .digest('hex').slice(0, 24);
