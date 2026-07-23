@@ -8,16 +8,23 @@
 
 # Node artifacts
 node_modules
+**/node_modules
 npm-debug.log
 yarn-error.log
 
 # Build artifacts
 dist
+**/dist
+**/dist-*
+**/npm-dist
 build
 *.tgz
 cli/src/server/playground-form-generated.ts
 cli/src/server/samples/generated.ts
 .facet
+**/.facet
+.gavel
+**/.gavel
 .task
 *-cache/
 compiled*
@@ -57,6 +64,8 @@ data/
 out.*
 
 # Temporary files
+.tmp
+**/.tmp
 tmp
 temp
 *.tmp

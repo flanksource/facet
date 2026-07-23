@@ -16,11 +16,13 @@ describe('buildPackage', () => {
     const repoRoot = join(root, 'repo');
     const templateDir = join(root, 'tmpl');
     const outDir = join(root, 'out');
-    mkdirSync(join(repoRoot, 'src'), { recursive: true });
+    mkdirSync(join(repoRoot, 'dist'), { recursive: true });
+    mkdirSync(join(repoRoot, 'node_modules', 'mermaid', 'dist'), { recursive: true });
     mkdirSync(templateDir, { recursive: true });
     writeFileSync(join(repoRoot, 'package.json'), JSON.stringify({ name: '@flanksource/facet', version: '1.0.0' }));
-    writeFileSync(join(repoRoot, 'src', 'styles.css'), '.x{}');
+    writeFileSync(join(repoRoot, 'dist', 'styles.css'), '.compiled{}');
     writeFileSync(join(repoRoot, 'openapi.yaml'), 'openapi: 3.0.0');
+    writeFileSync(join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'), 'window.mermaid={}');
     const bundlePath = join(root, 'cli.cjs');
     writeFileSync(bundlePath, '#!/usr/bin/env node\nconsole.log(1)');
     writeFileSync(join(templateDir, 'package.json'), JSON.stringify({ name: '@flanksource/facet-cli', version: '0.0.0', bin: { facet: 'facet.cjs' } }));
@@ -30,7 +32,9 @@ describe('buildPackage', () => {
 
     expect(existsSync(join(outDir, 'facet.cjs'))).toBe(true);
     expect(existsSync(join(outDir, 'assets', 'styles.css'))).toBe(true);
+    expect(readFileSync(join(outDir, 'assets', 'styles.css'), 'utf8')).toBe('.compiled{}');
     expect(existsSync(join(outDir, 'assets', 'openapi.yaml'))).toBe(true);
+    expect(readFileSync(join(outDir, 'assets', 'mermaid.min.js'), 'utf8')).toBe('window.mermaid={}');
     expect(existsSync(join(outDir, 'README.md'))).toBe(true);
 
     const pkg = JSON.parse(readFileSync(join(outDir, 'package.json'), 'utf8'));

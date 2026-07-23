@@ -180,3 +180,6 @@ cli/src/server/samples/generated.ts
 .grite/
 .playwright-cli/
 cli/src/server/playground-form-generated.ts
+cli/dist-playground/
+examples/kitchen-sink/
+cli/npm-dist/

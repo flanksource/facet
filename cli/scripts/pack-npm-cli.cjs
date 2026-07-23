@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Assemble the publishable @flanksource/facet-cli npm package: the single-file
 // CLI bundle (run by the user's Node) plus the runtime assets it reads at render
-// time (the @flanksource/facet manifest, styles.css, openapi.yaml).
+// time (the @flanksource/facet manifest, styles.css, openapi.yaml, and Mermaid).
 'use strict';
 
 const fs = require('node:fs');
@@ -15,8 +15,9 @@ function buildPackage({ version, bundlePath, repoRoot, templateDir, outDir }) {
 
   // Runtime assets resolved by assetPath() at render time.
   fs.copyFileSync(path.join(repoRoot, 'package.json'), path.join(outDir, 'assets', 'package.json'));
-  fs.copyFileSync(path.join(repoRoot, 'src', 'styles.css'), path.join(outDir, 'assets', 'styles.css'));
+  fs.copyFileSync(path.join(repoRoot, 'dist', 'styles.css'), path.join(outDir, 'assets', 'styles.css'));
   fs.copyFileSync(path.join(repoRoot, 'openapi.yaml'), path.join(outDir, 'assets', 'openapi.yaml'));
+  fs.copyFileSync(path.join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'), path.join(outDir, 'assets', 'mermaid.min.js'));
 
   fs.copyFileSync(path.join(templateDir, 'README.md'), path.join(outDir, 'README.md'));
   const pkg = JSON.parse(fs.readFileSync(path.join(templateDir, 'package.json'), 'utf8'));

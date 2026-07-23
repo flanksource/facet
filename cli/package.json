@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "gen-version": "node scripts/gen-version.cjs",
-    "gen-assets": "pnpm run gen-version && node scripts/gen-samples.cjs && pnpm --dir .. run build:playground",
+    "gen-assets": "pnpm --dir .. run build:css && pnpm run gen-version && node scripts/gen-samples.cjs && pnpm --dir .. run build:playground",
     "prebuild:lib": "pnpm run gen-assets",
     "build:lib": "tsdown",
     "prebuild:bundle": "pnpm run gen-assets",

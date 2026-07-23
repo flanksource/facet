@@ -10,6 +10,22 @@ vars:
   # Directories
   DIST_DIR: ./dist
   PDF_OUTPUT_DIR: ../../../static/pdfs
+  CLI_NPM_PACKAGE_DIR: "{{.ROOT_DIR}}/.tmp/facet-cli"
+  CLI_VERSION:
+    sh: node -p "require('./cli/package.json').version"
+  BINARY_EXT: '{{if eq OS "windows"}}.exe{{end}}'
+  FACET_BINARY: "{{.DIST_DIR}}/facet{{.BINARY_EXT}}"
+
+  # Lab deployment
+  APP_NAME: facet
+  CHART_DIR: chart
+  LAB_CONTEXT: k3s
+  LAB_NAMESPACE: facet
+  LAB_REGISTRY: docker.c0a801af.sslip.io
+  LAB_COMMIT:
+    sh: git rev-parse --short=8 HEAD
+  LAB_VERSION:
+    sh: printf '%s-%s\n' "$(git describe --tags --always --dirty --abbrev=8)" "$(date -u +%Y%m%d%H%M%S)" | tr '/' '-'
 
   # Source patterns for watching and dependency tracking
   SRC_PATTERN: src/**/*.{tsx,ts,jsx,js,css,mdx}
@@ -29,18 +45,63 @@ tasks:
 
   build:
     sources:
-      - src/**/*.{tsx,ts,jsx,js,css,mdx}
-      - cli/src/**/*.{tsx,ts,jsx,js,css,mdx}
+      - Taskfile.yml
+      - package.json
+      - pnpm-lock.yaml
+      - openapi.yaml
+      - postcss.config.js
+      - tailwind.config.js
+      - tsconfig.json
+      - tsconfig.lib.json
+      - vite.lib.config.ts
+      - vite.playground.config.ts
+      - src/**/*
+      - cli/package.json
+      - cli/pnpm-lock.yaml
+      - cli/scripts/**/*
+      - cli/src/**/*
+      - cli/tsconfig.json
+      - cli/tsdown.config.ts
+      - cli/tsdown.sea.config.ts
     generates:
-      - dist/facet
+      - "{{.FACET_BINARY}}"
     cmds:
       - pnpm run build
 
-  install:
-    deps:
-      - build
+  build:npm-cli:
+    desc: "Build the local @flanksource/facet-cli npm package"
     cmds:
-      - cp dist/facet /usr/local/bin
+      - pnpm --dir cli run build:bundle
+      - node cli/scripts/pack-npm-cli.cjs "{{.CLI_VERSION}}" "{{.CLI_NPM_PACKAGE_DIR}}"
+
+  install:
+    desc: "Build and globally install the local @flanksource/facet-cli package, replacing the active facet executable"
+    deps:
+      - build:npm-cli
+    cmds:
+      - npm install --global --force --install-links "{{.CLI_NPM_PACKAGE_DIR}}"
+      - ln -sf "$(npm root --global)/@flanksource/facet-cli/facet.cjs" "$(which facet)"
+
+  install:symlink:
+    desc: "Globally link the local Facet CLI and component library to this checkout"
+    deps:
+      - build:npm-cli
+    cmds:
+      - task: install:symlink:library
+      - task: install:symlink:cli
+      - ln -sf "$(npm root --global)/@flanksource/facet-cli/facet.cjs" "$(which facet)"
+
+  install:symlink:library:
+    internal: true
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - npm link
+
+  install:symlink:cli:
+    internal: true
+    dir: "{{.CLI_NPM_PACKAGE_DIR}}"
+    cmds:
+      - npm link
 
   storybook:
     desc: "Run Storybook development server on port 6006"
@@ -56,6 +117,12 @@ tasks:
     deps:
       - test:unit
       # - test:storybook
+
+  lint:
+    desc: "Typecheck the CLI"
+    dir: cli
+    cmds:
+      - pnpm run lint
 
   gen-version:
     desc: "Generate cli/src/version-generated.ts"
@@ -85,7 +152,45 @@ tasks:
     deps:
       - build
     cmds:
-      - ./dist/facet serve --templates-dir examples
+      - "{{.FACET_BINARY}} serve --templates-dir examples"
+
+  image:lab:
+    desc: "Build and push the linux/amd64 Facet image to the lab registry"
+    cmds:
+      - >-
+        docker build
+        --platform linux/amd64
+        --build-arg VERSION={{.LAB_VERSION}}
+        --build-arg GIT_COMMIT={{.LAB_COMMIT}}
+        --tag {{.LAB_REGISTRY}}/{{.APP_NAME}}:{{.LAB_VERSION}}
+        .
+      - docker push {{.LAB_REGISTRY}}/{{.APP_NAME}}:{{.LAB_VERSION}}
+
+  deploy:lab:
+    desc: "Build, push, and deploy Facet to the lab"
+    vars:
+      DEPLOY_VERSION: "{{.LAB_VERSION}}"
+    cmds:
+      - task: image:lab
+        vars:
+          LAB_VERSION: "{{.DEPLOY_VERSION}}"
+      - >-
+        helm upgrade --install {{.APP_NAME}} {{.CHART_DIR}}
+        --kube-context {{.LAB_CONTEXT}}
+        --namespace {{.LAB_NAMESPACE}}
+        --create-namespace
+        --values {{.CHART_DIR}}/values.lab.yaml
+        --set-string image.repository={{.LAB_REGISTRY}}/{{.APP_NAME}}
+        --set-string image.tag={{.DEPLOY_VERSION}}
+        --set-string image.pullPolicy=Always
+        --rollback-on-failure
+        --wait
+        --timeout 10m
+      - >-
+        kubectl --context {{.LAB_CONTEXT}}
+        rollout status deployment/{{.APP_NAME}}
+        --namespace {{.LAB_NAMESPACE}}
+        --timeout 5m
 
   default:
     desc: "Show available tasks"
