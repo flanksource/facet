@@ -6,8 +6,11 @@ import { Logger } from './utils/logger.js';
 import { preflight, PreflightError } from './commands/doctor.js';
 import { resolveOutput } from './utils/resolve-output.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from './version-generated.js';
+import { formatVersion } from './version.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
+import type { GenerateOptions } from './types.js';
+import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
 
 function numericOption(minimum: number): (value: string) => number {
   return (value: string): number => {
@@ -19,16 +22,26 @@ function numericOption(minimum: number): (value: string) => number {
   };
 }
 
+function booleanOption(value: string): boolean {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new InvalidArgumentError('Expected true or false');
+}
+
 function parseDataLoaderArgs(): string[] {
   const dashIndex = process.argv.indexOf('--');
   return dashIndex !== -1 ? process.argv.slice(dashIndex + 1) : [];
 }
 
-// External tools a render command shells out to. Every render needs `pnpm`
-// (installs `.facet/`); PDF and live rendering additionally need Chromium;
-// `.ts` data loaders need tsx.
+// Remote rendering needs `tar`; local rendering needs pnpm and may need Chromium.
+// TypeScript data loaders need tsx in either mode.
 function renderRequirements(command: 'html' | 'pdf', options: any): string[] {
-  const ids = ['pnpm'];
+  if (options.facetURL) {
+    const ids = ['tar'];
+    if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
+    return ids;
+  }
+  const ids = options.skipModules ? [] : ['pnpm'];
   if (command === 'pdf' || options.live) ids.push('chromium');
   if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
   return ids;
@@ -87,23 +100,29 @@ function addSharedOptions(cmd: Command): Command {
     .option('-l, --data-loader <file>', 'Path to data loader module (.ts or .js)')
     .option('-o, --output <path>', 'Output file path or directory', '.')
     .option('--output-name-field <field>', 'Data field to use for output filename', 'name')
-    .option('-v, --verbose', 'Enable verbose logging')
+    .option('-v, --verbose', 'Increase verbosity (-v Vite progress, -vv Vite debug, -vvv plugin debug + profile)', (_value, previous: number) => previous + 1, 0)
     .option('--refresh', 'Force re-fetch of remote template (bypass cache)')
     .option('--clear-cache', 'Delete .facet/ build cache and node_modules cache before generation')
     .option('--live', 'Render in a live browser (Vite dev server) instead of SSR; required for diagram components')
+    .option('--post-process-css <boolean>', 'Rebuild CSS after rendering to include data-dependent classes', booleanOption)
     .option('--sandbox [settings]', 'Enable sandbox via srt (optionally specify settings file path)');
 }
 
 const program = new Command();
 
-const versionStr = BUILD_DATE === 'dev'
-  ? `${VERSION} (dev)`
-  : `${VERSION} (${BUILD_DATE}${GIT_COMMIT ? ` ${GIT_COMMIT}` : ''})`;
+const versionStr = formatVersion({
+  version: VERSION,
+  buildDate: BUILD_DATE,
+  gitCommit: GIT_COMMIT,
+  executablePath: process.argv[1],
+});
 
 program
   .name('facet')
   .description('Build beautiful datasheets and PDFs from React templates')
   .version(versionStr)
+  .option('--skip-modules', 'Use the shared Facet-only module install and ignore package.json dependencies')
+  .option('--facet-url <url>', 'Submit HTML and PDF renders to a Facet server (or FACET_URL)')
   .hook('preAction', () => {
     console.log(chalk.gray(`facet ${versionStr}`));
   });
@@ -116,16 +135,16 @@ addSharedOptions(
     .option('--css-scope <prefix>', 'CSS scope prefix for scoped HTML generation')
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
-).action(async (templates: string[], options: any) => {
+).action(async (templates: string[], options: any, command: Command) => {
+  options = { ...options, ...command.optsWithGlobals() };
   const logger = new Logger(options.verbose);
   try {
-    await ensureRenderReady('html', options, logger);
+    const facetURL = resolveFacetURL(options.facetUrl);
+    await ensureRenderReady('html', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating HTML from template: ${template}`);
       const { outputDir, outputName } = resolveOutput(options.output);
-
-      const { generateHTML } = await import('./generators/html.js');
-      await generateHTML({
+      const generateOptions: GenerateOptions = {
         template,
         data: options.data,
         dataLoader: options.dataLoader,
@@ -139,9 +158,17 @@ addSharedOptions(
         verbose: options.verbose,
         refresh: options.refresh,
         clearCache: options.clearCache,
+        skipModules: options.skipModules,
         live: options.live,
+        postProcessCss: options.postProcessCss,
         sandbox: options.sandbox,
-      });
+      };
+      if (facetURL) {
+        await renderWithServer({ facetURL, format: 'html', options: generateOptions });
+      } else {
+        const { generateHTML } = await import('./generators/html.js');
+        await generateHTML(generateOptions);
+      }
     }
 
     logger.success('HTML generated!');
@@ -183,16 +210,16 @@ addSharedOptions(
     .option('--sign-reason <reason>', 'Signature reason text')
     .option('--sign-name <name>', 'Signer name')
     .option('--timestamp-url <url>', 'RFC 3161 Timestamp Authority URL')
-).action(async (templates: string[], options: any) => {
+).action(async (templates: string[], options: any, command: Command) => {
+  options = { ...options, ...command.optsWithGlobals() };
   const logger = new Logger(options.verbose);
   try {
-    await ensureRenderReady('pdf', options, logger);
+    const facetURL = resolveFacetURL(options.facetUrl);
+    await ensureRenderReady('pdf', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating PDF from template: ${template}`);
       const { outputDir, outputName } = resolveOutput(options.output);
-
-      const { generatePDF } = await import('./generators/pdf.js');
-      await generatePDF({
+      const generateOptions: GenerateOptions = {
         template,
         data: options.data,
         dataLoader: options.dataLoader,
@@ -205,7 +232,9 @@ addSharedOptions(
         verbose: options.verbose,
         refresh: options.refresh,
         clearCache: options.clearCache,
+        skipModules: options.skipModules,
         live: options.live,
+        postProcessCss: options.postProcessCss,
         debug: options.debug,
         debugTypography: options.debugTypography,
         fontSize: options.fontSize,
@@ -216,7 +245,13 @@ addSharedOptions(
         footer: options.footer,
         encryption: buildEncryption(options),
         signature: buildSignature(options),
-      });
+      };
+      if (facetURL) {
+        await renderWithServer({ facetURL, format: 'pdf', options: generateOptions });
+      } else {
+        const { generatePDF } = await import('./generators/pdf.js');
+        await generatePDF(generateOptions);
+      }
     }
 
     logger.success('PDF generated!');
@@ -285,7 +320,8 @@ program
   .option('--s3-prefix <prefix>', 'S3 key prefix')
   .option('-v, --verbose', 'Enable verbose logging')
   .option('--sandbox [settings]', 'Enable sandbox via srt (optionally specify settings file path)')
-  .action(async (options: any) => {
+  .action(async (options: any, command: Command) => {
+    options = { ...options, ...command.optsWithGlobals() };
     const logger = new Logger(options.verbose);
     try {
       const { startServer } = await import('./server/preview.js');
@@ -310,6 +346,7 @@ program
         s3Region: options.s3Region,
         s3Prefix: options.s3Prefix,
         sandbox: options.sandbox,
+        skipModules: options.skipModules,
       });
     } catch (error) {
       logger.error(`Server failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -355,7 +392,8 @@ program
   .option('--json', 'Emit machine-readable JSON instead of human output')
   .option('--fix', 'Attempt safe remediations for failed checks (corepack enable, puppeteer install, .gitignore append, native-bindings nuke)')
   .option('-v, --verbose', 'Enable verbose logging')
-  .action(async (options: any) => {
+  .action(async (options: any, command: Command) => {
+    options = { ...options, ...command.optsWithGlobals() };
     const logger = new Logger(options.verbose);
     try {
       const { runDoctor } = await import('./commands/doctor.js');
@@ -364,6 +402,7 @@ program
         verbose: !!options.verbose,
         json: !!options.json,
         fix: !!options.fix,
+        skipModules: !!options.skipModules,
       });
       process.exit(exitCode);
     } catch (error) {
@@ -394,6 +433,11 @@ async function run(): Promise<void> {
   if (process.env.FACET_LOADER === 'dev') {
     const { runDevLoader } = await import('./loaders/dev.js');
     await runDevLoader();
+    return;
+  }
+  if (process.env.FACET_LOADER === 'css') {
+    const { runCssLoader } = await import('./loaders/css.js');
+    await runCssLoader();
     return;
   }
   program.parse();

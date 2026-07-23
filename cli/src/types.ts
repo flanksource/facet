@@ -25,14 +25,19 @@ export interface GenerateOptions {
   schema?: string;
   srcDir?: string;
   validate: boolean;
-  verbose: boolean;
+  /** Verbosity: false/0 quiet, 1 (-v) Vite progress, 2 (-vv) Vite debug, 3 (-vvv) plugin debug + profile. */
+  verbose: boolean | number;
   refresh?: boolean;
   clearCache?: boolean;
+  /** Use the shared Facet-only module install and ignore consumer package metadata. */
+  skipModules?: boolean;
   /**
    * Render in a live browser (Vite dev server + Puppeteer) instead of SSR.
    * Required for templates using DOM-measuring components (diagrams/react-xarrows).
    */
   live?: boolean;
+  /** Rebuild CSS after rendering so data-dependent class names are included. */
+  postProcessCss?: boolean;
   /** Run the SSR loader inside a sandbox-runtime jail (path to settings, or true for the default). */
   sandbox?: string | boolean;
   debug?: boolean;
@@ -45,6 +50,7 @@ export interface GenerateOptions {
   fontSize?: number;
   encryption?: import('./utils/pdf-security.js').PDFEncryptionOptions;
   signature?: import('./utils/pdf-security.js').PDFSignatureOptions;
+  timings?: import('./utils/performance.js').RenderTimings;
 }
 
 export interface LoadedData {
