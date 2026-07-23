@@ -1,8 +1,42 @@
 import type { Page } from 'puppeteer-core';
+import { assetPath } from './assets.js';
 
 export interface PageReadinessOptions {
   timeoutMs?: number;
   waitForFacet?: boolean;
+}
+
+interface MermaidRuntime {
+  initialize(config: Record<string, unknown>): void;
+  run(options: { querySelector: string }): Promise<void>;
+}
+
+/** Replace Mermaid code fences with SVG using the Chromium page already rendering the document. */
+export async function renderMermaidInPage(page: Page): Promise<boolean> {
+  const count = await page.evaluate(() => {
+    const blocks = document.querySelectorAll('pre > code.language-mermaid');
+    blocks.forEach((code) => {
+      const container = document.createElement('div');
+      container.className = 'mermaid';
+      container.textContent = code.textContent;
+      code.parentElement?.replaceWith(container);
+    });
+    return blocks.length;
+  });
+  if (count === 0) return false;
+
+  const script = await page.addScriptTag({ path: assetPath('mermaid.min.js') });
+  try {
+    await page.evaluate(async () => {
+      const runtime = (window as typeof window & { mermaid?: MermaidRuntime }).mermaid;
+      if (!runtime) throw new Error('Mermaid runtime did not initialize');
+      runtime.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'neutral' });
+      await runtime.run({ querySelector: '.mermaid' });
+    });
+  } finally {
+    await script.evaluate((element) => element.remove());
+  }
+  return true;
 }
 
 /**
@@ -68,5 +102,6 @@ export async function setPreparedContent(
 ): Promise<void> {
   const timeoutMs = options.timeoutMs ?? 30_000;
   await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+  await renderMermaidInPage(page);
   await waitForPageReady(page, options);
 }

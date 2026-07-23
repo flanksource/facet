@@ -22,8 +22,9 @@ const seaConfig = {
   disableExperimentalSEAWarning: true,
   assets: {
     'package.json': join(repoRoot, 'package.json'),
-    'styles.css': join(repoRoot, 'src', 'styles.css'),
+    'styles.css': join(repoRoot, 'dist', 'styles.css'),
     'openapi.yaml': join(repoRoot, 'openapi.yaml'),
+    'mermaid.min.js': join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'),
   },
 };
 const seaConfigPath = join(distSea, 'sea-config.json');
