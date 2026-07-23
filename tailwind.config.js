@@ -25,5 +25,14 @@ module.exports = {
   },
   plugins: [
     require('@tailwindcss/typography'),
+    function orderedListStyles({ addBase }) {
+      addBase({
+        ol: {
+          margin: '3mm 0 4mm 8mm',
+          padding: '0',
+          listStyleType: 'decimal',
+        },
+      });
+    },
   ],
 };

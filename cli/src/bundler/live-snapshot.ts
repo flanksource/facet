@@ -9,6 +9,7 @@
 import type { Browser, Page } from 'puppeteer-core';
 import { launchBrowser } from '../utils/pdf-generator.js';
 import { Logger } from '../utils/logger.js';
+import { renderMermaidInPage } from '../utils/browser-readiness.js';
 
 /** Max time to wait for `data-facet-ready` before falling back to a fixed delay. */
 const READY_TIMEOUT_MS = 15_000;
@@ -24,6 +25,7 @@ async function loadLivePage(browser: Browser, url: string, logger: Logger): Prom
   page.on('pageerror', (err) => pageErrors.push(err.message));
 
   await page.goto(url, { waitUntil: 'networkidle0', timeout: 60_000 });
+  await renderMermaidInPage(page);
   await page.evaluateHandle('document.fonts.ready');
 
   const overlay = await page.evaluate(() => {
