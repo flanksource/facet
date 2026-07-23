@@ -14,22 +14,24 @@
  */
 
 import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync, chmodSync, openSync, closeSync } from 'fs';
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'crypto';
-import { join, relative, dirname, resolve, extname } from 'path';
+import { join, relative, dirname, resolve, extname, sep } from 'path';
 import { homedir } from 'os';
 import type { Logger } from '../utils/logger.js';
 import {
   generatePluginCodegen,
+  rehypePluginsArray,
   remarkPluginsArray,
   EMPTY_REMARK_CONFIG,
   type RemarkConfig,
 } from './remark-config.js';
 
 import { assetPath } from '../utils/assets.js';
+import { createDefaultModulePackageJson, defaultModuleNpmrc } from '../bundler/module-store.js';
+import { VERSION } from '../version-generated.js';
+import { LowPriorityProcessError, runLowPriority } from '../utils/subprocess-priority.js';
 
 const rootPackageJson = assetPath('package.json');
-const stylesCss = assetPath('styles.css');
 
 export interface FacetDirectoryOptions {
   /** Consumer's project root directory */
@@ -40,22 +42,39 @@ export interface FacetDirectoryOptions {
   logger: Logger;
   /** Extra remark/rehype plugins declared in the template's frontmatter. */
   remarkConfig?: RemarkConfig;
+  /** Use the immutable shared Facet module install without consumer dependencies. */
+  skipModules?: boolean;
 }
 
 /**
  * Items to skip when symlinking from consumer directory
  */
+// Dot-entries are skipped wholesale (except SYMLINKED_DOT_ITEMS): mirroring
+// cache/tool dirs (.pnpm-store, .wrangler, .tmp, stale .facet-* staging, …)
+// into .facet/src put hundreds of thousands of junk files inside the Vite
+// root, which Tailwind v4's automatic source detection walks on every build
+// (measured: 574k files, ~45s per build in a real consumer).
 const SKIP_ITEMS = new Set([
-  '.facet',
-  '.git',
   'node_modules',
   'dist',
+  'build',
+  'coverage',
+  'npm-dist',
+  'dist-sea',
+  'dist-playground',
+  'out',
   '.DS_Store',
-  '.gitignore',
-  '.env',
-  '.env.local',
   'Thumbs.db',
 ]);
+
+// Dot-entries facet itself depends on: header/footer fragment builds use
+// templatePath `.facet-fragments/…`, resolved through .facet/src.
+const SYMLINKED_DOT_ITEMS = new Set(['.facet-fragments']);
+
+function shouldSkipConsumerItem(item: string): boolean {
+  if (SYMLINKED_DOT_ITEMS.has(item)) return false;
+  return SKIP_ITEMS.has(item) || item.startsWith('.');
+}
 
 function resolveFileProtocol(version: string, pkgDir: string, _facetRoot: string): string {
   if (!version.startsWith('file:')) return version;
@@ -105,6 +124,28 @@ export function resolveFacetPackageOverride(raw = process.env['FACET_PACKAGE_PAT
     }
   }
   return { kind: 'tarball', path: abs };
+}
+
+export function wrapFacetStylesInLayer(css: string): string {
+  const imports: string[] = [];
+  let remaining = css;
+  const leadingImport = /^((?:\s|\/\*[\s\S]*?\*\/)*@import\s+(?:"[^"]*"|'[^']*'|url\([^)]*\))[^;]*;)\s*/;
+  for (let match = remaining.match(leadingImport); match; match = remaining.match(leadingImport)) {
+    imports.push(match[1].trim());
+    remaining = remaining.slice(match[0].length);
+  }
+  if (/@import\s/.test(remaining)) {
+    throw new Error('Facet styles contain an @import after style rules; CSS imports must precede all layered rules');
+  }
+
+  return [
+    ...imports,
+    '@layer facet, theme, base, components, utilities;',
+    '@layer facet {',
+    remaining.trim(),
+    '}',
+    '',
+  ].join('\n');
 }
 
 function newestMatchingMtime(dir: string, predicate: (path: string) => boolean): number {
@@ -289,17 +330,13 @@ export function serializeInjectedData(data: Record<string, unknown>): string {
 }
 
 export class FacetDirectory {
-  // Subset of build deps whose absence reliably signals a broken install:
-  // react/vite/the React Vite plugin/facet itself. Hits before pnpm hoists
-  // anything else, so a fresh-but-empty node_modules trips on the first one.
-  private static SENTINEL_DEPS = ['react', 'vite', '@vitejs/plugin-react', '@flanksource/facet'];
-
   private consumerRoot: string;
   private facetRoot: string;
   private facetSrc: string;
   private templateFile: string;
   private logger: Logger;
   private remarkConfig: RemarkConfig;
+  private skipModules: boolean;
 
   constructor(options: FacetDirectoryOptions) {
     this.consumerRoot = options.consumerRoot;
@@ -308,22 +345,24 @@ export class FacetDirectory {
     this.templateFile = options.templateFile;
     this.logger = options.logger;
     this.remarkConfig = options.remarkConfig ?? EMPTY_REMARK_CONFIG;
+    this.skipModules = options.skipModules ?? false;
   }
 
   /**
    * MDX plugin source for the generated vite configs: extra imports, the
    * remarkPlugins array (always-on defaults + frontmatter-declared plugins),
-   * and an optional rehypePlugins line. Local plugin paths resolve relative to
+   * and the rehypePlugins array. Local plugin paths resolve relative to
    * the template file's directory.
    */
-  private mdxPluginSource(): { imports: string; remarkArray: string; rehypeLine: string } {
+  private mdxPluginSource(): { imports: string; remarkArray: string; rehypeArray: string } {
     const templateDir = dirname(resolve(this.consumerRoot, this.templateFile));
     const codegen = generatePluginCodegen(this.remarkConfig, templateDir);
     const imports = codegen.imports.length ? '\n' + codegen.imports.join('\n') : '';
-    const rehypeLine = codegen.rehypeItems.length
-      ? `\n      rehypePlugins: [${codegen.rehypeItems.join(', ')}],`
-      : '';
-    return { imports, remarkArray: remarkPluginsArray(codegen.remarkItems), rehypeLine };
+    return {
+      imports,
+      remarkArray: remarkPluginsArray(codegen.remarkItems),
+      rehypeArray: rehypePluginsArray(codegen.rehypeItems),
+    };
   }
 
   /**
@@ -345,10 +384,23 @@ export class FacetDirectory {
   symlinkConsumerFiles(): void {
     this.logger.debug('Symlinking consumer files into .facet/src/');
 
+    // Drop links a previous facet version created for now-excluded items, so
+    // existing .facet/ dirs stop exposing junk trees to source scanners.
+    for (const existing of readdirSync(this.facetSrc)) {
+      if (!shouldSkipConsumerItem(existing)) continue;
+      const stalePath = join(this.facetSrc, existing);
+      try {
+        if (lstatSync(stalePath).isSymbolicLink()) {
+          rmSync(stalePath, { force: true });
+          this.logger.debug(`Removed stale symlink: ${existing}`);
+        }
+      } catch { /* concurrent cleanup */ }
+    }
+
     const items = readdirSync(this.consumerRoot);
 
     for (const item of items) {
-      if (SKIP_ITEMS.has(item)) {
+      if (shouldSkipConsumerItem(item)) {
         this.logger.debug(`Skipping ${item}`);
         continue;
       }
@@ -461,7 +513,7 @@ export class FacetDirectory {
 
     const entry = isMarkdown
       ? `import React from 'react';
-import './src/styles.css';
+import './facet.css';
 import { Page } from '@flanksource/facet';
 import { Icon } from '@iconify/react';
 import Content from './src/${templateRelPath}';
@@ -477,7 +529,7 @@ export default function Template({ data }) {
 }
 `
       : `import React from 'react';
-import './src/styles.css';
+import './facet.css';
 import Template from './src/${templateRelPath}';
 
 
@@ -496,21 +548,44 @@ export default Template;
   generateViteConfig(): void {
     this.logger.debug('Generating vite.config.ts');
 
-    const { imports, remarkArray, rehypeLine } = this.mdxPluginSource();
+    const { imports, remarkArray, rehypeArray } = this.mdxPluginSource();
     const config = `
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import mdx from '@mdx-js/rollup';
 import remarkGfm from 'remark-gfm';
 import remarkFrontmatter from 'remark-frontmatter';
-import { resolve } from 'path';${imports}
+import { remarkAlert } from 'remark-github-blockquote-alert';
+import rehypeRaw from 'rehype-raw';
+import { resolve } from 'path';
+import { createRequire } from 'module';${imports}
 
-export default defineConfig({
-  plugins: [
-    mdx({
-      remarkPlugins: ${remarkArray},${rehypeLine}
-      include: ['**/*.md', '**/*.mdx'],
+const facetRequire = createRequire(import.meta.url);
+const tailwindMajor = Number(facetRequire('tailwindcss/package.json').version.split('.')[0]);
+
+export default defineConfig(async () => {
+  const tailwindPlugins = tailwindMajor === 4
+    ? [(await import('@tailwindcss/vite')).default()]
+    : [];
+  const mdxPlugin = {
+    enforce: 'pre',
+    ...mdx({
+      remarkPlugins: ${remarkArray},
+      rehypePlugins: ${rehypeArray},
+      include: [/\\.(md|mdx)$/],
     }),
+  };
+  // Rolldown crosses the native->JS boundary for every module unless a hook
+  // declares a filter (the plugin's own include only filters inside JS). With
+  // zero markdown files this dispatch tax was measured at 76% of build time.
+  const viteNs = await import('vite');
+  if (viteNs.rolldownVersion && typeof mdxPlugin.transform === 'function') {
+    mdxPlugin.transform = { filter: { id: /\\.(md|mdx)$/ }, handler: mdxPlugin.transform };
+  }
+  return {
+  plugins: [
+    ...tailwindPlugins,
+    mdxPlugin,
     react({
       include: /\\.(md|mdx|js|jsx|ts|tsx)$/,
     }),
@@ -519,6 +594,7 @@ export default defineConfig({
     // Resolve symlinks to real paths so pnpm's symlinked transitive deps stay
     // reachable; dedupe keeps a single React copy across the symlinked packages.
     dedupe: ['react', 'react-dom'],
+    preserveSymlinks: ${this.skipModules},
     alias: {
       '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
       '@facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
@@ -529,7 +605,11 @@ export default defineConfig({
     conditions: ['import', 'module', 'browser', 'default'],
   },
   ssr: {
-    noExternal: ['react-icons', '@iconify/react', '@flanksource/facet', new RegExp('^@flanksource/')],
+    // Icon libraries are dual CJS/ESM with no CSS side effects and megabyte-scale
+    // generated modules; bundling them was 92% of SSR build input. They resolve
+    // at render time from .facet/node_modules instead (output byte-identical).
+    // @flanksource/facet stays bundled: externalizing it changes rendered HTML.
+    noExternal: ['@flanksource/facet', new RegExp('^@flanksource/(?!icons)')],
     resolve: {
       conditions: ['node', 'import', 'module', 'browser', 'default'],
       externalConditions: ['node'],
@@ -554,6 +634,7 @@ export default defineConfig({
     },
     cssCodeSplit: false,
   },
+  };
 });
 `;
 
@@ -602,25 +683,37 @@ root.render(React.createElement(Template, { data }));
 `;
     writeFileSync(join(this.facetRoot, 'index.html'), indexHtml, 'utf-8');
 
-    const { imports, remarkArray, rehypeLine } = this.mdxPluginSource();
+    const { imports, remarkArray, rehypeArray } = this.mdxPluginSource();
     const config = `
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import mdx from '@mdx-js/rollup';
 import remarkGfm from 'remark-gfm';
 import remarkFrontmatter from 'remark-frontmatter';
-import { resolve } from 'path';${imports}
+import { remarkAlert } from 'remark-github-blockquote-alert';
+import rehypeRaw from 'rehype-raw';
+import { resolve } from 'path';
+import { createRequire } from 'module';${imports}
 
-export default defineConfig({
+const facetRequire = createRequire(import.meta.url);
+const tailwindMajor = Number(facetRequire('tailwindcss/package.json').version.split('.')[0]);
+
+export default defineConfig(async () => {
+  const tailwindPlugins = tailwindMajor === 4
+    ? [(await import('@tailwindcss/vite')).default()]
+    : [];
+  return {
   plugins: [
+    ...tailwindPlugins,
     // enforce: 'pre' — in dev mode plugin-react's transform runs before
     // array-ordered plugins, so MDX must be hoisted to the pre stage or
     // react-babel parses raw .mdx and fails. Build mode respects array order.
     {
       enforce: 'pre',
       ...mdx({
-        remarkPlugins: ${remarkArray},${rehypeLine}
-        include: ['**/*.md', '**/*.mdx'],
+        remarkPlugins: ${remarkArray},
+        rehypePlugins: ${rehypeArray},
+        include: [/\\.(md|mdx)$/],
       }),
     },
     react({
@@ -632,6 +725,7 @@ export default defineConfig({
     // (e.g. d3-array → internmap) are reachable during esbuild dep optimization.
     // dedupe keeps a single React copy, which preserveSymlinks otherwise guarded.
     dedupe: ['react', 'react-dom'],
+    preserveSymlinks: ${this.skipModules},
     alias: {
       '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
       '@facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
@@ -641,21 +735,12 @@ export default defineConfig({
     },
     conditions: ['import', 'module', 'browser', 'default'],
   },
+  };
 });
 `;
     writeFileSync(join(this.facetRoot, 'vite.client.config.ts'), config, 'utf-8');
 
-    // The dev server processes the template's `@tailwind` directives through
-    // PostCSS at request time (the SSR path instead shells out to the Tailwind
-    // CLI). Override the autoprefixer-only postcss config so Tailwind runs.
-    const postcss = `export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-};
-`;
-    writeFileSync(join(this.facetRoot, 'postcss.config.js'), postcss, 'utf-8');
+    this.generatePostCSSConfig();
     this.logger.debug('Generated live-render client scaffold');
   }
 
@@ -699,7 +784,25 @@ export default defineConfig({
   async generatePackageJson(): Promise<void> {
     this.logger.debug('Generating package.json');
 
-    const facetOverride = resolveFacetPackageOverride();
+    if (this.skipModules) {
+      const facetPackage = JSON.parse(readFileSync(rootPackageJson, 'utf-8'));
+      const packageContent = JSON.stringify(createDefaultModulePackageJson({
+        facetVersion: VERSION,
+        facetPackage,
+      }), null, 2);
+      const packagePath = join(this.facetRoot, 'package.json');
+      let existingPackage = '';
+      try { existingPackage = readFileSync(packagePath, 'utf-8'); } catch { /* first generation */ }
+      if (existingPackage !== packageContent) writeFileSync(packagePath, packageContent, 'utf-8');
+      this.removePaths(['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock']);
+      const npmrcPath = join(this.facetRoot, '.npmrc');
+      writeFileSync(npmrcPath, defaultModuleNpmrc(), { encoding: 'utf-8', mode: 0o600 });
+      chmodSync(npmrcPath, 0o600);
+      this.logger.debug('Generated consumer-independent skip-modules manifest');
+      return;
+    }
+
+    const facetOverride = this.skipModules ? undefined : resolveFacetPackageOverride();
     if (facetOverride?.kind === 'directory') {
       await this.ensureLocalFacetPackageBuilt(facetOverride.path);
     }
@@ -762,6 +865,9 @@ export default defineConfig({
       '@mdx-js/rollup',
       'remark-gfm',
       'remark-frontmatter',
+      'remark-github-blockquote-alert',
+      'rehype-raw',
+      'mermaid',
       'react-icons',
       'react-xarrows',
       '@flanksource/icons',
@@ -769,6 +875,7 @@ export default defineConfig({
       'typescript',
       '@tailwindcss/typography',
       '@tailwindcss/postcss',
+      '@tailwindcss/vite',
       'tailwindcss',
       'autoprefixer',
       'postcss',
@@ -996,19 +1103,6 @@ export default defineConfig({
     }
   }
 
-  private readFacetAsset(localRelPath: string, embeddedPath: string, label: string): string {
-    const facetOverride = resolveFacetPackageOverride();
-    if (facetOverride?.kind === 'directory') {
-      const localPath = join(facetOverride.path, localRelPath);
-      if (existsSync(localPath)) {
-        this.logger.debug(`Using ${label} from FACET_PACKAGE_PATH: ${localPath}`);
-        return readFileSync(localPath, 'utf-8');
-      }
-      this.logger.debug(`FACET_PACKAGE_PATH has no ${localRelPath}, using embedded ${label}`);
-    }
-    return readFileSync(embeddedPath, 'utf-8');
-  }
-
   private async ensureLocalFacetPackageBuilt(packageRoot: string): Promise<void> {
     const isCurrent = (): boolean =>
       !needsLocalFacetComponentsBuild(packageRoot) && !needsLocalFacetCssBuild(packageRoot);
@@ -1017,17 +1111,17 @@ export default defineConfig({
       return;
     }
 
-    await this.withLocalFacetBuildLock(packageRoot, () => {
+    await this.withLocalFacetBuildLock(packageRoot, async () => {
       // Another process may have completed the build while this process waited.
       if (isCurrent()) return;
       const shouldBuildCss = needsLocalFacetCssBuild(packageRoot);
       if (needsLocalFacetComponentsBuild(packageRoot)) {
-        this.runLocalFacetBuildScript(packageRoot, 'build:components');
+        await this.runLocalFacetBuildScript(packageRoot, 'build:components');
       }
       // vite.lib.config.ts empties dist/ before building components. If CSS was
       // current before that run, it may now be missing, so re-check afterward.
       if (shouldBuildCss || needsLocalFacetCssBuild(packageRoot)) {
-        this.runLocalFacetBuildScript(packageRoot, 'build:css');
+        await this.runLocalFacetBuildScript(packageRoot, 'build:css');
       }
     });
   }
@@ -1102,26 +1196,29 @@ export default defineConfig({
     this.logger.debug('Removed stale installed @flanksource/facet local override');
   }
 
-  private runLocalFacetBuildScript(packageRoot: string, script: string): void {
+  private async runLocalFacetBuildScript(packageRoot: string, script: string): Promise<void> {
     this.logger.info(`FACET_PACKAGE_PATH local override is stale; running pnpm run ${script}`);
-    const result = spawnSync('pnpm', ['run', script], {
-      cwd: packageRoot,
-      timeout: LOCAL_BUILD_TIMEOUT_MS,
-      maxBuffer: 50 * 1024 * 1024,
-    });
-    const stdout = (result.stdout ?? Buffer.from('')).toString();
-    const stderr = (result.stderr ?? Buffer.from('')).toString();
-    if (stdout) this.logger.debug(stdout);
-    if (stderr) this.logger.debug(stderr);
-    const timedOut = (result.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT';
-    if (result.error && !timedOut) throw result.error;
-    if (timedOut || result.status !== 0) {
-      const reason = timedOut
+    try {
+      const result = await runLowPriority({
+        command: 'pnpm',
+        args: ['run', script],
+        options: { cwd: packageRoot },
+        timeoutMs: LOCAL_BUILD_TIMEOUT_MS,
+        maxBufferBytes: 50 * 1024 * 1024,
+      });
+      if (result.stdout.length > 0) this.logger.debug(result.stdout.toString());
+      if (result.stderr.length > 0) this.logger.debug(result.stderr.toString());
+    } catch (error) {
+      if (!(error instanceof LowPriorityProcessError)) throw error;
+      const stdout = error.stdout.toString();
+      const stderr = error.stderr.toString();
+      if (stdout) this.logger.debug(stdout);
+      if (stderr) this.logger.debug(stderr);
+      if (error.cause !== undefined && error.exitCode === null && !error.timedOut) throw error.cause;
+      const reason = error.timedOut
         ? `timed out after ${LOCAL_BUILD_TIMEOUT_MS / 1000}s`
-        : `failed with exit code ${result.status ?? 'unknown'}`;
-      throw new Error(
-        `pnpm run ${script} ${reason} in ${packageRoot}:\n${stdout}${stderr}`
-      );
+        : `failed with exit code ${error.exitCode ?? 'unknown'}`;
+      throw new Error(`pnpm run ${script} ${reason} in ${packageRoot}:\n${stdout}${stderr}`);
     }
   }
 
@@ -1154,63 +1251,6 @@ export default defineConfig({
       dir = parent;
     }
     this.logger.warn('.facet/.npmrc may contain inherited auth tokens but no ancestor .gitignore excludes `.facet/`. Add `.facet/` (or `**/.facet/` for monorepos) to .gitignore to avoid committing secrets.');
-  }
-
-  /**
-   * Returns true if node_modules needs to be installed. Combines mtime check
-   * with a sentinel-dep scan so partial / corrupt installs are detected.
-   */
-  needsInstall(): boolean {
-    const packagePath = join(this.facetRoot, 'package.json');
-    const nodeModulesPath = join(this.facetRoot, 'node_modules');
-    if (!existsSync(nodeModulesPath)) return true;
-    if (this.isInstallBroken()) return true;
-    try {
-      return statSync(packagePath).mtimeMs > statSync(nodeModulesPath).mtimeMs;
-    } catch {
-      return true;
-    }
-  }
-
-  /**
-   * Cheap O(sentinels) check for a partial/corrupt install: empty node_modules,
-   * missing sentinel package, or a dangling symlink count as broken.
-   */
-  isInstallBroken(): boolean {
-    const nm = join(this.facetRoot, 'node_modules');
-    if (!existsSync(nm)) return true;
-    // Foreign-manager markers: an npm/yarn lockfile next to node_modules makes
-    // pnpm refuse to write into the dir (ENOENT on importPackage). Treat as broken.
-    if (existsSync(join(this.facetRoot, 'package-lock.json'))) {
-      this.logger.warn('Foreign package-lock.json found in .facet/ — install broken');
-      return true;
-    }
-    if (existsSync(join(this.facetRoot, 'yarn.lock'))) {
-      this.logger.warn('Foreign yarn.lock found in .facet/ — install broken');
-      return true;
-    }
-    // node_modules pointing outside .facet/ (legacy facet-cache symlink) confuses
-    // pnpm's hoisted layout. Force a clean install.
-    try {
-      const st = lstatSync(nm);
-      if (st.isSymbolicLink()) {
-        this.logger.warn('Legacy .facet/node_modules symlink found — install broken');
-        return true;
-      }
-    } catch { /* fall through */ }
-    try { if (readdirSync(nm).length === 0) return true; } catch { return true; }
-    for (const dep of FacetDirectory.SENTINEL_DEPS) {
-      const depPkg = join(nm, ...dep.split('/'), 'package.json');
-      if (!existsSync(depPkg)) {
-        this.logger.warn(`Sentinel dep missing: ${dep} (${depPkg}) — install broken`);
-        return true;
-      }
-      try { statSync(depPkg); } catch {
-        this.logger.warn(`Sentinel dep dangling: ${dep} — install broken`);
-        return true;
-      }
-    }
-    return false;
   }
 
   /** Reset .facet/ install state so the next pnpm install re-resolves clean. */
@@ -1266,22 +1306,21 @@ export default defineConfig({
    * Generate default postcss.config.js if consumer doesn't have one
    */
   generatePostCSSConfig(): void {
-    const consumerConfig = join(this.consumerRoot, 'postcss.config.js');
+    this.logger.debug('Generating Tailwind-compatible postcss.config.js');
+    const config = `import autoprefixer from 'autoprefixer';
+import { createRequire } from 'module';
 
-    // Skip if consumer has their own config (will be symlinked)
-    if (existsSync(consumerConfig)) {
-      this.logger.debug('Consumer has postcss.config.js, skipping generation');
-      return;
-    }
+const facetRequire = createRequire(import.meta.url);
+const tailwindMajor = Number(facetRequire('tailwindcss/package.json').version.split('.')[0]);
+const plugins = [autoprefixer()];
+if (tailwindMajor === 3) {
+  const tailwindcss = (await import('tailwindcss')).default;
+  plugins.unshift(tailwindcss(process.env.FACET_POST_PROCESS === '1'
+    ? './tailwind.postprocess.config.js'
+    : './tailwind.config.js'));
+}
 
-    this.logger.debug('Generating default postcss.config.js');
-
-    // Generate ESM-compatible config (not CommonJS) since package.json has "type": "module"
-    const config = `export default {
-  plugins: {
-    autoprefixer: {},
-  },
-};
+export default { plugins };
 `;
 
     writeFileSync(join(this.facetRoot, 'postcss.config.js'), config, 'utf-8');
@@ -1292,24 +1331,16 @@ export default defineConfig({
    * Generate default tailwind.config.js if consumer doesn't have one
    */
   generateTailwindConfig(): void {
-    const consumerConfig = join(this.consumerRoot, 'tailwind.config.js');
-
-    // Skip if consumer has their own config (will be symlinked)
-    if (existsSync(consumerConfig)) {
-      this.logger.debug('Consumer has tailwind.config.js, skipping generation');
-      return;
-    }
-
-    this.logger.debug('Generating default tailwind.config.js');
-
-    // Generate ESM-compatible config (not CommonJS) since package.json has "type": "module"
-    // Point directly to consumer root to avoid symlink issues
-    const config = `import typography from '@tailwindcss/typography';
-console.log('Using default tailwind.config.js');
+    const consumerConfigName = ['tailwind.config.js', 'tailwind.config.cjs', 'tailwind.config.mjs', 'tailwind.config.ts']
+      .find((name) => existsSync(join(this.consumerRoot, name)));
+    const config = consumerConfigName
+      ? `import consumerConfig from './src/${consumerConfigName}';
+export default consumerConfig;
+`
+      : `import typography from '@tailwindcss/typography';
 export default {
   content: [
-    "src/**/*.{html,js,jsx,ts,tsx,md,mdx}",
-    "./node_modules/@flanksource/facet/src/**/*.{js,jsx,ts,tsx}"
+    "src/**/*.{html,js,jsx,ts,tsx,md,mdx}"
   ],
   theme: {
     extend: {
@@ -1329,8 +1360,14 @@ export default {
   plugins: [typography],
 };
 `;
-
     writeFileSync(join(this.facetRoot, 'tailwind.config.js'), config, 'utf-8');
+    const postProcessConfig = `import baseConfig from './tailwind.config.js';
+export default {
+  ...baseConfig,
+  content: [...(baseConfig.content ?? []), './rendered-content.html'],
+};
+`;
+    writeFileSync(join(this.facetRoot, 'tailwind.postprocess.config.js'), postProcessConfig, 'utf-8');
     this.logger.debug('Generated tailwind.config.js');
   }
 
@@ -1338,25 +1375,74 @@ export default {
    * Copy embedded styles.css to .facet/src/
    */
   copyStylesCss(): void {
-    const consumerStylesCss = join(this.consumerRoot, 'src/styles.css');
+    const installedStyles = join(this.facetRoot, 'node_modules/@flanksource/facet/dist/styles.css');
+    const facetOverride = this.skipModules ? undefined : resolveFacetPackageOverride();
+    const stylesPath = existsSync(installedStyles)
+      ? installedStyles
+      : facetOverride?.kind === 'directory'
+        ? join(facetOverride.path, 'dist/styles.css')
+        : assetPath('styles.css');
+    writeFileSync(
+      join(this.facetRoot, 'facet.css'),
+      wrapFacetStylesInLayer(readFileSync(stylesPath, 'utf-8')),
+      'utf-8',
+    );
 
-    // Skip if consumer has their own styles.css (will be symlinked)
-    if (existsSync(consumerStylesCss)) {
-      this.logger.debug('Consumer has src/styles.css, skipping copy');
-      return;
-    }
-
-    this.logger.debug('Copying default styles.css');
-
-    try {
-      const styles = this.readFacetAsset('src/styles.css', stylesCss, 'styles.css');
-      writeFileSync(join(this.facetSrc, 'styles.css'), styles, 'utf-8');
-      this.logger.debug('Copied styles.css');
-    } catch (error) {
-      this.logger.warn(`Failed to copy styles.css: ${error}`);
-    }
+    const source = readFileSync(join(this.consumerRoot, this.templateFile), 'utf-8');
+    const templateDir = dirname(join(this.consumerRoot, this.templateFile));
+    const imports = [...source.matchAll(/(?:^|\n)\s*import\s+(?:[^'"\n]+\s+from\s+)?['"]([^'"]+\.css)['"]/g)]
+      .map((match) => match[1])
+      .map((specifier) => {
+        if (!specifier.startsWith('.')) return specifier;
+        const consumerPath = relative(this.consumerRoot, resolve(templateDir, specifier)).split(sep).join('/');
+        return `./src/${consumerPath}`;
+      });
+    const postProcessLines = [
+      "@import './facet.css';",
+      ...imports.map((specifier) => `@import '${specifier}';`),
+    ];
+    const postProcess = [...postProcessLines, ''].join('\n');
+    const normalizedTemplateFile = this.templateFile.replaceAll('\\', '/').replace(/^\.\//, '');
+    const staticSource = normalizedTemplateFile.includes('/')
+      ? normalizedTemplateFile.slice(0, normalizedTemplateFile.indexOf('/'))
+      : normalizedTemplateFile;
+    const postProcessV4 = [
+      ...postProcessLines,
+      '@import "tailwindcss/theme.css" layer(theme);',
+      '@import "tailwindcss/utilities.css" layer(utilities) source(none);',
+      `@source "./src/${staticSource}";`,
+      '@source "./rendered-content.html";',
+      '',
+    ].join('\n');
+    writeFileSync(join(this.facetRoot, 'post-process.css'), postProcess, 'utf-8');
+    writeFileSync(join(this.facetRoot, 'post-process-v4.css'), postProcessV4, 'utf-8');
+    writeFileSync(join(this.facetRoot, 'post-process.entry.ts'), "import './post-process.css';\n", 'utf-8');
+    writeFileSync(join(this.facetRoot, 'post-process-v4.entry.ts'), "import './post-process-v4.css';\n", 'utf-8');
+    this.logger.debug(`Generated Facet CSS entry with ${imports.length} consumer stylesheet import(s)`);
   }
 
+
+  /**
+   * Digest of the generated build configuration that shapes SSR output —
+   * folded into the build-cache key so config changes at an unchanged facet
+   * version invalidate cached bundles.
+   */
+  generatedConfigDigest(): string {
+    const hash = createHash('sha256');
+    const generated = [
+      'vite.config.ts', 'postcss.config.js', 'tailwind.config.js',
+      'tailwind.postprocess.config.js', 'post-process.css', 'post-process-v4.css',
+    ];
+    for (const name of generated) {
+      try {
+        hash.update(name);
+        hash.update('\0');
+        hash.update(readFileSync(join(this.facetRoot, name)));
+        hash.update('\0');
+      } catch { /* variant-specific file not generated */ }
+    }
+    return hash.digest('hex');
+  }
 
   /**
    * Get the path to the .facet/ directory

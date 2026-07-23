@@ -23,6 +23,8 @@ import { RenderCache } from './render-cache.js';
 import { facetTypes } from './facet-types.js';
 import { readFileSync } from 'fs';
 import { assetPath } from '../utils/assets.js';
+import { ensureGlobalModuleStore } from '../bundler/module-store.js';
+import { resolveFacetPackageOverride } from '../builders/facet-directory.js';
 
 const facetVersion: string = JSON.parse(readFileSync(assetPath('package.json'), 'utf-8')).version;
 const openapiSpec: string = readFileSync(assetPath('openapi.yaml'), 'utf-8');
@@ -36,6 +38,17 @@ export interface ServerHandle {
 export async function createServer(config: ServerConfig): Promise<ServerHandle> {
   const logger = new Logger(config.verbose);
   const ssrLoaderOwner = {};
+
+  if (config.skipModules) {
+    const facetPackage = JSON.parse(readFileSync(assetPath('package.json'), 'utf-8'));
+    const override = resolveFacetPackageOverride();
+    await ensureGlobalModuleStore({
+      facetVersion,
+      facetPackage,
+      logger,
+      facetTarball: override?.kind === 'tarball' ? override.path : undefined,
+    });
+  }
 
   const templatesDir = resolve(process.cwd(), config.templatesDir);
   logger.info(`Templates directory: ${templatesDir}`);

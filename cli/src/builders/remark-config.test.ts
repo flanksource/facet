@@ -3,6 +3,7 @@ import {
   extractFrontmatter,
   remarkConfigFromFrontmatter,
   generatePluginCodegen,
+  rehypePluginsArray,
   remarkPluginsArray,
   hasPlugins,
 } from './remark-config.js';
@@ -65,8 +66,21 @@ describe('generatePluginCodegen', () => {
 
 describe('remarkPluginsArray', () => {
   it('keeps the always-on defaults first and appends user items', () => {
-    expect(remarkPluginsArray([])).toBe('[remarkFrontmatter, remarkGfm]');
-    expect(remarkPluginsArray(['_remarkPlugin0'])).toBe('[remarkFrontmatter, remarkGfm, _remarkPlugin0]');
+    expect(remarkPluginsArray([])).toBe("[remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }]]");
+    expect(remarkPluginsArray(['_remarkPlugin0'])).toBe(
+      "[remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }], _remarkPlugin0]",
+    );
+  });
+});
+
+describe('rehypePluginsArray', () => {
+  it('keeps raw HTML before user items', () => {
+      expect(rehypePluginsArray([])).toBe(
+        "[[rehypeRaw, { passThrough: ['mdxFlowExpression', 'mdxJsxFlowElement', 'mdxJsxTextElement', 'mdxTextExpression', 'mdxjsEsm'] }]]",
+      );
+    expect(rehypePluginsArray(['_rehypePlugin0'])).toBe(
+      "[[rehypeRaw, { passThrough: ['mdxFlowExpression', 'mdxJsxFlowElement', 'mdxJsxTextElement', 'mdxTextExpression', 'mdxjsEsm'] }], _rehypePlugin0]",
+    );
   });
 });
 
