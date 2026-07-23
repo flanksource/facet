@@ -12,7 +12,8 @@
  * (`&&`, `2>&1`, `cd`, pipes). NOTE: POSIX only — Windows support requires a
  * cmd.exe path and different escaping (tracked for the Windows binary).
  */
-import { spawn } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawnLowPriority } from './subprocess-priority.js';
 
 export interface ShellResult {
   stdout: Buffer;
@@ -85,8 +86,10 @@ class ShellPromise implements PromiseLike<ShellResult> {
 
   private run(): Promise<ShellResult> {
     return new Promise((resolve, reject) => {
-      const child = spawn('/bin/sh', ['-c', this.command], {
-        env: { ...process.env, ...this.extraEnv },
+      const child = spawnLowPriority<ChildProcessWithoutNullStreams>({
+        command: '/bin/sh',
+        args: ['-c', this.command],
+        options: { env: { ...process.env, ...this.extraEnv } },
       });
 
       const stdoutChunks: Buffer[] = [];
