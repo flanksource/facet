@@ -1,10 +1,9 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { mkdtemp, writeFile, readdir, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { rmSync } from 'fs';
 import { RenderError } from './errors.js';
+import { LowPriorityProcessError, runLowPriority } from '../utils/subprocess-priority.js';
 
 export interface ExtractedArchive {
   tempDir: string;
@@ -14,8 +13,6 @@ export interface ExtractedArchive {
 }
 
 const ENTRY_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];
-const execFileAsync = promisify(execFile);
-
 export async function extractArchive(
   data: Buffer,
   entryFile?: string,
@@ -35,7 +32,7 @@ export async function extractArchive(
     }
     await writeFile(tarPath, data);
     await mkdir(extractDir, { recursive: true });
-    await execFileAsync('tar', ['xzf', tarPath, '-C', extractDir]);
+    await runLowPriority({ command: 'tar', args: ['xzf', tarPath, '-C', extractDir] });
 
     const resolved = entryFile ?? await autoDetectEntry(extractDir);
     if (!resolved) {
@@ -51,7 +48,10 @@ export async function extractArchive(
   } catch (err) {
     rmSync(tempDir, { recursive: true, force: true });
     if (err instanceof RenderError) throw err;
-    throw new RenderError('ARCHIVE_ERROR', `Failed to extract archive: ${err}`, 400);
+    const detail = err instanceof LowPriorityProcessError
+      ? err.stderr.toString().trim() || err.message
+      : String(err);
+    throw new RenderError('ARCHIVE_ERROR', `Failed to extract archive: ${detail}`, 400);
   }
 }
 

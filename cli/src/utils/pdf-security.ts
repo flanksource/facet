@@ -10,6 +10,7 @@ import {
   ANNOTATION_FLAGS,
 } from '@signpdf/utils';
 import { Logger } from './logger.js';
+import type { RenderTimingPhase, RenderTimings } from './performance.js';
 
 export interface PDFEncryptionOptions {
   userPassword?: string;
@@ -35,6 +36,7 @@ export interface PDFSignatureOptions {
 interface PDFSecurityOptions {
   encryption?: PDFEncryptionOptions;
   signature?: PDFSignatureOptions;
+  timings?: RenderTimings;
 }
 
 class PDFRawLiteral extends PDFObject {
@@ -56,23 +58,28 @@ export async function applyPDFSecurity(
   logger: Logger = new Logger(),
 ): Promise<Buffer> {
   let result = buffer;
-  if (options.signature) {
-    const hasCert = options.signature.certPath || options.signature.selfSigned;
+  const measure = <T>(phase: RenderTimingPhase, action: () => Promise<T>): Promise<T> =>
+    options.timings ? options.timings.measure(phase, action) : action();
+  const signature = options.signature;
+  if (signature) {
+    const hasCert = signature.certPath || signature.selfSigned;
     if (hasCert) {
-      const method = options.signature.selfSigned ? 'self-signed' : 'PKCS#7';
+      const method = signature.selfSigned ? 'self-signed' : 'PKCS#7';
       const t0 = performance.now();
-      result = await signPDF(result, options.signature);
+      result = await measure('post-processing', () => signPDF(result, signature));
       logger.info(`Signed PDF (${method}) in ${(performance.now() - t0).toFixed(0)}ms`);
     }
-    if (options.signature.timestampUrl) {
+    const timestampUrl = signature.timestampUrl;
+    if (timestampUrl) {
       const t0 = performance.now();
-      result = await timestampPDF(result, options.signature.timestampUrl);
-      logger.info(`Timestamped PDF via ${options.signature.timestampUrl} in ${(performance.now() - t0).toFixed(0)}ms`);
+      result = await measure('timestamping', () => timestampPDF(result, timestampUrl));
+      logger.info(`Timestamped PDF via ${timestampUrl} in ${(performance.now() - t0).toFixed(0)}ms`);
     }
   }
-  if (options.encryption) {
+  const encryption = options.encryption;
+  if (encryption) {
     const t0 = performance.now();
-    result = await encryptPDF(result, options.encryption);
+    result = await measure('post-processing', () => encryptPDF(result, encryption));
     logger.info(`Encrypted PDF (AES-256) in ${(performance.now() - t0).toFixed(0)}ms`);
   }
   return result;

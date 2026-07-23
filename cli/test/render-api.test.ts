@@ -85,6 +85,8 @@ describe('Render API', () => {
     }
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
+    expect(res.headers.get('server-timing')).toMatch(/dependency-install;dur=[\d.]+;desc="Dependency install"/);
+    expect(res.headers.get('server-timing')).toMatch(/vite;dur=[\d.]+;desc="Vite"/);
     const html = await res.text();
     expect(html.length).toBeGreaterThan(100);
     expect(html).toContain('Test Report');
@@ -107,6 +109,7 @@ describe('Render API', () => {
       }),
     });
     expect(res.status).toBe(200);
+    expect(res.headers.get('server-timing')).toMatch(/pdf-generation;dur=[\d.]+;desc="PDF generation"/);
     const json = await res.json() as { url: string };
     expect(json.url).toMatch(/^\/results\//);
 
@@ -252,6 +255,7 @@ export default function InlineTemplate({ data }: { data: any }) {
     expect(html).toContain('function applyUrlToolbar(');
     expect(html).toContain('new URLSearchParams(location.search)');
     expect(html).toContain('initUrlRouting()');
+    expect(html).toContain('showTimings(payload.timings)');
   });
 
   test('POST /render with inline code returns valid HTML', async () => {
@@ -278,10 +282,25 @@ export default function Template({ data }: { data: any }) {
     expect(html).toContain('Hello Inline');
   }, 120000);
 
-  test('POST /render with inline markdown (ext: md) returns valid HTML', async () => {
+  test('POST /render with inline markdown (ext: md) renders built-in extensions', async () => {
     const code = `# Hello Markdown
 
-Rendered from an inline **.md** file, auto-wrapped in a printable page.`;
+Rendered from an inline **.md** file, auto-wrapped in a printable page.
+
+> [!NOTE]
+> Alert content
+
+<details open>
+<summary>Deployment details</summary>
+
+Detail content
+
+</details>
+
+\`\`\`mermaid
+flowchart LR
+  Source --> Report
+\`\`\``;
     const res = await fetch(`${server.url}/render`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -294,6 +313,10 @@ Rendered from an inline **.md** file, auto-wrapped in a printable page.`;
     expect(html).toContain('Hello Markdown');
     // The markdown wrapper applies prose styling.
     expect(html).toContain('prose');
+    expect(html).toContain('markdown-alert-note');
+    expect(html).toContain('<details open="">');
+    expect(html).toContain('<summary>Deployment details</summary>');
+    expect(html).toMatch(/<svg[^>]+aria-roledescription="flowchart-v2"/);
   }, 120000);
 
   test('POST /render with inline MDX (ext: mdx) interpolates data and renders components', async () => {
@@ -360,6 +383,8 @@ export default function Template({ data }: { data: any }) {
     const [first, second] = await Promise.all([request('HEADER_A'), request('HEADER_B')]);
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
+    expect(first.headers.get('server-timing')).toMatch(/header-generation;dur=[\d.]+;desc="Header generation"/);
+    expect(second.headers.get('server-timing')).toMatch(/header-generation;dur=[\d.]+;desc="Header generation"/);
     const [firstHtml, secondHtml] = await Promise.all([first.text(), second.text()]);
     expect(firstHtml).toContain('data-test-header="HEADER_A"');
     expect(firstHtml).not.toContain('data-test-header="HEADER_B"');
@@ -388,6 +413,8 @@ export default function Template({ data }: { data: any }) {
     // Should contain the final result event
     expect(text).toContain('event: result');
     expect(text).toContain('Stream Test');
+    expect(text).toMatch(/"timings":\[.*"name":"dependency-install"/);
+    expect(text).toMatch(/"timings":\[.*"name":"vite"/);
   }, 120000);
 
   test('POST /render with unknown template returns 404', async () => {

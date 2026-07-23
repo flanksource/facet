@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { existsSync, rmSync } from 'fs';
+import { existsSync, readdirSync, rmSync, statSync } from 'fs';
 import { mkdir, writeFile, readFile, chmod, mkdtemp } from 'fs/promises';
 import { join, dirname, basename } from 'path';
 import { homedir, tmpdir } from 'os';
@@ -181,6 +181,30 @@ async function readManifest(dir: string): Promise<CacheManifest | null> {
 
 async function writeManifest(dir: string, manifest: CacheManifest): Promise<void> {
   await writeFile(join(dir, 'facet-cache.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+  pruneRemoteCache(dirname(dir), dir);
+}
+
+/**
+ * Keep the newest FACET_REMOTE_CACHE_ENTRIES resolved refs (default 20).
+ * Entries are recognized by their facet-cache.json manifest, so sibling
+ * directories like modules/ are never touched. Runs only after a fetch.
+ */
+function pruneRemoteCache(baseDir: string, keepDir: string): void {
+  const maxEntries = Math.max(1, parseInt(process.env['FACET_REMOTE_CACHE_ENTRIES'] ?? '20', 10));
+  let entries: Array<{ path: string; mtimeMs: number }>;
+  try {
+    entries = readdirSync(baseDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => join(baseDir, entry.name))
+      .filter((path) => path !== keepDir && existsSync(join(path, 'facet-cache.json')))
+      .map((path) => ({ path, mtimeMs: statSync(join(path, 'facet-cache.json')).mtimeMs }));
+  } catch {
+    return;
+  }
+  entries.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  for (const stale of entries.slice(Math.max(0, maxEntries - 1))) {
+    try { rmSync(stale.path, { recursive: true, force: true }); } catch { /* best effort */ }
+  }
 }
 
 // --- Git resolver ---

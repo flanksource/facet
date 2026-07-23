@@ -23,10 +23,11 @@ npm install -g @flanksource/facet-cli
 # or: pnpm add -g @flanksource/facet-cli
 ```
 
-This installs the `facet` command, which runs on your Node.js (>=18). Rendering
-additionally needs `pnpm` on PATH and, for PDF output, a system Chrome/Chromium —
-run `facet doctor` to check. For a Node-free environment, use the standalone
-binary below.
+This installs the `facet` command, which runs on your Node.js (>=20.19). Rendering
+uses `pnpm` to populate the shared module cache and reconcile project-specific
+dependencies. PDF output also needs a system Chrome/Chromium. Run `facet doctor`
+to check the environment. For a Node-free environment, use the standalone binary
+below.
 
 ### Option 2: Standalone binary
 
@@ -255,7 +256,7 @@ Keep the fixture, iteration count, worker settings, and environment unchanged.
 
 ### Build Process
 
-**CLI mode** — `facet html` and `facet pdf` run the full pipeline locally:
+**CLI mode** — without a Facet server URL, `facet html` and `facet pdf` run the full pipeline locally:
 
 1. **Setup `.facet/`** — Creates an isolated build directory with symlinks to your sources
 2. **Generate configs** — Auto-generates `vite.config.ts`, `tsconfig.json`, `entry.tsx`
@@ -266,6 +267,8 @@ Keep the fixture, iteration count, worker settings, and environment unchanged.
 7. **PDF output** *(optional)* — Puppeteer prints the HTML to PDF, with optional encryption and digital signatures
 
 **Server mode** — `facet serve` wraps the same pipeline behind an HTTP API with a worker pool, LRU cache, optional S3 upload, and an interactive playground at `localhost:3010`.
+
+When `FACET_URL` or `--facet-url` is set, the CLI loads and validates data locally, uploads the template project to `/render`, downloads the result, and writes it to the normal local output path. The upload excludes Git metadata, dependencies, Facet caches, temporary files, and build output.
 
 
 
@@ -401,6 +404,43 @@ dropdown to try it.
 
 ## CLI Commands
 
+### Remote rendering
+
+Set `FACET_URL` or pass the global `--facet-url` option to submit `html` and `pdf` jobs to a Facet server. The explicit flag takes precedence over the environment variable.
+
+```bash
+FACET_URL=https://facet.example.com facet pdf MyDatasheet.tsx -d data.json -o report.pdf
+facet --facet-url https://facet.example.com html MyDatasheet.tsx -o ./dist/
+```
+
+Remote mode requires `tar` locally but does not require local Chromium or pnpm. Data loaders and schema validation still run locally. The server controls sandboxing, module mode, and cache lifecycle, so `--sandbox`, `--skip-modules`, and `--clear-cache` fail when combined with a Facet URL. A server or network error stops the command without falling back to local rendering.
+
+### Shared modules
+
+`--skip-modules` is a global option and may appear before or after any subcommand:
+
+```bash
+facet --skip-modules html MyDatasheet.tsx -d data.json
+facet pdf MyDatasheet.tsx --skip-modules -o out.pdf
+facet serve --skip-modules --templates-dir ./templates
+```
+
+The first use installs a Facet-only module set pinned to the CLI version under
+`${FACET_CACHE_DIR:-~/.facet/cache}/modules/<facet-version>/<platform>-<arch>-node<abi>`.
+Later invocations link `.facet/node_modules` directly to that immutable entry, so
+they do not read consumer or nested `package.json` files, package-manager pins,
+lockfiles, overrides, `.npmrc`, or directory-based `FACET_PACKAGE_PATH` overrides.
+Templates that import additional packages must run without `--skip-modules`.
+Server requests containing `dependencies` receive HTTP 400 while the server uses
+this mode. `facet doctor --skip-modules --fix` verifies or rebuilds the exact
+shared entry selected by the current Facet and Node versions.
+
+Without `--skip-modules`, a new `.facet` install is seeded by cloning the shared
+`node_modules` directory on APFS, then reconciled against the generated project
+manifest with `pnpm install`. Facet logs and uses a fresh install when cloning is
+unavailable, including on non-macOS filesystems. `--clear-cache` clears only the
+project `.facet` scaffold; it does not remove the versioned shared module cache.
+
 ### `facet html <template>`
 
 Generate HTML from a React template.
@@ -418,6 +458,8 @@ Options:
   --output-name-field <field>  Data field to use for output filename
   -v, --verbose                Enable verbose logging
 ```
+
+Facet automatically starts render-related child processes at below-normal scheduling priority so Vite, pnpm, data loaders, archive extraction, and Chromium yield resources to interactive OS workloads. It uses background task policy with niceness `+10` on macOS, niceness `+10` on Linux, and below-normal process priority on Windows.
 
 **Example:**
 ```bash
@@ -484,6 +526,9 @@ facet serve --api-key my-secret-key
 
 # With S3 upload
 facet serve --s3-endpoint https://s3.amazonaws.com --s3-bucket my-bucket
+
+# Reuse the immutable Facet-only modules for every request
+facet serve --skip-modules --templates-dir ./templates
 ```
 
 The playground is available at `http://localhost:3010/` with a Monaco editor, live preview, and render logs. Use the **Example** dropdown to load a starting point:
@@ -625,6 +670,13 @@ pnpm run storybook
 
 ```bash
 pnpm run build:cli
+```
+
+To build the npm CLI package from the current checkout and replace any existing
+global `facet` command managed through npm's prefix:
+
+```bash
+task install
 ```
 
 ### Publishing
