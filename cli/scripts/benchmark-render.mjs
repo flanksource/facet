@@ -38,13 +38,19 @@ function run(format, cold) {
     child.on('close', (code) => {
       clearInterval(sampler);
       if (code !== 0) return reject(new Error(`${format} failed:\n${stderr || stdout}`));
-      const profileLine = stdout.split('\n').findLast((line) => line.startsWith('[FACET_PROFILE]'));
+      const profiles = `${stdout}\n${stderr}`.split('\n')
+        .map((line) => {
+          const start = line.indexOf('[FACET_PROFILE] ');
+          return start < 0 ? undefined : line.slice(start + '[FACET_PROFILE] '.length);
+        })
+        .filter(Boolean)
+        .map((payload) => JSON.parse(payload));
       resolveRun({
         format,
         mode: cold ? 'cold' : 'warm',
         durationMs: Number((performance.now() - started).toFixed(1)),
         processTreePeakRssMb: Number((peakRss / 1024 / 1024).toFixed(1)),
-        profile: profileLine ? JSON.parse(profileLine.slice('[FACET_PROFILE] '.length)) : undefined,
+        profiles,
       });
     });
   });
