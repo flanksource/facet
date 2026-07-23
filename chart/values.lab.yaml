@@ -1,0 +1,20 @@
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: lab-ca
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  hosts:
+    - host: facet.c0a801af.sslip.io
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: facet.lab
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: facet-tls
+      hosts:
+        - facet.c0a801af.sslip.io
+        - facet.lab
