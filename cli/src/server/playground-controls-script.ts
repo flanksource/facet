@@ -5,6 +5,9 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       document.getElementById('renderBtn').textContent = 'Render ' + fmt.toUpperCase();
       document.getElementById('checkHtml').innerHTML = fmt === 'html' ? '&#10003;' : '&nbsp;';
       document.getElementById('checkPdf').innerHTML = fmt === 'pdf' ? '&#10003;' : '&nbsp;';
+      document.getElementById('checkPng').innerHTML = fmt === 'png' ? '&#10003;' : '&nbsp;';
+      document.getElementById('pdfOptions').style.display = fmt === 'pdf' ? 'flex' : 'none';
+      document.getElementById('pngOptions').style.display = fmt === 'png' ? 'flex' : 'none';
       closeRenderMenu();
       writeUrlState();
     }
@@ -38,7 +41,22 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       if (document.body.classList.contains('mode-fill')) p.set('mode', 'fill');
       const example = document.getElementById('example').value;
       if (example && example !== 'datasheet') p.set('example', example);
-      if (currentFormat === 'pdf') p.set('format', 'pdf');
+      if (currentFormat !== 'html') p.set('format', currentFormat);
+      if (currentFormat === 'png') {
+        const width = document.getElementById('pngWidth').value;
+        const height = document.getElementById('pngHeight').value;
+        const selector = document.getElementById('pngSelector').value;
+        const viewport = document.getElementById('pngViewport').value.trim();
+        if (width) p.set('pngWidth', width);
+        if (height) p.set('pngHeight', height);
+        if (selector !== 'body') p.set('pngSelector', selector);
+        if (viewport) p.set('pngViewport', viewport);
+        if (document.getElementById('pngAutocrop').checked) {
+          p.set('pngAutocrop', '1');
+          const padding = document.getElementById('pngAutocropPadding').value;
+          if (padding) p.set('pngAutocropPadding', padding);
+        }
+      }
       const pageSize = document.getElementById('pageSize').value;
       if (pageSize) p.set('pageSize', pageSize);
       if (document.getElementById('landscape').checked) p.set('landscape', '1');
@@ -75,13 +93,24 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
         if (tsa) document.getElementById('timestampUrl').value = tsa;
         toggleTimestamp();
       }
-      if (p.get('format') === 'pdf') setFormat('pdf');
+      const format = p.get('format');
+      if (format === 'pdf' || format === 'png') setFormat(format);
+      if (p.has('pngWidth')) document.getElementById('pngWidth').value = p.get('pngWidth');
+      if (p.has('pngHeight')) document.getElementById('pngHeight').value = p.get('pngHeight');
+      if (p.has('pngSelector')) document.getElementById('pngSelector').value = p.get('pngSelector');
+      if (p.has('pngViewport')) document.getElementById('pngViewport').value = p.get('pngViewport');
+      document.getElementById('pngAutocrop').checked = p.get('pngAutocrop') === '1';
+      if (p.has('pngAutocropPadding')) {
+        document.getElementById('pngAutocropPadding').value = p.get('pngAutocropPadding');
+      }
       if (p.get('mode') === 'fill') setMode('fill');
     }
 
     // Controls without an existing inline handler need a listener to keep the URL in sync.
     function bindUrlSync() {
-      ['pageSize', 'landscape', 'debug', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'timestampUrl']
+      ['pageSize', 'landscape', 'debug', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
+       'timestampUrl', 'pngWidth', 'pngHeight', 'pngSelector', 'pngViewport',
+       'pngAutocrop', 'pngAutocropPadding']
         .forEach(function(id) {
           const el = document.getElementById(id);
           const ev = (el.type === 'checkbox' || el.tagName === 'SELECT') ? 'change' : 'input';

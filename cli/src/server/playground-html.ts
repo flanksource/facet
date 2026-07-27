@@ -15,11 +15,15 @@ const HTML = `<!DOCTYPE html>
     .toolbar select, .toolbar button { font-size: 13px; padding: 4px 8px; border-radius: 4px; border: 1px solid #555; background: #3c3c3c; color: #ccc; cursor: pointer; }
     .toolbar button:hover { background: #505050; }
     .toolbar .sep { width: 1px; height: 20px; background: #555; }
+    .toolbar .format-options { align-items: center; gap: 8px; }
     .toolbar .spacer { flex: 1; }
     .toolbar .status { font-size: 12px; color: #888; }
     .toolbar input[type="checkbox"] { margin-right: 2px; }
     .toolbar input[type="text"] { font-size: 13px; padding: 4px 8px; border-radius: 4px; border: 1px solid #555; background: #3c3c3c; color: #ccc; width: 100px; }
     .toolbar input[type="number"] { font-size: 13px; padding: 4px 4px; border-radius: 4px; border: 1px solid #555; background: #3c3c3c; color: #ccc; width: 42px; text-align: center; }
+    #pngOptions input[type="number"] { width: 58px; }
+    #pngSelector { width: 160px; }
+    #pngViewport { width: 80px; }
     .margin-group { display: flex; align-items: center; gap: 2px; font-size: 12px; color: #888; }
     .margin-group span { color: #666; }
     .main { display: flex; flex: 1; min-height: 0; }
@@ -30,6 +34,7 @@ const HTML = `<!DOCTYPE html>
     #template-editor, #data-editor, #deps-editor, #header-editor, #footer-editor { flex: 1; min-height: 0; }
     .preview-panel { flex: 1; display: flex; flex-direction: column; background: #fff; min-height: 0; }
     .preview-panel iframe { flex: 1; border: none; width: 100%; }
+    .preview-panel img { max-width: 100%; max-height: 100%; object-fit: contain; margin: auto; }
     .preview-panel .error { padding: 16px; color: #dc2626; font-family: monospace; font-size: 13px; white-space: pre-wrap; background: #fef2f2; flex: 1; overflow: auto; }
     .preview-panel .empty { display: flex; align-items: center; justify-content: center; flex: 1; color: #888; font-size: 14px; background: #f5f5f5; }
 
@@ -92,6 +97,7 @@ const HTML = `<!DOCTYPE html>
     .log-stage.tailwind { color: #2dd4bf; }
     .log-stage.rendering-html { color: #818cf8; }
     .log-stage.rendering-pdf { color: #f472b6; }
+    .log-stage.rendering-png { color: #38bdf8; }
     .log-stage.uploading { color: #fb923c; }
     .log-stage.timing { color: #fbbf24; }
     .log-stage.done { color: #4ade80; }
@@ -117,7 +123,7 @@ const HTML = `<!DOCTYPE html>
       <button id="modeRender" class="active" onclick="setMode('render')">Render</button>
       <button id="modeFill" onclick="setMode('fill')">Fill PDF</button>
     </div>
-    <span class="render-only" style="display:contents">
+    <div class="render-only" style="display:contents">
     <div class="sep"></div>
     <label>Example:
       <select id="example" onchange="loadExample(this.value)">
@@ -127,6 +133,7 @@ const HTML = `<!DOCTYPE html>
         <option value="mdx">MDX</option>
       </select>
     </label>
+    <div class="format-options" id="pdfOptions" style="display:none">
     <div class="sep"></div>
     <label>Page Size:
       <select id="pageSize">
@@ -157,6 +164,23 @@ const HTML = `<!DOCTYPE html>
     <label><input type="checkbox" id="timestampEnabled" onchange="toggleTimestamp()"> Timestamp</label>
     <input type="text" id="timestampUrl" value="http://timestamp.digicert.com"
            style="display:none;width:220px" placeholder="TSA URL">
+    </div>
+    <div class="format-options" id="pngOptions" style="display:none">
+      <div class="sep"></div>
+      <label title="Scales the capture; empty captures the target at its natural size">Scale to:
+        <input type="number" id="pngWidth" min="1" placeholder="W" aria-label="PNG output width in pixels">
+        ×
+        <input type="number" id="pngHeight" min="1" placeholder="H" aria-label="PNG output height in pixels">
+      </label>
+      <input type="text" id="pngSelector" value="body" aria-label="CSS selector for the PNG capture target">
+      <input type="text" id="pngViewport" placeholder="1280x800" aria-label="Browser viewport used to lay out the page">
+      <label title="Trims the uniform background border off the capture before scaling">
+        <input type="checkbox" id="pngAutocrop"> Autocrop
+      </label>
+      <input type="number" id="pngAutocropPadding" min="0" placeholder="Pad"
+             title="Background margin left around autocropped content, in capture pixels"
+             aria-label="Autocrop padding in pixels">
+    </div>
     <div class="spacer"></div>
     <button class="logs-btn" id="logsBtn" onclick="openLogs()" title="View render log">
       Logs <span class="dot" id="logsDot"></span>
@@ -167,9 +191,10 @@ const HTML = `<!DOCTYPE html>
       <div class="render-menu" id="renderMenu">
         <button onclick="setFormat('html')"><span class="check" id="checkHtml">&#10003;</span>HTML</button>
         <button onclick="setFormat('pdf')"><span class="check" id="checkPdf">&nbsp;</span>PDF</button>
+        <button onclick="setFormat('png')"><span class="check" id="checkPng">&nbsp;</span>PNG</button>
       </div>
     </div>
-    </span>
+    </div>
   </div>
   <div class="main">
     <div class="editor-panel">
@@ -264,14 +289,34 @@ ${PLAYGROUND_CONTROLS_SCRIPT}
       const tsEnabled = document.getElementById('timestampEnabled').checked;
       const timestampUrl = tsEnabled ? document.getElementById('timestampUrl').value.trim() : '';
 
-      const body = { code, format, data, ext: currentExt, pdfOptions: {} };
-      if (pageSize) body.pdfOptions.defaultPageSize = pageSize;
-      if (landscape) body.pdfOptions.landscape = true;
-      if (debug) body.pdfOptions.debug = true;
-      if (Object.keys(margins).length) body.pdfOptions.margins = margins;
-      if (!Object.keys(body.pdfOptions).length) delete body.pdfOptions;
+      const body = { code, format, data, ext: currentExt };
+      if (format === 'pdf') {
+        body.pdfOptions = {};
+        if (pageSize) body.pdfOptions.defaultPageSize = pageSize;
+        if (landscape) body.pdfOptions.landscape = true;
+        if (debug) body.pdfOptions.debug = true;
+        if (Object.keys(margins).length) body.pdfOptions.margins = margins;
+        if (!Object.keys(body.pdfOptions).length) delete body.pdfOptions;
+      }
+      if (format === 'png') {
+        const pngWidth = document.getElementById('pngWidth').value;
+        const pngHeight = document.getElementById('pngHeight').value;
+        const pngViewport = document.getElementById('pngViewport').value.trim();
+        body.pngOptions = { selector: document.getElementById('pngSelector').value };
+        if (pngWidth) body.pngOptions.width = Number(pngWidth);
+        if (pngHeight) body.pngOptions.height = Number(pngHeight);
+        if (pngViewport) {
+          const parts = pngViewport.split('x');
+          body.pngOptions.viewport = { width: Number(parts[0]), height: Number(parts[1]) };
+        }
+        if (document.getElementById('pngAutocrop').checked) {
+          body.pngOptions.autocrop = true;
+          const pngAutocropPadding = document.getElementById('pngAutocropPadding').value;
+          if (pngAutocropPadding) body.pngOptions.autocropPadding = Number(pngAutocropPadding);
+        }
+      }
       if (Object.keys(deps).length) body.dependencies = deps;
-      if (timestampUrl) body.signature = { timestampUrl };
+      if (format === 'pdf' && timestampUrl) body.signature = { timestampUrl };
 
       const hdr = headerEditor.getValue().trim();
       const ftr = footerEditor.getValue().trim();
@@ -330,6 +375,9 @@ ${PLAYGROUND_CONTROLS_SCRIPT}
               if (payload.contentType === 'text/html') {
                 preview.innerHTML = '<iframe sandbox="allow-same-origin allow-scripts"></iframe>';
                 preview.querySelector('iframe').srcdoc = payload.data;
+              } else if (payload.contentType === 'image/png' && payload.url) {
+                preview.innerHTML = '<img alt="PNG render">';
+                preview.querySelector('img').src = payload.url;
               } else if (payload.url) {
                 preview.innerHTML = '<iframe></iframe>';
                 preview.querySelector('iframe').src = payload.url;

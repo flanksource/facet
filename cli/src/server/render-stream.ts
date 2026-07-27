@@ -14,6 +14,7 @@ export type RenderStage =
   | 'tailwind'
   | 'rendering-html'
   | 'rendering-pdf'
+  | 'rendering-png'
   | 'uploading'
   | 'securing'
   | 'done'

@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { join } from 'path';
 import { mkdirSync, readdirSync, statSync, unlinkSync, readFileSync, writeFileSync, utimesSync } from 'fs';
+import { renderContentTypeMetadata } from './render-format.js';
 
 export interface CachedFile {
   file: string;
@@ -46,7 +47,7 @@ export class RenderCache {
   }
 
   set(key: string, contentType: string, data: Buffer): void {
-    const ext = contentType === 'application/pdf' ? '.pdf' : '.html';
+    const ext = `.${renderContentTypeMetadata(contentType).extension}`;
     const filePath = join(this.dir, key + ext);
     const metaPath = join(this.dir, key + '.meta');
     writeFileSync(filePath, data);
@@ -58,7 +59,7 @@ export class RenderCache {
     const metaPath = join(this.dir, key + '.meta');
     try {
       const contentType = readFileSync(metaPath, 'utf-8').trim();
-      const ext = contentType === 'application/pdf' ? '.pdf' : '.html';
+      const ext = `.${renderContentTypeMetadata(contentType).extension}`;
       const filePath = join(this.dir, key + ext);
       statSync(filePath);
       return { file: filePath, contentType };
@@ -90,7 +91,7 @@ export class RenderCache {
       try {
         unlinkSync(entry.file);
         // Also remove the .meta file
-        const base = entry.file.replace(/\.(pdf|html)$/, '');
+        const base = entry.file.replace(/\.(pdf|html|png)$/, '');
         try { unlinkSync(base + '.meta'); } catch {}
       } catch {}
       totalSize -= entry.size;
