@@ -152,6 +152,176 @@ describe('parseRenderRequest postProcessCss', () => {
   });
 });
 
+describe('parseRenderRequest PNG options', () => {
+  it('leaves the output size unset so PNG defaults to a natural-size capture', async () => {
+    const parsed = await parseRenderRequest(new Request('http://facet.test/render', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: 'export default null', format: 'png' }),
+    }), 1024);
+
+    expect(parsed.format).toBe('png');
+    expect(parsed.pngOptions).toEqual({
+      selector: 'body',
+      viewport: { width: 1280, height: 800 },
+      autocrop: false,
+      autocropPadding: 0,
+    });
+  });
+
+  it('accepts multipart PNG options', async () => {
+    const form = new FormData();
+    form.set('archive', new File(['archive'], 'template.tar.gz'));
+    form.set('options', JSON.stringify({
+      format: 'png',
+      pngOptions: {
+        width: 640,
+        height: 360,
+        selector: '[data-export]',
+      },
+    }));
+
+    const parsed = await parseRenderRequest(new Request('http://facet.test/render', {
+      method: 'POST',
+      body: form,
+    }), 1024);
+
+    expect(parsed).toMatchObject({
+      format: 'png',
+      pngOptions: {
+        width: 640,
+        height: 360,
+        selector: '[data-export]',
+      },
+    });
+  });
+
+  it('accepts gzip PNG query options', async () => {
+    const parsed = await parseRenderRequest(new Request(
+      'http://facet.test/render?format=png&pngWidth=320&pngHeight=180&pngSelector=%23export&pngViewport=1920x1080',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/gzip' },
+        body: new Uint8Array([1, 2, 3]),
+      },
+    ), 1024);
+
+    expect(parsed).toMatchObject({
+      format: 'png',
+      pngOptions: {
+        width: 320,
+        height: 180,
+        selector: '#export',
+        viewport: { width: 1920, height: 1080 },
+      },
+    });
+  });
+
+  it('accepts autocrop and its padding as JSON options', async () => {
+    const parsed = await parseRenderRequest(new Request('http://facet.test/render', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: 'export default null',
+        format: 'png',
+        pngOptions: { autocrop: true, autocropPadding: 24 },
+      }),
+    }), 1024);
+
+    expect(parsed.pngOptions).toMatchObject({ autocrop: true, autocropPadding: 24 });
+  });
+
+  it('rejects autocrop padding without autocrop', async () => {
+    await expect(parseRenderRequest(new Request('http://facet.test/render', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: 'export default null',
+        format: 'png',
+        pngOptions: { autocropPadding: 24 },
+      }),
+    }), 1024)).rejects.toThrow('pngOptions.autocropPadding has no effect without pngOptions.autocrop');
+  });
+
+  it('accepts autocrop and its padding as gzip query options', async () => {
+    const parsed = await parseRenderRequest(new Request(
+      'http://facet.test/render?format=png&pngAutocrop=true&pngAutocropPadding=16',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/gzip' },
+        body: new Uint8Array([1, 2, 3]),
+      },
+    ), 1024);
+
+    expect(parsed.pngOptions).toMatchObject({ autocrop: true, autocropPadding: 16 });
+  });
+
+  it('rejects a negative pngAutocropPadding query option', async () => {
+    await expect(parseRenderRequest(new Request(
+      'http://facet.test/render?format=png&pngAutocrop=true&pngAutocropPadding=-4',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/gzip' },
+        body: new Uint8Array([1, 2, 3]),
+      },
+    ), 1024)).rejects.toThrow('pngAutocropPadding must be a non-negative integer');
+  });
+
+  it('rejects PNG autocrop query options on non-PNG renders', async () => {
+    await expect(parseRenderRequest(new Request(
+      'http://facet.test/render?format=pdf&pngAutocrop=true',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/gzip' },
+        body: new Uint8Array([1, 2, 3]),
+      },
+    ), 1024)).rejects.toThrow('PNG query options require format=png');
+  });
+
+  it('rejects a malformed pngViewport query option', async () => {
+    await expect(parseRenderRequest(new Request(
+      'http://facet.test/render?format=png&pngViewport=1920-1080',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/gzip' },
+        body: new Uint8Array([1, 2, 3]),
+      },
+    ), 1024)).rejects.toThrow('pngViewport must be <width>x<height> in pixels');
+  });
+
+  it('rejects unknown formats instead of treating them as PDF', async () => {
+    await expect(parseRenderRequest(new Request('http://facet.test/render', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: 'export default null', format: 'jpeg' }),
+    }), 1024)).rejects.toThrow('format must be one of: html, pdf, png');
+  });
+
+  it('rejects invalid PNG dimensions', async () => {
+    await expect(parseRenderRequest(new Request('http://facet.test/render', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: 'export default null',
+        format: 'png',
+        pngOptions: { width: 0, height: 800, selector: 'body' },
+      }),
+    }), 1024)).rejects.toThrow('pngOptions.width must be a positive integer');
+  });
+
+  it('rejects PDF options for PNG renders', async () => {
+    await expect(parseRenderRequest(new Request('http://facet.test/render', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: 'export default null',
+        format: 'png',
+        pdfOptions: { defaultPageSize: 'a4' },
+      }),
+    }), 1024)).rejects.toThrow('pdfOptions cannot be used with PNG renders');
+  });
+});
+
 describe('validateRequestModuleMode', () => {
   it('rejects request dependencies when the server uses shared modules', async () => {
     const parsed = await parseRenderRequest(new Request('http://facet.test/render', {

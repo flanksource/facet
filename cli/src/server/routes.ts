@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 
 import { generatePDFBuffer } from '../utils/pdf-generator.js';
+import { generatePNGBuffer } from '../utils/png-generator.js';
 import { hasMermaidCodeBlocks, renderBrowserHTML } from '../utils/browser-html.js';
 import { Logger } from '../utils/logger.js';
 import { RenderTimings } from '../utils/performance.js';
@@ -23,6 +24,11 @@ import { VERSION } from '../version-generated.js';
 import type { S3Uploader } from './s3.js';
 import type { TemplateInfo } from './templates.js';
 import type { WorkerPool } from './worker-pool.js';
+import {
+  renderContentTypeMetadata,
+  renderFormatMetadata,
+  type RenderFormatMetadata,
+} from './render-format.js';
 
 export function handleResultsRoute(id: string, cache: RenderCache): Response {
   const cached = cache.lookup(id);
@@ -32,13 +38,13 @@ export function handleResultsRoute(id: string, cache: RenderCache): Response {
       { status: 404 },
     );
   }
-  const ext = cached.contentType === 'application/pdf' ? 'pdf' : 'html';
+  const metadata = renderContentTypeMetadata(cached.contentType);
   const stream = Readable.toWeb(createReadStream(cached.file)) as ReadableStream<Uint8Array>;
   return new Response(stream, {
     headers: {
       'content-type': cached.contentType,
       'content-length': String(cached.size),
-      'content-disposition': `inline; filename="render.${ext}"`,
+      'content-disposition': `inline; filename="render.${metadata.extension}"`,
       'cache-control': 'private, max-age=600',
     },
   });
@@ -138,9 +144,10 @@ export function handleRenderStream(
     if (cached) {
       progress.emit('done', 'Cache hit');
       const resultUrl = `/results/${cacheKey}`;
+      const metadata = renderContentTypeMetadata(cached.contentType);
       progress.emitResult(
         cached.contentType,
-        cached.contentType === 'text/html' ? cached.data.toString('utf-8') : '',
+        metadata.binary ? '' : cached.data.toString('utf-8'),
         resultUrl,
       );
       progress.close();
@@ -166,13 +173,16 @@ export function handleRenderStream(
       });
       clearTimeout(timeout);
 
-      if (typeof result === 'string') {
-        cache.set(cacheKey, 'text/html', Buffer.from(result));
-        progress.emitResult('text/html', result, `/results/${cacheKey}`, timings.entries());
-      } else {
-        cache.set(cacheKey, 'application/pdf', Buffer.from(result));
-        progress.emitResult('application/pdf', '', `/results/${cacheKey}`, timings.entries());
-      }
+      const data = typeof result.content === 'string'
+        ? Buffer.from(result.content)
+        : Buffer.from(result.content);
+      cache.set(cacheKey, result.metadata.contentType, data);
+      progress.emitResult(
+        result.metadata.contentType,
+        result.metadata.binary ? '' : data.toString('utf-8'),
+        `/results/${cacheKey}`,
+        timings.entries(),
+      );
       progress.emit('done', 'Render complete');
     } catch (error) {
       clearTimeout(timeout);
@@ -208,6 +218,7 @@ function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerConfig): 
     pdfOptions: parsed.pdfOptions,
     encryption: parsed.encryption,
     signature: parsed.signature,
+    pngOptions: parsed.pngOptions,
     live: parsed.live,
     postProcessCss: parsed.postProcessCss,
   });
@@ -247,7 +258,8 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
   const cacheKey = cacheKeyForRequest(parsed, config);
   const cached = cache.lookup(cacheKey);
   if (cached) {
-    if (cached.contentType === 'application/pdf') {
+    const metadata = renderContentTypeMetadata(cached.contentType);
+    if (metadata.binary) {
       return Response.json({ url: `/results/${cacheKey}` });
     }
     const stream = Readable.toWeb(createReadStream(cached.file)) as ReadableStream<Uint8Array>;
@@ -255,7 +267,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       headers: {
         'content-type': cached.contentType,
         'content-length': String(cached.size),
-        'content-disposition': 'inline; filename="render.html"',
+        'content-disposition': `inline; filename="render.${metadata.extension}"`,
       },
     });
   }
@@ -278,6 +290,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       live: parsed.live,
       postProcessCss: parsed.postProcessCss,
       skipModules: config.skipModules,
+      pngOptions: parsed.pngOptions,
     });
     html = await injectHeaderFooter({
       html,
@@ -303,24 +316,31 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       });
     }
 
+    const metadata = renderFormatMetadata(parsed.format);
     const worker = await pool.acquire();
     let workerHealthy = true;
     try {
-      let pdfBuffer = await timings.measure('pdf-generation', () =>
-        generatePDFBuffer(worker.browser, html, parsed.pdfOptions));
-      if (parsed.encryption || parsed.signature) {
-        pdfBuffer = await applyPDFSecurity(Buffer.from(pdfBuffer), {
-          encryption: parsed.encryption,
-          signature: parsed.signature,
-          timings,
-        }, logger);
+      let output: Buffer;
+      if (parsed.format === 'png') {
+        output = await timings.measure('png-generation', () =>
+          generatePNGBuffer(worker.browser, html, parsed.pngOptions));
+      } else {
+        output = await timings.measure('pdf-generation', () =>
+          generatePDFBuffer(worker.browser, html, parsed.pdfOptions));
+        if (parsed.encryption || parsed.signature) {
+          output = await applyPDFSecurity(output, {
+            encryption: parsed.encryption,
+            signature: parsed.signature,
+            timings,
+          }, logger);
+        }
       }
-      cache.set(cacheKey, 'application/pdf', Buffer.from(pdfBuffer));
+      cache.set(cacheKey, metadata.contentType, output);
       if (parsed.output === 's3') {
         return respondWithOutput({
-          content: pdfBuffer,
-          contentType: 'application/pdf',
-          extension: 'pdf',
+          content: output,
+          contentType: metadata.contentType,
+          extension: metadata.extension,
           templateName: resolved.templateName,
           parsed,
           s3,
@@ -344,7 +364,12 @@ interface StreamRenderOptions extends RenderOptions {
   progress: RenderProgress;
 }
 
-async function doRenderStreamed(options: StreamRenderOptions): Promise<string | Buffer> {
+interface RenderArtifact {
+  content: string | Buffer;
+  metadata: RenderFormatMetadata;
+}
+
+async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArtifact> {
   const { parsed, config, pool, templates, s3, logger, progress, timings } = options;
   let tempDir: string | undefined;
   let archiveCleanup: (() => void) | undefined;
@@ -366,6 +391,7 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<string | 
       live: parsed.live,
       postProcessCss: parsed.postProcessCss,
       skipModules: config.skipModules,
+      pngOptions: parsed.pngOptions,
     });
     html = await injectHeaderFooter({
       html,
@@ -380,26 +406,38 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<string | 
     if (parsed.format === 'html') {
       html = await materializeBrowserHTML(html, pool);
       progress.emit('done', 'HTML render complete');
-      return html;
+      return {
+        content: html,
+        metadata: renderFormatMetadata('html'),
+      };
     }
 
-    progress.emit('rendering-pdf', 'Acquiring browser worker...');
+    const metadata = renderFormatMetadata(parsed.format);
+    const stage = parsed.format === 'png' ? 'rendering-png' : 'rendering-pdf';
+    progress.emit(stage, 'Acquiring browser worker...');
     const worker = await pool.acquire();
     let workerHealthy = true;
     try {
-      progress.emit('rendering-pdf', 'Generating PDF with Puppeteer...');
-      let pdfBuffer = await timings.measure('pdf-generation', () =>
-        generatePDFBuffer(worker.browser, html, parsed.pdfOptions));
-      if (parsed.encryption || parsed.signature) {
-        progress.emit('securing', 'Applying PDF security...');
-        pdfBuffer = await applyPDFSecurity(Buffer.from(pdfBuffer), {
-          encryption: parsed.encryption,
-          signature: parsed.signature,
-          timings,
-        }, logger);
+      let output: Buffer;
+      if (parsed.format === 'png') {
+        progress.emit(stage, 'Generating PNG with Puppeteer...');
+        output = await timings.measure('png-generation', () =>
+          generatePNGBuffer(worker.browser, html, parsed.pngOptions));
+      } else {
+        progress.emit(stage, 'Generating PDF with Puppeteer...');
+        output = await timings.measure('pdf-generation', () =>
+          generatePDFBuffer(worker.browser, html, parsed.pdfOptions));
+        if (parsed.encryption || parsed.signature) {
+          progress.emit('securing', 'Applying PDF security...');
+          output = await applyPDFSecurity(output, {
+            encryption: parsed.encryption,
+            signature: parsed.signature,
+            timings,
+          }, logger);
+        }
       }
       if (parsed.output === 's3' && s3) progress.emit('uploading', 'Uploading to S3...');
-      return pdfBuffer;
+      return { content: output, metadata };
     } catch (error) {
       workerHealthy = worker.browser.connected;
       throw error;

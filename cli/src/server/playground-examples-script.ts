@@ -139,7 +139,7 @@ export default function MyFooter() {
 import React from 'react';
 import {
   DatasheetTemplate, Page,
-  Diagram, BoxNode, Arrow, NodeSection, COLORS,
+  Diagram, BoxNode, Arrow, COLORS,
 } from '@flanksource/facet';
 
 export default function Template({ data }: { data: any }) {
@@ -149,12 +149,13 @@ export default function Template({ data }: { data: any }) {
         <Diagram className="flex items-center justify-between gap-8 py-16 px-6">
           {(id) => (
             <>
-              <NodeSection label="Sources">
+              <div className="flex flex-col gap-3">
+                <div className="text-xs font-semibold text-slate-500">Sources</div>
                 {data.sources.map((s: string, i: number) => (
                   <BoxNode key={i} id={id('src' + i)} title={s}
                     headerColor={COLORS.muted} borderColor={COLORS.muted} />
                 ))}
-              </NodeSection>
+              </div>
 
               <BoxNode id={id('engine')} title="Facet Engine"
                 headerColor={COLORS.primary} borderColor={COLORS.primary}>
@@ -163,12 +164,13 @@ export default function Template({ data }: { data: any }) {
                 </div>
               </BoxNode>
 
-              <NodeSection label="Outputs">
+              <div className="flex flex-col gap-3">
+                <div className="text-xs font-semibold text-slate-500">Outputs</div>
                 {data.outputs.map((o: string, i: number) => (
                   <BoxNode key={i} id={id('out' + i)} title={o}
                     headerColor={COLORS.outputBorder} borderColor={COLORS.outputBorder} />
                 ))}
-              </NodeSection>
+              </div>
 
               {data.sources.map((_: string, i: number) => (
                 <Arrow key={'a' + i} from={id('src' + i)} to={id('engine')} variant="secondary" />
