@@ -11,8 +11,8 @@ describe('assetPath', () => {
     expect(JSON.parse(readFileSync(p, 'utf-8')).name).toBe('@flanksource/facet');
   });
 
-  it('resolves styles.css and openapi.yaml to existing files', () => {
-    for (const name of ['styles.css', 'openapi.yaml'] as const) {
+  it('resolves runtime assets to existing files', () => {
+    for (const name of ['styles.css', 'openapi.yaml', 'mermaid.min.js'] as const) {
       expect(existsSync(assetPath(name))).toBe(true);
     }
   });

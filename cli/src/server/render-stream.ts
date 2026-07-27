@@ -4,6 +4,8 @@
  * with progress events, then the final result.
  */
 
+import type { RenderTimingEntry } from '../utils/performance.js';
+
 export type RenderStage =
   | 'parsing'
   | 'resolving'
@@ -77,11 +79,11 @@ export class RenderProgress {
     }
   }
 
-  emitResult(contentType: string, data: string, url?: string): void {
+  emitResult(contentType: string, data: string, url?: string, timings: RenderTimingEntry[] = []): void {
     if (!this.controller) return;
     try {
       this.controller.enqueue(
-        `event: result\ndata: ${JSON.stringify({ contentType, data, url })}\n\n`,
+        `event: result\ndata: ${JSON.stringify({ contentType, data, url, timings })}\n\n`,
       );
     } catch {}
   }

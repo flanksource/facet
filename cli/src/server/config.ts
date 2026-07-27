@@ -26,6 +26,7 @@ export interface ServerConfig {
   cacheDir?: string;
   s3?: S3Config;
   sandbox?: string | boolean;
+  skipModules: boolean;
 }
 
 export interface ServerCLIFlags {
@@ -49,6 +50,7 @@ export interface ServerCLIFlags {
   s3Region?: string;
   s3Prefix?: string;
   sandbox?: string | boolean;
+  skipModules?: boolean;
 }
 
 function workerLimit(value: string | number | undefined, fallback: number, minimum: number): number {
@@ -75,6 +77,7 @@ export function loadConfig(flags: ServerCLIFlags): ServerConfig {
     cacheDir: flags.cacheDir ?? process.env['FACET_CACHE_DIR'],
     verbose: flags.verbose ?? false,
     sandbox: flags.sandbox,
+    skipModules: flags.skipModules ?? false,
   };
 
   const s3Endpoint = flags.s3Endpoint ?? process.env['FACET_S3_ENDPOINT'];

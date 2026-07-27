@@ -54,7 +54,11 @@ export function variantProps(variant: ArrowVariant): VariantProps {
   }
 }
 
-export interface ArrowProps extends Omit<xarrowPropsType, keyof VariantProps> {
+export interface ArrowProps extends Omit<xarrowPropsType, keyof VariantProps | 'start' | 'end'> {
+  /** Source endpoint: a BoxNode id (from the Diagram `id()` factory). */
+  from: string;
+  /** Target endpoint: a BoxNode id (from the Diagram `id()` factory). */
+  to: string;
   /** Preset style bundle. Individual props below override the preset. */
   variant?: ArrowVariant;
   color?: string;
@@ -71,8 +75,10 @@ export interface ArrowProps extends Omit<xarrowPropsType, keyof VariantProps> {
 /**
  * A diagram arrow. Thin wrapper over react-xarrows `Xarrow` that applies a
  * named `variant` preset; any explicitly-passed prop overrides the preset.
+ * `from`/`to` map to Xarrow's required `start`/`end` — Xarrow silently anchors
+ * missing endpoints at (0,0), so the mapping must happen here.
  */
-export default function Arrow({ variant = 'primary', ...overrides }: ArrowProps) {
+export default function Arrow({ variant = 'primary', from, to, ...overrides }: ArrowProps) {
   const props = { ...variantProps(variant), ...overrides };
-  return <Xarrow {...(props as xarrowPropsType)} />;
+  return <Xarrow start={from} end={to} {...(props as Omit<xarrowPropsType, 'start' | 'end'>)} />;
 }

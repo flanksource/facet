@@ -1,7 +1,19 @@
 import chalk from 'chalk';
 
 export class Logger {
-  constructor(private verbose: boolean = false) { }
+  private readonly level: number;
+
+  constructor(verbose: boolean | number = false) {
+    this.level = typeof verbose === 'number' ? Math.max(0, verbose) : (verbose ? 1 : 0);
+  }
+
+  isVerbose(): boolean {
+    return this.level >= 1;
+  }
+
+  verbosity(): number {
+    return this.level;
+  }
 
   info(message: string): void {
     console.log(chalk.blue('ℹ'), message);
@@ -20,7 +32,7 @@ export class Logger {
   }
 
   debug(message: string): void {
-    if (this.verbose) {
+    if (this.level >= 1) {
       console.log(chalk.gray('[DEBUG]'), message);
     }
   }

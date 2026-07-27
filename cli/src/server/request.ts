@@ -22,6 +22,8 @@ export interface ParsedRenderRequest {
   footerCode?: string;
   encryption?: PDFEncryptionOptions;
   signature?: PDFSignatureOptions;
+  live?: boolean;
+  postProcessCss?: boolean;
 }
 
 export async function parseRenderRequest(
@@ -41,6 +43,16 @@ export async function parseRenderRequest(
   }
 
   throw new RenderError('INVALID_REQUEST', `Unsupported content type: ${contentType}`, 400);
+}
+
+export function validateRequestModuleMode(parsed: ParsedRenderRequest, skipModules: boolean): void {
+  if (skipModules && parsed.dependencies) {
+    throw new RenderError(
+      'INVALID_REQUEST',
+      'Request dependencies are unavailable while the server runs with --skip-modules; restart without the flag to install custom modules',
+      400,
+    );
+  }
 }
 
 async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> {
@@ -81,6 +93,8 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     footerCode: typeof body.footerCode === 'string' ? body.footerCode : undefined,
     encryption: parseEncryptionOptions(body.encryption),
     signature: parseSignatureOptions(body.signature),
+    live: parseBoolean(body.live, 'live'),
+    postProcessCss: parseBoolean(body.postProcessCss, 'postProcessCss'),
   };
 }
 
@@ -150,6 +164,10 @@ async function parseMultipartRequest(
     s3Key: options.s3Key as string | undefined,
     filename: options.filename as string | undefined,
     pdfOptions: parsePDFOptions(options.pdfOptions as Record<string, unknown> | undefined),
+    headerCode: typeof options.headerCode === 'string' ? options.headerCode : undefined,
+    footerCode: typeof options.footerCode === 'string' ? options.footerCode : undefined,
+    live: parseBoolean(options.live, 'live'),
+    postProcessCss: parseBoolean(options.postProcessCss, 'postProcessCss'),
   };
 }
 
@@ -187,7 +205,23 @@ async function parseGzipRequest(
     output,
     s3Key: url.searchParams.get('s3Key') ?? undefined,
     filename: url.searchParams.get('filename') ?? undefined,
+    postProcessCss: parseBooleanQuery(url.searchParams.get('postProcessCss'), 'postProcessCss'),
   };
+}
+
+function parseBoolean(raw: unknown, field: string): boolean | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'boolean') {
+    throw new RenderError('INVALID_REQUEST', `${field} must be a boolean`, 400);
+  }
+  return raw;
+}
+
+function parseBooleanQuery(raw: string | null, field: string): boolean | undefined {
+  if (raw === null) return undefined;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  throw new RenderError('INVALID_REQUEST', `${field} must be true or false`, 400);
 }
 
 function parseMargins(raw: unknown): PDFMargins | undefined {
@@ -206,6 +240,8 @@ function parsePDFOptions(raw?: Record<string, unknown>): BufferPDFOptions | unde
   return {
     landscape: raw.landscape as boolean | undefined,
     debug: raw.debug as boolean | undefined,
+    debugTypography: raw.debugTypography as boolean | undefined,
+    fontSize: raw.fontSize as number | undefined,
     defaultPageSize: raw.defaultPageSize as string | undefined,
     margins: parseMargins(raw.margins),
   };

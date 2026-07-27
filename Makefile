@@ -1,4 +1,4 @@
-.PHONY: build install test serve
+.PHONY: build install lint test serve
 
 build:
 	task build
@@ -6,6 +6,8 @@ build:
 install:
 	task install
 
+lint:
+	task lint
 
 test:
 	task test

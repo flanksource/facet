@@ -101,6 +101,12 @@ paths:
           schema:
             type: string
           description: Entry file within archive (gzip mode only).
+        - name: postProcessCss
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Rebuild CSS after rendering to include data-dependent classes (gzip mode only).
         - name: X-Facet-Data
           in: header
           schema:
@@ -112,6 +118,12 @@ paths:
             Rendered output. For HTML format, returns raw HTML. For PDF format,
             returns JSON with a `url` field pointing to `/results/{id}` where the
             cached PDF can be fetched. When `output: "s3"`, returns S3 upload details.
+          headers:
+            Server-Timing:
+              description: Render phase durations for completed work.
+              schema:
+                type: string
+                example: dependency-install;dur=128.4;desc="Dependency install", vite;dur=42.1;desc="Vite"
           content:
             text/html:
               schema:
@@ -140,7 +152,7 @@ paths:
 
         **Event types:**
         - `data: {...}` — progress event with `stage`, `message`, `elapsed`, `duration`
-        - `event: result` — final output with `contentType`, `data`, and `url`. For PDFs, `data` is empty and `url` points to `/results/{id}`. For HTML, `data` contains the rendered HTML.
+        - `event: result` — final output with `contentType`, `data`, `url`, and `timings`. For PDFs, `data` is empty and `url` points to `/results/{id}`. For HTML, `data` contains the rendered HTML. `timings` contains the same phase names, descriptions, and durations exposed by `/render` through `Server-Timing`.
         - `event: error` — render error with `message`
       security:
         - apiKey: []
@@ -267,13 +279,21 @@ components:
           type: object
           additionalProperties:
             type: string
-          description: "npm dependencies to install, e.g. react-icons: ^5.4.0."
+          description: "npm dependencies to install, e.g. react-icons: ^5.4.0. Rejected with HTTP 400 when the server is started with --skip-modules."
         headerCode:
           type: string
           description: Inline TSX for a header component.
         footerCode:
           type: string
           description: Inline TSX for a footer component.
+        live:
+          type: boolean
+          default: false
+          description: Force browser rendering even when the template does not declare the live directive.
+        postProcessCss:
+          type: boolean
+          default: true
+          description: Rebuild CSS after rendering to include data-dependent class names.
         pdfOptions:
           $ref: "#/components/schemas/PDFOptions"
         encryption:
@@ -295,6 +315,13 @@ components:
           type: boolean
           description: Add debug overlay lines for header/footer zones.
           default: false
+        debugTypography:
+          type: boolean
+          description: Append a font-size reference page to the PDF.
+          default: false
+        fontSize:
+          type: number
+          description: Override the base font size in points.
         margins:
           type: object
           properties:

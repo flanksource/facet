@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from 'fs/promises';
-import { resolve, join, basename, extname, relative, dirname } from 'path';
+import { resolve, join, basename, extname, dirname } from 'path';
 import { existsSync, rmSync } from 'fs';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
@@ -10,58 +10,26 @@ import { startViteServer } from '../bundler/vite-server.js';
 import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { scopeHTML } from '../utils/css-scoper.js';
-import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
+import { resolveTemplateSource } from '../utils/template-source.js';
 import { runTailwindCached } from '../utils/tailwind.js';
-
-function findProjectRoot(templatePath: string): string | undefined {
-  const absTemplate = resolve(templatePath);
-  const gitRoot = findGitRoot(dirname(absTemplate));
-  const stopAt = gitRoot ?? process.cwd();
-  let dir = dirname(absTemplate);
-  while (dir.length >= stopAt.length) {
-    if (existsSync(join(dir, 'package.json'))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return undefined;
-}
-
-function findGitRoot(from: string): string | undefined {
-  let dir = from;
-  while (true) {
-    if (existsSync(join(dir, '.git'))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return undefined;
-}
+import { shouldPostProcessTemplateCSS, shouldUseLiveRendering } from '../utils/live-template.js';
+import { RenderTimings } from '../utils/performance.js';
+import { renderBrowserHTML } from '../utils/browser-html.js';
 
 export async function generateHTML(options: GenerateOptions): Promise<string> {
   const logger = new Logger(options.verbose);
+  const timings = options.timings ?? new RenderTimings();
+  const ownsTimings = options.timings == null;
 
   logger.debug('Starting HTML generation');
 
-  // Resolve remote template if needed
-  let templatePath = options.template;
-  let consumerRoot: string | undefined;
-  const remoteRef = parseRemoteRef(options.template);
-  if (remoteRef) {
-    const resolved = await resolveRemoteRef(remoteRef, { refresh: options.refresh, verbose: options.verbose });
-    consumerRoot = resolved.consumerRoot;
-    templatePath = resolved.templateFile;
-    if (resolved.resolvedSha) {
-      logger.info(`Resolved to ${resolved.resolvedSha}`);
-    }
-  } else {
-    const projectRoot = findProjectRoot(templatePath);
-    if (projectRoot) {
-      consumerRoot = projectRoot;
-      templatePath = relative(projectRoot, resolve(templatePath));
-      logger.debug(`Using project root: ${projectRoot}`);
-    }
-  }
+  const source = await resolveTemplateSource(options.template, {
+    refresh: options.refresh,
+    verbose: Boolean(options.verbose),
+  });
+  const { consumerRoot, templatePath } = source;
+  if (source.resolvedSha) logger.info(`Resolved to ${source.resolvedSha}`);
+  if (consumerRoot) logger.debug(`Using project root: ${consumerRoot}`);
 
   if (options.clearCache) {
     const root = consumerRoot || resolve(dirname(options.template));
@@ -86,9 +54,16 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
 
   // Live render path: boot a Vite dev server, render in a real browser, snapshot
   // the settled DOM. Required for DOM-measuring components (diagrams).
-  if (options.live) {
+  if (shouldUseLiveRendering(options.live, resolve(consumerRoot ?? process.cwd(), templatePath))) {
     logger.info('Live rendering template in browser...');
-    const server = await startViteServer({ templatePath, data, consumerRoot, logger });
+    const server = await startViteServer({
+      templatePath,
+      data,
+      consumerRoot,
+      logger,
+      timings,
+      skipModules: options.skipModules,
+    });
     try {
       const snapshot = await snapshotHTML(server.url, logger);
       const html = options.cssScope ? scopeHTML(snapshot, { scopeClass: options.cssScope }) : snapshot;
@@ -99,6 +74,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
       await writeFile(outputPath, html, 'utf-8');
       logger.success(`HTML generated: ${outputPath}`);
       logger.info(`File size: ${(Buffer.byteLength(html, 'utf-8') / 1024).toFixed(2)} KB`);
+      if (ownsTimings) timings.log(logger);
       return outputName;
     } finally {
       await server.close();
@@ -113,6 +89,8 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     consumerRoot,
     logger,
     sandbox: options.sandbox,
+    timings,
+    skipModules: options.skipModules,
   });
 
   logger.debug(`Using output filename: ${outputName}`);
@@ -123,27 +101,28 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     await mkdir(outputDir, { recursive: true });
 
     const htmlWithoutCSS = buildResult.html;
-    logger.info('Generating CSS with Tailwind CLI...');
-    const stylesInput = join(buildResult.facetRoot, 'src/styles.css');
+    logger.info('Post-processing CSS with Vite...');
 
-    let generatedCSS = buildResult.css;
-    try {
-      generatedCSS = await runTailwindCached({
-        facetRoot: buildResult.facetRoot,
-        stylesInput,
-        html: htmlWithoutCSS,
-        buildCacheKey: buildResult.buildCacheKey,
-        verbose: options.verbose,
-      });
-      logger.debug('Tailwind CSS generated or loaded from cache');
-    } catch (error) {
-      logger.warn(`Tailwind CSS generation failed: ${error instanceof Error ? error.message : String(error)}`);
-      logger.debug('Using Vite-generated CSS as fallback');
-    }
+    const postProcessCss = shouldPostProcessTemplateCSS(
+      options.postProcessCss,
+      resolve(consumerRoot ?? process.cwd(), templatePath),
+    );
+    const generatedCSS = await timings.measure('tailwind', () => runTailwindCached({
+      facetRoot: buildResult.facetRoot,
+      html: postProcessCss ? htmlWithoutCSS : '',
+      buildCacheKey: buildResult.buildCacheKey,
+      logger,
+      ssrCss: buildResult.css,
+    }));
+    logger.debug(postProcessCss
+      ? 'CSS generated from source and rendered class names'
+      : 'CSS generated from source; rendered-HTML post-processing disabled');
 
     // Combine generated CSS with the static HTML.
 
-    const combinedHTML = combineHTMLAndCSS(htmlWithoutCSS, generatedCSS);
+    const combinedHTML = await renderBrowserHTML({
+      html: combineHTMLAndCSS(htmlWithoutCSS, generatedCSS),
+    });
     const finalHTML = options.cssScope
       ? scopeHTML(combinedHTML, { scopeClass: options.cssScope })
       : combinedHTML;
@@ -158,6 +137,8 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     // Get file size
     const sizeKB = (Buffer.byteLength(finalHTML, 'utf-8') / 1024).toFixed(2);
     logger.info(`File size: ${sizeKB} KB`);
+
+    if (ownsTimings) timings.log(logger);
 
     return outputName;
   } finally {

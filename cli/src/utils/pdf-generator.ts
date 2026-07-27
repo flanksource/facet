@@ -12,11 +12,12 @@ import { fileURLToPath } from 'url';
 import { PDFDocument } from 'pdf-lib';
 import { injectDebugAnnotations, injectTypographyAnnotations, extractTypographyInfo, type FontCombo } from './debug-annotations.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from '../version-generated.js';
-import puppeteer, { type Browser, type BrowserContext, type Page } from 'puppeteer-core';
+import puppeteer, { type Browser, type BrowserContext, type Page, type PuppeteerLaunchOptions } from 'puppeteer-core';
 
 type PageProvider = Browser | BrowserContext;
 import { Logger } from './logger.js';
 import { setPreparedContent } from './browser-readiness.js';
+import { applySpawnedProcessPriority, buildLowPriorityCommand } from './subprocess-priority.js';
 
 function readVersion(): string {
   try {
@@ -82,6 +83,26 @@ export function resolveChromePath(): string | undefined {
   if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
   return (SYSTEM_CHROME_PATHS[process.platform] ?? []).find(existsSync);
+}
+
+export function buildBrowserLaunchOptions(options: {
+  chromePath: string;
+  platform?: NodeJS.Platform;
+}): PuppeteerLaunchOptions {
+  const chromeArgs = puppeteer.defaultArgs({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+  const command = buildLowPriorityCommand({
+    command: options.chromePath,
+    args: chromeArgs,
+    platform: options.platform,
+  });
+  return {
+    executablePath: command.command,
+    ignoreDefaultArgs: true,
+    args: command.args,
+  };
 }
 
 async function loadAndPrepare(browser: PageProvider, html: string, widthMm?: number): Promise<Page> {
@@ -535,11 +556,16 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
 }
 
 export async function launchBrowser(): Promise<Browser> {
-  return puppeteer.launch({
-    headless: true,
-    executablePath: resolveChromePath(),
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  const chromePath = resolveChromePath();
+  if (!chromePath) {
+    throw new Error('Chrome/Chromium executable not found; set PUPPETEER_EXECUTABLE_PATH or CHROME_PATH');
+  }
+  const browser = await puppeteer.launch(buildBrowserLaunchOptions({ chromePath }));
+  const process = browser.process();
+  if (process?.pid !== undefined) {
+    applySpawnedProcessPriority({ pid: process.pid, kill: () => process.kill() });
+  }
+  return browser;
 }
 
 export async function generatePDFWithBrowser(
