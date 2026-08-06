@@ -86,14 +86,17 @@ export async function handleRender(
 
   const renderTimeout = parsed.timeoutMs ?? config.renderTimeout;
   const renderPromise = doRender(parsed, config, pool, templates, cache, s3, logger);
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new RenderError('RENDER_TIMEOUT', `Render timed out after ${renderTimeout}ms`, 504)), renderTimeout),
-  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new RenderError('RENDER_TIMEOUT', `Render timed out after ${renderTimeout}ms`, 504)), renderTimeout);
+  });
 
   try {
     return await Promise.race([renderPromise, timeoutPromise]);
   } catch (err) {
     return errorResponse(err);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

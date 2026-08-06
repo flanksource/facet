@@ -53,10 +53,21 @@ export interface ServerCLIFlags {
 
 export const DEFAULT_RENDER_TIMEOUT_MS = 300_000;
 
-function intOption(value: string | number | undefined, fallback: number, minimum: number): number {
+/**
+ * Upper bound for any value handed to setTimeout: it stores the delay as a
+ * 32-bit signed integer, and anything larger silently fires after 1ms.
+ */
+export const MAX_TIMEOUT_MS = 2_147_483_647;
+
+function intOption(
+  value: string | number | undefined,
+  fallback: number,
+  minimum: number,
+  maximum = Number.MAX_SAFE_INTEGER,
+): number {
   if (value === undefined) return fallback;
   const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed >= minimum ? parsed : fallback;
+  return Number.isSafeInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
 }
 
 export function loadConfig(flags: ServerCLIFlags): ServerConfig {
@@ -70,7 +81,7 @@ export function loadConfig(flags: ServerCLIFlags): ServerConfig {
     maxWorkerRssMb: intOption(flags.maxWorkerRss ?? process.env['FACET_MAX_WORKER_RSS_MB'], 0, 0),
     workerAcquireTimeoutMs: intOption(flags.workerAcquireTimeout ?? process.env['FACET_WORKER_ACQUIRE_TIMEOUT_MS'], 30_000, 1),
     persistentSsr: flags.persistentSsr ?? process.env['FACET_PERSISTENT_SSR'] !== 'false',
-    renderTimeout: intOption(flags.timeout ?? process.env['FACET_RENDER_TIMEOUT'], DEFAULT_RENDER_TIMEOUT_MS, 1),
+    renderTimeout: intOption(flags.timeout ?? process.env['FACET_RENDER_TIMEOUT'], DEFAULT_RENDER_TIMEOUT_MS, 1, MAX_TIMEOUT_MS),
     apiKey: flags.apiKey ?? process.env['FACET_API_KEY'],
     maxUploadSize: parseInt(flags.maxUpload ?? process.env['FACET_MAX_UPLOAD'] ?? '52428800', 10),
     cacheMaxSize: parseInt(flags.cacheMaxSize ?? process.env['FACET_CACHE_MAX_SIZE'] ?? '104857600', 10),
