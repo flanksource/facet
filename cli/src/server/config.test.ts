@@ -69,5 +69,13 @@ describe('loadConfig render timeout', () => {
     process.env.FACET_RENDER_TIMEOUT = '5m';
     expect(loadConfig({}).renderTimeout).toBe(300_000);
     expect(loadConfig({ timeout: '0' }).renderTimeout).toBe(300_000);
+    expect(loadConfig({ timeout: '-1' }).renderTimeout).toBe(300_000);
+    expect(loadConfig({ timeout: '1.5' }).renderTimeout).toBe(300_000);
+  });
+
+  it('rejects values setTimeout cannot represent', () => {
+    // A 32-bit overflow makes setTimeout fire after 1ms, timing out every render.
+    expect(loadConfig({ timeout: '2147483648' }).renderTimeout).toBe(300_000);
+    expect(loadConfig({ timeout: '2147483647' }).renderTimeout).toBe(2_147_483_647);
   });
 });

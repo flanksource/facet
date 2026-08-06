@@ -47,10 +47,17 @@ describe('parseRenderRequest timeout', () => {
     expect(parsed.timeoutMs).toBe(9000);
   });
 
-  it('rejects a timeout that is not a positive number', async () => {
-    await expect(parseRenderRequest(jsonRequest({ template: 'invoice', timeout: 0 }), MAX_UPLOAD))
+  it('rejects a timeout that is not a positive whole number', async () => {
+    for (const timeout of [0, -1, 1.5, true, '30m', '', {}]) {
+      await expect(parseRenderRequest(jsonRequest({ template: 'invoice', timeout }), MAX_UPLOAD))
+        .rejects.toThrow(/Invalid timeout/);
+    }
+  });
+
+  it('rejects a timeout setTimeout cannot represent', async () => {
+    await expect(parseRenderRequest(jsonRequest({ template: 'invoice', timeout: 2_147_483_648 }), MAX_UPLOAD))
       .rejects.toThrow(/Invalid timeout/);
-    await expect(parseRenderRequest(jsonRequest({ template: 'invoice', timeout: '30m' }), MAX_UPLOAD))
-      .rejects.toThrow(/Invalid timeout/);
+    const parsed = await parseRenderRequest(jsonRequest({ template: 'invoice', timeout: 2_147_483_647 }), MAX_UPLOAD);
+    expect(parsed.timeoutMs).toBe(2_147_483_647);
   });
 });

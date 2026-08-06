@@ -1,4 +1,5 @@
 import { RenderError } from './errors.js';
+import { MAX_TIMEOUT_MS } from './config.js';
 import { parseRemoteRef } from '../utils/remote-resolver.js';
 import type { BufferPDFOptions, PDFMargins } from '../utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from '../utils/pdf-security.js';
@@ -89,11 +90,15 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
 
 function parseTimeout(raw: unknown): number | undefined {
   if (raw === undefined || raw === null) return undefined;
-  const ms = Number(raw);
-  if (!Number.isFinite(ms) || ms <= 0) {
-    throw new RenderError('INVALID_REQUEST', `Invalid timeout: ${String(raw)} (expected milliseconds)`, 400);
+  const ms = typeof raw === 'number' || typeof raw === 'string' ? Number(raw) : NaN;
+  if (!Number.isSafeInteger(ms) || ms < 1 || ms > MAX_TIMEOUT_MS) {
+    throw new RenderError(
+      'INVALID_REQUEST',
+      `Invalid timeout: ${String(raw)} (expected 1-${MAX_TIMEOUT_MS} milliseconds)`,
+      400,
+    );
   }
-  return Math.floor(ms);
+  return ms;
 }
 
 // File extension for inline code. Whitelisted so the value is safe to use in a
