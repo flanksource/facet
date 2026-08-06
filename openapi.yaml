@@ -101,6 +101,12 @@ paths:
           schema:
             type: string
           description: Entry file within archive (gzip mode only).
+        - name: timeout
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: Render deadline in milliseconds (gzip mode only).
         - name: X-Facet-Data
           in: header
           schema:
@@ -274,6 +280,12 @@ components:
         footerCode:
           type: string
           description: Inline TSX for a footer component.
+        timeout:
+          type: integer
+          minimum: 1
+          description: >-
+            Render deadline in milliseconds for this request, overriding the
+            server default (`--timeout`, 300000).
         pdfOptions:
           $ref: "#/components/schemas/PDFOptions"
         encryption:
@@ -376,7 +388,7 @@ components:
           description: JSON string of template data.
         options:
           type: string
-          description: JSON string with `format`, `output`, `entryFile`, `pdfOptions`, etc.
+          description: JSON string with `format`, `output`, `entryFile`, `pdfOptions`, `timeout`, etc.
 
     TemplateInfo:
       type: object

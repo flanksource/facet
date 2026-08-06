@@ -22,6 +22,8 @@ export interface ParsedRenderRequest {
   footerCode?: string;
   encryption?: PDFEncryptionOptions;
   signature?: PDFSignatureOptions;
+  /** Render deadline in milliseconds, overriding the server default. */
+  timeoutMs?: number;
 }
 
 export async function parseRenderRequest(
@@ -81,7 +83,17 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     footerCode: typeof body.footerCode === 'string' ? body.footerCode : undefined,
     encryption: parseEncryptionOptions(body.encryption),
     signature: parseSignatureOptions(body.signature),
+    timeoutMs: parseTimeout(body.timeout),
   };
+}
+
+function parseTimeout(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const ms = Number(raw);
+  if (!Number.isFinite(ms) || ms <= 0) {
+    throw new RenderError('INVALID_REQUEST', `Invalid timeout: ${String(raw)} (expected milliseconds)`, 400);
+  }
+  return Math.floor(ms);
 }
 
 // File extension for inline code. Whitelisted so the value is safe to use in a
@@ -150,6 +162,7 @@ async function parseMultipartRequest(
     s3Key: options.s3Key as string | undefined,
     filename: options.filename as string | undefined,
     pdfOptions: parsePDFOptions(options.pdfOptions as Record<string, unknown> | undefined),
+    timeoutMs: parseTimeout(options.timeout),
   };
 }
 
@@ -187,6 +200,7 @@ async function parseGzipRequest(
     output,
     s3Key: url.searchParams.get('s3Key') ?? undefined,
     filename: url.searchParams.get('filename') ?? undefined,
+    timeoutMs: parseTimeout(url.searchParams.get('timeout')),
   };
 }
 

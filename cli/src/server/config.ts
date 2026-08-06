@@ -51,7 +51,9 @@ export interface ServerCLIFlags {
   sandbox?: string | boolean;
 }
 
-function workerLimit(value: string | number | undefined, fallback: number, minimum: number): number {
+export const DEFAULT_RENDER_TIMEOUT_MS = 300_000;
+
+function intOption(value: string | number | undefined, fallback: number, minimum: number): number {
   if (value === undefined) return fallback;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed >= minimum ? parsed : fallback;
@@ -62,13 +64,13 @@ export function loadConfig(flags: ServerCLIFlags): ServerConfig {
     port: parseInt(flags.port ?? process.env['FACET_PORT'] ?? '3010', 10),
     templatesDir: flags.templatesDir ?? process.env['FACET_TEMPLATES_DIR'] ?? '.',
     workers: parseInt(flags.workers ?? process.env['FACET_WORKERS'] ?? '2', 10),
-    maxRendersPerWorker: workerLimit(flags.maxRendersPerWorker ?? process.env['FACET_MAX_RENDERS_PER_WORKER'], 50, 1),
-    maxQueueDepth: workerLimit(flags.maxQueueDepth ?? process.env['FACET_MAX_QUEUE_DEPTH'], 20, 1),
-    maxWorkerAgeMs: workerLimit(flags.maxWorkerAge ?? process.env['FACET_MAX_WORKER_AGE_MS'], 1_800_000, 1),
-    maxWorkerRssMb: workerLimit(flags.maxWorkerRss ?? process.env['FACET_MAX_WORKER_RSS_MB'], 0, 0),
-    workerAcquireTimeoutMs: workerLimit(flags.workerAcquireTimeout ?? process.env['FACET_WORKER_ACQUIRE_TIMEOUT_MS'], 30_000, 1),
+    maxRendersPerWorker: intOption(flags.maxRendersPerWorker ?? process.env['FACET_MAX_RENDERS_PER_WORKER'], 50, 1),
+    maxQueueDepth: intOption(flags.maxQueueDepth ?? process.env['FACET_MAX_QUEUE_DEPTH'], 20, 1),
+    maxWorkerAgeMs: intOption(flags.maxWorkerAge ?? process.env['FACET_MAX_WORKER_AGE_MS'], 1_800_000, 1),
+    maxWorkerRssMb: intOption(flags.maxWorkerRss ?? process.env['FACET_MAX_WORKER_RSS_MB'], 0, 0),
+    workerAcquireTimeoutMs: intOption(flags.workerAcquireTimeout ?? process.env['FACET_WORKER_ACQUIRE_TIMEOUT_MS'], 30_000, 1),
     persistentSsr: flags.persistentSsr ?? process.env['FACET_PERSISTENT_SSR'] !== 'false',
-    renderTimeout: parseInt(flags.timeout ?? process.env['FACET_RENDER_TIMEOUT'] ?? '60000', 10),
+    renderTimeout: intOption(flags.timeout ?? process.env['FACET_RENDER_TIMEOUT'], DEFAULT_RENDER_TIMEOUT_MS, 1),
     apiKey: flags.apiKey ?? process.env['FACET_API_KEY'],
     maxUploadSize: parseInt(flags.maxUpload ?? process.env['FACET_MAX_UPLOAD'] ?? '52428800', 10),
     cacheMaxSize: parseInt(flags.cacheMaxSize ?? process.env['FACET_CACHE_MAX_SIZE'] ?? '104857600', 10),

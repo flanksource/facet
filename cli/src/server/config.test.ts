@@ -7,6 +7,7 @@ const limitEnvNames = [
   'FACET_MAX_WORKER_AGE_MS',
   'FACET_MAX_WORKER_RSS_MB',
   'FACET_WORKER_ACQUIRE_TIMEOUT_MS',
+  'FACET_RENDER_TIMEOUT',
 ] as const;
 const savedEnv = new Map(limitEnvNames.map((name) => [name, process.env[name]]));
 
@@ -46,5 +47,27 @@ describe('loadConfig worker limits', () => {
     expect(config.maxWorkerAgeMs).toBe(4);
     expect(config.maxWorkerRssMb).toBe(0);
     expect(config.workerAcquireTimeoutMs).toBe(5);
+  });
+});
+
+describe('loadConfig render timeout', () => {
+  it('defaults to 5 minutes', () => {
+    expect(loadConfig({}).renderTimeout).toBe(300_000);
+  });
+
+  it('reads FACET_RENDER_TIMEOUT', () => {
+    process.env.FACET_RENDER_TIMEOUT = '120000';
+    expect(loadConfig({}).renderTimeout).toBe(120_000);
+  });
+
+  it('prefers the flag over the environment', () => {
+    process.env.FACET_RENDER_TIMEOUT = '120000';
+    expect(loadConfig({ timeout: '90000' }).renderTimeout).toBe(90_000);
+  });
+
+  it('falls back to the default for unusable values', () => {
+    process.env.FACET_RENDER_TIMEOUT = '5m';
+    expect(loadConfig({}).renderTimeout).toBe(300_000);
+    expect(loadConfig({ timeout: '0' }).renderTimeout).toBe(300_000);
   });
 });

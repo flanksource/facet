@@ -274,7 +274,7 @@ program
   .option('--max-worker-rss <mb>', 'Recycle Chromium above this Linux process-tree RSS (default: 0/off)', numericOption(0))
   .option('--worker-acquire-timeout <ms>', 'Maximum time to wait for a browser worker (default: 30000)', numericOption(1))
   .option('--no-persistent-ssr', 'Disable persistent SSR loaders to reduce idle memory')
-  .option('--timeout <ms>', 'Render timeout in milliseconds', '60000')
+  .option('--timeout <ms>', 'Render timeout in milliseconds (default: 300000)')
   .option('--api-key <key>', 'API key for authentication')
   .option('--max-upload <bytes>', 'Max upload size in bytes', '52428800')
   .option('--cache-max-size <bytes>', 'Max render cache size in bytes', '104857600')
