@@ -464,7 +464,7 @@ Options:
   --max-worker-rss <mb>        Linux Chromium RSS recycle threshold (default: 0/off)
   --worker-acquire-timeout <ms> Browser queue wait timeout (default: 30000)
   --no-persistent-ssr          Disable persistent SSR loader processes
-  --timeout <ms>               Render timeout in milliseconds (default: 60000)
+  --timeout <ms>               Render timeout in milliseconds (default: 300000)
   --api-key <key>              API key for authentication
   --max-upload <bytes>         Max upload size in bytes (default: 52428800)
   --cache-max-size <bytes>     Max render cache size in bytes (default: 104857600)
