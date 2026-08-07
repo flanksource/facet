@@ -53,6 +53,8 @@ export type {
 export { default as LogoGrid } from './LogoGrid';
 export { default as KpiComparison } from './KpiComparison';
 export { default as KPITargetActual } from './KPITargetActual';
+export { default as Markdown, renderMarkdown, markdownToPlainText, sanitizeHTML } from './Markdown';
+export type { MarkdownProps } from './Markdown';
 export { default as MatrixTable, Dot } from './MatrixTable';
 export { default as MetricGrid } from './MetricGrid';
 export { default as MetricHeader } from './MetricHeader';
