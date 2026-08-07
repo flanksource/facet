@@ -1030,3 +1030,127 @@ article {
 }
 
 
+
+/* Markdown ------------------------------------------------------------------
+   Styles for HTML produced at runtime by the Markdown component. Authored as
+   plain CSS rather than utility classes because the markup does not exist in
+   any source file for Tailwind to scan. */
+
+.facet-markdown > *:first-child {
+  margin-top: 0;
+}
+
+.facet-markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+.facet-markdown p {
+  margin: 0.6mm 0;
+}
+
+.facet-markdown ul,
+.facet-markdown ol {
+  margin: 0.6mm 0 0.6mm 3.5mm;
+}
+
+.facet-markdown ul {
+  list-style-type: disc;
+}
+
+.facet-markdown ol {
+  list-style-type: decimal;
+}
+
+.facet-markdown li {
+  margin: 0.2mm 0;
+}
+
+.facet-markdown a {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.facet-markdown code {
+  background: #f3f4f6;
+  border-radius: 0.5mm;
+  padding: 0 0.4mm;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.facet-markdown pre {
+  background: #f9fafb;
+  border-radius: 0.5mm;
+  padding: 1mm;
+  margin: 0.6mm 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.facet-markdown pre code {
+  background: none;
+  padding: 0;
+}
+
+.facet-markdown blockquote {
+  border-left: 0.4mm solid #e5e7eb;
+  padding-left: 1.5mm;
+  color: #6b7280;
+}
+
+.facet-markdown h1,
+.facet-markdown h2,
+.facet-markdown h3,
+.facet-markdown h4,
+.facet-markdown h5,
+.facet-markdown h6 {
+  font-weight: 600;
+  color: #1e293b;
+  margin-top: 1mm;
+  margin-bottom: 0.3mm;
+}
+
+.facet-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6mm 0;
+}
+
+.facet-markdown th {
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 0.2mm solid #e5e7eb;
+  padding-right: 2mm;
+}
+
+.facet-markdown td {
+  vertical-align: top;
+  border-bottom: 0.2mm solid #f3f4f6;
+  padding-right: 2mm;
+}
+
+.facet-markdown hr {
+  border: 0;
+  border-top: 0.2mm solid #e5e7eb;
+  margin: 1mm 0;
+}
+
+.facet-markdown img {
+  max-width: 100%;
+}
+
+/* Inline mode collapses block spacing so the text sits in a single line. */
+.facet-markdown--inline p,
+.facet-markdown--inline ul,
+.facet-markdown--inline ol {
+  display: inline;
+  margin: 0;
+}
+
+@media print {
+  .facet-markdown pre,
+  .facet-markdown table,
+  .facet-markdown blockquote {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
