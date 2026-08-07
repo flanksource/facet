@@ -114,6 +114,97 @@ describe('Markdown', () => {
     it('strips HTML comments', () => {
       expect(sanitizeHTML('a<!-- secret -->b')).toBe('ab');
     });
+
+    // Browsers strip ASCII whitespace and control characters out of a URL
+    // before resolving its scheme, so the scheme has to be checked against a
+    // normalized value rather than the raw attribute text.
+    it.each([
+      ['newline', '\n'],
+      ['tab', '\t'],
+      ['carriage return', '\r'],
+      ['form feed', '\f'],
+      ['null byte', '\0'],
+    ])('rejects a scheme split by a literal %s', (_name, char) => {
+      const html = sanitizeHTML(`<a href="java${char}script:alert(1)">x</a>`);
+      expect(html).toBe('<a>x</a>');
+    });
+
+    it('rejects a scheme split by an HTML entity', () => {
+      expect(sanitizeHTML('<a href="java&#10;script:alert(1)">x</a>')).toBe('<a>x</a>');
+      expect(sanitizeHTML('<a href="&#106;avascript:alert(1)">x</a>')).toBe('<a>x</a>');
+      expect(sanitizeHTML('<a href="&#x6a;avascript:alert(1)">x</a>')).toBe('<a>x</a>');
+    });
+
+    it('rejects a scheme padded with leading whitespace or controls', () => {
+      expect(sanitizeHTML('<a href=" \t javascript:alert(1)">x</a>')).toBe('<a>x</a>');
+    });
+
+    it('keeps ordinary and relative URLs', () => {
+      expect(sanitizeHTML('<a href="https://example.com/a?b=1#c">x</a>'))
+        .toBe('<a href="https://example.com/a?b=1#c">x</a>');
+      expect(sanitizeHTML('<a href="/docs/page">x</a>')).toBe('<a href="/docs/page">x</a>');
+      expect(sanitizeHTML('<a href="#section">x</a>')).toBe('<a href="#section">x</a>');
+      expect(sanitizeHTML('<a href="mailto:a@b.dev">x</a>')).toBe('<a href="mailto:a@b.dev">x</a>');
+    });
+
+    // Removing a substring can splice the surrounding text into a new tag, so
+    // the sanitizer must never re-expose a tag it has already stepped past.
+    it.each([
+      '<scr<script>ipt>alert(1)</script>',
+      '<<script>script>alert(1)</script>',
+      '<scri<!-- -->pt>alert(1)</scri<!-- -->pt>',
+      '<sty<style>le>body{}</style>',
+      '<img<img src=x onerror=alert(1)>>',
+    ])('cannot be spliced into a live element: %s', (input) => {
+      // Parsing the result is what matters: leftover characters may still read
+      // as the text "ipt>alert(1)", which renders harmlessly. What must never
+      // happen is the browser building an executable element out of them.
+      const host = document.createElement('div');
+      host.innerHTML = sanitizeHTML(input);
+      expect(host.querySelector('script, style, iframe, object, embed, img')).toBeNull();
+      expect(host.querySelectorAll('*')).toHaveLength(0);
+    });
+
+    it('discards the contents of dropped elements', () => {
+      expect(sanitizeHTML('a<script>var x = 1;</script>b')).toBe('ab');
+      expect(sanitizeHTML('a<style>.x{color:red}</style>b')).toBe('ab');
+      expect(sanitizeHTML('a<script>unclosed')).toBe('a');
+    });
+
+    it('escapes a stray angle bracket instead of leaving it loose', () => {
+      expect(sanitizeHTML('a < b')).toBe('a &lt; b');
+      expect(sanitizeHTML('<notatag')).toBe('&lt;notatag');
+    });
+
+    it('completes quickly on input designed to backtrack', () => {
+      const hostile = '<!--'.repeat(20000);
+      const started = Date.now();
+      sanitizeHTML(hostile);
+      expect(Date.now() - started).toBeLessThan(1000);
+    });
+  });
+
+  describe('inline mode', () => {
+    it('drops block-level elements so a span never wraps block content', () => {
+      const html = renderMarkdown('a<div>block</div><table><tr><td>c</td></tr></table>b', { inline: true });
+      expect(html).not.toContain('<div');
+      expect(html).not.toContain('<table');
+      expect(html).not.toContain('<td');
+      expect(html).toContain('block');
+      expect(html).toContain('b');
+    });
+
+    it('keeps inline formatting', () => {
+      const html = renderMarkdown('a **b** `c` <em>d</em>', { inline: true });
+      expect(html).toContain('<strong>b</strong>');
+      expect(html).toContain('<code>c</code>');
+      expect(html).toContain('<em>d</em>');
+    });
+
+    it('still renders block elements in block mode', () => {
+      const html = renderMarkdown('a<div>block</div>b');
+      expect(html).toContain('<div>');
+    });
   });
 
   describe('markdownToPlainText', () => {
