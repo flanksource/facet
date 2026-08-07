@@ -176,8 +176,11 @@ describe('Markdown', () => {
       expect(sanitizeHTML('<notatag')).toBe('&lt;notatag');
     });
 
-    it('completes quickly on input designed to backtrack', () => {
-      const hostile = '<!--'.repeat(20000);
+    it.each([
+      ['unclosed comments', '<!--'.repeat(20000)],
+      ['unterminated tags', '<a '.repeat(20000)],
+      ['unterminated quoted attributes', '<a href="'.repeat(20000)],
+    ])('completes quickly on %s', (_name, hostile) => {
       const started = Date.now();
       sanitizeHTML(hostile);
       expect(Date.now() - started).toBeLessThan(1000);
@@ -216,6 +219,37 @@ describe('Markdown', () => {
     it('drops fenced blocks and raw tags', () => {
       expect(markdownToPlainText('before\n\n```js\nconst a = 1;\n```\n\nafter')).toBe('before after');
       expect(markdownToPlainText('one<br><br>two')).toBe('one two');
+    });
+
+    // The result is text, never markup, so no tag may survive tag removal and
+    // no removal may splice its neighbours into one.
+    it.each([
+      '<scr<a>ipt>text</scr<a>ipt>',
+      '<<a>script>text<</a>/script>',
+      '<a title="x>y" onmouseover=alert(1)>text</a>',
+      '<img src=x onerror=alert(1)>text',
+      '<a href="x">text</a>',
+    ])('leaves no tag behind: %s', (input) => {
+      const result = markdownToPlainText(input);
+      const host = document.createElement('div');
+      host.innerHTML = result;
+      expect(host.querySelectorAll('*')).toHaveLength(0);
+      expect(result).toContain('text');
+    });
+
+    // Comparison operators are ordinary prose in an advisory. Treating the span
+    // between them as a tag deletes the sentence.
+    it('keeps comparison operators instead of eating the text between them', () => {
+      expect(markdownToPlainText('2 < 3 and 4 > 1')).toBe('2 < 3 and 4 > 1');
+      expect(markdownToPlainText('affects versions < 3.13.1 and > 2.0.0'))
+        .toBe('affects versions < 3.13.1 and > 2.0.0');
+    });
+
+    it('completes quickly on unterminated markup', () => {
+      const started = Date.now();
+      markdownToPlainText('<a '.repeat(20000));
+      markdownToPlainText('```'.repeat(20000));
+      expect(Date.now() - started).toBeLessThan(1000);
     });
   });
 });

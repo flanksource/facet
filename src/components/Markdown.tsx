@@ -107,6 +107,75 @@ function endOfElement(html: string, from: number, name: string): number {
 }
 
 /**
+ * Replaces fenced code blocks with a space. Uses indexOf rather than a lazy
+ * pattern so a run of unmatched fences cannot drive quadratic backtracking.
+ * An unterminated fence is left as text, as the source wrote it.
+ */
+function stripFences(source: string): string {
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const open = source.indexOf('```', i);
+    if (open < 0) {
+      out += source.slice(i);
+      return out;
+    }
+    out += source.slice(i, open);
+
+    const close = source.indexOf('```', open + 3);
+    if (close < 0) {
+      out += source.slice(open);
+      return out;
+    }
+    out += ' ';
+    i = close + 3;
+  }
+}
+
+/**
+ * Drops tags and comments, keeping the text around them. Scans forward like
+ * sanitizeHTML so a removal cannot splice its neighbours into a tag, and a '<'
+ * that does not begin one stays put — advisories write "affects < 3.13.1", and
+ * matching to the next '>' would swallow the rest of the sentence.
+ */
+function stripTags(html: string): string {
+  const tag = /<\/?[a-zA-Z][\w:-]*(?:[^>"']|"[^"]*"|'[^']*')*>/y;
+  let out = '';
+  let i = 0;
+  while (i < html.length) {
+    const next = html.indexOf('<', i);
+    if (next < 0) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, next);
+
+    if (html.startsWith('<!--', next)) {
+      const end = html.indexOf('-->', next + 4);
+      i = end < 0 ? html.length : end + 3;
+      continue;
+    }
+    // Without a '>' ahead there is no tag left to find, and letting the matcher
+    // rescan the tail from every '<' is what turns this quadratic.
+    if (html.indexOf('>', next) < 0) {
+      out += html.slice(next);
+      break;
+    }
+
+    tag.lastIndex = next;
+    if (tag.exec(html)) {
+      i = tag.lastIndex;
+      continue;
+    }
+    out += '<';
+    i = next + 1;
+  }
+  // Dropping tags can leave a '<' next to text that together reads as a tag.
+  // A '<' only matters if a name could follow it, and prose keeps the rest.
+  return out.replace(/<(?=[a-zA-Z/!?])/g, '');
+}
+
+/**
  * Reduces HTML to a formatting-only subset. Markdown permits raw HTML, and
  * markdown reaching a report is usually third-party text from an upstream
  * advisory or scraper, so scripts, embedded frames, event handlers and
@@ -138,6 +207,12 @@ export function sanitizeHTML(html: string, options?: { inline?: boolean }): stri
       const end = html.indexOf('>', next + 1);
       i = end < 0 ? html.length : end + 1;
       continue;
+    }
+    // No '>' ahead means no tag can start here or later; rescanning the tail
+    // from every '<' is what would make this quadratic.
+    if (html.indexOf('>', next) < 0) {
+      out += html.slice(next).replace(/</g, '&lt;');
+      break;
     }
 
     tag.lastIndex = next;
@@ -184,10 +259,7 @@ export function renderMarkdown(source: string, options?: { inline?: boolean }): 
  * that need the prose without any markup.
  */
 export function markdownToPlainText(source: string): string {
-  return source
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
+  return stripTags(stripFences(source).replace(/<br\s*\/?>/gi, ' '))
     .replace(/`([^`]*)`/g, '$1')
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/^\s*[#>*-]+\s*/gm, '')
