@@ -2,12 +2,34 @@ import { createRequire } from 'node:module';
 import { readFile } from 'fs/promises';
 import { resolve, extname, join, basename, dirname } from 'path';
 import { pathToFileURL } from 'url';
+import { JSON_SCHEMA, load as loadYAML } from 'js-yaml';
 import { $ } from './shell.js';
 import { Logger } from './logger.js';
 import { parseRemoteRef, resolveRemoteRef } from './remote-resolver.js';
 import type { LoadedData, GenerateOptions } from '../types.js';
 
 const requireCjs = createRequire(import.meta.url);
+
+export async function loadDataFile(filePath: string): Promise<Record<string, unknown>> {
+  const extension = extname(filePath).toLowerCase();
+  if (!['.json', '.yaml', '.yml'].includes(extension)) {
+    throw new Error(`Unsupported data file extension ${extension || '<none>'}: ${filePath}`);
+  }
+
+  let data: unknown;
+  const format = extension === '.json' ? 'JSON' : 'YAML';
+  try {
+    const content = await readFile(resolve(process.cwd(), filePath), 'utf-8');
+    data = extension === '.json' ? JSON.parse(content) : loadYAML(content, { schema: JSON_SCHEMA });
+  } catch (error) {
+    throw new Error(`Failed to load ${format} data file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(`Data file ${filePath} must contain an object`);
+  }
+  return data as Record<string, unknown>;
+}
 
 export class DataLoader {
   constructor(private logger: Logger) { }
@@ -16,9 +38,8 @@ export class DataLoader {
     let data: Record<string, unknown>;
 
     if (options.data) {
-      // Load from JSON file
-      this.logger.debug(`Loading data from JSON file: ${options.data}`);
-      data = await this.loadJSON(options.data);
+      this.logger.debug(`Loading data file: ${options.data}`);
+      data = await loadDataFile(options.data);
     } else if (options.dataLoader) {
       // Load from TS/JS module (local or remote)
       this.logger.debug(`Loading data from module: ${options.dataLoader}`);
@@ -39,16 +60,6 @@ export class DataLoader {
     if (!remoteRef) return loaderPath;
     const resolved = await resolveRemoteRef(remoteRef, { refresh });
     return join(resolved.consumerRoot, resolved.templateFile);
-  }
-
-  private async loadJSON(filePath: string): Promise<Record<string, unknown>> {
-    try {
-      const absolutePath = resolve(process.cwd(), filePath);
-      const content = await readFile(absolutePath, 'utf-8');
-      return JSON.parse(content);
-    } catch (error) {
-      throw new Error(`Failed to load JSON file: ${error instanceof Error ? error.message : String(error)}`);
-    }
   }
 
   private async loadModule(filePath: string, args: string[] = []): Promise<Record<string, unknown>> {
