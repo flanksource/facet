@@ -10,19 +10,35 @@ import type { Browser, Page } from 'puppeteer-core';
 import { launchBrowser } from '../utils/pdf-generator.js';
 import { Logger } from '../utils/logger.js';
 import { renderMermaidInPage } from '../utils/browser-readiness.js';
+import {
+  DEFAULT_PNG_VIEWPORT,
+  normalizePNGOptions,
+  resolvePNGTarget,
+} from '../utils/png-generator.js';
+import type { PNGOptions } from '../types.js';
 
 /** Max time to wait for `data-facet-ready` before falling back to a fixed delay. */
 const READY_TIMEOUT_MS = 15_000;
 const FALLBACK_SETTLE_MS = 800;
 
-async function loadLivePage(browser: Browser, url: string, logger: Logger): Promise<Page> {
+async function loadLivePage(
+  browser: Browser,
+  url: string,
+  logger: Logger,
+  pngOptions?: PNGOptions,
+): Promise<Page> {
   const page = await browser.newPage();
+  const normalizedPNG = pngOptions ? normalizePNGOptions(pngOptions) : undefined;
+  await page.setViewport({
+    ...(normalizedPNG?.viewport ?? DEFAULT_PNG_VIEWPORT),
+    deviceScaleFactor: 1,
+  });
 
   // Surface browser-side failures loudly: a Vite transform/resolve error renders
   // as a `vite-error-overlay` element rather than the template, and would
   // otherwise be captured as a near-empty "successful" page.
   const pageErrors: string[] = [];
-  page.on('pageerror', (err) => pageErrors.push(err.message));
+  page.on('pageerror', (err) => pageErrors.push(err.stack ?? err.message));
 
   await page.goto(url, { waitUntil: 'networkidle0', timeout: 60_000 });
   await renderMermaidInPage(page);
@@ -40,6 +56,7 @@ async function loadLivePage(browser: Browser, url: string, logger: Logger): Prom
   if (pageErrors.length > 0) {
     throw new Error(`Live render failed — browser errors:\n${pageErrors.join('\n')}`);
   }
+  if (normalizedPNG) await resolvePNGTarget(page, normalizedPNG);
 
   // A <Diagram> flips its root's data-facet-ready to "true" after react-xarrows
   // has measured and drawn. Wait for that; if no diagram is present, fall back
@@ -48,12 +65,19 @@ async function loadLivePage(browser: Browser, url: string, logger: Logger): Prom
   if (hasDiagram) {
     try {
       await page.waitForFunction(
-        () => !!document.querySelector('[data-facet-diagram][data-facet-ready="true"]'),
+        () => !!document.querySelector(
+          '[data-facet-diagram][data-facet-ready="true"], [data-facet-diagram][data-facet-error]',
+        ),
         { timeout: READY_TIMEOUT_MS },
       );
     } catch {
       logger.warn(`Diagram did not signal ready within ${READY_TIMEOUT_MS}ms; capturing anyway`);
     }
+    const diagramError = await page.$eval(
+      '[data-facet-diagram]',
+      (diagram) => diagram.getAttribute('data-facet-error'),
+    );
+    if (diagramError) throw new Error(diagramError);
   } else {
     await new Promise((r) => setTimeout(r, FALLBACK_SETTLE_MS));
   }
@@ -96,10 +120,14 @@ function makeSelfContained(html: string): string {
 }
 
 /** Capture the live-rendered template as a self-contained static HTML string. */
-export async function snapshotHTML(url: string, logger: Logger): Promise<string> {
+export async function snapshotHTML(
+  url: string,
+  logger: Logger,
+  pngOptions?: PNGOptions,
+): Promise<string> {
   const browser = await launchBrowser();
   try {
-    const page = await loadLivePage(browser, url, logger);
+    const page = await loadLivePage(browser, url, logger, pngOptions);
     const content = await page.content();
     return makeSelfContained(content);
   } finally {

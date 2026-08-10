@@ -18,6 +18,7 @@ import { resolvePackageManager } from '../utils/package-manager.js';
 import { resolveChromePath } from '../utils/pdf-generator.js';
 import { VERSION } from '../version-generated.js';
 import { assetPath } from '../utils/assets.js';
+import { loadSharp } from '../utils/sharp.js';
 import { ensureGlobalModuleStore, inspectGlobalModuleStore } from '../bundler/module-store.js';
 
 type CheckStatus = 'pass' | 'warn' | 'fail';
@@ -43,6 +44,7 @@ const CRITICAL_NATIVE_PACKAGES = [
   '@esbuild',
   'lightningcss',
   '@swc/core',
+  '@img/sharp',
 ];
 
 type CheckFn = (consumerRoot: string) => CheckResult | Promise<CheckResult>;
@@ -58,6 +60,7 @@ const CHECK_REGISTRY: ReadonlyArray<readonly [string, CheckFn]> = [
   ['tar', () => checkTar()],
   ['tsx', () => checkTsx()],
   ['tailwindcss', (root) => checkTailwindBin(root)],
+  ['sharp', (root) => checkSharp(root)],
   ['facet-package-path', () => checkFacetPackagePath()],
   ['facet-version', (root) => checkFacetVersionAlignment(root)],
   ['npmrc-leakage', (root) => checkNpmrcLeakage(root)],
@@ -623,6 +626,30 @@ async function checkTsx(): Promise<CheckResult> {
     message: 'not on PATH',
     hint: 'Required only for `.ts` data loaders (`-l file.ts`). Install: `npm i -g tsx`.',
   };
+}
+
+/**
+ * Loads sharp the same way `--autocrop` does, so a resolvable-but-broken native
+ * binding is reported here rather than mid-render.
+ */
+async function checkSharp(consumerRoot: string): Promise<CheckResult> {
+  try {
+    const sharp = await loadSharp(consumerRoot);
+    return {
+      id: 'sharp',
+      name: 'sharp',
+      status: 'pass',
+      message: `${sharp.versions.sharp} (libvips ${sharp.versions.vips})`,
+    };
+  } catch (error) {
+    return {
+      id: 'sharp',
+      name: 'sharp',
+      status: 'warn',
+      message: error instanceof Error ? error.message.split('\n')[0] : String(error),
+      hint: 'Required only for `facet png --autocrop`. Run a render to populate `.facet/node_modules/`.',
+    };
+  }
 }
 
 function checkTailwindBin(consumerRoot: string): CheckResult {

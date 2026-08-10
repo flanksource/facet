@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 
-import type { GenerateOptions } from '../types.js';
+import type { GenerateOptions, RenderFormat } from '../types.js';
 import { DataLoader } from './data-loader.js';
 import { DataValidator } from './validator.js';
 import { Logger } from './logger.js';
@@ -18,7 +18,7 @@ const archiveExcludes = [
 
 export interface ServerRenderOptions {
   facetURL: string;
-  format: 'html' | 'pdf';
+  format: RenderFormat;
   options: GenerateOptions;
 }
 
@@ -134,6 +134,7 @@ export async function renderWithServer({ facetURL, format, options }: ServerRend
       debugTypography: options.debugTypography,
       fontSize: options.fontSize,
     } : undefined,
+    pngOptions: format === 'png' ? options.pngOptions : undefined,
   }));
 
   const renderURL = new URL('/render', `${facetURL}/`);
@@ -146,11 +147,11 @@ export async function renderWithServer({ facetURL, format, options }: ServerRend
   } else {
     const result = await response.json() as { url?: unknown };
     if (typeof result.url !== 'string' || !result.url) {
-      throw new Error('Facet server PDF response did not include a result URL');
+      throw new Error(`Facet server ${format.toUpperCase()} response did not include a result URL`);
     }
     const pdfResponse = await checkedFetch(new URL(result.url, renderURL));
     output = Buffer.from(await pdfResponse.arrayBuffer());
-    if (options.encryption || options.signature) {
+    if (format === 'pdf' && (options.encryption || options.signature)) {
       output = await applyPDFSecurity(output, {
         encryption: options.encryption,
         signature: options.signature,

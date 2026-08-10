@@ -65,7 +65,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
       skipModules: options.skipModules,
     });
     try {
-      const snapshot = await snapshotHTML(server.url, logger);
+      const snapshot = await snapshotHTML(server.url, logger, options.pngOptions);
       const html = options.cssScope ? scopeHTML(snapshot, { scopeClass: options.cssScope }) : snapshot;
       if (options.cssScope) logger.info(`CSS scoped with class: ${options.cssScope}`);
       const outputDir = resolve(process.cwd(), options.outputDir);

@@ -106,6 +106,33 @@ describe('renderWithServer', () => {
     await expect(readFile(join(options.outputDir, 'report.pdf'))).resolves.toEqual(pdf);
   });
 
+  it('downloads the PNG result URL and writes the PNG locally', async () => {
+    const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const received: { body?: string } = {};
+    const facetURL = await listen(async (request, response) => {
+      if (request.url === '/render') {
+        received.body = (await body(request)).toString('latin1');
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ url: '/results/render-id' }));
+        return;
+      }
+      response.writeHead(200, { 'content-type': 'image/png' });
+      response.end(png);
+    });
+    const { options } = await fixture();
+    options.pngOptions = {
+      width: 640,
+      height: 360,
+      selector: '#export',
+    };
+
+    await renderWithServer({ facetURL, format: 'png', options });
+
+    expect(received.body).toContain('"format":"png"');
+    expect(received.body).toContain('"width":640');
+    await expect(readFile(join(options.outputDir, 'report.png'))).resolves.toEqual(png);
+  });
+
   it('surfaces the server status and error message without a local fallback', async () => {
     const facetURL = await listen(async (request, response) => {
       await body(request);
