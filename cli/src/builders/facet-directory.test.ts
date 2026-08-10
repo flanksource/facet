@@ -169,6 +169,18 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
       );
   });
 
+  it('bundles icon data packages rather than externalising them', async () => {
+    // The SSR bundle is CJS, so an externalised dependency is require()d and a
+    // module whose only export is a default arrives as its namespace instead of
+    // the value. Iconify icon data is exactly that shape, and the failure is
+    // silent: the glyph renders as an empty <svg> and the PDF prints a blank.
+    newFacetDir().generateViteConfig();
+    const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
+
+    expect(config).toContain("new RegExp('^@iconify-icons/')");
+    expect(config).toContain("new RegExp('^@iconify/')");
+  });
+
   it('transforms consumer Markdown before Vite parses files outside the generated .facet directory', async () => {
     const dir = newFacetDir();
     dir.generateViteConfig();
@@ -218,6 +230,18 @@ describe('FacetDirectory Tailwind integration', () => {
     expect(postProcessV4Css).not.toContain('preflight.css');
     expect(postProcessV4Css).toContain('@source "./src/template.tsx";');
     expect(postProcessV4Css).toContain('@source "./rendered-content.html";');
+  });
+
+  it('serves template utilities to the live client entry', async () => {
+    await writeFile(join(consumerRoot, 'template.tsx'), 'export default function Template() { return null; }\n');
+    const dir = newFacetDir();
+    dir.create();
+    dir.copyStylesCss();
+    dir.generateClientScaffold({});
+
+    expect(await readFile(join(facetRoot, 'live-tailwind.css'), 'utf-8')).toBe('@tailwind utilities;\n');
+    const clientEntry = await readFile(join(facetRoot, 'entry.client.tsx'), 'utf-8');
+    expect(clientEntry).toContain("import './live-tailwind.css';");
   });
 
   it('generates Vite configs that select the installed Tailwind major', async () => {

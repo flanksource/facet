@@ -30,6 +30,7 @@ import { assetPath } from '../utils/assets.js';
 import { createDefaultModulePackageJson, defaultModuleNpmrc } from '../bundler/module-store.js';
 import { VERSION } from '../version-generated.js';
 import { LowPriorityProcessError, runLowPriority } from '../utils/subprocess-priority.js';
+import { SHARP_VERSION } from '../utils/sharp.js';
 
 const rootPackageJson = assetPath('package.json');
 
@@ -609,7 +610,19 @@ export default defineConfig(async () => {
     // generated modules; bundling them was 92% of SSR build input. They resolve
     // at render time from .facet/node_modules instead (output byte-identical).
     // @flanksource/facet stays bundled: externalizing it changes rendered HTML.
-    noExternal: ['@flanksource/facet', new RegExp('^@flanksource/(?!icons)')],
+    //
+    // Icon *data* packages are the exception. The SSR bundle is CJS, so an
+    // externalized dependency is require()d, and a module whose only export is
+    // a default arrives as the namespace — { __esModule, default } — rather
+    // than the value. Iconify icon data is exactly that shape, so an
+    // externalized glyph renders as an empty <svg> with no error. They are
+    // small, so bundling them costs little of what externalizing icons saved.
+    noExternal: [
+      '@flanksource/facet',
+      new RegExp('^@flanksource/(?!icons)'),
+      new RegExp('^@iconify-icons/'),
+      new RegExp('^@iconify/'),
+    ],
     resolve: {
       conditions: ['node', 'import', 'module', 'browser', 'default'],
       externalConditions: ['node'],
@@ -656,6 +669,7 @@ export default defineConfig(async () => {
     const clientEntry = `import React from 'react';
 import { createRoot } from 'react-dom/client';
 import Template from './entry.tsx';
+import './live-tailwind.css';
 
 const data = (window).__FACET_DATA__ || {};
 const root = createRoot(document.getElementById('facet-root'));
@@ -930,6 +944,12 @@ export default defineConfig(async () => {
     // Add lightningcss if not present (optional Vite dependency)
     if (!dependencies['lightningcss']) {
       dependencies['lightningcss'] = '^1.30.2';
+    }
+
+    // sharp backs `facet png --autocrop`; the SEA binary cannot embed the native
+    // addon, so it has to be resolvable from .facet at runtime.
+    if (!dependencies['sharp']) {
+      dependencies['sharp'] = SHARP_VERSION;
     }
 
     this.logger.debug(`Merged with facet build dependencies, total: ${Object.keys(dependencies).length}`);
@@ -1414,6 +1434,13 @@ export default {
       '@source "./rendered-content.html";',
       '',
     ].join('\n');
+    // Live-render utilities: facet.css is pre-compiled and only covers classes
+    // used by the facet library itself. The dev server must generate the
+    // template's own classes (via tailwind.config.js content: src/**/*) before
+    // the browser measures layout, or diagrams bake arrows against an unstyled
+    // page. Imported by the live client entry only; the SSR path gets template
+    // classes from the post-process pass instead.
+    writeFileSync(join(this.facetRoot, 'live-tailwind.css'), '@tailwind utilities;\n', 'utf-8');
     writeFileSync(join(this.facetRoot, 'post-process.css'), postProcess, 'utf-8');
     writeFileSync(join(this.facetRoot, 'post-process-v4.css'), postProcessV4, 'utf-8');
     writeFileSync(join(this.facetRoot, 'post-process.entry.ts'), "import './post-process.css';\n", 'utf-8');
