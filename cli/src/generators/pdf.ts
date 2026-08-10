@@ -8,6 +8,7 @@ import { generatePDFFromHTML } from '../utils/pdf-generator.js';
 import { applyPDFSecurity } from '../utils/pdf-security.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
 import { RenderProfiler, RenderTimings } from '../utils/performance.js';
+import { loadDataFile } from '../utils/data-loader.js';
 
 function extractBodyContent(html: string): string {
   const match = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
@@ -65,7 +66,7 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
   const htmlPath = join(outputDir, `${outputName}.html`);
   let finalHTML = await readFile(htmlPath, 'utf-8');
 
-  const data = options.data ? JSON.parse(await readFile(resolve(options.data), 'utf-8')) : {};
+  const data = options.data ? await loadDataFile(options.data) : {};
 
   if (options.header) {
     logger.info('Building header template...');

@@ -1,20 +1,32 @@
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 import Ajv, { type ValidateFunction } from 'ajv';
+import Ajv2020 from 'ajv/dist/2020.js';
 import { Logger } from './logger.js';
 
 export class DataValidator {
-  private ajv: Ajv;
+  private draft7: Ajv;
+  private draft2020: Ajv2020;
 
   constructor(private logger: Logger) {
-    this.ajv = new Ajv({ allErrors: true, verbose: true });
+    // Schemas are authored for their whole toolchain, not just this validator:
+    // they also carry annotations telling an editor how to label or draw a
+    // field. Those keywords constrain nothing, so strict schema checking would
+    // reject a document that is perfectly valid. Every real constraint —
+    // types, enums, required, formats — is still enforced.
+    const options = { allErrors: true, verbose: true, strictSchema: false };
+    this.draft7 = new Ajv(options);
+    this.draft2020 = new Ajv2020(options);
   }
 
   async validate(data: Record<string, unknown>, schemaPath: string): Promise<void> {
     this.logger.debug(`Validating data against schema: ${schemaPath}`);
 
     const schema = await this.loadSchema(schemaPath);
-    const validate: ValidateFunction = this.ajv.compile(schema);
+    const ajv = schema.$schema === 'https://json-schema.org/draft/2020-12/schema'
+      ? this.draft2020
+      : this.draft7;
+    const validate: ValidateFunction = ajv.compile(schema);
 
     const valid = validate(data);
 
