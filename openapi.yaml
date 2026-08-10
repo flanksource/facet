@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Facet Render API
-  description: API for rendering React templates to HTML and PDF.
+  description: API for rendering React templates to HTML, PDF, and PNG.
   version: 0.1.23
   license:
     name: Apache 2.0
@@ -88,8 +88,56 @@ paths:
           in: query
           schema:
             type: string
-            enum: [html, pdf]
+            enum: [html, pdf, png]
           description: Output format (gzip mode only).
+        - name: pngWidth
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: >-
+            Scale the capture so the output is this wide in pixels (gzip PNG mode only).
+            Omit to capture at natural size.
+        - name: pngHeight
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: >-
+            Scale the capture so the output is this tall in pixels (gzip PNG mode only).
+            Omit to capture at natural size.
+        - name: pngSelector
+          in: query
+          schema:
+            type: string
+            default: body
+          description: CSS selector for the PNG capture target (gzip PNG mode only).
+        - name: pngViewport
+          in: query
+          schema:
+            type: string
+            pattern: '^\d+x\d+$'
+            default: 1280x800
+          description: >-
+            Browser viewport the page is laid out against, as `<width>x<height>`
+            (gzip PNG mode only).
+        - name: pngAutocrop
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: >-
+            Trim the uniform background border off the capture before scaling
+            (gzip PNG mode only).
+        - name: pngAutocropPadding
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: >-
+            Background margin left around autocropped content, in capture pixels
+            (gzip PNG mode only). Requires `pngAutocrop=true`.
         - name: output
           in: query
           schema:
@@ -122,9 +170,9 @@ paths:
       responses:
         "200":
           description: |
-            Rendered output. For HTML format, returns raw HTML. For PDF format,
+            Rendered output. For HTML format, returns raw HTML. For PDF and PNG formats,
             returns JSON with a `url` field pointing to `/results/{id}` where the
-            cached PDF can be fetched. When `output: "s3"`, returns S3 upload details.
+            cached binary result can be fetched. When `output: "s3"`, returns S3 upload details.
           headers:
             Server-Timing:
               description: Render phase durations for completed work.
@@ -138,7 +186,7 @@ paths:
             application/json:
               schema:
                 oneOf:
-                  - $ref: "#/components/schemas/PDFRenderResult"
+                  - $ref: "#/components/schemas/BinaryRenderResult"
                   - $ref: "#/components/schemas/S3UploadResult"
         "400":
           $ref: "#/components/responses/BadRequest"
@@ -159,7 +207,7 @@ paths:
 
         **Event types:**
         - `data: {...}` — progress event with `stage`, `message`, `elapsed`, `duration`
-        - `event: result` — final output with `contentType`, `data`, `url`, and `timings`. For PDFs, `data` is empty and `url` points to `/results/{id}`. For HTML, `data` contains the rendered HTML. `timings` contains the same phase names, descriptions, and durations exposed by `/render` through `Server-Timing`.
+        - `event: result` — final output with `contentType`, `data`, `url`, and `timings`. For PDF and PNG, `data` is empty and `url` points to `/results/{id}`. For HTML, `data` contains the rendered HTML. `timings` contains the same phase names, descriptions, and durations exposed by `/render` through `Server-Timing`.
         - `event: error` — render error with `message`
       security:
         - apiKey: []
@@ -217,6 +265,10 @@ paths:
               schema:
                 type: string
                 format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -270,7 +322,7 @@ components:
           default: {}
         format:
           type: string
-          enum: [html, pdf]
+          enum: [html, pdf, png]
           default: pdf
         output:
           type: string
@@ -310,6 +362,8 @@ components:
           description: Rebuild CSS after rendering to include data-dependent class names.
         pdfOptions:
           $ref: "#/components/schemas/PDFOptions"
+        pngOptions:
+          $ref: "#/components/schemas/PNGOptions"
         encryption:
           $ref: "#/components/schemas/PDFEncryptionOptions"
         signature:
@@ -351,6 +405,57 @@ components:
             right:
               type: number
               description: Right margin in mm.
+
+    PNGOptions:
+      type: object
+      description: >-
+        PNG capture options. Valid only when `format` is `png`. The selected element is
+        never resized: it is captured at its natural rendered size, and `width`/`height`
+        only set the rasterization scale.
+      properties:
+        width:
+          type: integer
+          minimum: 1
+          description: >-
+            Scale the capture so the output is this wide in pixels. Omit for natural size.
+        height:
+          type: integer
+          minimum: 1
+          description: >-
+            Scale the capture so the output is this tall in pixels. Omit for natural size.
+            When combined with `width`, the smaller of the two ratios is used so the
+            captured aspect ratio is preserved and the output is never padded.
+        selector:
+          type: string
+          minLength: 1
+          default: body
+          description: CSS selector which must match exactly one HTML or SVG element.
+        viewport:
+          type: object
+          description: Browser viewport the page is laid out against before capture.
+          properties:
+            width:
+              type: integer
+              minimum: 1
+              default: 1280
+            height:
+              type: integer
+              minimum: 1
+              default: 800
+        autocrop:
+          type: boolean
+          default: false
+          description: >-
+            Trim the uniform background border off the capture, measured from painted
+            pixels. Cropping happens before scaling, so `width`/`height` size the
+            cropped result. A capture which is a single flat colour is rejected.
+        autocropPadding:
+          type: integer
+          minimum: 0
+          default: 0
+          description: >-
+            Background margin left around autocropped content, in capture pixels
+            (applied before scaling) and clamped to the capture box. Requires `autocrop`.
 
     PDFEncryptionOptions:
       type: object
@@ -417,7 +522,7 @@ components:
           description: JSON string of template data.
         options:
           type: string
-          description: JSON string with `format`, `output`, `entryFile`, `pdfOptions`, `timeout`, etc.
+          description: JSON string with `format`, `output`, `entryFile`, `pdfOptions`, `pngOptions`, `timeout`, etc.
 
     TemplateInfo:
       type: object
@@ -431,13 +536,13 @@ components:
         hasSchema:
           type: boolean
 
-    PDFRenderResult:
+    BinaryRenderResult:
       type: object
       required: [url]
       properties:
         url:
           type: string
-          description: URL path to fetch the cached PDF (e.g. `/results/{id}`).
+          description: URL path to fetch the cached PDF or PNG (e.g. `/results/{id}`).
           example: /results/a1b2c3d4e5f67890
 
     S3UploadResult:

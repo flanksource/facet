@@ -13,6 +13,27 @@ export interface ResolvedTemplate {
   resolvedSha?: string;
 }
 
+export type RenderFormat = 'html' | 'pdf' | 'png';
+
+export interface PNGViewport {
+  width: number;
+  height: number;
+}
+
+export interface PNGOptions {
+  /** Output width in pixels; scales the capture, never resizes the DOM. */
+  width?: number;
+  /** Output height in pixels; scales the capture, never resizes the DOM. */
+  height?: number;
+  selector?: string;
+  /** Browser viewport the page is laid out against before capture. */
+  viewport?: PNGViewport;
+  /** Trim the uniform background border off the capture before scaling. */
+  autocrop?: boolean;
+  /** Background margin left around autocropped content, in capture pixels. */
+  autocropPadding?: number;
+}
+
 export interface GenerateOptions {
   template: string;
   data?: string;
@@ -50,6 +71,7 @@ export interface GenerateOptions {
   fontSize?: number;
   encryption?: import('./utils/pdf-security.js').PDFEncryptionOptions;
   signature?: import('./utils/pdf-security.js').PDFSignatureOptions;
+  pngOptions?: PNGOptions;
   timings?: import('./utils/performance.js').RenderTimings;
 }
 

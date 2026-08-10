@@ -23,6 +23,7 @@ import { dirname, join, resolve } from 'node:path';
 import type { Logger } from '../utils/logger.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
 import { spawnLowPriority } from '../utils/subprocess-priority.js';
+import { SHARP_VERSION } from '../utils/sharp.js';
 
 const REQUIRED_DEPENDENCIES = [
   'react',
@@ -143,6 +144,7 @@ export function createDefaultModulePackageJson(options: DefaultModulePackageOpti
     if (version) dependencies[dependency] = version;
   }
   dependencies.lightningcss = '^1.30.2';
+  dependencies.sharp = SHARP_VERSION;
 
   const manifest: Record<string, unknown> = {
     name: '.facet-default-modules',

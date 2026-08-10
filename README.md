@@ -2,13 +2,13 @@
 
 Build beautiful, print-ready datasheets and PDFs from React templates.
 
-**@flanksource/facet** is a framework for creating professional datasheets, reports, and documentation using React components. It provides a rich component library optimized for print and PDF generation, along with a powerful CLI for building HTML and PDF outputs.
+**@flanksource/facet** is a framework for creating professional datasheets, reports, and documentation using React components. It provides a rich component library optimized for print and browser rendering, along with a powerful CLI for building HTML, PDF, and PNG outputs.
 
 ## Features
 
 - 📄 **Print-optimized components** - 47+ components designed for professional datasheets
 - 🎨 **React & TypeScript** - Full type safety and modern React patterns
-- 🔧 **Zero-config CLI** - Build HTML and PDF with a single command
+- 🔧 **Zero-config CLI** - Build HTML, PDF, and PNG with a single command
 - 🔗 **Component imports** - `import { StatCard } from '@flanksource/facet'`
 - ⚡ **Fast builds** - Powered by Vite with smart caching
 - 📦 **Isolated builds** - `.facet/` build directory (like `.next` in Next.js)
@@ -395,7 +395,7 @@ import { Diagram, BoxNode, Arrow } from '@flanksource/facet';
 For live templates, facet runs one extra headless-browser pass: it hydrates the
 SSR HTML, lets `react-xarrows` draw the arrows into the DOM, then captures the
 now-static HTML with arrows baked as plain SVG. That baked HTML flows through the
-unchanged HTML/PDF pipeline. The bake fails loudly if hydration never completes —
+unchanged HTML/PDF/PNG pipeline. The bake fails loudly if hydration never completes —
 there is no silent arrow-less fallback.
 
 This works in `facet html`, `facet pdf`, and `facet serve` (including the
@@ -406,11 +406,12 @@ dropdown to try it.
 
 ### Remote rendering
 
-Set `FACET_URL` or pass the global `--facet-url` option to submit `html` and `pdf` jobs to a Facet server. The explicit flag takes precedence over the environment variable.
+Set `FACET_URL` or pass the global `--facet-url` option to submit `html`, `pdf`, and `png` jobs to a Facet server. The explicit flag takes precedence over the environment variable.
 
 ```bash
 FACET_URL=https://facet.example.com facet pdf MyDatasheet.tsx -d data.json -o report.pdf
 facet --facet-url https://facet.example.com html MyDatasheet.tsx -o ./dist/
+facet --facet-url https://facet.example.com png MyDatasheet.tsx --width 1200 --height 630
 ```
 
 Remote mode requires `tar` locally but does not require local Chromium or pnpm. Data loaders and schema validation still run locally. The server controls sandboxing, module mode, and cache lifecycle, so `--sandbox`, `--skip-modules`, and `--clear-cache` fail when combined with a Facet URL. A server or network error stops the command without falling back to local rendering.
@@ -452,7 +453,7 @@ Options:
   --css-scope <prefix>         CSS scope prefix for scoped HTML generation
   -s, --schema <file>          Path to JSON Schema file for data validation
   --no-validate                Skip data validation
-  -d, --data <file>            Path to JSON data file
+  -d, --data <file>            Path to JSON or YAML data file
   -l, --data-loader <file>     Path to data loader module (.ts or .js)
   -o, --output <path>          Output file path or directory (default: "dist")
   --output-name-field <field>  Data field to use for output filename
@@ -477,7 +478,7 @@ facet pdf [options] <template>
 Options:
   -s, --schema <file>          Path to JSON Schema file for data validation
   --no-validate                Skip data validation
-  -d, --data <file>            Path to JSON data file
+  -d, --data <file>            Path to JSON or YAML data file
   -l, --data-loader <file>     Path to data loader module (.ts or .js)
   -o, --output <path>          Output file path or directory (default: "dist")
   --output-name-field <field>  Data field to use for output filename
@@ -486,7 +487,52 @@ Options:
 
 **Example:**
 ```bash
-facet pdf MyDatasheet.tsx -d data.json -o out.pdf
+facet pdf IncidentReport.tsx -d incident.yaml -o incident.pdf
+```
+
+### `facet png <template>`
+
+Generate a PNG from a React template. Facet captures the selected element at its **natural rendered size** — the DOM is never resized or reflowed to fit an output box. The selector must match exactly one HTML or SVG element.
+
+`--width` / `--height` set the rasterization **scale**, not a canvas: Facet computes a scale factor from the element's natural size and renders the same layout at that pixel density, so text and vectors stay crisp. Passing both uses the smaller of the two ratios, preserving aspect ratio — the output is never padded to exactly `width × height`.
+
+Page layout is controlled separately by `--viewport`, which sets the browser viewport the template is laid out against.
+
+`--autocrop` trims the uniform background border off the capture, measured from painted pixels rather than DOM geometry — so it also removes whitespace *inside* the target, such as SVG `viewBox` padding or flex centering that no selector can exclude. Cropping happens before scaling, so `--width` sizes the cropped result, and the final image is still rasterized by the browser at that scale. `--autocrop-padding` re-adds a margin of background, clamped to the original capture: content already flush against an edge had no border to trim there, so none is invented. A capture that is a single flat colour is rejected — that almost always means the template rendered empty (a `Diagram` captured without `--live`, say).
+
+```
+facet png [options] <template>
+
+Options:
+  --width <pixels>             Scale the capture to this output width (default: natural size)
+  --height <pixels>            Scale the capture to this output height (default: natural size)
+  --selector <selector>        CSS selector for the capture target (default: "body")
+  --viewport <WxH>             Browser viewport used for layout (default: 1280x800)
+  --autocrop                   Trim the uniform background border off the capture
+  --autocrop-padding <pixels>  Background margin left around autocropped content (default: 0)
+  -s, --schema <file>          Path to JSON Schema file for data validation
+  --no-validate                Skip data validation
+  -d, --data <file>            Path to JSON or YAML data file
+  -l, --data-loader <file>     Path to data loader module (.ts or .js)
+  -o, --output <path>          Output file path or directory
+```
+
+**Examples:**
+```bash
+# Capture the diagram exactly as it renders
+facet png Diagram.tsx --selector '[data-facet-diagram]' -o preview.png
+
+# Same layout, rendered at 2000px wide (height follows the aspect ratio)
+facet png Diagram.tsx --selector '[data-facet-diagram]' --width 2000 -o preview@2x.png
+
+# Lay out at 1920x1080, then scale the capture up to 3840px wide
+facet png MyDatasheet.tsx --viewport 1920x1080 --width 3840 -o hero.png
+
+# Trim the surrounding whitespace away, leaving a 24px background margin
+facet png Diagram.tsx --live --autocrop --autocrop-padding 24 -o tight.png
+
+# Crop first, then scale the cropped content to 2000px wide
+facet png Diagram.tsx --live --autocrop --width 2000 -o hero@2x.png
 ```
 
 ### `facet serve`
@@ -692,7 +738,7 @@ npm publish
 - **`src/styles.css`** - Global styles and Tailwind
 - **`cli/`** - CLI package source
   - **`cli/src/builders/`** - Build orchestration
-  - **`cli/src/generators/`** - HTML/PDF generators
+  - **`cli/src/generators/`** - HTML/PDF/PNG generators
   - **`cli/src/utils/`** - Shared utilities
   - **`cli/src/plugins/`** - Vite plugins
 - **`assets/`** - Static assets (logos, icons)

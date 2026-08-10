@@ -53,41 +53,38 @@ export async function waitForPageReady(
 
   await page.evaluate(
     async ({ timeout, facet }) => {
-      const deadline = performance.now() + timeout;
-      const withTimeout = async (promise: Promise<unknown>): Promise<void> => {
-        const remaining = Math.max(0, deadline - performance.now());
-        if (remaining === 0) return;
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        try {
-          await Promise.race([
-            promise,
-            new Promise<void>((resolve) => {
-              timer = setTimeout(resolve, remaining);
-            }),
-          ]);
-        } finally {
-          if (timer) clearTimeout(timer);
-        }
-      };
-
-      await withTimeout(document.fonts.ready);
-      await withTimeout(Promise.all(
-        Array.from(document.images, async (image) => {
-          if (!image.complete) {
-            await new Promise<void>((resolve) => {
-              image.addEventListener('load', () => resolve(), { once: true });
-              image.addEventListener('error', () => resolve(), { once: true });
-            });
-          }
-          if (typeof image.decode === 'function') {
-            await image.decode().catch(() => undefined);
-          }
-        }),
-      ));
+      const pending: Promise<unknown>[] = [
+        document.fonts.ready,
+        Promise.all(
+          Array.from(document.images, async (image) => {
+            if (!image.complete) {
+              await new Promise<void>((resolve) => {
+                image.addEventListener('load', () => resolve(), { once: true });
+                image.addEventListener('error', () => resolve(), { once: true });
+              });
+            }
+            if (typeof image.decode === 'function') {
+              await image.decode().catch(() => undefined);
+            }
+          }),
+        ),
+      ];
 
       if (facet) {
         const ready = (window as typeof window & { __FACET_READY__?: Promise<unknown> }).__FACET_READY__;
-        if (ready && typeof ready.then === 'function') await withTimeout(ready);
+        if (ready && typeof ready.then === 'function') pending.push(ready);
+      }
+
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          Promise.all(pending),
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, timeout);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
       }
     },
     { timeout: timeoutMs, facet: waitForFacet },

@@ -7,6 +7,7 @@ const RENDER_PHASES = [
   { name: 'tailwind', description: 'Tailwind CSS' },
   { name: 'header-generation', description: 'Header generation' },
   { name: 'pdf-generation', description: 'PDF generation' },
+  { name: 'png-generation', description: 'PNG generation' },
   { name: 'post-processing', description: 'Post-processing' },
   { name: 'timestamping', description: 'Timestamping' },
 ] as const;

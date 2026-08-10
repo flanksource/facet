@@ -9,7 +9,8 @@ import { VERSION, BUILD_DATE, GIT_COMMIT } from './version-generated.js';
 import { formatVersion } from './version.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
-import type { GenerateOptions } from './types.js';
+import type { GenerateOptions, PNGViewport, RenderFormat } from './types.js';
+import { parsePNGViewport } from './utils/png-generator.js';
 import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
 
 function numericOption(minimum: number): (value: string) => number {
@@ -20,6 +21,14 @@ function numericOption(minimum: number): (value: string) => number {
     }
     return parsed;
   };
+}
+
+function viewportOption(value: string): PNGViewport {
+  try {
+    return parsePNGViewport(value, '--viewport');
+  } catch (error) {
+    throw new InvalidArgumentError(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function booleanOption(value: string): boolean {
@@ -35,21 +44,22 @@ function parseDataLoaderArgs(): string[] {
 
 // Remote rendering needs `tar`; local rendering needs pnpm and may need Chromium.
 // TypeScript data loaders need tsx in either mode.
-function renderRequirements(command: 'html' | 'pdf', options: any): string[] {
+function renderRequirements(command: RenderFormat, options: any): string[] {
   if (options.facetURL) {
     const ids = ['tar'];
     if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
     return ids;
   }
   const ids = options.skipModules ? [] : ['pnpm'];
-  if (command === 'pdf' || options.live) ids.push('chromium');
+  if (command === 'pdf' || command === 'png' || options.live) ids.push('chromium');
+  if (options.autocrop) ids.push('sharp');
   if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
   return ids;
 }
 
 // Fail fast with one actionable message listing every missing tool, rather than
 // crashing deep in the pipeline with a cryptic spawn/import error.
-async function ensureRenderReady(command: 'html' | 'pdf', options: any, logger: Logger): Promise<void> {
+async function ensureRenderReady(command: RenderFormat, options: any, logger: Logger): Promise<void> {
   try {
     await preflight(renderRequirements(command, options), process.cwd());
   } catch (error) {
@@ -96,7 +106,7 @@ function buildSignature(options: any): PDFSignatureOptions | undefined {
 
 function addSharedOptions(cmd: Command): Command {
   return cmd
-    .option('-d, --data <file>', 'Path to JSON data file')
+    .option('-d, --data <file>', 'Path to JSON or YAML data file')
     .option('-l, --data-loader <file>', 'Path to data loader module (.ts or .js)')
     .option('-o, --output <path>', 'Output file path or directory', '.')
     .option('--output-name-field <field>', 'Data field to use for output filename', 'name')
@@ -119,10 +129,10 @@ const versionStr = formatVersion({
 
 program
   .name('facet')
-  .description('Build beautiful datasheets and PDFs from React templates')
+  .description('Build beautiful HTML, PDF, and PNG output from React templates')
   .version(versionStr)
   .option('--skip-modules', 'Use the shared Facet-only module install and ignore package.json dependencies')
-  .option('--facet-url <url>', 'Submit HTML and PDF renders to a Facet server (or FACET_URL)')
+  .option('--facet-url <url>', 'Submit HTML, PDF, and PNG renders to a Facet server (or FACET_URL)')
   .hook('preAction', () => {
     console.log(chalk.gray(`facet ${versionStr}`));
   });
@@ -175,6 +185,73 @@ addSharedOptions(
     process.exit(0);
   } catch (error) {
     logger.error(`HTML generation failed: ${error instanceof Error ? error.message : String(error)}`);
+    if (options.verbose && error instanceof Error && error.stack) {
+      logger.debug(error.stack);
+    }
+    process.exit(1);
+  }
+});
+
+// png command
+addSharedOptions(
+  program
+    .command('png <templates...>')
+    .description('Generate PNG from one or more templates')
+    .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
+    .option('--no-validate', 'Skip data validation')
+    .option('--width <pixels>', 'Scale the capture to this output width (default: natural size)', numericOption(1))
+    .option('--height <pixels>', 'Scale the capture to this output height (default: natural size)', numericOption(1))
+    .option('--selector <selector>', 'CSS selector for the PNG capture target', 'body')
+    .option('--viewport <WxH>', 'Browser viewport the page is laid out against (default: 1280x800)', viewportOption)
+    .option('--autocrop', 'Trim the uniform background border off the capture before scaling')
+    .option('--autocrop-padding <pixels>', 'Background margin left around autocropped content (default: 0)', numericOption(0))
+).action(async (templates: string[], options: any, command: Command) => {
+  options = { ...options, ...command.optsWithGlobals() };
+  const logger = new Logger(options.verbose);
+  try {
+    const facetURL = resolveFacetURL(options.facetUrl);
+    await ensureRenderReady('png', { ...options, facetURL }, logger);
+    for (const template of templates) {
+      logger.info(`Generating PNG from template: ${template}`);
+      const { outputDir, outputName } = resolveOutput(options.output);
+      const generateOptions: GenerateOptions = {
+        template,
+        data: options.data,
+        dataLoader: options.dataLoader,
+        dataLoaderArgs: parseDataLoaderArgs(),
+        outputDir,
+        outputName: templates.length === 1 ? outputName : undefined,
+        outputNameField: options.outputNameField,
+        schema: options.schema,
+        validate: options.validate,
+        verbose: options.verbose,
+        refresh: options.refresh,
+        clearCache: options.clearCache,
+        skipModules: options.skipModules,
+        live: options.live,
+        postProcessCss: options.postProcessCss,
+        sandbox: options.sandbox,
+        pngOptions: {
+          width: options.width,
+          height: options.height,
+          selector: options.selector,
+          viewport: options.viewport,
+          autocrop: options.autocrop,
+          autocropPadding: options.autocropPadding,
+        },
+      };
+      if (facetURL) {
+        await renderWithServer({ facetURL, format: 'png', options: generateOptions });
+      } else {
+        const { generatePNG } = await import('./generators/png.js');
+        await generatePNG(generateOptions);
+      }
+    }
+
+    logger.success('PNG generated!');
+    process.exit(0);
+  } catch (error) {
+    logger.error(`PNG generation failed: ${error instanceof Error ? error.message : String(error)}`);
     if (options.verbose && error instanceof Error && error.stack) {
       logger.debug(error.stack);
     }

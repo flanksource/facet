@@ -2,7 +2,7 @@
   "name": "facet",
   "version": "0.1.71",
   "type": "module",
-  "description": "Generate PDF reports, HTML pages, and embeddable WebComponents from React templates",
+  "description": "Generate PDF reports, PNG images, HTML pages, and embeddable WebComponents from React templates",
   "main": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "bin": {
@@ -32,6 +32,7 @@
   },
   "keywords": [
     "pdf",
+    "png",
     "reports",
     "react",
     "typescript",
@@ -70,6 +71,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "semver": "^7.6.0",
+    "sharp": "^0.35.3",
     "tsx": "^4.7.0"
   },
   "devDependencies": {
