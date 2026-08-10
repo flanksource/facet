@@ -9,6 +9,7 @@
 
 import type { ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
+import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
@@ -62,7 +63,7 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
 
   await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules));
 
-  const facetRoot = facetDir.getFacetRoot();
+  const facetRoot = realpathSync(facetDir.getFacetRoot());
 
   logger.info('Starting Vite dev server for live render...');
   const { proc, url } = await timings.measure('vite', async () => {
