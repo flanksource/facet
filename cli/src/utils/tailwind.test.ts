@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, statSync, utimesSync } f
 import { tmpdir } from 'os';
 import { join } from 'path';
 import {
+  cssInputKey,
   renderedClassKey,
   runTailwindCached,
   tailwindDirectivesPresent,
@@ -73,13 +74,34 @@ describe('tailwindDirectivesPresent', () => {
   });
 });
 
+describe('cssInputKey', () => {
+  it('changes when the stylesheet changes', () => {
+    // Neither of the other cache-key parts covers the stylesheets: the build
+    // key hashes consumer files plus the facet version, and the class key
+    // hashes the rendered HTML. Without this, editing facet.css — or
+    // installing a patched build at the same version — served stale CSS, which
+    // reads as the edit simply having no effect.
+    const facetRoot = mkdtempSync(join(tmpdir(), 'facet-css-key-'));
+    try {
+      writeFileSync(join(facetRoot, 'facet.css'), 'h1{font-size:22pt}');
+      const before = cssInputKey(facetRoot);
+
+      writeFileSync(join(facetRoot, 'facet.css'), 'h1{font-size:26pt}');
+
+      expect(cssInputKey(facetRoot)).not.toBe(before);
+    } finally {
+      rmSync(facetRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('runTailwindCached', () => {
   it('refreshes a cache hit timestamp', async () => {
     const facetRoot = mkdtempSync(join(tmpdir(), 'facet-tw-cache-test-'));
     try {
       const html = '<div class="font-bold"></div>';
       const cacheDir = join(facetRoot, 'tailwind-cache');
-      const cachePath = join(cacheDir, `build-${renderedClassKey(html).key}.css`);
+      const cachePath = join(cacheDir, `build-${renderedClassKey(html).key}-${cssInputKey(facetRoot)}.css`);
       mkdirSync(cacheDir, { recursive: true });
       writeFileSync(cachePath, '.font-bold{font-weight:700}');
       const old = new Date(Date.now() - 60_000);

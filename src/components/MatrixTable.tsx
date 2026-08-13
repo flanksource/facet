@@ -1,4 +1,5 @@
 import React from 'react';
+import { scaled } from '../utils/font-scale';
 
 interface MatrixTableProps {
   columns: React.ReactNode[];
@@ -51,7 +52,7 @@ export default function MatrixTable({
         <tr style={{ background: 'transparent', backgroundColor: 'transparent' }}>
           <th style={{ ...thReset, verticalAlign: 'bottom' }}>
             {cornerContent && (
-              <div style={{ fontSize: '6pt', color: '#6B7280', paddingBottom: '1mm' }}>
+              <div style={{ fontSize: scaled('6pt'), color: '#6B7280', paddingBottom: '1mm' }}>
                 {cornerContent}
               </div>
             )}
@@ -86,7 +87,7 @@ export default function MatrixTable({
                 transform: 'rotate(-45deg)', transformOrigin: '0 100%',
                 width: `${textWidth}mm`, whiteSpace: 'nowrap',
                 overflow: 'hidden', textOverflow: 'ellipsis',
-                fontSize: '7pt', fontWeight: 500, color: '#475569',
+                fontSize: scaled('7pt'), fontWeight: 500, color: '#475569',
                 lineHeight: 1, paddingLeft: '0.5mm',
               }}>
                 {col}

@@ -1,5 +1,6 @@
 import { RenderError } from './errors.js';
 import { MAX_TIMEOUT_MS } from './config.js';
+import { parseFontSize } from '../utils/font-size.js';
 import { parseRemoteRef } from '../utils/remote-resolver.js';
 import type { BufferPDFOptions, PDFMargins } from '../utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from '../utils/pdf-security.js';
@@ -34,6 +35,8 @@ export interface ParsedRenderRequest {
   pngOptions?: NormalizedPNGOptions;
   live?: boolean;
   postProcessCss?: boolean;
+  /** Base font size in pt. Top-level so it reaches html and png, not just pdf. */
+  fontSize?: number;
 }
 
 export async function parseRenderRequest(
@@ -116,6 +119,7 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     pngOptions,
     live: parseBoolean(body.live, 'live'),
     postProcessCss: parseBoolean(body.postProcessCss, 'postProcessCss'),
+    fontSize: parseFontSize(body.fontSize ?? (body.pdfOptions as Record<string, unknown> | undefined)?.fontSize),
   };
 }
 
@@ -209,6 +213,7 @@ async function parseMultipartRequest(
     pngOptions,
     live: parseBoolean(options.live, 'live'),
     postProcessCss: parseBoolean(options.postProcessCss, 'postProcessCss'),
+    fontSize: parseFontSize(options.fontSize ?? (options.pdfOptions as Record<string, unknown> | undefined)?.fontSize),
   };
 }
 
@@ -250,6 +255,7 @@ async function parseGzipRequest(
     timeoutMs: parseTimeout(url.searchParams.get('timeout')),
     pngOptions,
     postProcessCss: parseBooleanQuery(url.searchParams.get('postProcessCss'), 'postProcessCss'),
+    fontSize: parseFontSize(url.searchParams.get('fontSize') ?? undefined),
   };
 }
 
@@ -427,7 +433,7 @@ function parsePDFOptions(raw?: Record<string, unknown>): BufferPDFOptions | unde
     landscape: raw.landscape as boolean | undefined,
     debug: raw.debug as boolean | undefined,
     debugTypography: raw.debugTypography as boolean | undefined,
-    fontSize: raw.fontSize as number | undefined,
+    fontSize: parseFontSize(raw.fontSize),
     defaultPageSize: raw.defaultPageSize as string | undefined,
     margins: parseMargins(raw.margins),
   };

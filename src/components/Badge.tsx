@@ -1,3 +1,4 @@
+import { scaled } from '../utils/font-scale';
 import React from 'react';
 import clsx from 'clsx';
 
@@ -218,8 +219,8 @@ function getSizeClasses(size: BadgeSize): SizeClasses {
         paddingBottom: `${pt * 0.06}mm`,
       },
       textStyle: {
-        fontSize: `${pt}pt`,
-        lineHeight: `${pt * 1.2}pt`,
+        fontSize: scaled(`${pt}pt`),
+        lineHeight: scaled(`${pt * 1.2}pt`),
       },
       gapStyle: { gap: `${pt * 0.12}mm` },
       iconStyle: {

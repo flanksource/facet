@@ -1,3 +1,5 @@
+import { scaled } from './font-scale';
+
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
 export type Health = 'healthy' | 'warning' | 'unhealthy' | 'unknown';
 export type Status = 'running' | 'active' | 'healthy' | 'ready' | 'succeeded'
@@ -47,17 +49,19 @@ export const Theme = {
     Backup: '#D97706',
     DR: '#DC2626',
   },
-  H1: { fontSize: '22pt', lineHeight: '26pt', margin: '0 0 4mm' } as TypographyStyle,
-  H2: { fontSize: '15pt', lineHeight: '19pt', margin: '4mm 0 3mm' } as TypographyStyle,
-  H3: { fontSize: '12pt', lineHeight: '15pt', margin: '3mm 0 2mm' } as TypographyStyle,
-  H4: { fontSize: '10pt', lineHeight: '12pt', margin: '2mm 0 2mm' } as TypographyStyle,
-  P:  { fontSize: '9pt', lineHeight: '12pt', margin: '0 0 3mm' } as TypographyStyle,
-  TextXs:  { fontSize: '7pt' } as TypographyStyle,
-  TextSm:  { fontSize: '9pt' } as TypographyStyle,
-  TextMd:  { fontSize: '10pt' } as TypographyStyle,
-  TextLg:  { fontSize: '15pt' } as TypographyStyle,
-  TextXl:  { fontSize: '18pt' } as TypographyStyle,
-  Text2xl: { fontSize: '24pt' } as TypographyStyle,
+  H1: { fontSize: scaled('22pt'), lineHeight: scaled('26pt'), margin: '0 0 4mm' } as TypographyStyle,
+  H2: { fontSize: scaled('15pt'), lineHeight: scaled('19pt'), margin: '4mm 0 3mm' } as TypographyStyle,
+  H3: { fontSize: scaled('12pt'), lineHeight: scaled('15pt'), margin: '3mm 0 2mm' } as TypographyStyle,
+  H4: { fontSize: scaled('10pt'), lineHeight: scaled('12pt'), margin: '2mm 0 2mm' } as TypographyStyle,
+  P:  { fontSize: scaled('9pt'), lineHeight: scaled('12pt'), margin: '0 0 3mm' } as TypographyStyle,
+  Body: { fontSize: scaled('10pt'), lineHeight: scaled('14pt') } as TypographyStyle,
+  TextXs:  { fontSize: scaled('7pt') } as TypographyStyle,
+  TextSm:  { fontSize: scaled('9pt') } as TypographyStyle,
+  TextBase: { fontSize: scaled('10pt') } as TypographyStyle,
+  TextMd:  { fontSize: scaled('10pt') } as TypographyStyle,
+  TextLg:  { fontSize: scaled('15pt') } as TypographyStyle,
+  TextXl:  { fontSize: scaled('18pt') } as TypographyStyle,
+  Text2xl: { fontSize: scaled('24pt') } as TypographyStyle,
   Brand: {
     FlanksourceBlue: '#2563eb',
     FlanksourceDark: '#1e293b',

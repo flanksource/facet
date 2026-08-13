@@ -119,6 +119,22 @@ describe('parseRenderRequest postProcessCss', () => {
     });
   });
 
+  it('rejects a font size that is not a usable number', async () => {
+    // fontSize is interpolated into a <style> block, so a string reaching the
+    // renderer could close the rule and control the stylesheet.
+    const form = new FormData();
+    form.set('archive', new File(['archive'], 'template.tar.gz'));
+    form.set('options', JSON.stringify({
+      format: 'pdf',
+      pdfOptions: { fontSize: '12pt}body{display:none}/*' },
+    }));
+
+    await expect(parseRenderRequest(new Request('http://facet.test/render', {
+      method: 'POST',
+      body: form,
+    }), 1024)).rejects.toThrow(/font size/i);
+  });
+
   it('accepts a gzip query boolean', async () => {
     const parsed = await parseRenderRequest(new Request(
       'http://facet.test/render?postProcessCss=false',

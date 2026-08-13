@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 
 import { generatePDFBuffer } from '../utils/pdf-generator.js';
+import { injectFontScale } from '../utils/font-size.js';
 import { generatePNGBuffer } from '../utils/png-generator.js';
 import { hasMermaidCodeBlocks, renderBrowserHTML } from '../utils/browser-html.js';
 import { Logger } from '../utils/logger.js';
@@ -301,6 +302,8 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       timings,
       skipModules: config.skipModules,
     });
+    // Once, ahead of the format branch, so html, png and pdf all carry it.
+    html = injectFontScale(html, parsed.fontSize);
 
     if (parsed.format === 'html') {
       html = await materializeBrowserHTML(html, pool);
@@ -403,6 +406,8 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
       timings,
       skipModules: config.skipModules,
     });
+    // Once, ahead of the format branch, so html, png and pdf all carry it.
+    html = injectFontScale(html, parsed.fontSize);
     if (parsed.format === 'html') {
       html = await materializeBrowserHTML(html, pool);
       progress.emit('done', 'HTML render complete');

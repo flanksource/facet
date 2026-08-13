@@ -13,7 +13,7 @@
  * - dist/ - Vite build output
  */
 
-import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync, chmodSync, openSync, closeSync } from 'fs';
+import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSync, rmSync, readlinkSync, readFileSync, lstatSync, unlinkSync, chmodSync, openSync, closeSync, copyFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname, sep } from 'path';
 import { homedir } from 'os';
@@ -31,6 +31,7 @@ import { createDefaultModulePackageJson, defaultModuleNpmrc } from '../bundler/m
 import { VERSION } from '../version-generated.js';
 import { LowPriorityProcessError, runLowPriority } from '../utils/subprocess-priority.js';
 import { SHARP_VERSION } from '../utils/sharp.js';
+import { tailwindFontSizeTheme, tailwindThemeBlock } from '../utils/type-scale.js';
 
 const rootPackageJson = assetPath('package.json');
 
@@ -141,7 +142,19 @@ export function wrapFacetStylesInLayer(css: string): string {
 
   return [
     ...imports,
-    '@layer facet, theme, base, components, utilities;',
+    // `facet` sits between `base` and `components` for a reason. Declared
+    // first, as it was, it became the weakest layer: Tailwind's preflight
+    // (`h1..h6{font-size:inherit}`) outranked every heading rule in the
+    // stylesheet, and Tailwind's own `text-*` utilities outranked the pt scale
+    // the stylesheet declared for print — so headings inherited body size and
+    // `text-xs` printed 9pt instead of 7pt, silently.
+    //
+    // Between base and utilities, facet's element defaults beat preflight
+    // while a `text-lg` on the element still wins, which is the precedence
+    // authors expect. It must not move above `utilities`: there an element
+    // rule like `p{font-size:9pt}` would beat `.text-lg` on that same
+    // paragraph, because layer order ignores specificity.
+    '@layer theme, base, facet, components, utilities;',
     '@layer facet {',
     remaining.trim(),
     '}',
@@ -1327,12 +1340,21 @@ export default defineConfig(async () => {
    */
   generatePostCSSConfig(): void {
     this.logger.debug('Generating Tailwind-compatible postcss.config.js');
+    // Copied in rather than imported from @flanksource/facet: .facet pins
+    // whatever facet version the consumer declared, which may predate this
+    // file, and a failed import here fails the entire CSS build.
+    copyFileSync(assetPath('facet-font-scale.mjs'), join(this.facetRoot, 'facet-font-scale.mjs'));
+
     const config = `import autoprefixer from 'autoprefixer';
+import facetFontScale from './facet-font-scale.mjs';
 import { createRequire } from 'module';
 
 const facetRequire = createRequire(import.meta.url);
 const tailwindMajor = Number(facetRequire('tailwindcss/package.json').version.split('.')[0]);
-const plugins = [autoprefixer()];
+// facetFontScale runs last so it rewrites the utilities Tailwind has just
+// generated — the arbitrary text-[8pt] classes a template uses — and, on v4,
+// the --text-* theme properties its utilities read through var().
+const plugins = [autoprefixer(), facetFontScale()];
 if (tailwindMajor === 3) {
   const tailwindcss = (await import('tailwindcss')).default;
   plugins.unshift(tailwindcss(process.env.FACET_POST_PROCESS === '1'
@@ -1381,10 +1403,23 @@ export default {
 };
 `;
     writeFileSync(join(this.facetRoot, 'tailwind.config.js'), config, 'utf-8');
+    // The type scale is merged in here rather than in the base config because
+    // a consumer's own tailwind.config.js is re-exported verbatim above. This
+    // is the one pass that always runs, so it is the only place the scale can
+    // be guaranteed. A consumer that sets its own fontSize still wins — theirs
+    // is spread last.
     const postProcessConfig = `import baseConfig from './tailwind.config.js';
+const facetFontSize = ${JSON.stringify(tailwindFontSizeTheme(), null, 2).replace(/\n/g, '\n  ')};
 export default {
   ...baseConfig,
   content: [...(baseConfig.content ?? []), './rendered-content.html'],
+  theme: {
+    ...(baseConfig.theme ?? {}),
+    extend: {
+      ...(baseConfig.theme?.extend ?? {}),
+      fontSize: { ...facetFontSize, ...(baseConfig.theme?.extend?.fontSize ?? {}) },
+    },
+  },
 };
 `;
     writeFileSync(join(this.facetRoot, 'tailwind.postprocess.config.js'), postProcessConfig, 'utf-8');
@@ -1421,7 +1456,13 @@ export default {
       "@import './facet.css';",
       ...imports.map((specifier) => `@import '${specifier}';`),
     ];
-    const postProcess = [...postProcessLines, ''].join('\n');
+    // facet.css is pre-compiled and carries only the classes facet's own
+    // components use, so without this directive a Tailwind v3 consumer's own
+    // classes were never generated — `runTailwindCached` saw no directives,
+    // reused the SSR CSS, and every arbitrary utility the template used
+    // (space-y-[2mm], grid-cols-[1fr_36mm], columns-2 …) silently did nothing.
+    // The v4 entry below gets the same coverage from its utilities import.
+    const postProcess = [...postProcessLines, '@tailwind utilities;', ''].join('\n');
     const normalizedTemplateFile = this.templateFile.replaceAll('\\', '/').replace(/^\.\//, '');
     const staticSource = normalizedTemplateFile.includes('/')
       ? normalizedTemplateFile.slice(0, normalizedTemplateFile.indexOf('/'))
@@ -1430,6 +1471,10 @@ export default {
       ...postProcessLines,
       '@import "tailwindcss/theme.css" layer(theme);',
       '@import "tailwindcss/utilities.css" layer(utilities) source(none);',
+      // Point the `text-*` utilities at the document scale. Without this they
+      // resolve from Tailwind's rem defaults against an unset 16px root, so
+      // `text-xs` prints 9pt where the design says 7pt.
+      tailwindThemeBlock(),
       `@source "./src/${staticSource}";`,
       '@source "./rendered-content.html";',
       '',
@@ -1459,6 +1504,14 @@ export default {
     const generated = [
       'vite.config.ts', 'postcss.config.js', 'tailwind.config.js',
       'tailwind.postprocess.config.js', 'post-process.css', 'post-process-v4.css',
+      // facet.css is the whole facet stylesheet and the SSR bundle inlines it.
+      // Leaving it out meant editing facet's own CSS — or installing a patched
+      // build at the same version — reused a bundle carrying the old styles,
+      // which reads as the edit simply having no effect.
+      'facet.css',
+      // Same reasoning for the font-scale plugin: it rewrites every size in the
+      // generated CSS, so a change to it changes the output of this build.
+      'facet-font-scale.mjs',
     ];
     for (const name of generated) {
       try {

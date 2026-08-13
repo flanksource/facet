@@ -24,6 +24,7 @@
   "files": [
     "dist/",
     "cli/dist/",
+    "postcss/",
     "openapi.yaml",
     "README.md"
   ],
@@ -31,10 +32,12 @@
   "scripts": {
     "build": "pnpm run build:components && pnpm run build:css && pnpm run build:cli",
     "build:components": "vite build --config vite.lib.config.ts",
-    "build:css": "tailwindcss -i src/styles.css -o dist/styles.css",
+    "build:css": "tailwindcss -i src/styles.css -o dist/styles.css && node postcss/apply-font-scale.mjs dist/styles.css",
     "build:playground": "vite build --config vite.playground.config.ts && node cli/scripts/gen-playground-form.cjs",
     "build:cli": "cd cli && pnpm run build",
     "serve": "tsx cli/src/cli.ts serve --templates-dir examples",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "prepublishOnly": "pnpm run build:components && pnpm run build:css && cd cli && pnpm run build:lib",
@@ -93,6 +96,7 @@
     "juice": "^11.0.3",
     "mermaid": "^11.16.0",
     "ora": "^8.2.0",
+    "postcss": "^8.5.26",
     "puppeteer": "^24.26.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

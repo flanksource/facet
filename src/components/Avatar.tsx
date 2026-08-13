@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { useMemo } from 'react';
 import { BsFillPersonFill } from 'react-icons/bs';
 import type { User } from '../types/common';
+import { scaled } from '../utils/font-scale';
 import { getColorFromString } from '../utils/colors';
 
 export interface AvatarProps {
@@ -52,15 +53,15 @@ export function Avatar({
   const textSize = useMemo(() => {
     switch (size) {
       case 'xxs':
-        return '8px';
+        return scaled('8px');
       case 'xs':
-        return '10px';
+        return scaled('10px');
       case 'sm':
-        return '12px';
+        return scaled('12px');
       case 'md':
-        return '14px';
+        return scaled('14px');
       case 'lg':
-        return '16px';
+        return scaled('16px');
     }
   }, [size]);
 
