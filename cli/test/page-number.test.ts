@@ -137,6 +137,16 @@ describe('page number placeholder replacement', () => {
       expect(result.toString()).toBe('x9999x');
     });
 
+    it('keeps a value wider than the placeholder inside its own bytes', () => {
+      // The replacement is written in place, so a 5-digit page number would
+      // otherwise overwrite the byte after the marker and corrupt the stream.
+      const buf = Buffer.from(`x${PAGE_MARKER}x`);
+      const result = replaceInBuffer(buf, PAGE_MARKER, '10000');
+
+      expect(result.length).toBe(buf.length);
+      expect(result.toString()).toBe('x1000x');
+    });
+
     it('does not modify buffer without placeholder', () => {
       const buf = Buffer.from('no markers here');
       const result = replaceInBuffer(buf, PAGE_MARKER, '1');

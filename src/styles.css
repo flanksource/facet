@@ -1,8 +1,14 @@
-/* Fonts referenced by the Tailwind 'mono' stack — must be loaded explicitly
- * because Puppeteer's headless Chromium has no system fonts installed.
- * Without this, PDF output falls back through Consolas/Monaco/Courier New.
+/* Fonts referenced by the Tailwind 'sans' and 'mono' stacks — must be loaded
+ * explicitly because Puppeteer's headless Chromium has no system fonts
+ * installed. Without this, body text falls back to whatever the platform
+ * offers (Liberation Sans in the Docker image) and code falls through
+ * Consolas/Monaco/Courier New.
+ *
+ * Open Sans was named in the body rule and in tailwind.config.js from the
+ * start but never actually loaded, so every document rendered in a fallback
+ * face with different metrics, line-breaking and page-fill than designed.
  */
-@import 'https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap';
+@import 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Fira+Code:wght@300;400;500;600;700&display=swap';
 
 /* Tailwind directives */
 @tailwind base;
@@ -17,21 +23,14 @@
   max-width: none;
 }
 
-/* Reduce prose font size and line height for PDFs */
 @media print {
-  .prose {
-    font-size: 9pt;
-    line-height: 1.3;
-  }
-
+  /* .prose carries paged spacing only. It used to restate the type scale, and
+   * disagreed with it: .prose p was 10pt where the global p rule is 9pt, so the
+   * same paragraph changed size depending on whether an ancestor happened to
+   * carry the class. Sizes now come from one place — the element rules below
+   * and the text-* scale — and markdown reads the same either way. */
   .prose p {
-    font-size: 10pt;
-    line-height: 1.3;
     margin-bottom: 2mm;
-  }
-
-  .prose h1, .prose h2, .prose h3, .prose h4 {
-    line-height: 1.2;
   }
 
   /* Override typography plugin with higher specificity */
@@ -82,65 +81,38 @@
    @apply text-gray-400 h-full place-content-center inline-flex align-middle mr-1
   }
 
-  /* Reduce all typography sizes for PDFs while maintaining hierarchy */
+  /* Paged spacing only. Sizes are declared unconditionally further down, so
+   * that screen and print show the same scale; repeating them here is what
+   * previously let the two copies disagree. */
   h1 {
-    font-size: 22pt;
-    line-height: 26pt;
     margin-bottom: 4mm;
     @apply text-gray-700;
   }
 
   h2 {
-    font-size: 15pt;
-    line-height: 19pt;
     margin-top: 4mm;
     margin-bottom: 3mm;
     @apply inline-flex;
   }
 
   h3 {
-    font-size: 12pt;
-    line-height: 15pt;
     margin-top: 3mm;
     margin-bottom: 2mm;
   }
 
   h4 {
-    font-size: 10pt;
-    line-height: 12pt;
     margin-top: 2mm;
     margin-bottom: 2mm;
   }
 
   p {
-    font-size: 9pt;
-    line-height: 12pt;
     margin-bottom: 3mm;
   }
 
-  .text-xs {
-    font-size: 7pt;
-  }
-
-  .text-sm {
-    font-size: 9pt;
-  }
-
-  .text-md {
-    font-size: 10pt;
-  }
-
-  .text-lg {
-    font-size: 15pt;
-  }
-
-  .text-xl {
-    font-size: 18pt;
-  }
-
-  .text-2xl {
-    font-size: 24pt;
-  }
+  /* The `text-*` scale is no longer redeclared here. It is fed to the Tailwind
+   * theme from cli/src/utils/type-scale.ts, so the utilities themselves carry
+   * the point scale. Redeclaring it in this layer was ineffective anyway —
+   * Tailwind's utilities layer outranks this one. */
 
   tbody td {
     font-weight: 400;
@@ -167,6 +139,12 @@
 }
 
 /* Typography System - Open Sans Primary, Fira Code Monospace */
+/* Pin the root so any surviving rem is deterministic rather than resolved
+ * against whatever default the rendering browser happens to carry. */
+html {
+  font-size: 16px;
+}
+
 body {
   @apply text-gray-700 bg-white;
 
@@ -251,14 +229,32 @@ body {
     widows: 2;
   }
 
-  /* Target the last page content to create space for footer */
-  main:last-of-type {
-    min-height: 240mm; /* Fill most of A4 page (297mm - margins - footer space) */
+  /* A page box fills its sheet: the paper minus the header and footer bands
+   * the renderer reserves as page margins.
+   *
+   * This floor used to sit on <main> alone at a flat 240mm, which ignored the
+   * page title rendered above it. 240mm of main plus a ~19mm title is 259.3mm
+   * against a 257mm printable area, so every page of every document overflowed
+   * by ~2mm and spilled a second, near-empty sheet — a five-page document
+   * printed as ten. Putting the floor on the page box instead counts the title,
+   * and main grows into whatever is left.
+   *
+   * The renderer injects the real figure per page size and margin set; the
+   * fallback covers `facet html` and a typical 24mm/16mm header and footer
+   * on A4. */
+  [data-page-size] {
+    display: flex;
+    flex-direction: column;
+    min-height: var(--facet-printable-height, 230mm);
+  }
+
+  [data-page-size] > main {
+    flex: 1 0 auto;
     display: flex;
     flex-direction: column;
   }
 
-  main:last-of-type article {
+  [data-page-size] > main > article {
     flex: 1 0 auto;
   }
 
@@ -298,20 +294,28 @@ body {
   }
 }
 
-/* Typography Scale from Style Guide (DS-10) */
+/* Typography Scale from Style Guide (DS-10)
+ *
+ * These are the document sizes, and they are unconditional: the output is a
+ * paged document, so the screen view should show what will print. There used
+ * to be a second, larger scale here (26/18/13/11pt) with the print sizes
+ * declared in the @media print block far above. Equal specificity and later
+ * source order meant this block won even while printing, so the print scale
+ * never applied. Keep sizes in one place; @media print carries paged spacing
+ * only, and the responsive blocks below still adapt narrow screens. */
 h1 {
   @apply text-slate-900 font-bold;
 
-  font-size: 26pt; /* DS-10: 24-28pt for product name */
-  line-height: 32pt;
+  font-size: 22pt;
+  line-height: 26pt;
   margin-bottom: 8mm;
 }
 
 h2 {
   @apply text-slate-900 font-semibold;
 
-  font-size: 18pt;
-  line-height: 24pt;
+  font-size: 15pt;
+  line-height: 19pt;
   margin-top: 6mm;
   margin-bottom: 4mm;
 }
@@ -319,8 +323,8 @@ h2 {
 h3 {
   @apply text-blue-500 font-medium;
 
-  font-size: 13pt;
-  line-height: 16pt;
+  font-size: 12pt;
+  line-height: 15pt;
   margin-top: 5mm;
   margin-bottom: 4mm;
 }
@@ -328,8 +332,8 @@ h3 {
 h4 {
   @apply text-gray-600 font-semibold;
 
-  font-size: 11pt;
-  line-height: 14pt;
+  font-size: 10pt;
+  line-height: 12pt;
   margin-top: 3mm;
   margin-bottom: 2mm;
 }
@@ -337,6 +341,11 @@ h4 {
 p {
   @apply text-gray-700;
 
+  /* Paragraphs sit one step below body, matching TYPOGRAPHY.P in theme.ts.
+   * This was previously only asserted by the inline-styled <P> component, so a
+   * markdown paragraph and a <P> rendered the same text at different sizes. */
+  font-size: 9pt;
+  line-height: 12pt;
   margin-bottom: 4mm;
 }
 
@@ -366,6 +375,11 @@ blockquote {
 }
 
 blockquote p {
+  /* Inherit the blockquote's size rather than falling back to the p rule.
+   * Without this a quote's bare text set at 10pt while a quote wrapped in a
+   * paragraph — which is what markdown produces — set at 9pt. */
+  font-size: inherit;
+  line-height: inherit;
   margin-bottom: 0;
   color: #52525b; /* zinc-600 */
 }
@@ -438,6 +452,13 @@ table.text-xs td { padding: 0.5mm 1mm; }
 table.text-sm { font-size: 9pt; }
 table.text-sm th { padding: 1.5mm; }
 table.text-sm td { padding: 1mm 1.5mm; }
+
+/* TableSize accepts 'base', so it needs a rule of its own — without one it was
+ * the only size that took the default padding rather than its own. It shares
+ * text-md's 10pt, so it shares its padding too. */
+table.text-base { font-size: 10pt; }
+table.text-base th { padding: 2.5mm; }
+table.text-base td { padding: 2mm 2.5mm; }
 
 table.text-md { font-size: 10pt; }
 table.text-md th { padding: 2.5mm; }
