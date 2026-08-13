@@ -53,7 +53,7 @@ Create a file `MyDatasheet.tsx` in your project:
 ```tsx
 import React from 'react';
 import {
-  DatasheetTemplate,
+  Document,
   Header,
   Page,
   StatCard,
@@ -63,7 +63,7 @@ import {
 
 export default function MyDatasheet() {
   return (
-    <DatasheetTemplate>
+    <Document>
       <Header
         title="Mission Control Platform"
         subtitle="Cloud-Native Observability & Incident Management"
@@ -87,7 +87,7 @@ export default function MyDatasheet() {
           ]} />
         </Section>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }
 ```
@@ -693,9 +693,9 @@ import Content from './content.mdx';
 
 export default function MyDatasheet() {
   return (
-    <DatasheetTemplate>
+    <Document>
       <Content />
-    </DatasheetTemplate>
+    </Document>
   );
 }
 ```

@@ -1,5 +1,5 @@
 import React from 'react';
-import { DatasheetTemplate, Footer, Header, Page } from '@flanksource/facet';
+import { Document, Footer, Header, Page } from '@flanksource/facet';
 
 interface BenchmarkData {
   title: string;
@@ -17,7 +17,7 @@ export default function BenchmarkMixedReport({ data }: { data: BenchmarkData }) 
     data.sections.filter((__, index) => index % definitions.length === bucket),
   );
   return (
-    <DatasheetTemplate title={data.title} css="">
+    <Document title={data.title} css="">
       {definitions.map(({ type, color }) => (
         <React.Fragment key={type}>
           <Header type={type} height={14} style={{ background: color, color: 'white', padding: '3mm 8mm' }}>
@@ -44,6 +44,6 @@ export default function BenchmarkMixedReport({ data }: { data: BenchmarkData }) 
           </table>
         </Page>
       ))}
-    </DatasheetTemplate>
+    </Document>
   );
 }

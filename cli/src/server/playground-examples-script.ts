@@ -1,7 +1,7 @@
 export const PLAYGROUND_EXAMPLES_SCRIPT = `
     const DEFAULT_TEMPLATE = \`import React from 'react';
 import {
-  DatasheetTemplate, Page, StatCard, MetricGrid,
+  Document, Page, StatCard, MetricGrid,
   Badge, Status, CompactTable, SpecificationTable,
   ProgressBar, ScoreGauge,
 } from '@flanksource/facet';
@@ -13,7 +13,7 @@ import {
 
 export default function Template({ data }: { data: any }) {
   return (
-    <DatasheetTemplate title={data.title}>
+    <Document title={data.title}>
       <Page title={data.title} product={data.product} margins={{ top: 5, bottom: 5 }}>
         <div className="space-y-6">
           <div className="grid grid-cols-4 gap-3">
@@ -56,7 +56,7 @@ export default function Template({ data }: { data: any }) {
           <CompactTable variant="inline" title="Release Info" data={data.release} />
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }\`;
 
@@ -138,13 +138,13 @@ export default function MyFooter() {
     const DIAGRAM_TEMPLATE = \`// @live
 import React from 'react';
 import {
-  DatasheetTemplate, Page,
+  Document, Page,
   Diagram, BoxNode, Arrow, COLORS,
 } from '@flanksource/facet';
 
 export default function Template({ data }: { data: any }) {
   return (
-    <DatasheetTemplate title={data.title}>
+    <Document title={data.title}>
       <Page title={data.title} product={data.product} margins={{ top: 5, bottom: 5 }}>
         <Diagram className="flex items-center justify-between gap-8 py-16 px-6">
           {(id) => (
@@ -182,7 +182,7 @@ export default function Template({ data }: { data: any }) {
           )}
         </Diagram>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }\`;
 
