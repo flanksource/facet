@@ -30,7 +30,7 @@ open dist/datasheet-MyDatasheet.html
 
 - **MyDatasheet.tsx** - Example template using @flanksource/facet components
 - Components used:
-  - `DatasheetTemplate` - Main wrapper
+  - `Document` - Main wrapper
   - `Header` - Page header with title
   - `Page` - Page container
   - `Section` - Content sections

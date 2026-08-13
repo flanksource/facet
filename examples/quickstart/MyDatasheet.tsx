@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  DatasheetTemplate,
+  Document,
   Header,
   Page,
   StatCard,
@@ -11,7 +11,7 @@ import {
 
 export default function MyDatasheet() {
   return (
-    <DatasheetTemplate>
+    <Document>
       <Header
         title="Mission Control Platform"
         subtitle="Cloud-Native Observability & Incident Management"
@@ -73,6 +73,6 @@ export default function MyDatasheet() {
           buttonUrl="https://flanksource.com/demo"
         />
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }
