@@ -1,4 +1,5 @@
 import React from 'react';
+import { scaled } from '../utils/font-scale';
 
 interface TerminalOutputProps {
   children?: React.ReactNode;
@@ -88,7 +89,7 @@ export default function TerminalOutput({ children }: TerminalOutputProps) {
           color: 'white',
           padding: '4px',
           fontFamily: 'monospace',
-          fontSize: '11px',
+          fontSize: scaled('11px'),
           lineHeight: '1.5',
           maxHeight: '400px',
           overflow: 'auto',

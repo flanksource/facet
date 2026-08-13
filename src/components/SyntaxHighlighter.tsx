@@ -1,3 +1,20 @@
+import { scaled } from '../utils/font-scale';
+
+/**
+ * The one monospace surface. Inline `<code>` is styled in styles.css as 9pt
+ * Fira Code; this component used to hardcode 0.875rem against an unset root
+ * and its own ui-monospace stack, so the two kinds of code in a single
+ * document disagreed on both size and typeface. Points, not rem, for the same
+ * reason the rest of the scale is in points: the output is a fixed-size page.
+ */
+const MONO_FAMILY = "'Fira Code', Monaco, 'Courier New', monospace";
+// Wrapped so the code block tracks --font-size like the rest of the document.
+// These end up in a raw style= attribute inside dangerouslySetInnerHTML, which
+// no stylesheet transform can reach.
+const MONO_SIZE = scaled('9pt');
+const MONO_LEADING = scaled('12pt');
+/** Titles sit one step down, matching the text-xs step. */
+const MONO_TITLE_SIZE = scaled('7pt');
 
 interface SyntaxHighlighterProps {
   code: string;
@@ -51,7 +68,7 @@ export default function SyntaxHighlighter({
     } catch (error) {
       console.error('Shiki highlighting failed:', error);
       // Fallback to plain code block with dark theme
-      highlightedHtml = `<pre class="shiki" style="background-color: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.5;"><code>${escapeHtml(code)}</code></pre>`;
+      highlightedHtml = `<pre class="shiki" style="background-color: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-family: ${MONO_FAMILY}; font-size: ${MONO_SIZE}; line-height: ${MONO_LEADING};"><code>${escapeHtml(code)}</code></pre>`;
     }
   }
 
@@ -62,11 +79,11 @@ export default function SyntaxHighlighter({
           backgroundColor: '#1a1a1a',
           color: '#d4d4d4',
           padding: '0.5rem 1rem',
-          fontSize: '0.75rem',
+          fontSize: MONO_TITLE_SIZE,
           fontWeight: 600,
           borderTopLeftRadius: '0.375rem',
           borderTopRightRadius: '0.375rem',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          fontFamily: MONO_FAMILY,
           borderBottom: '1px solid #2d2d2d',
           letterSpacing: '0.025em'
         }}>
@@ -75,7 +92,7 @@ export default function SyntaxHighlighter({
       )}
       <div
         dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-        style={{ fontSize: '0.875rem' }}
+        style={{ fontSize: MONO_SIZE }}
       />
     </div>
   );
@@ -106,7 +123,7 @@ function generateHighlightedCode(code: string, language: string, showLineNumbers
     return `<span class="line">${lineNumberHtml}${styledLine}</span>`;
   }).join('\n');
 
-  return `<pre class="shiki" style="background-color: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: ${showLineNumbers ? '0' : '0.375rem'}; overflow-x: auto; margin: 0; border-bottom-left-radius: 0.375rem; border-bottom-right-radius: 0.375rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.6; font-size: 0.875rem;"><code style="display: block;">${styledCode}</code></pre>`;
+  return `<pre class="shiki" style="background-color: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: ${showLineNumbers ? '0' : '0.375rem'}; overflow-x: auto; margin: 0; border-bottom-left-radius: 0.375rem; border-bottom-right-radius: 0.375rem; font-family: ${MONO_FAMILY}; line-height: ${MONO_LEADING}; font-size: ${MONO_SIZE};"><code style="display: block;">${styledCode}</code></pre>`;
 }
 
 /**

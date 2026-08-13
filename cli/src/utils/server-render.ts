@@ -124,6 +124,9 @@ export async function renderWithServer({ facetURL, format, options }: ServerRend
     filename: `${outputName}.${format}`,
     live: options.live,
     postProcessCss: options.postProcessCss,
+    // Top level so it reaches html and png too; also left in pdfOptions below
+    // so an older server still honours it for PDFs.
+    fontSize: options.fontSize,
     headerCode: await readOptionalFile(options.header),
     footerCode: await readOptionalFile(options.footer),
     pdfOptions: format === 'pdf' ? {

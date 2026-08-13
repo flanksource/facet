@@ -12,7 +12,7 @@ describe('assetPath', () => {
   });
 
   it('resolves runtime assets to existing files', () => {
-    for (const name of ['styles.css', 'openapi.yaml', 'mermaid.min.js'] as const) {
+    for (const name of ['styles.css', 'openapi.yaml', 'mermaid.min.js', 'facet-font-scale.mjs'] as const) {
       expect(existsSync(assetPath(name))).toBe(true);
     }
   });

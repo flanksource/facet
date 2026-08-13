@@ -116,6 +116,7 @@ tasks:
   test:
     deps:
       - test:unit
+      - test:components
       # - test:storybook
 
   lint:
@@ -137,6 +138,11 @@ tasks:
     dir: cli
     deps:
       - build
+    cmds:
+      - pnpm exec vitest run
+
+  test:components:
+    desc: "Run component package unit tests with vitest"
     cmds:
       - pnpm exec vitest run
 

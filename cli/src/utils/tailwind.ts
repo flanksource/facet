@@ -132,6 +132,25 @@ export function tailwindDirectivesPresent(facetRoot: string): boolean {
   }
 }
 
+/**
+ * Content hash of the stylesheet inputs.
+ *
+ * The other two key parts do not cover them: `buildCacheKey` hashes consumer
+ * files plus the facet *version*, and the class-set key hashes the rendered
+ * HTML. So editing facet's own stylesheet — or installing a patched build at
+ * the same version — served CSS from cache that no longer matched the source,
+ * which reads as the change simply not working.
+ */
+export function cssInputKey(facetRoot: string): string {
+  const hash = createHash('sha256');
+  for (const name of ['facet.css', 'post-process.css', 'post-process-v4.css']) {
+    try {
+      hash.update(readFileSync(join(facetRoot, name)));
+    } catch { /* not every entry exists on every Tailwind major */ }
+  }
+  return hash.digest('hex').slice(0, 16);
+}
+
 export async function runTailwindCached(opts: CachedTailwindOptions): Promise<string> {
   if (
     opts.ssrCss != null
@@ -144,7 +163,7 @@ export async function runTailwindCached(opts: CachedTailwindOptions): Promise<st
 
   const classSet = renderedClassKey(opts.html);
   const cacheDir = join(opts.facetRoot, 'tailwind-cache');
-  const cachePath = join(cacheDir, `${opts.buildCacheKey}-${classSet.key}.css`);
+  const cachePath = join(cacheDir, `${opts.buildCacheKey}-${classSet.key}-${cssInputKey(opts.facetRoot)}.css`);
   const existing = tailwindLocks.get(cachePath);
   if (existing) return existing;
 

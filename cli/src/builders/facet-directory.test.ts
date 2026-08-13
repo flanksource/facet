@@ -169,6 +169,31 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
       );
   });
 
+  it('feeds the point type scale to the Tailwind theme on both major versions', async () => {
+    // Without this the `text-*` utilities resolve from Tailwind's rem defaults
+    // against an unset root, and outrank anything the stylesheet declares — so
+    // text-xs printed 9pt where the scale says 7pt.
+    await writeFile(join(consumerRoot, 'template.tsx'), 'export default function Template() { return null; }\n');
+    const dir = newFacetDir();
+    dir.create();
+    dir.symlinkConsumerFiles();
+    dir.copyStylesCss();
+    dir.generateTailwindConfig();
+    dir.generateEntryWrapper();
+
+    const v4 = await readFile(join(facetRoot, 'post-process-v4.css'), 'utf-8');
+    expect(v4).toContain('--text-xs: 7pt;');
+    expect(v4).toContain('--text-2xl: 24pt;');
+    // Leading travels with the size on both majors. Emitting size alone left
+    // text-2xl drawing 24pt glyphs on whatever leading the element had.
+    expect(v4).toContain('--text-xs--line-height: 9pt;');
+    expect(v4).toContain('--text-2xl--line-height: 28pt;');
+
+    const v3 = await readFile(join(facetRoot, 'tailwind.postprocess.config.js'), 'utf-8');
+    expect(v3).toContain('fontSize:');
+    expect(v3).toMatch(/"xs":\s*\[\s*"7pt",\s*\{\s*"lineHeight":\s*"9pt"\s*\}\s*\]/);
+  });
+
   it('bundles icon data packages rather than externalising them', async () => {
     // The SSR bundle is CJS, so an externalised dependency is require()d and a
     // module whose only export is a default arrives as its namespace instead of
@@ -215,7 +240,10 @@ describe('FacetDirectory Tailwind integration', () => {
 
     const facetCss = await readFile(join(facetRoot, 'facet.css'), 'utf-8');
     expect(facetCss).toMatch(/^@import ['"]https:\/\/fonts\.googleapis\.com\//);
-    expect(facetCss).toContain('@layer facet, theme, base, components, utilities;');
+    // facet sits between base and utilities: above Tailwind preflight, so the
+    // stylesheet's element defaults survive, and below utilities, so a
+    // `text-lg` on the element still wins.
+    expect(facetCss).toContain('@layer theme, base, facet, components, utilities;');
     expect(facetCss).toContain('@layer facet {');
     expect(facetCss).not.toContain('layer(facet)');
 
@@ -223,6 +251,12 @@ describe('FacetDirectory Tailwind integration', () => {
     expect(postProcessCss.indexOf("@import './facet.css';"))
       .toBeLessThan(postProcessCss.indexOf("@import './src/src/styles/report.css';"));
     expect(postProcessCss).not.toContain('@source');
+    // Without this the v3 pass emits no utilities of its own, runTailwindCached
+    // sees no directives and reuses the SSR CSS, and a consumer's own classes
+    // are never generated — they simply do nothing in the rendered document.
+    expect(postProcessCss).toContain('@tailwind utilities;');
+    expect(postProcessCss.indexOf("@import './facet.css';"))
+      .toBeLessThan(postProcessCss.indexOf('@tailwind utilities;'));
 
     const postProcessV4Css = await readFile(join(facetRoot, 'post-process-v4.css'), 'utf-8');
     expect(postProcessV4Css).toContain('@import "tailwindcss/theme.css" layer(theme);');
@@ -336,6 +370,26 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
 
     expect(await readFile(join(facetRoot, 'facet.css'), 'utf-8'))
       .toContain('@layer facet {\n/* built local css */');
+  });
+
+  it('changes the build digest when the facet stylesheet changes', async () => {
+    // The SSR bundle inlines facet.css and is cached under this digest, keyed
+    // on the facet *version*. Editing facet's own CSS — or installing a patched
+    // build at the same version — therefore served a bundle with the old
+    // styles, and the edit looked like it simply did nothing.
+    const localRoot = await writeLocalFacetPackage();
+    process.env.FACET_PACKAGE_PATH = localRoot;
+    await writeFile(join(consumerRoot, 'template.tsx'), 'export default function Template() { return null; }\n');
+    const facetDir = newFacetDir();
+    facetDir.create();
+
+    facetDir.copyStylesCss();
+    const before = facetDir.generatedConfigDigest();
+
+    await writeFile(join(localRoot, 'dist/styles.css'), '/* built local css */\np { font-size: 11pt; }\n');
+    facetDir.copyStylesCss();
+
+    expect(facetDir.generatedConfigDigest()).not.toBe(before);
   });
 
   it('uses local package metadata and writes a build fingerprint into .facet/package.json', async () => {

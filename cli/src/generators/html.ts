@@ -10,6 +10,7 @@ import { startViteServer } from '../bundler/vite-server.js';
 import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { scopeHTML } from '../utils/css-scoper.js';
+import { injectFontScale } from '../utils/font-size.js';
 import { resolveTemplateSource } from '../utils/template-source.js';
 import { runTailwindCached } from '../utils/tailwind.js';
 import { shouldPostProcessTemplateCSS, shouldUseLiveRendering } from '../utils/live-template.js';
@@ -66,7 +67,9 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     });
     try {
       const snapshot = await snapshotHTML(server.url, logger, options.pngOptions);
-      const html = options.cssScope ? scopeHTML(snapshot, { scopeClass: options.cssScope }) : snapshot;
+      const scoped = options.cssScope ? scopeHTML(snapshot, { scopeClass: options.cssScope }) : snapshot;
+      // The file is standalone, so the scale has to be in the emitted bytes.
+      const html = injectFontScale(scoped, options.fontSize);
       if (options.cssScope) logger.info(`CSS scoped with class: ${options.cssScope}`);
       const outputDir = resolve(process.cwd(), options.outputDir);
       await mkdir(outputDir, { recursive: true });
@@ -123,9 +126,10 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     const combinedHTML = await renderBrowserHTML({
       html: combineHTMLAndCSS(htmlWithoutCSS, generatedCSS),
     });
-    const finalHTML = options.cssScope
+    const scopedHTML = options.cssScope
       ? scopeHTML(combinedHTML, { scopeClass: options.cssScope })
       : combinedHTML;
+    const finalHTML = injectFontScale(scopedHTML, options.fontSize);
     if (options.cssScope) logger.info(`CSS scoped with class: ${options.cssScope}`);
 
     // Step 4: Write final HTML file

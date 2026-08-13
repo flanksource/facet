@@ -49,6 +49,10 @@ const ASSET_CANDIDATES = {
   'package.json': ['assets/package.json', '../../../package.json'],
   'openapi.yaml': ['assets/openapi.yaml', '../../../openapi.yaml'],
   'styles.css': ['assets/styles.css', '../../../dist/styles.css'],
+  // Copied into .facet/ rather than resolved from @flanksource/facet: .facet
+  // pins whatever facet version the consumer declared, which may predate this
+  // file, and a failed import in postcss.config.js fails the whole CSS build.
+  'facet-font-scale.mjs': ['assets/facet-font-scale.mjs', '../../../postcss/facet-font-scale.mjs'],
   'mermaid.min.js': ['assets/mermaid.min.js', '../../../node_modules/mermaid/dist/mermaid.min.js'],
 } satisfies Record<string, string[]>;
 

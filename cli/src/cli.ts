@@ -9,6 +9,7 @@ import { VERSION, BUILD_DATE, GIT_COMMIT } from './version-generated.js';
 import { formatVersion } from './version.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
+import { parseFontSize } from './utils/font-size.js';
 import type { GenerateOptions, PNGViewport, RenderFormat } from './types.js';
 import { parsePNGViewport } from './utils/png-generator.js';
 import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
@@ -21,6 +22,15 @@ function numericOption(minimum: number): (value: string) => number {
     }
     return parsed;
   };
+}
+
+/** Point sizes are legitimately fractional, so this is not `numericOption`. */
+function fontSizeOption(value: string): number {
+  try {
+    return parseFontSize(value)!;
+  } catch (error) {
+    throw new InvalidArgumentError(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function viewportOption(value: string): PNGViewport {
@@ -115,6 +125,7 @@ function addSharedOptions(cmd: Command): Command {
     .option('--clear-cache', 'Delete .facet/ build cache and node_modules cache before generation')
     .option('--live', 'Render in a live browser (Vite dev server) instead of SSR; required for diagram components')
     .option('--post-process-css <boolean>', 'Rebuild CSS after rendering to include data-dependent classes', booleanOption)
+    .option('--font-size <pt>', 'Base font size in pt; scales the whole type scale proportionally (default: 10)', fontSizeOption)
     .option('--sandbox [settings]', 'Enable sandbox via srt (optionally specify settings file path)');
 }
 
@@ -171,6 +182,7 @@ addSharedOptions(
         skipModules: options.skipModules,
         live: options.live,
         postProcessCss: options.postProcessCss,
+        fontSize: options.fontSize,
         sandbox: options.sandbox,
       };
       if (facetURL) {
@@ -230,6 +242,7 @@ addSharedOptions(
         skipModules: options.skipModules,
         live: options.live,
         postProcessCss: options.postProcessCss,
+        fontSize: options.fontSize,
         sandbox: options.sandbox,
         pngOptions: {
           width: options.width,
@@ -268,7 +281,6 @@ addSharedOptions(
     .option('--no-validate', 'Skip data validation')
     .option('--debug', 'Add colored debug overlay lines for header/footer zones')
     .option('--debug-typography', 'Append a font-size reference page to the PDF')
-    .option('--font-size <pt>', 'Override base font size in pt (default: 10)', parseFloat)
     .option('--page-size <size>', 'Default page size (a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k)', 'a4')
     .option('--landscape', 'Use landscape orientation')
     .option('--margin-top <mm>', 'Top margin in mm', parseFloat)

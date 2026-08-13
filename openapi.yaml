@@ -360,6 +360,14 @@ components:
           type: boolean
           default: true
           description: Rebuild CSS after rendering to include data-dependent class names.
+        fontSize:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 1000
+          description: >-
+            Base font size in points, applied to html, png and pdf alike. Scales
+            the whole type scale proportionally rather than setting body text
+            alone. Rejected outside this range rather than silently ignored.
         pdfOptions:
           $ref: "#/components/schemas/PDFOptions"
         pngOptions:
@@ -389,7 +397,14 @@ components:
           default: false
         fontSize:
           type: number
-          description: Override the base font size in points.
+          exclusiveMinimum: 0
+          maximum: 1000
+          description: >-
+            Base font size in points. Scales the whole type scale proportionally
+            — headings, tables, footers and utility classes alike — rather than
+            setting body text alone. Deprecated here in favour of the top-level
+            fontSize, which also applies to html and png. Rejected outside this
+            range rather than silently ignored.
         margins:
           type: object
           properties:

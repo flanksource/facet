@@ -18,6 +18,7 @@ function buildPackage({ version, bundlePath, repoRoot, templateDir, outDir }) {
   fs.copyFileSync(path.join(repoRoot, 'dist', 'styles.css'), path.join(outDir, 'assets', 'styles.css'));
   fs.copyFileSync(path.join(repoRoot, 'openapi.yaml'), path.join(outDir, 'assets', 'openapi.yaml'));
   fs.copyFileSync(path.join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'), path.join(outDir, 'assets', 'mermaid.min.js'));
+  fs.copyFileSync(path.join(repoRoot, 'postcss', 'facet-font-scale.mjs'), path.join(outDir, 'assets', 'facet-font-scale.mjs'));
 
   fs.copyFileSync(path.join(templateDir, 'README.md'), path.join(outDir, 'README.md'));
   const pkg = JSON.parse(fs.readFileSync(path.join(templateDir, 'package.json'), 'utf8'));
