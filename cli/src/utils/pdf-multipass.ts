@@ -6,6 +6,7 @@ import type { Browser, BrowserContext, Page } from 'puppeteer-core';
 type PageProvider = Browser | BrowserContext;
 import type { Logger } from './logger.js';
 import { setPreparedContent } from './browser-readiness.js';
+import { ELEMENT_SCALE, TEXT_SCALE } from './type-scale.js';
 
 export type PageType = 'first' | 'default' | 'last';
 
@@ -447,8 +448,20 @@ export function bufferHasPlaceholders(buf: Buffer): boolean {
   return false;
 }
 
+/**
+ * The replacement is written over the placeholder in place, so it must occupy
+ * exactly as many bytes. `padEnd` alone only guarantees the lower bound — a
+ * page number wider than the marker would overwrite the bytes after it and
+ * corrupt the content stream — so the value is clamped from both directions.
+ */
+function fitToPlaceholder(value: string, placeholder: string): string {
+  return value.length > placeholder.length
+    ? value.slice(0, placeholder.length)
+    : value.padEnd(placeholder.length, ' ');
+}
+
 function replacePlain(buf: Buffer, placeholder: string, value: string): Buffer {
-  const padded = value.padEnd(placeholder.length, ' ');
+  const padded = fitToPlaceholder(value, placeholder);
   const result = Buffer.from(buf);
   const search = Buffer.from(placeholder);
   const replace = Buffer.from(padded);
@@ -858,18 +871,28 @@ interface FontSample {
   margin: string;
 }
 
+const ELEMENT_MARGINS: Record<string, string> = {
+  h1: '0 0 4mm', h2: '4mm 0 3mm', h3: '3mm 0 2mm', h4: '2mm 0 2mm', p: '0 0 3mm',
+};
+
+/**
+ * Derived from the one scale rather than restated. As a literal table this
+ * drifted from the stylesheet silently, and a reference page that disagrees
+ * with the document it is bound into is worse than no reference page.
+ */
 const FONT_SAMPLES: FontSample[] = [
-  { label: 'h1', pt: 22, lineHeight: 26, margin: '0 0 4mm' },
-  { label: 'h2', pt: 15, lineHeight: 19, margin: '4mm 0 3mm' },
-  { label: 'h3', pt: 12, lineHeight: 15, margin: '3mm 0 2mm' },
-  { label: 'h4', pt: 10, lineHeight: 12, margin: '2mm 0 2mm' },
-  { label: 'p', pt: 9, lineHeight: 12, margin: '0 0 3mm' },
-  { label: 'text-2xl', pt: 24, lineHeight: 0, margin: '' },
-  { label: 'text-xl', pt: 18, lineHeight: 0, margin: '' },
-  { label: 'text-lg', pt: 15, lineHeight: 0, margin: '' },
-  { label: 'text-md', pt: 10, lineHeight: 0, margin: '' },
-  { label: 'text-sm', pt: 9, lineHeight: 0, margin: '' },
-  { label: 'text-xs', pt: 7, lineHeight: 0, margin: '' },
+  ...Object.entries(ELEMENT_SCALE)
+    .filter(([tag]) => tag !== 'body')
+    .map(([tag, step]) => ({
+      label: tag,
+      pt: step.pt,
+      lineHeight: step.leading ?? 0,
+      margin: ELEMENT_MARGINS[tag] ?? '',
+    })),
+  ...Object.entries(TEXT_SCALE)
+    .filter(([name]) => name !== 'base')
+    .reverse()
+    .map(([name, step]) => ({ label: `text-${name}`, pt: step.pt, lineHeight: 0, margin: '' })),
 ];
 
 export interface FontComboInfo {
