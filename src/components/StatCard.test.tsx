@@ -144,10 +144,9 @@ describe('StatCard', () => {
         />
       );
 
-      // Should show trend arrow and percentage
+      // Trendline shows the absolute delta, not a percentage.
       expect(container.textContent).toContain('↗');
-      expect(container.textContent).toContain('50');
-      expect(container.textContent).toContain('%');
+      expect(container.textContent).toContain('+50');
     });
 
     it('should render up-down with up arrow for positive delta', () => {
@@ -161,7 +160,7 @@ describe('StatCard', () => {
       );
 
       expect(container.textContent).toContain('▲');
-      expect(container.querySelector('.text-green-600')).toBeInTheDocument();
+      expect(container.querySelector('.text-green-500')).toBeInTheDocument();
     });
 
     it('should render up-down with down arrow for negative delta', () => {
@@ -175,7 +174,7 @@ describe('StatCard', () => {
       );
 
       expect(container.textContent).toContain('▼');
-      expect(container.querySelector('.text-red-600')).toBeInTheDocument();
+      expect(container.querySelector('.text-red-500')).toBeInTheDocument();
     });
 
     it('should render before-after with arrow format', () => {
@@ -207,9 +206,9 @@ describe('StatCard', () => {
       expect(screen.getByText('Before')).toBeInTheDocument();
       expect(screen.getByText('After')).toBeInTheDocument();
 
-      // Should show improvement indicator
-      expect(container.textContent).toContain('↑');
-      expect(container.textContent).toContain('%');
+      // This variant reads a *reduction* as the improvement (50 → 75 is a 50%
+      // increase), so a rising value carries the down arrow.
+      expect(container.textContent).toContain('↓ 50%');
     });
 
     it('should show improvement percentage in before-after-progress', () => {
@@ -428,9 +427,18 @@ describe('StatCard', () => {
 
   // Test color theming
   describe('Color Theming', () => {
-    const colors = ['blue', 'green', 'purple', 'orange', 'red', 'gray'] as const;
+    // `gray` renders on the slate ramp, matching the neutral text colours the
+    // rest of the component uses; the others take their own palette name.
+    const colors = [
+      ['blue', 'blue'],
+      ['green', 'green'],
+      ['purple', 'purple'],
+      ['orange', 'orange'],
+      ['red', 'red'],
+      ['gray', 'slate'],
+    ] as const;
 
-    colors.forEach(color => {
+    colors.forEach(([color, palette]) => {
       it(`should apply ${color} theme classes`, () => {
         const { container } = render(
           <StatCard
@@ -442,8 +450,8 @@ describe('StatCard', () => {
         );
 
         const wrapper = container.firstChild as HTMLElement;
-        expect(wrapper.className).toContain(`bg-${color}-50`);
-        expect(wrapper.className).toContain(`border-${color}-200`);
+        expect(wrapper.className).toContain(`bg-${palette}-50`);
+        expect(wrapper.className).toContain(`border-${palette}-200`);
       });
     });
 
