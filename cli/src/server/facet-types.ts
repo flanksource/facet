@@ -699,15 +699,37 @@ export const facetTypes = `declare module '@flanksource/facet' {
    */
   export function CallToAction({ primary, secondary, audience }: CallToActionProps): JSX.Element;
 
+  /** The five GitHub alert tones. */
+  export type AlertTone = 'note' | 'tip' | 'important' | 'warning' | 'caution';
+  /** The five GitHub alert tones, plus the untinted aside. */
+  export type CalloutVariant = AlertTone | 'default';
   /**
    * CalloutBox Props
    */
   export interface CalloutBoxProps {
       /** Content to display inside the callout */
       children: React.ReactNode;
-      /** Visual variant of the callout */
-      variant?: 'info' | 'warning' | 'success' | 'default';
-      /** Optional title for the callout */
+      /**
+       * Visual variant of the callout. The five named tones are the same set
+       * \`> [!NOTE]\` markdown produces, and render identically to it.
+       */
+      variant?: CalloutVariant;
+      /** Inline label in the header row. Defaults to the variant's own name. */
+      label?: string;
+      /** Leading identifier chip, e.g. an annotation number. */
+      badge?: string;
+      /** Muted trailing attribution, e.g. a reviewer or source name. */
+      source?: string;
+      /**
+       * Glyph to draw, named independently of \`variant\`. Defaults to the
+       * variant's own icon. Set it when the colour and the symbol need to say
+       * different things, or to give an untinted \`default\` callout an icon it
+       * would otherwise not draw.
+       */
+      icon?: AlertTone;
+      /** Heavier full-border treatment, for callouts that block rather than inform. */
+      emphasis?: boolean;
+      /** Optional block title above the body */
       title?: string;
       /** Optional CSS class name */
       className?: string;
@@ -715,17 +737,32 @@ export const facetTypes = `declare module '@flanksource/facet' {
   /**
    * CalloutBox Component
    *
-   * Displays an emphasized callout box with different visual styles.
-   * Useful for highlighting important information, warnings, or tips.
+   * An emphasised aside. The five named tones mirror GitHub's alert types, so a
+   * document can use \`<CalloutBox variant="caution">\` in TSX/MDX and
+   * \`> [!CAUTION]\` in plain markdown and get the same box either way.
    *
    * @example
    * \`\`\`tsx
-   * <CalloutBox variant="info" title="Important Note">
+   * <CalloutBox variant="note" title="Important Note">
    *   This is important information that users should know.
+   * </CalloutBox>
+   *
+   * // Annotation style: identifier, tone label and attribution on one row
+   * <CalloutBox variant="caution" badge="N14" label="Correction" source="Jonno">
+   *   The two enforcement checks cannot be implemented as written.
+   * </CalloutBox>
+   *
+   * // Label and glyph chosen independently of the tone
+   * <CalloutBox variant="warning" label="TODO" icon="important">
+   *   Run the first tabletop exercise and retain the record.
    * </CalloutBox>
    * \`\`\`
    */
-  export function CalloutBox({ children, variant, title, className, }: CalloutBoxProps): JSX.Element;
+  export function CalloutBox({ children, variant, label, badge, source, icon, emphasis, title, className, }: CalloutBoxProps): JSX.Element;
+  /** The alert icon as the markdown plugin emits it, for custom callout layouts. */
+  export function AlertIcon({ tone }: { tone: AlertTone }): JSX.Element;
+  /** Octicon path data keyed by tone, matching the markdown alert glyphs. */
+  export const ALERT_ICON_PATHS: Record<AlertTone, string>;
 
   interface Feature {
       title: string;

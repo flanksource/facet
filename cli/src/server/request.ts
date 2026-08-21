@@ -5,6 +5,7 @@ import { parseRemoteRef } from '../utils/remote-resolver.js';
 import type { BufferPDFOptions, PDFMargins } from '../utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from '../utils/pdf-security.js';
 import type { PNGOptions, PNGViewport, RenderFormat } from '../types.js';
+import type { RedactPolicy } from '../builders/remark-config.js';
 import {
   normalizePNGOptions,
   parsePNGViewport,
@@ -37,6 +38,32 @@ export interface ParsedRenderRequest {
   postProcessCss?: boolean;
   /** Base font size in pt. Top-level so it reaches html and png, not just pdf. */
   fontSize?: number;
+  /** Which classified regions this render may carry. */
+  redact?: RedactPolicy;
+}
+
+/**
+ * A redaction policy arriving over the wire. Rejected rather than coerced: a
+ * malformed policy that silently became "allow everything" would publish the
+ * content it was sent to withhold.
+ */
+export function parseRedactPolicy(value: unknown, field: string): RedactPolicy | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'object' || Array.isArray(value)) throw new Error(`${field} must be an object`);
+  const source = value as Record<string, unknown>;
+  const element = source.element;
+  if (element !== undefined && typeof element !== 'string') throw new Error(`${field}.element must be a string`);
+  if (typeof source.allow !== 'object' || source.allow === null || Array.isArray(source.allow)) {
+    throw new Error(`${field}.allow must be an object`);
+  }
+  const allow: Record<string, string[]> = {};
+  for (const [attribute, values] of Object.entries(source.allow as Record<string, unknown>)) {
+    if (!Array.isArray(values) || values.some((entry) => typeof entry !== 'string')) {
+      throw new Error(`${field}.allow.${attribute} must be an array of strings`);
+    }
+    allow[attribute] = values as string[];
+  }
+  return element === undefined ? { allow } : { element, allow };
 }
 
 export async function parseRenderRequest(
@@ -119,6 +146,7 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     pngOptions,
     live: parseBoolean(body.live, 'live'),
     postProcessCss: parseBoolean(body.postProcessCss, 'postProcessCss'),
+    redact: parseRedactPolicy(body.redact, 'redact'),
     fontSize: parseFontSize(body.fontSize ?? (body.pdfOptions as Record<string, unknown> | undefined)?.fontSize),
   };
 }
@@ -213,6 +241,7 @@ async function parseMultipartRequest(
     pngOptions,
     live: parseBoolean(options.live, 'live'),
     postProcessCss: parseBoolean(options.postProcessCss, 'postProcessCss'),
+    redact: parseRedactPolicy(options.redact, 'redact'),
     fontSize: parseFontSize(options.fontSize ?? (options.pdfOptions as Record<string, unknown> | undefined)?.fontSize),
   };
 }

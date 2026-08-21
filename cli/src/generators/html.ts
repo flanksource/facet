@@ -63,6 +63,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
       consumerRoot,
       logger,
       timings,
+      redact: options.redact,
       skipModules: options.skipModules,
     });
     try {
@@ -93,6 +94,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     logger,
     sandbox: options.sandbox,
     timings,
+    redact: options.redact,
     skipModules: options.skipModules,
   });
 

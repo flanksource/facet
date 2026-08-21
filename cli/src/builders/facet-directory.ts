@@ -24,6 +24,7 @@ import {
   remarkPluginsArray,
   EMPTY_REMARK_CONFIG,
   type RemarkConfig,
+  type RedactPolicy,
 } from './remark-config.js';
 
 import { assetPath } from '../utils/assets.js';
@@ -44,6 +45,8 @@ export interface FacetDirectoryOptions {
   logger: Logger;
   /** Extra remark/rehype plugins declared in the template's frontmatter. */
   remarkConfig?: RemarkConfig;
+  /** Which classified regions this build may carry. Absent leaves content untouched. */
+  redact?: RedactPolicy;
   /** Use the immutable shared Facet module install without consumer dependencies. */
   skipModules?: boolean;
 }
@@ -350,6 +353,7 @@ export class FacetDirectory {
   private templateFile: string;
   private logger: Logger;
   private remarkConfig: RemarkConfig;
+  private redact?: RedactPolicy;
   private skipModules: boolean;
 
   constructor(options: FacetDirectoryOptions) {
@@ -359,6 +363,7 @@ export class FacetDirectory {
     this.templateFile = options.templateFile;
     this.logger = options.logger;
     this.remarkConfig = options.remarkConfig ?? EMPTY_REMARK_CONFIG;
+    this.redact = options.redact;
     this.skipModules = options.skipModules ?? false;
   }
 
@@ -368,13 +373,20 @@ export class FacetDirectory {
    * and the rehypePlugins array. Local plugin paths resolve relative to
    * the template file's directory.
    */
+  /** Copied beside the generated config so `./facet-redact.mjs` resolves. */
+  private copyRedactPlugin(): void {
+    copyFileSync(assetPath('facet-redact.mjs'), join(this.facetRoot, 'facet-redact.mjs'));
+  }
+
   private mdxPluginSource(): { imports: string; remarkArray: string; rehypeArray: string } {
     const templateDir = dirname(resolve(this.consumerRoot, this.templateFile));
     const codegen = generatePluginCodegen(this.remarkConfig, templateDir);
-    const imports = codegen.imports.length ? '\n' + codegen.imports.join('\n') : '';
+    // Relative, like facet-font-scale.mjs: a bare specifier would resolve
+    // against the consumer's pinned facet version rather than this build's.
+    const allImports = [`import facetRedact from './facet-redact.mjs';`, ...codegen.imports];
     return {
-      imports,
-      remarkArray: remarkPluginsArray(codegen.remarkItems),
+      imports: allImports.length ? '\n' + allImports.join('\n') : '',
+      remarkArray: remarkPluginsArray(codegen.remarkItems, this.redact),
       rehypeArray: rehypePluginsArray(codegen.rehypeItems),
     };
   }
@@ -562,6 +574,7 @@ export default Template;
   generateViteConfig(): void {
     this.logger.debug('Generating vite.config.ts');
 
+    this.copyRedactPlugin();
     const { imports, remarkArray, rehypeArray } = this.mdxPluginSource();
     const config = `
 import { defineConfig } from 'vite';
@@ -710,6 +723,7 @@ root.render(React.createElement(Template, { data }));
 `;
     writeFileSync(join(this.facetRoot, 'index.html'), indexHtml, 'utf-8');
 
+    this.copyRedactPlugin();
     const { imports, remarkArray, rehypeArray } = this.mdxPluginSource();
     const config = `
 import { defineConfig } from 'vite';
@@ -1512,6 +1526,10 @@ export default {
       // Same reasoning for the font-scale plugin: it rewrites every size in the
       // generated CSS, so a change to it changes the output of this build.
       'facet-font-scale.mjs',
+      // The redaction plugin decides what content survives into the bundle. The
+      // policy itself lives in vite.config.ts above, so two audiences already
+      // fork the key; this covers a change to the plugin's own logic.
+      'facet-redact.mjs',
     ];
     for (const name of generated) {
       try {

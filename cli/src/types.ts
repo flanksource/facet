@@ -1,3 +1,5 @@
+import type { RedactPolicy } from './builders/remark-config.js';
+
 export type RemoteRefType = 'github' | 'https' | 'git+ssh' | 'npm';
 
 export interface RemoteRef {
@@ -52,6 +54,12 @@ export interface GenerateOptions {
   clearCache?: boolean;
   /** Use the shared Facet-only module install and ignore consumer package metadata. */
   skipModules?: boolean;
+  /**
+   * Which classified regions this render may carry, per attribute. A region
+   * declaring a value outside the permitted set is removed before compilation;
+   * a region declaring an attribute with no policy fails the render.
+   */
+  redact?: RedactPolicy;
   /**
    * Render in a live browser (Vite dev server + Puppeteer) instead of SSR.
    * Required for templates using DOM-measuring components (diagrams/react-xarrows).

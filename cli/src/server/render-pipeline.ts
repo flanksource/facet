@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
+import type { RedactPolicy } from '../builders/remark-config.js';
 import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
 import { startViteServer } from '../bundler/vite-server.js';
@@ -110,6 +111,7 @@ interface RenderHTMLOptions {
   live?: boolean;
   postProcessCss?: boolean;
   skipModules?: boolean;
+  redact?: RedactPolicy;
   pngOptions?: PNGOptions;
 }
 
@@ -122,6 +124,7 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
       consumerRoot,
       logger,
       timings,
+      redact: options.redact,
       skipModules: options.skipModules,
     });
     try {
@@ -139,6 +142,7 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
     sandbox,
     persistentLoader,
     timings,
+    redact: options.redact,
     skipModules: options.skipModules,
   });
   try {
@@ -171,6 +175,7 @@ export async function renderHTMLStreamed(options: StreamedHTMLOptions): Promise<
       consumerRoot,
       logger,
       timings,
+      redact: options.redact,
       skipModules: options.skipModules,
     });
     try {

@@ -154,7 +154,7 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
     const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
     expect(config).toContain("import remarkFrontmatter from 'remark-frontmatter';");
     expect(config).toContain(`import _remarkPlugin0 from "${join(consumerRoot, 'remark-financial-table.ts')}";`);
-    expect(config).toContain("remarkPlugins: [remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }], _remarkPlugin0]");
+    expect(config).toContain("remarkPlugins: [remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }], [facetRedact, {\"allow\":{}}], _remarkPlugin0]");
     expect(config).toContain(
       "rehypePlugins: [[rehypeRaw, { passThrough: ['mdxFlowExpression', 'mdxJsxFlowElement', 'mdxJsxTextElement', 'mdxTextExpression', 'mdxjsEsm'] }], _rehypePlugin0]",
     );
@@ -163,7 +163,10 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
   it('emits only the always-on defaults when no frontmatter plugins are declared', async () => {
     newFacetDir().generateViteConfig();
     const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
-    expect(config).toContain("remarkPlugins: [remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }]]");
+    // Redaction is always installed, even with no policy: a build that skipped
+    // it would publish classified regions instead of failing on them.
+    expect(config).toContain("remarkPlugins: [remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }], [facetRedact, {\"allow\":{}}]]");
+    expect(config).toContain("import facetRedact from './facet-redact.mjs';");
       expect(config).toContain(
         "rehypePlugins: [[rehypeRaw, { passThrough: ['mdxFlowExpression', 'mdxJsxFlowElement', 'mdxJsxTextElement', 'mdxTextExpression', 'mdxjsEsm'] }]]",
       );

@@ -10,6 +10,7 @@ import { formatVersion } from './version.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
 import { parseFontSize } from './utils/font-size.js';
+import { parseRedactAllow } from './builders/remark-config.js';
 import type { GenerateOptions, PNGViewport, RenderFormat } from './types.js';
 import { parsePNGViewport } from './utils/png-generator.js';
 import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
@@ -126,6 +127,13 @@ function addSharedOptions(cmd: Command): Command {
     .option('--live', 'Render in a live browser (Vite dev server) instead of SSR; required for diagram components')
     .option('--post-process-css <boolean>', 'Rebuild CSS after rendering to include data-dependent classes', booleanOption)
     .option('--font-size <pt>', 'Base font size in pt; scales the whole type scale proportionally (default: 10)', fontSizeOption)
+    .option(
+      '--allow <attribute=values>',
+      'Permit a classified region to survive, e.g. --allow tier=Public,Customer-Shared. '
+      + 'Repeatable. A region declaring an attribute with no --allow fails the render.',
+      (value: string, previous: string[]) => [...previous, value],
+      [] as string[],
+    )
     .option('--sandbox [settings]', 'Enable sandbox via srt (optionally specify settings file path)');
 }
 
@@ -180,6 +188,7 @@ addSharedOptions(
         refresh: options.refresh,
         clearCache: options.clearCache,
         skipModules: options.skipModules,
+        redact: parseRedactAllow(options.allow ?? []),
         live: options.live,
         postProcessCss: options.postProcessCss,
         fontSize: options.fontSize,
@@ -240,6 +249,7 @@ addSharedOptions(
         refresh: options.refresh,
         clearCache: options.clearCache,
         skipModules: options.skipModules,
+        redact: parseRedactAllow(options.allow ?? []),
         live: options.live,
         postProcessCss: options.postProcessCss,
         fontSize: options.fontSize,
@@ -322,6 +332,7 @@ addSharedOptions(
         refresh: options.refresh,
         clearCache: options.clearCache,
         skipModules: options.skipModules,
+        redact: parseRedactAllow(options.allow ?? []),
         live: options.live,
         postProcessCss: options.postProcessCss,
         debug: options.debug,
