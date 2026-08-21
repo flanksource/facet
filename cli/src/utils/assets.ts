@@ -53,6 +53,10 @@ const ASSET_CANDIDATES = {
   // pins whatever facet version the consumer declared, which may predate this
   // file, and a failed import in postcss.config.js fails the whole CSS build.
   'facet-font-scale.mjs': ['assets/facet-font-scale.mjs', '../../../postcss/facet-font-scale.mjs'],
+  // Same reasoning as facet-font-scale.mjs, and the stakes are higher: a failed
+  // import here would drop the redaction pass, so it is copied in rather than
+  // resolved from the consumer's pinned @flanksource/facet.
+  'facet-redact.mjs': ['assets/facet-redact.mjs', '../../../remark/facet-redact.mjs'],
   'mermaid.min.js': ['assets/mermaid.min.js', '../../../node_modules/mermaid/dist/mermaid.min.js'],
 } satisfies Record<string, string[]>;
 

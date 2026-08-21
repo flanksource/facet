@@ -1,0 +1,5 @@
+overrides:
+  crypto-js: 4.2.0
+  esbuild: 0.28.1
+  unrun: 0.2.37
+  ws: 8.21.0

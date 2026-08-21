@@ -28,7 +28,7 @@
     "openapi.yaml",
     "README.md"
   ],
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
   "scripts": {
     "build": "pnpm run build:components && pnpm run build:css && pnpm run build:cli",
     "build:components": "vite build --config vite.lib.config.ts",
@@ -114,16 +114,5 @@
   },
   "engines": {
     "node": ">=20.19"
-  },
-  "pnpm": {
-    "overrides": {
-      "undici": "6.27.0",
-      "@babel/core": "7.29.6",
-      "esbuild": "0.25.12",
-      "ws": "8.21.0",
-      "uuid": "11.1.1",
-      "js-yaml": "4.3.0",
-      "dompurify": "3.4.12"
-    }
   }
 }

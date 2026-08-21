@@ -47,7 +47,7 @@
     "url": "https://github.com/flanksource/facet.git",
     "directory": "cli"
   },
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
   "engines": {
     "node": ">=20.19.0"
   },
@@ -86,13 +86,5 @@
     "tsdown": "^0.16.0",
     "typescript": "^5.6.3",
     "vitest": "^4.1.5"
-  },
-  "pnpm": {
-    "overrides": {
-      "unrun": "0.2.37",
-      "crypto-js": "4.2.0",
-      "ws": "8.21.0",
-      "esbuild": "0.28.1"
-    }
   }
 }

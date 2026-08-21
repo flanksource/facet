@@ -433,6 +433,29 @@ flowchart LR
     expect(html).toMatch(/<svg[^>]+aria-roledescription="flowchart-v2"/);
   }, 120000);
 
+  test('POST /render emits a distinct class and icon for every alert tone', async () => {
+    const tones = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'];
+    const code = tones.map(t => `> [!${t}]\n> Body for ${t}.`).join('\n\n');
+
+    const res = await fetch(`${server.url}/render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, format: 'html', ext: 'md', data: {} }),
+    });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+
+    for (const tone of tones) {
+      expect(html, `missing alert class for ${tone}`).toContain(
+        `markdown-alert-${tone.toLowerCase()}`,
+      );
+    }
+    // The title row carries the label and the icon the stylesheet sizes; without
+    // it the tone classes are on a box with nothing to colour.
+    expect(html).toContain('markdown-alert-title');
+    expect(html.match(/class="octicon"/g)?.length).toBe(tones.length);
+  }, 120000);
+
   test('POST /render with inline MDX (ext: mdx) interpolates data and renders components', async () => {
     const code = `import { StatCard } from '@flanksource/facet';
 

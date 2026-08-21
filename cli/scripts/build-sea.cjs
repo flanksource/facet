@@ -26,6 +26,7 @@ const seaConfig = {
     'openapi.yaml': join(repoRoot, 'openapi.yaml'),
     'mermaid.min.js': join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'),
     'facet-font-scale.mjs': join(repoRoot, 'postcss', 'facet-font-scale.mjs'),
+    'facet-redact.mjs': join(repoRoot, 'remark', 'facet-redact.mjs'),
   },
 };
 const seaConfigPath = join(distSea, 'sea-config.json');

@@ -222,6 +222,9 @@ function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerConfig): 
     pngOptions: parsed.pngOptions,
     live: parsed.live,
     postProcessCss: parsed.postProcessCss,
+    // Without this, two audiences of the same document share a cache entry and
+    // serve each other's bytes — a classification leak, not a stale render.
+    redact: parsed.redact,
   });
 }
 
@@ -291,6 +294,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       live: parsed.live,
       postProcessCss: parsed.postProcessCss,
       skipModules: config.skipModules,
+      redact: parsed.redact,
       pngOptions: parsed.pngOptions,
     });
     html = await injectHeaderFooter({
@@ -394,6 +398,7 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
       live: parsed.live,
       postProcessCss: parsed.postProcessCss,
       skipModules: config.skipModules,
+      redact: parsed.redact,
       pngOptions: parsed.pngOptions,
     });
     html = await injectHeaderFooter({

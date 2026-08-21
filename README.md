@@ -685,6 +685,109 @@ This is **MDX content** with a React component:
 <StatCard label="Users" value="10,000+" />
 ```
 
+### Admonitions
+
+GitHub-style alerts work in both `.md` and `.mdx`. A blockquote whose first line
+is one of five labels renders as a coloured callout with its own icon and title:
+
+```markdown
+> [!NOTE]
+> Context worth noticing while skimming.
+
+> [!CAUTION]
+> Never include credentials or other secrets in generated reports.
+```
+
+| Syntax | Tone | Use for |
+|---|---|---|
+| `> [!NOTE]` | blue | Context worth noticing while skimming |
+| `> [!TIP]` | emerald | A better way to do the thing |
+| `> [!IMPORTANT]` | purple | Necessary to get the result |
+| `> [!WARNING]` | amber | Needs attention to avoid a problem |
+| `> [!CAUTION]` | red | Risk of data loss or a security hole |
+
+A plain `>` blockquote — or `> ` with a `.info` class in TSX — stays the untinted
+zinc aside.
+
+In MDX (and TSX) the same five tones are available as a component, which adds an
+identifier chip, a label override and an attribution for annotated documents:
+
+```mdx
+import { CalloutBox } from '@flanksource/facet';
+
+<CalloutBox variant="caution" badge="N14" label="Correction" source="Jonno">
+  The two enforcement checks cannot be implemented as written.
+</CalloutBox>
+```
+
+`<CalloutBox variant="caution">` and `> [!CAUTION]` render the same box, so a
+document can move between markdown and MDX without a visual seam. Pass
+`emphasis` for a full border instead of the left rule, for callouts that block
+rather than inform.
+
+`label` and `icon` are set independently of `variant`, which is what lets one
+tone carry several meanings. A review document can run amber "TODO", blue
+"Assumption" and purple "Open question" callouts off the five built-in tones
+without inventing new ones:
+
+```mdx
+<CalloutBox variant="warning" label="TODO" icon="important" badge="BCR-08">
+  Run the first tabletop exercise and retain the record.
+</CalloutBox>
+```
+
+`icon` names any tone's glyph and defaults to the variant's own. It also gives
+the untinted `default` callout an icon, which it otherwise never draws.
+
+## Classified regions
+
+A Markdown document can carry regions that only some outputs are permitted to
+include. Wrap them in `<Classified>` and declare, per build, which values are
+allowed:
+
+```markdown
+<Classified tier="Internal">
+
+Review notes that must not reach a customer.
+
+</Classified>
+```
+
+```bash
+facet pdf policy.md --allow tier=Public                     # region removed
+facet pdf policy.md --allow tier=Public,Internal            # region kept
+```
+
+`--allow` is repeatable and takes `<attribute>=<value[,value]>`. A region is kept
+only when **every** attribute it declares is permitted.
+
+Three properties are deliberate:
+
+- **Removal, not concealment.** Redaction runs on the Markdown AST before the
+  bundle is built, so the text is absent from the output *and* from the build
+  cache. Hiding a region with CSS leaves it in the file for anyone who looks.
+- **Membership, not ranking.** Permitted values are an explicit set, never a
+  threshold. A classification scheme need not be a total order — a tier can be
+  less sensitive than another yet reach a wider audience — and `level <= clearance`
+  quietly misfiles exactly those cases.
+- **Fail closed.** A region declaring an attribute with no `--allow` fails the
+  render. Forgetting the flag must never publish the content it was meant to
+  govern.
+
+Redaction applies to `.md` and `.mdx`. The policy is part of the build-cache key,
+so two audiences of one document never share a cached bundle, and it travels with
+`--facet-url` remote renders.
+
+The header row — `badge`, `label` and `source` — has **no plain-markdown form**.
+`> [!TYPE]` carries the tone and nothing else: its label is fixed to the tone
+name, and there is no slot for an identifier or an attribution. An annotated
+document that needs to say which note a callout is, and who raised it, has to
+use `.mdx` (or raw HTML in `.md`, which `rehype-raw` passes through).
+
+Note that plain `.md` is compiled with `format: 'md'`, which has no JSX — in a
+`.md` file the blockquote syntax is the only route to an admonition. Rename to
+`.mdx` to use components.
+
 MDX can also be imported into a TSX template when you need a custom layout:
 
 ```tsx

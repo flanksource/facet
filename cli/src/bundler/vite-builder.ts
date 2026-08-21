@@ -13,6 +13,7 @@ import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory, resolveFacetPackageOverride } from '../builders/facet-directory.js';
 import { readRemarkFrontmatter } from '../utils/frontmatter.js';
+import type { RedactPolicy } from '../builders/remark-config.js';
 import { RenderProfiler, RenderTimings } from '../utils/performance.js';
 import { computeTemplateBuildKey, pruneBuildCache } from './build-cache.js';
 import { VERSION } from '../version-generated.js';
@@ -38,6 +39,7 @@ export interface BuildOptions {
   persistentLoader?: boolean;
   timings?: RenderTimings;
   timingPhase?: 'vite' | 'header-generation';
+  redact?: RedactPolicy;
   skipModules?: boolean;
 }
 
@@ -250,6 +252,7 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
     templateFile: templatePath,
     logger,
     remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
+    redact: options.redact,
     skipModules: options.skipModules,
   });
 

@@ -16,6 +16,7 @@ import { FacetDirectory } from '../builders/facet-directory.js';
 import { prepareModules } from './vite-builder.js';
 import { selfExecBase } from '../utils/self-exec.js';
 import { readRemarkFrontmatter } from '../utils/frontmatter.js';
+import type { RedactPolicy } from '../builders/remark-config.js';
 import { RenderTimings } from '../utils/performance.js';
 import { spawnLowPriority } from '../utils/subprocess-priority.js';
 
@@ -25,6 +26,7 @@ export interface ViteServerOptions {
   consumerRoot?: string;
   logger: Logger;
   timings?: RenderTimings;
+  redact?: RedactPolicy;
   skipModules?: boolean;
 }
 
@@ -50,6 +52,7 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
     templateFile: templatePath,
     logger,
     remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
+    redact: options.redact,
     skipModules: options.skipModules,
   });
   facetDir.create();

@@ -5,6 +5,7 @@ import {
   generatePluginCodegen,
   rehypePluginsArray,
   remarkPluginsArray,
+  parseRedactAllow,
   hasPlugins,
 } from './remark-config.js';
 
@@ -65,11 +66,53 @@ describe('generatePluginCodegen', () => {
 });
 
 describe('remarkPluginsArray', () => {
+  const DEFAULTS = "remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }]";
+
   it('keeps the always-on defaults first and appends user items', () => {
-    expect(remarkPluginsArray([])).toBe("[remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }]]");
+    expect(remarkPluginsArray([])).toBe(`[${DEFAULTS}, [facetRedact, {"allow":{}}]]`);
     expect(remarkPluginsArray(['_remarkPlugin0'])).toBe(
-      "[remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }], _remarkPlugin0]",
+      `[${DEFAULTS}, [facetRedact, {"allow":{}}], _remarkPlugin0]`,
     );
+  });
+
+  it('places redaction after the defaults and before user plugins', () => {
+    // Ordering is load-bearing: a frontmatter-declared plugin must not be able
+    // to observe content the build is not permitted to carry.
+    expect(remarkPluginsArray(['_remarkPlugin0'], { allow: { tier: ['Public'] } })).toBe(
+      `[${DEFAULTS}, [facetRedact, {"allow":{"tier":["Public"]}}], _remarkPlugin0]`,
+    );
+  });
+
+  it('installs redaction even when no policy is given', () => {
+    // Omitting the plugin without a policy would make a forgotten --allow
+    // publish every classified region rather than fail the build.
+    expect(remarkPluginsArray([])).toContain('facetRedact');
+  });
+});
+
+describe('parseRedactAllow', () => {
+  it('collects declarations into a permitted set per attribute', () => {
+    expect(parseRedactAllow(['tier=Public,Customer-Shared', 'status=published'])).toEqual({
+      allow: { tier: ['Public', 'Customer-Shared'], status: ['published'] },
+    });
+  });
+
+  it('merges repeated declarations for one attribute', () => {
+    expect(parseRedactAllow(['tier=Public', 'tier=Internal'])).toEqual({
+      allow: { tier: ['Public', 'Internal'] },
+    });
+  });
+
+  it('yields no policy when nothing is declared, which the caller treats as deny', () => {
+    expect(parseRedactAllow([])).toBeUndefined();
+  });
+
+  it.each([
+    ['no separator', 'tier'],
+    ['an empty attribute', '=Public'],
+    ['no values', 'tier='],
+  ])('rejects %s', (_description, declaration) => {
+    expect(() => parseRedactAllow([declaration])).toThrow();
   });
 });
 
