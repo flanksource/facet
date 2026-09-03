@@ -69,8 +69,15 @@
       @apply text-gray-800;
   }
 
+  /* This was `inline-flex`, so that an `.icon` child would centre against the
+   * text. It shrink-wrapped the heading into an inline box, and `## Heading`
+   * immediately followed by `### Heading` — ordinary markdown — then shared one
+   * line. Nothing outside this block sets a display, so it also printed
+   * differently from how it rendered on screen. Block instead: `text-align`
+   * reaches a heading again, and a heading that wants to lay its own children
+   * out says so itself (CapabilitySection asks for `flex items-center`). */
   h2,h3,h4 {
-    @apply inline-flex;
+    @apply block;
   }
 
   .subtitle {
@@ -92,7 +99,6 @@
   h2 {
     margin-top: 4mm;
     margin-bottom: 3mm;
-    @apply inline-flex;
   }
 
   h3 {
@@ -384,11 +390,99 @@ blockquote p {
   color: #52525b; /* zinc-600 */
 }
 
-blockquote.info {
-  @apply border-l-blue-500 bg-blue-50/50;
+/* GitHub alerts.
+ *
+ * `remark-github-blockquote-alert` runs with `tagName: 'blockquote'`, so
+ * `> [!NOTE]` lands on the element above and inherits the box, padding and
+ * type size for free; only the accent and text colour differ per tone. Without
+ * these rules the plugin still fires and all five tones render as the identical
+ * grey aside, which is what shipped until now — the plugin's own alert.css is
+ * never imported, so this stylesheet is the only place the mapping exists.
+ *
+ * `.info` is grouped with `note` rather than kept as a separate rule: it is the
+ * same advisory aside under a shorter hand-authored name.
+ *
+ * Tone colours are kept in step with VARIANT_STYLES in
+ * src/components/CalloutBox.tsx, so `> [!NOTE]` and `<CalloutBox variant="note">`
+ * render the same box.
+ */
+blockquote.info,
+blockquote.markdown-alert-note {
+  @apply border-l-blue-500 bg-blue-50/60;
 }
-blockquote.info p {
+blockquote.info p,
+blockquote.markdown-alert-note p {
+  @apply text-blue-900;
+}
+blockquote.markdown-alert-note .markdown-alert-title {
   @apply text-blue-700;
+}
+
+blockquote.markdown-alert-tip {
+  @apply border-l-emerald-500 bg-emerald-50/60;
+}
+blockquote.markdown-alert-tip p {
+  @apply text-emerald-900;
+}
+blockquote.markdown-alert-tip .markdown-alert-title {
+  @apply text-emerald-700;
+}
+
+blockquote.markdown-alert-important {
+  @apply border-l-purple-500 bg-purple-50/60;
+}
+blockquote.markdown-alert-important p {
+  @apply text-purple-900;
+}
+blockquote.markdown-alert-important .markdown-alert-title {
+  @apply text-purple-700;
+}
+
+blockquote.markdown-alert-warning {
+  @apply border-l-amber-500 bg-amber-50/60;
+}
+blockquote.markdown-alert-warning p {
+  @apply text-amber-900;
+}
+blockquote.markdown-alert-warning .markdown-alert-title {
+  @apply text-amber-700;
+}
+
+blockquote.markdown-alert-caution {
+  @apply border-l-red-500 bg-red-50/60;
+}
+blockquote.markdown-alert-caution p {
+  @apply text-red-900;
+}
+blockquote.markdown-alert-caution .markdown-alert-title {
+  @apply text-red-700;
+}
+
+/* The plugin injects the label as the blockquote's first paragraph, so it needs
+ * the tone colour above to outrank `blockquote p` — hence the three-class
+ * selectors — and its own row layout here. */
+.markdown-alert-title {
+  @apply flex items-center gap-2 font-semibold uppercase tracking-wide;
+
+  /* 7pt/9pt is the text-xs step, set directly rather than with `@apply text-xs`.
+   * `@apply` also pulls in any compound rule matching the class, so applying it
+   * here dragged the `table.text-xs th|td` padding rules in as dead
+   * `table.markdown-alert-title` selectors. */
+  font-size: 7pt;
+  line-height: 9pt;
+  margin-bottom: 1mm;
+}
+
+/* Sized and filled by CSS, not by props, so the plugin's inline SVG and
+ * CalloutBox's <AlertIcon> answer to one rule. `fill: currentColor` is what
+ * makes the glyph pick up the per-tone title colour above. */
+.markdown-alert .octicon,
+.octicon {
+  @apply inline-block shrink-0;
+
+  width: 3mm;
+  height: 3mm;
+  fill: currentColor;
 }
 
 /* Lists */
