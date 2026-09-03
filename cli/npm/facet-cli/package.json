@@ -24,6 +24,6 @@
   },
   "homepage": "https://github.com/flanksource/facet#readme",
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19"
   }
 }

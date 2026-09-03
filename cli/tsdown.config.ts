@@ -9,7 +9,7 @@ export default defineConfig({
   clean: true,
   splitting: false,
   minify: false,
-  external: ['tsx', 'puppeteer-core', 'vite', 'react', 'react-dom', /\.yaml$/, /\.json$/, /\.css$/],
+  external: ['tsx', 'puppeteer-core', 'sharp', 'vite', 'react', 'react-dom', /\.yaml$/, /\.json$/, /\.css$/],
   platform: 'node',
   target: 'node18',
   shims: false,

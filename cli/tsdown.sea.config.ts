@@ -12,7 +12,9 @@ export default defineConfig({
   sourcemap: false,
   clean: true,
   noExternal: [/.*/],
-  external: ['vite', 'react', 'react-dom', '@vitejs/plugin-react', '@mdx-js/rollup', 'remark-gfm', 'tsx'],
+  // sharp is a native addon: it cannot be embedded in the SEA blob, so it stays
+  // external and is resolved from the .facet module store at runtime.
+  external: ['vite', 'react', 'react-dom', '@vitejs/plugin-react', '@mdx-js/rollup', 'remark-gfm', 'tsx', 'sharp'],
   platform: 'node',
   target: 'node20',
   shims: true,

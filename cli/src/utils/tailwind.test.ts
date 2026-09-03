@@ -1,14 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync, statSync, utimesSync } from 'fs';
+import { describe, it, expect } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, statSync, utimesSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import {
-  resolveTailwindBin,
-  tailwindBinExists,
-  runTailwind,
+  cssInputKey,
   renderedClassKey,
   runTailwindCached,
-  TailwindBinNotFoundError,
+  tailwindDirectivesPresent,
 } from './tailwind.js';
 
 describe('renderedClassKey', () => {
@@ -25,13 +23,85 @@ describe('renderedClassKey', () => {
   });
 });
 
+describe('tailwindDirectivesPresent', () => {
+  function facetRootWith(files: Record<string, string>): string {
+    const facetRoot = mkdtempSync(join(tmpdir(), 'facet-tw-directives-'));
+    for (const [name, content] of Object.entries(files)) {
+      writeFileSync(join(facetRoot, name), content);
+    }
+    return facetRoot;
+  }
+
+  it('is false for pre-expanded CSS with only relative and URL imports', () => {
+    const facetRoot = facetRootWith({
+      'post-process.css': "@import './facet.css';\n",
+      'facet.css': '@import url("https://fonts.example/css");\n.page { color: red; }\n',
+    });
+    try {
+      expect(tailwindDirectivesPresent(facetRoot)).toBe(false);
+    } finally {
+      rmSync(facetRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('detects @tailwind directives through relative imports', () => {
+    const facetRoot = facetRootWith({
+      'post-process.css': "@import './facet.css';\n@import './custom.css';\n",
+      'facet.css': '.page { color: red; }\n',
+      'custom.css': '@tailwind utilities;\n',
+    });
+    try {
+      expect(tailwindDirectivesPresent(facetRoot)).toBe(true);
+    } finally {
+      rmSync(facetRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('assumes directives when imports cannot be inspected', () => {
+    const packageImport = facetRootWith({
+      'post-process.css': "@import 'some-package/styles.css';\n",
+    });
+    const missingFile = facetRootWith({
+      'post-process.css': "@import './missing.css';\n",
+    });
+    try {
+      expect(tailwindDirectivesPresent(packageImport)).toBe(true);
+      expect(tailwindDirectivesPresent(missingFile)).toBe(true);
+    } finally {
+      rmSync(packageImport, { recursive: true, force: true });
+      rmSync(missingFile, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('cssInputKey', () => {
+  it('changes when the stylesheet changes', () => {
+    // Neither of the other cache-key parts covers the stylesheets: the build
+    // key hashes consumer files plus the facet version, and the class key
+    // hashes the rendered HTML. Without this, editing facet.css — or
+    // installing a patched build at the same version — served stale CSS, which
+    // reads as the edit simply having no effect.
+    const facetRoot = mkdtempSync(join(tmpdir(), 'facet-css-key-'));
+    try {
+      writeFileSync(join(facetRoot, 'facet.css'), 'h1{font-size:22pt}');
+      const before = cssInputKey(facetRoot);
+
+      writeFileSync(join(facetRoot, 'facet.css'), 'h1{font-size:26pt}');
+
+      expect(cssInputKey(facetRoot)).not.toBe(before);
+    } finally {
+      rmSync(facetRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('runTailwindCached', () => {
   it('refreshes a cache hit timestamp', async () => {
     const facetRoot = mkdtempSync(join(tmpdir(), 'facet-tw-cache-test-'));
     try {
       const html = '<div class="font-bold"></div>';
       const cacheDir = join(facetRoot, 'tailwind-cache');
-      const cachePath = join(cacheDir, `build-${renderedClassKey(html).key}.css`);
+      const cachePath = join(cacheDir, `build-${renderedClassKey(html).key}-${cssInputKey(facetRoot)}.css`);
       mkdirSync(cacheDir, { recursive: true });
       writeFileSync(cachePath, '.font-bold{font-weight:700}');
       const old = new Date(Date.now() - 60_000);
@@ -39,7 +109,6 @@ describe('runTailwindCached', () => {
 
       await expect(runTailwindCached({
         facetRoot,
-        stylesInput: join(facetRoot, 'styles.css'),
         html,
         buildCacheKey: 'build',
       })).resolves.toContain('font-weight');
@@ -47,86 +116,5 @@ describe('runTailwindCached', () => {
     } finally {
       rmSync(facetRoot, { recursive: true, force: true });
     }
-  });
-});
-
-describe('resolveTailwindBin', () => {
-  const originalPlatform = process.platform;
-
-  afterEach(() => {
-    Object.defineProperty(process, 'platform', { value: originalPlatform });
-  });
-
-  it('returns node_modules/.bin/tailwindcss on POSIX', () => {
-    Object.defineProperty(process, 'platform', { value: 'linux' });
-    expect(resolveTailwindBin('/tmp/.facet')).toBe(
-      join('/tmp/.facet', 'node_modules', '.bin', 'tailwindcss'),
-    );
-  });
-
-  it('returns node_modules/.bin/tailwindcss.cmd on Windows', () => {
-    Object.defineProperty(process, 'platform', { value: 'win32' });
-    expect(resolveTailwindBin('C:\\proj\\.facet')).toBe(
-      join('C:\\proj\\.facet', 'node_modules', '.bin', 'tailwindcss.cmd'),
-    );
-  });
-});
-
-describe('tailwindBinExists', () => {
-  let facetRoot: string;
-
-  beforeEach(() => {
-    facetRoot = mkdtempSync(join(tmpdir(), 'facet-tw-test-'));
-  });
-
-  afterEach(() => {
-    rmSync(facetRoot, { recursive: true, force: true });
-  });
-
-  it('returns false when .bin/tailwindcss is missing', () => {
-    expect(tailwindBinExists(facetRoot)).toBe(false);
-  });
-
-  it('returns true when .bin/tailwindcss exists', () => {
-    const binDir = join(facetRoot, 'node_modules', '.bin');
-    mkdirSync(binDir, { recursive: true });
-    writeFileSync(join(binDir, 'tailwindcss'), '#!/bin/sh\n');
-    chmodSync(join(binDir, 'tailwindcss'), 0o755);
-    expect(tailwindBinExists(facetRoot)).toBe(true);
-  });
-});
-
-describe('runTailwind', () => {
-  let facetRoot: string;
-
-  beforeEach(() => {
-    facetRoot = mkdtempSync(join(tmpdir(), 'facet-tw-test-'));
-  });
-
-  afterEach(() => {
-    rmSync(facetRoot, { recursive: true, force: true });
-  });
-
-  it('throws TailwindBinNotFoundError when binary is missing', async () => {
-    await expect(
-      runTailwind({
-        facetRoot,
-        stylesInput: '/tmp/in.css',
-        contentPath: '/tmp/in.html',
-        outputCssPath: '/tmp/out.css',
-      }),
-    ).rejects.toBeInstanceOf(TailwindBinNotFoundError);
-  });
-
-  it('error message includes the expected binary path', async () => {
-    const expected = resolveTailwindBin(facetRoot);
-    await expect(
-      runTailwind({
-        facetRoot,
-        stylesInput: '/tmp/in.css',
-        contentPath: '/tmp/in.html',
-        outputCssPath: '/tmp/out.css',
-      }),
-    ).rejects.toThrow(expected);
   });
 });

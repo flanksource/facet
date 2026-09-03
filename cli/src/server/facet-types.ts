@@ -260,6 +260,108 @@ export const facetTypes = `declare module '@flanksource/facet' {
    */
   export function isEmpty(value: any): boolean;
 
+  /**
+   * A length that tracks \`--font-size\` and \`<Document fontSize>\`.
+   *
+   * Every font size in the stylesheet is rewritten into this shape at build time
+   * by \`postcss/facet-font-scale.mjs\`. A handful of sizes live outside CSS —
+   * inline \`style\` props, and raw HTML strings passed to \`dangerouslySetInnerHTML\`
+   * — where no build step can reach them. Those call this instead, so the whole
+   * document rescales together rather than leaving islands at their literal size.
+   *
+   * The \`1\` fallback means an unset scale is exactly a no-op.
+   */
+  export function scaled(size: string): string;
+
+  export type Severity = 'critical' | 'high' | 'medium' | 'low';
+  export type Health = 'healthy' | 'warning' | 'unhealthy' | 'unknown';
+  export type Status = 'running' | 'active' | 'healthy' | 'ready' | 'succeeded' | 'warning' | 'degraded' | 'pending' | 'stopped' | 'terminated' | 'failed' | 'error' | 'unhealthy';
+  export type Purpose = 'primary' | 'backup' | 'dr';
+  export interface ColorPair {
+      bg: string;
+      fg: string;
+  }
+  export interface TypographyStyle {
+      fontSize: string;
+      lineHeight?: string;
+      margin?: string;
+  }
+  export const Theme: {
+      readonly Severity: {
+          readonly Critical: "#DC2626";
+          readonly High: "#EA580C";
+          readonly Medium: "#D97706";
+          readonly Low: "#2563EB";
+      };
+      readonly SeverityBg: {
+          readonly Critical: "#FEE2E2";
+          readonly High: "#FFEDD5";
+          readonly Medium: "#FEF3C7";
+          readonly Low: "#DBEAFE";
+      };
+      readonly Health: {
+          readonly Healthy: "#16A34A";
+          readonly Warning: "#D97706";
+          readonly Unhealthy: "#DC2626";
+          readonly Unknown: "#6B7280";
+      };
+      readonly Status: {
+          readonly Running: ColorPair;
+          readonly Active: ColorPair;
+          readonly Healthy: ColorPair;
+          readonly Ready: ColorPair;
+          readonly Succeeded: ColorPair;
+          readonly Warning: ColorPair;
+          readonly Degraded: ColorPair;
+          readonly Pending: ColorPair;
+          readonly Stopped: ColorPair;
+          readonly Terminated: ColorPair;
+          readonly Failed: ColorPair;
+          readonly Error: ColorPair;
+          readonly Unhealthy: ColorPair;
+      };
+      readonly Purpose: {
+          readonly Primary: "#2563EB";
+          readonly Backup: "#D97706";
+          readonly DR: "#DC2626";
+      };
+      readonly H1: TypographyStyle;
+      readonly H2: TypographyStyle;
+      readonly H3: TypographyStyle;
+      readonly H4: TypographyStyle;
+      readonly P: TypographyStyle;
+      readonly Body: TypographyStyle;
+      readonly TextXs: TypographyStyle;
+      readonly TextSm: TypographyStyle;
+      readonly TextBase: TypographyStyle;
+      readonly TextMd: TypographyStyle;
+      readonly TextLg: TypographyStyle;
+      readonly TextXl: TypographyStyle;
+      readonly Text2xl: TypographyStyle;
+      readonly Brand: {
+          readonly FlanksourceBlue: "#2563eb";
+          readonly FlanksourceDark: "#1e293b";
+      };
+  };
+  export const SEVERITY_COLORS: Record<string, string>;
+  export const SEVERITY_BG: Record<string, string>;
+  export const HEALTH_COLORS: Record<string, string>;
+  export const STATUS_COLORS: Record<string, ColorPair>;
+  export const PURPOSE_COLORS: Record<string, string>;
+
+  export interface AIModelCardProps {
+      name: string;
+      model: string;
+      tokensUsed: number;
+      cost: number;
+      icon?: React.ComponentType<{
+          className?: string;
+      }>;
+      variant?: 'card' | 'compact' | 'bordered';
+      className?: string;
+  }
+  export function AIModelCard({ name, model, tokensUsed, cost, icon: Icon, variant, className, }: AIModelCardProps): JSX.Element;
+
   export interface AgeProps {
       className?: string;
       from?: Date | string;
@@ -280,7 +382,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
 
   import { User } from '../types/common';
   export interface AvatarProps {
-      size?: 'xs' | 'sm' | 'md' | 'lg';
+      size?: 'xxs' | 'xs' | 'sm' | 'md' | 'lg';
       circular?: boolean;
       inline?: boolean;
       alt?: string;
@@ -293,16 +395,18 @@ export const facetTypes = `declare module '@flanksource/facet' {
   import { User } from '../types/common';
   export interface AvatarGroupProps {
       users: Partial<User>[];
-      size?: 'xs' | 'sm' | 'md' | 'lg';
+      size?: 'xxs' | 'xs' | 'sm' | 'md' | 'lg';
       maxCount?: number;
       className?: string;
   }
   export function AvatarGroup({ users, size, maxCount, className }: AvatarGroupProps): JSX.Element;
 
   /**
-   * Badge size variant
+   * Badge size variant — either a named preset or a numeric font size in pt.
+   * Numeric sizes interpolate container padding, icon dimensions, and gap
+   * from the named presets so custom typography still lays out consistently.
    */
-  export type BadgeSize = 'xxs' | 'xs' | 'sm' | 'md' | 'lg';
+  export type BadgeSize = 'xxs' | 'xs' | 'sm' | 'md' | 'lg' | number;
   /**
    * Badge shape variant
    */
@@ -566,7 +670,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
       url: string;
   }
   interface CallToActionProps {
-      primary: CTAButton;
+      primary?: CTAButton;
       secondary?: CTAButton[];
       audience?: 'enterprise' | 'technical' | 'security';
   }
@@ -595,15 +699,37 @@ export const facetTypes = `declare module '@flanksource/facet' {
    */
   export function CallToAction({ primary, secondary, audience }: CallToActionProps): JSX.Element;
 
+  /** The five GitHub alert tones. */
+  export type AlertTone = 'note' | 'tip' | 'important' | 'warning' | 'caution';
+  /** The five GitHub alert tones, plus the untinted aside. */
+  export type CalloutVariant = AlertTone | 'default';
   /**
    * CalloutBox Props
    */
   export interface CalloutBoxProps {
       /** Content to display inside the callout */
       children: React.ReactNode;
-      /** Visual variant of the callout */
-      variant?: 'info' | 'warning' | 'success' | 'default';
-      /** Optional title for the callout */
+      /**
+       * Visual variant of the callout. The five named tones are the same set
+       * \`> [!NOTE]\` markdown produces, and render identically to it.
+       */
+      variant?: CalloutVariant;
+      /** Inline label in the header row. Defaults to the variant's own name. */
+      label?: string;
+      /** Leading identifier chip, e.g. an annotation number. */
+      badge?: string;
+      /** Muted trailing attribution, e.g. a reviewer or source name. */
+      source?: string;
+      /**
+       * Glyph to draw, named independently of \`variant\`. Defaults to the
+       * variant's own icon. Set it when the colour and the symbol need to say
+       * different things, or to give an untinted \`default\` callout an icon it
+       * would otherwise not draw.
+       */
+      icon?: AlertTone;
+      /** Heavier full-border treatment, for callouts that block rather than inform. */
+      emphasis?: boolean;
+      /** Optional block title above the body */
       title?: string;
       /** Optional CSS class name */
       className?: string;
@@ -611,17 +737,32 @@ export const facetTypes = `declare module '@flanksource/facet' {
   /**
    * CalloutBox Component
    *
-   * Displays an emphasized callout box with different visual styles.
-   * Useful for highlighting important information, warnings, or tips.
+   * An emphasised aside. The five named tones mirror GitHub's alert types, so a
+   * document can use \`<CalloutBox variant="caution">\` in TSX/MDX and
+   * \`> [!CAUTION]\` in plain markdown and get the same box either way.
    *
    * @example
    * \`\`\`tsx
-   * <CalloutBox variant="info" title="Important Note">
+   * <CalloutBox variant="note" title="Important Note">
    *   This is important information that users should know.
+   * </CalloutBox>
+   *
+   * // Annotation style: identifier, tone label and attribution on one row
+   * <CalloutBox variant="caution" badge="N14" label="Correction" source="Jonno">
+   *   The two enforcement checks cannot be implemented as written.
+   * </CalloutBox>
+   *
+   * // Label and glyph chosen independently of the tone
+   * <CalloutBox variant="warning" label="TODO" icon="important">
+   *   Run the first tabletop exercise and retain the record.
    * </CalloutBox>
    * \`\`\`
    */
-  export function CalloutBox({ children, variant, title, className, }: CalloutBoxProps): JSX.Element;
+  export function CalloutBox({ children, variant, label, badge, source, icon, emphasis, title, className, }: CalloutBoxProps): JSX.Element;
+  /** The alert icon as the markdown plugin emits it, for custom callout layouts. */
+  export function AlertIcon({ tone }: { tone: AlertTone }): JSX.Element;
+  /** Octicon path data keyed by tone, matching the markdown alert glyphs. */
+  export const ALERT_ICON_PATHS: Record<AlertTone, string>;
 
   interface Feature {
       title: string;
@@ -706,21 +847,72 @@ export const facetTypes = `declare module '@flanksource/facet' {
   }
   export const CountBadge: React.NamedExoticComponent<CountBadgeProps>;
 
-  export interface PageConfig {
-      content: React.ReactNode;
-      title?: string;
-      product?: string;
-      margins?: boolean;
-  }
-  export interface DatasheetTemplateProps {
-      pages?: PageConfig[];
+  export type DatasheetTemplateProps = DocumentProps;
+  export type { DocumentProps };
+  export function DatasheetTemplate(props: DocumentProps): JSX.Element;
+
+  export interface DocumentBaseProps {
       title?: string;
       css?: string;
-      subtitle?: string;
-      PageComponent?: React.ComponentType<any>;
       children?: React.ReactNode;
   }
-  export function DatasheetTemplate({ pages, title, subtitle, css, PageComponent, children, }: DatasheetTemplateProps): JSX.Element;
+  export interface DocumentDefaults {
+      pageSize?: PageSize;
+      margins?: PageMargins;
+      fontSize?: number | string;
+      lineHeight?: number | string;
+      fontFamily?: string;
+  }
+  export interface DocumentProps extends DocumentBaseProps, DocumentDefaults {
+      className?: string;
+      style?: React.CSSProperties;
+  }
+  export function useDocumentDefaults(): DocumentDefaults | null;
+  export function Document({ pageSize, margins, fontSize, lineHeight, fontFamily, className, style, children, ...datasheetProps }: DocumentProps): JSX.Element;
+
+  export type ColumnType = 'string' | 'number' | 'boolean' | 'datetime' | 'duration' | 'health' | 'status' | 'gauge' | 'bytes' | 'decimal' | 'millicore' | 'labels';
+  export interface GaugeThreshold {
+      percent: number;
+      color: string;
+  }
+  export interface GaugeConfig {
+      max?: number;
+      min?: number;
+      precision?: number;
+      thresholds?: GaugeThreshold[];
+  }
+  export interface BadgeColorSource {
+      auto?: boolean;
+      map?: Record<string, string>;
+  }
+  export interface ColumnDef {
+      name: string;
+      type: ColumnType;
+      hidden?: boolean;
+      width?: string;
+      unit?: string;
+      gauge?: GaugeConfig;
+      badge?: {
+          color?: BadgeColorSource;
+      };
+      icon?: string;
+  }
+  export interface CellAttributes {
+      url?: string;
+      icon?: string;
+      max?: number;
+      min?: number;
+  }
+  export type RowData = any[] | Record<string, any>;
+  export interface DynamicTableProps {
+      columns: ColumnDef[];
+      rows: RowData[];
+      cellAttributes?: (row: RowData, col: ColumnDef) => CellAttributes | undefined;
+      className?: string;
+      size?: 'xs' | 'sm' | 'base' | 'md';
+  }
+  export function formatCellValue(value: any, col: ColumnDef, attrs?: CellAttributes): React.ReactNode;
+  export function DynamicTable({ columns, rows, cellAttributes, className, size }: DynamicTableProps): JSX.Element;
 
   interface Stat {
       value: string;
@@ -745,7 +937,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
       bullets: BulletPoint[];
       span?: number;
       stats: Stat[];
-      children: React.ReactNode;
+      children?: React.ReactNode;
       direction?: 'left-right' | 'right-left';
       className?: string;
   }
@@ -783,6 +975,50 @@ export const facetTypes = `declare module '@flanksource/facet' {
    */
   export function FeatureLayout({ title, description, bullets, stats, children, direction, span, className }: FeatureLayoutProps): JSX.Element;
 
+  export interface FindingBadge {
+      label: string;
+      className?: string;
+      icon?: React.ComponentType<{
+          className?: string;
+      }>;
+  }
+  export interface Entity {
+      name: string;
+      type?: string;
+      scope?: string;
+      className?: string;
+      icon?: React.ComponentType<{
+          className?: string;
+      }>;
+  }
+  export interface Sample {
+      [key: string]: string | number | boolean | undefined;
+  }
+  export interface FindingProps {
+      id: string;
+      title: string;
+      summary: string;
+      className?: string;
+      severity: FindingBadge;
+      outcome?: FindingBadge;
+      typeIcon?: React.ReactNode;
+      tags?: FindingBadge[];
+      timeRange?: {
+          start: string;
+          end: string;
+          durationSeconds?: number;
+      };
+      metrics?: Record<string, string | number>;
+      entities?: Entity[];
+      samples?: Sample[];
+      recommendation?: string;
+      mitigations?: string[];
+      references?: string[];
+      variant?: 'compact' | 'detail';
+      size?: 'xs' | 'sm' | 'md';
+  }
+  export function Finding(props: FindingProps): JSX.Element;
+
   interface FooterProps {
       variant?: 'default' | 'compact' | 'minimal';
       type?: PageType;
@@ -798,6 +1034,29 @@ export const facetTypes = `declare module '@flanksource/facet' {
       children?: React.ReactNode;
   }
   export function Footer({ variant, type, height, company, copyright, web, docs, email, phone, github, linkedin, children, }: FooterProps): JSX.Element;
+
+  export type FormatType = 'date' | 'datetime' | 'relative' | 'bytes' | 'millicores' | 'duration' | 'number' | 'percent' | 'property';
+  export interface FormatProps {
+      type: FormatType;
+      value: number | string;
+      unit?: string;
+      precision?: number;
+      text?: string;
+      className?: string;
+  }
+  export function formatDate(iso: string): string;
+  export function formatDateTime(iso: string): string;
+  export function formatRelative(iso: string): string;
+  export function formatBytes(bytes: number): string;
+  export function formatMillicores(value: number | string): string;
+  export function formatDurationMs(ms: number): string;
+  export function formatDisplayValue(value: number, unit?: string, precision?: number): string;
+  export function formatPropertyValue(value?: number, text?: string, unit?: string): string;
+  export function getGaugeColor(percentage: number, thresholds: Array<{
+      percent: number;
+      color: string;
+  }>): string;
+  export function Format(props: FormatProps): JSX.Element;
 
   export interface GaugeProps {
       value: number;
@@ -905,6 +1164,8 @@ export const facetTypes = `declare module '@flanksource/facet' {
   export type PageType = 'first' | 'default' | 'last';
   interface HeaderProps {
       variant?: 'default' | 'solid' | 'minimal';
+      className?: string;
+      style?: React.CSSProperties;
       logo?: React.ReactNode;
       title?: string;
       subtitle?: string;
@@ -912,7 +1173,22 @@ export const facetTypes = `declare module '@flanksource/facet' {
       height?: number;
       children?: React.ReactNode;
   }
-  export function Header({ variant, logo, title, subtitle, type, height, children, }: HeaderProps): JSX.Element;
+  export function Header({ variant, className, style, logo, title, subtitle, type, height, children, }: HeaderProps): JSX.Element;
+
+  export interface HeatmapValue {
+      date: string;
+      successful: number;
+      failed: number;
+      count: number;
+      size?: string;
+  }
+  export interface HeatmapProps {
+      values: HeatmapValue[];
+      variant?: 'calendar' | 'compact';
+      dateKey?: string;
+  }
+  export function buildHeatmapValues(rows: Array<Record<string, unknown>>, dateKey?: string): HeatmapValue[];
+  export function Heatmap({ values, variant }: HeatmapProps): JSX.Element;
 
   /**
    * @deprecated Use LogoGrid instead. IntegrationGrid is an alias for backward compatibility.
@@ -975,6 +1251,56 @@ export const facetTypes = `declare module '@flanksource/facet' {
    */
   export function KpiComparison({ before, after, improvement, label, showSummary, showImprovement, }: KpiComparisonProps): JSX.Element;
 
+  export type TagMapping = (key: string, value: any) => string;
+  export type ListTableDateFormat = 'short' | 'long' | 'age';
+  export type ListTableTimeBucketFormat = 'time' | 'monthDay';
+  export interface ListTableGroup {
+      by: 'date' | 'field';
+      field?: string;
+      title?: string;
+  }
+  export interface ListTableProps {
+      rows: Record<string, any>[];
+      subject: string;
+      subtitle?: string;
+      body?: string;
+      date?: string;
+      dateFormat?: ListTableDateFormat;
+      primaryTags?: string[];
+      secondaryTags?: string[];
+      tagMapping?: TagMapping | TagMapping[];
+      keys?: string[];
+      icon?: string;
+      iconMap?: (value: any) => React.ReactNode;
+      iconRenderer?: (value: any, context: ListTableIconContext) => React.ReactNode;
+      count?: string;
+      title?: string;
+      size?: 'xs' | 'sm' | 'md';
+      density?: 'compact' | 'normal' | 'comfortable';
+      emptyMessage?: string;
+      className?: string;
+      cellClassName?: string;
+      maxRows?: number;
+      overflowNote?: string;
+      wrap?: boolean;
+      groups?: ListTableGroup[];
+  }
+  export interface ListTablePublicGroup {
+      key: string;
+      label: string;
+      value?: any;
+      count: number;
+      sampleRow?: Record<string, any>;
+      definition: ListTableGroup;
+  }
+  export interface ListTableIconContext {
+      kind: 'row' | 'group';
+      field?: string;
+      row?: Record<string, any>;
+      group?: ListTablePublicGroup;
+  }
+  export function ListTable(props: ListTableProps): JSX.Element;
+
   interface FeatureSupport {
       enabled: boolean;
       url?: string;
@@ -1008,6 +1334,27 @@ export const facetTypes = `declare module '@flanksource/facet' {
       size?: TableSize;
   }
   export function LogoGrid({ logos, viewAllUrl, title, variant, baseDocsUrl, size, }: LogoGridProps): JSX.Element;
+
+  interface MatrixTableProps {
+      columns: React.ReactNode[];
+      rows: {
+          label: React.ReactNode;
+          cells: React.ReactNode[];
+          rowStyle?: React.CSSProperties;
+          labelStyle?: React.CSSProperties;
+          cellStyle?: React.CSSProperties;
+      }[];
+      columnWidth?: number;
+      headerHeight?: number;
+      rowHeight?: number;
+      labelPadding?: string;
+      cornerContent?: React.ReactNode;
+  }
+  export function Dot({ color, outline }: {
+      color: string;
+      outline?: boolean;
+  }): JSX.Element;
+  export function MatrixTable({ columns, rows, columnWidth, headerHeight, rowHeight, labelPadding, cornerContent, }: MatrixTableProps): JSX.Element;
 
   /**
    * Metric Interface
@@ -1176,16 +1523,17 @@ export const facetTypes = `declare module '@flanksource/facet' {
    */
   export function MetricsCallout({ metrics, variant }: MetricsCalloutProps): JSX.Element;
 
-  export type PageSize = 'a4' | 'a3' | 'letter' | 'legal' | 'fhd' | 'qhd' | 'wqhd' | '4k' | '5k' | '16k';
-  interface PageMargins {
+  export type PageSize = string;
+  export interface PageMargins {
       top?: number;
       right?: number;
       bottom?: number;
       left?: number;
   }
-  interface PageProps {
+  export interface PageProps {
       children: React.ReactNode;
       title?: string;
+      titleClassName?: string;
       product?: string;
       className?: string;
       pageSize?: PageSize;
@@ -1193,7 +1541,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
       watermark?: string;
       type?: PageType;
   }
-  export function Page({ children, title, product, className, pageSize, margins, watermark, type, }: PageProps): JSX.Element;
+  export function Page({ children, title, titleClassName, className, pageSize, margins, watermark, type, }: PageProps): JSX.Element;
 
   /**
    * PageBreak Component
@@ -1214,6 +1562,28 @@ export const facetTypes = `declare module '@flanksource/facet' {
    * \`\`\`
    */
   export function PageBreak(): JSX.Element;
+
+  export const PAGE_PLACEHOLDER = "_PG_";
+  export const TOTAL_PLACEHOLDER = "_TL_";
+  export interface PageNoProps {
+      format?: string;
+      className?: string;
+  }
+  export function PageNo({ format, className, }: PageNoProps): JSX.Element;
+
+  interface PlatformItem {
+      name: string;
+      subtitle?: string;
+      icon?: ComponentType<{
+          className?: string;
+      }>;
+      githubUrl?: string;
+      shields?: React.ReactNode;
+  }
+  interface PlatformGridProps {
+      items: PlatformItem[];
+  }
+  export function PlatformGrid({ items }: PlatformGridProps): JSX.Element;
 
   /**
    * ProgressBar Props
@@ -1237,7 +1607,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
       showPercentageLabel?: boolean;
       /** Optional CSS class name */
       className?: string;
-      choldren?: React.ReactNode;
+      children?: React.ReactNode;
   }
   /**
    * ProgressBar Component
@@ -1273,7 +1643,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
    * </div>
    * \`\`\`
    */
-  export function ProgressBar({ title, percentage, displayValue, subtitle, variant, size, showPercentageInBar, showPercentageLabel, className, children }: ProgressBarProps): JSX.Element;
+  export function ProgressBar({ title, percentage, displayValue, variant, size, showPercentageInBar, className, children }: ProgressBarProps): JSX.Element;
 
   interface ProjectSummaryCardProps {
       icon?: React.ComponentType<{
@@ -1481,7 +1851,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
   /**
    * Severity stat card component with optional trend indicator
    */
-  export function SeverityStatCard({ color, value, label, trend, downIsGood, className }: SeverityStatCardProps): JSX.Element;
+  export function SeverityStatCard({ color, value, label, trend, className }: SeverityStatCardProps): JSX.Element;
 
   interface CustomerLogo {
       name: string;
@@ -1564,7 +1934,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
       }>;
       variant?: 'card' | 'badge' | 'hero' | 'bordered' | 'icon-heavy' | 'left-aligned' | 'metric' | 'summary';
       compareVariant?: 'trendline' | 'up-down' | 'before-after' | 'before-after-progress';
-      size?: 'sm' | 'md' | 'lg';
+      size?: 'xs' | 'sm' | 'md' | 'lg';
       valueClassName?: string;
       iconClassName?: string;
       iconColor?: string;
@@ -1629,6 +1999,10 @@ export const facetTypes = `declare module '@flanksource/facet' {
    * - 'before-after': Show "X → Y" format
    * - 'before-after-progress': Show before → after with progress bar
    *
+   * Layout:
+   * - \`shrink\` reduces the per-variant min-width / min-height so the card fits
+   *   into tight grids while staying visually consistent with siblings.
+   *
    * Usage:
    * <StatCard
    *   value={150}
@@ -1640,7 +2014,7 @@ export const facetTypes = `declare module '@flanksource/facet' {
    *   conditionalStyles={['red-green']}
    * />
    */
-  export function StatCard({ value, label, icon: IconComponent, variant, size, iconColor, valueColor, sublabel, compareFrom, compareVariant, color, conditionalStyles, valueClassName, iconClassName, sublabelClassName, shrink }: StatCardProps): JSX.Element;
+  export function StatCard({ value, label, icon: IconComponent, variant, size, iconColor, valueColor, sublabel, compareFrom, compareVariant, color, conditionalStyles, valueClassName, iconClassName, sublabelClassName, shrink, }: StatCardProps): JSX.Element;
 
   export interface StatusProps {
       good?: boolean;
@@ -1691,10 +2065,9 @@ export const facetTypes = `declare module '@flanksource/facet' {
   export function TaskSummarySection({ tasks }: TaskSummarySectionProps): JSX.Element | null;
 
   interface TerminalOutputProps {
-      command: string;
       children?: React.ReactNode;
   }
-  export function TerminalOutput({ command, children }: TerminalOutputProps): JSX.Element;
+  export function TerminalOutput({ children }: TerminalOutputProps): JSX.Element;
 
   interface TwoColumnSectionProps {
       leftContent: React.ReactNode;

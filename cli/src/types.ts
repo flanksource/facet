@@ -1,3 +1,5 @@
+import type { RedactPolicy } from './builders/remark-config.js';
+
 export type RemoteRefType = 'github' | 'https' | 'git+ssh' | 'npm';
 
 export interface RemoteRef {
@@ -13,6 +15,27 @@ export interface ResolvedTemplate {
   resolvedSha?: string;
 }
 
+export type RenderFormat = 'html' | 'pdf' | 'png';
+
+export interface PNGViewport {
+  width: number;
+  height: number;
+}
+
+export interface PNGOptions {
+  /** Output width in pixels; scales the capture, never resizes the DOM. */
+  width?: number;
+  /** Output height in pixels; scales the capture, never resizes the DOM. */
+  height?: number;
+  selector?: string;
+  /** Browser viewport the page is laid out against before capture. */
+  viewport?: PNGViewport;
+  /** Trim the uniform background border off the capture before scaling. */
+  autocrop?: boolean;
+  /** Background margin left around autocropped content, in capture pixels. */
+  autocropPadding?: number;
+}
+
 export interface GenerateOptions {
   template: string;
   data?: string;
@@ -25,14 +48,25 @@ export interface GenerateOptions {
   schema?: string;
   srcDir?: string;
   validate: boolean;
-  verbose: boolean;
+  /** Verbosity: false/0 quiet, 1 (-v) Vite progress, 2 (-vv) Vite debug, 3 (-vvv) plugin debug + profile. */
+  verbose: boolean | number;
   refresh?: boolean;
   clearCache?: boolean;
+  /** Use the shared Facet-only module install and ignore consumer package metadata. */
+  skipModules?: boolean;
+  /**
+   * Which classified regions this render may carry, per attribute. A region
+   * declaring a value outside the permitted set is removed before compilation;
+   * a region declaring an attribute with no policy fails the render.
+   */
+  redact?: RedactPolicy;
   /**
    * Render in a live browser (Vite dev server + Puppeteer) instead of SSR.
    * Required for templates using DOM-measuring components (diagrams/react-xarrows).
    */
   live?: boolean;
+  /** Rebuild CSS after rendering so data-dependent class names are included. */
+  postProcessCss?: boolean;
   /** Run the SSR loader inside a sandbox-runtime jail (path to settings, or true for the default). */
   sandbox?: string | boolean;
   debug?: boolean;
@@ -45,6 +79,8 @@ export interface GenerateOptions {
   fontSize?: number;
   encryption?: import('./utils/pdf-security.js').PDFEncryptionOptions;
   signature?: import('./utils/pdf-security.js').PDFSignatureOptions;
+  pngOptions?: PNGOptions;
+  timings?: import('./utils/performance.js').RenderTimings;
 }
 
 export interface LoadedData {

@@ -12,11 +12,14 @@ import { fileURLToPath } from 'url';
 import { PDFDocument } from 'pdf-lib';
 import { injectDebugAnnotations, injectTypographyAnnotations, extractTypographyInfo, type FontCombo } from './debug-annotations.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from '../version-generated.js';
-import puppeteer, { type Browser, type BrowserContext, type Page } from 'puppeteer-core';
+import puppeteer, { type Browser, type BrowserContext, type Page, type PuppeteerLaunchOptions } from 'puppeteer-core';
 
 type PageProvider = Browser | BrowserContext;
 import { Logger } from './logger.js';
 import { setPreparedContent } from './browser-readiness.js';
+import { injectFontScale } from './font-size.js';
+import { ELEMENT_SCALE } from './type-scale.js';
+import { applySpawnedProcessPriority, buildLowPriorityCommand } from './subprocess-priority.js';
 
 function readVersion(): string {
   try {
@@ -82,6 +85,44 @@ export function resolveChromePath(): string | undefined {
   if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
   return (SYSTEM_CHROME_PATHS[process.platform] ?? []).find(existsSync);
+}
+
+export function buildBrowserLaunchOptions(options: {
+  chromePath: string;
+  platform?: NodeJS.Platform;
+}): PuppeteerLaunchOptions {
+  const chromeArgs = puppeteer.defaultArgs({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+  const command = buildLowPriorityCommand({
+    command: options.chromePath,
+    args: chromeArgs,
+    platform: options.platform,
+  });
+  return {
+    executablePath: command.command,
+    ignoreDefaultArgs: true,
+    args: command.args,
+  };
+}
+
+/**
+ * The height a page box may occupy before it spills onto a second sheet: the
+ * paper minus the header and footer bands reserved as page margins.
+ *
+ * The stylesheet needs this to make a page fill its sheet without overflowing
+ * it, and CSS cannot derive it — the bands are measured from the document and
+ * applied as PDF margins, not as anything the page can see. Left to a constant,
+ * it was 2.3mm too tall and every page in every document printed twice.
+ *
+ * A half-millimetre comes off the figure because the box is laid out in
+ * fractional pixels: an exact fit rounds up as often as down, and rounding up
+ * costs a whole extra sheet.
+ */
+export function printableHeightCss(pageHeightMm: number, topMm: number, bottomMm: number): string {
+  const printable = pageHeightMm - topMm - bottomMm - 0.5;
+  return `:root { --facet-printable-height: ${printable}mm; }`;
 }
 
 async function loadAndPrepare(browser: PageProvider, html: string, widthMm?: number): Promise<Page> {
@@ -156,6 +197,7 @@ async function renderMultiPass(
   debug?: boolean,
   outputPath?: string,
   debugTypography?: boolean,
+  fontScale = 1,
 ): Promise<Buffer> {
   let html = _html;
   if (typeInfo.heightDetails) {
@@ -223,7 +265,8 @@ async function renderMultiPass(
       const minimalHtml = await groupHtml(group.elementIndices);
       const page = await loadAndPrepare(browser, minimalHtml, dims.width);
       try {
-        if (debug || debugTypography) await injectDebugAnnotations(page);
+        await page.addStyleTag({ content: printableHeightCss(dims.height, margins.top, margins.bottom) });
+        if (debug || debugTypography) await injectDebugAnnotations(page, fontScale);
         if (debugTypography) await injectTypographyAnnotations(page);
         const localGroup = { ...group, elementIndices: group.elementIndices.map((_, index) => index) };
         const result = await renderGroup(page, localGroup, dims, margins);
@@ -285,6 +328,7 @@ async function renderSinglePass(
   outputPath?: string,
   overrideMargins?: PDFMargins,
   debugTypography?: boolean,
+  fontScale = 1,
 ): Promise<Buffer> {
   const emptyIndices = await detectEmptyPages(page);
   if (emptyIndices.size > 0) {
@@ -296,7 +340,7 @@ async function renderSinglePass(
     }, [...emptyIndices]);
   }
 
-  if (debug || debugTypography) await injectDebugAnnotations(page);
+  if (debug || debugTypography) await injectDebugAnnotations(page, fontScale);
   if (debugTypography) await injectTypographyAnnotations(page);
 
   const pageInfo = await page.evaluate((override: string | null): { top: number; bottom: number; pageSize: string } => {
@@ -332,6 +376,8 @@ async function renderSinglePass(
   const marginBottom = overrideMargins?.bottom ?? pageInfo.bottom;
   const marginLeft = overrideMargins?.left ?? 0;
   const marginRight = overrideMargins?.right ?? 0;
+
+  await page.addStyleTag({ content: printableHeightCss(pdfHeight, marginTop, marginBottom) });
 
   if (marginTop === 0 && marginBottom === 0 && marginLeft === 0 && marginRight === 0) {
     const pdf = await page.pdf({
@@ -436,12 +482,6 @@ export interface PDFOptions {
   landscape?: boolean;
 }
 
-function injectFontSize(html: string, fontSize: number): string {
-  const style = `<style>body{font-size:${fontSize}pt!important}p{font-size:${fontSize}pt!important}</style>`;
-  if (html.includes('</head>')) return html.replace('</head>', `${style}</head>`);
-  return style + html;
-}
-
 export interface PDFMargins {
   top?: number;
   bottom?: number;
@@ -467,7 +507,13 @@ async function renderPDF(
   options: BufferPDFOptions = {},
 ): Promise<Buffer> {
   const log = options.logger ?? new Logger(false);
-  const html = options.fontSize ? injectFontSize(inputHtml, options.fontSize) : inputHtml;
+  // String injection, not addStyleTag: this same HTML is re-loaded into fresh
+  // pages to render the header and footer overlays, which an addStyleTag on the
+  // content page alone would leave unscaled.
+  const html = injectFontScale(inputHtml, options.fontSize);
+  // The same ratio the injected stylesheet carries, so the debug overlay
+  // compares against the sizes actually in force rather than the unscaled ones.
+  const fontScale = options.fontSize == null ? 1 : options.fontSize / ELEMENT_SCALE.body.pt;
   const context = await browser.createBrowserContext();
   const page = await context.newPage();
   try {
@@ -489,14 +535,14 @@ async function renderPDF(
       await page.close();
       result = await renderMultiPass(
         context, html, typeInfo, log, options.debug,
-        options.debugOutputPath, options.debugTypography,
+        options.debugOutputPath, options.debugTypography, fontScale,
       );
     } else {
       log.info('Single-pass mode (no typed headers/footers)');
       result = await renderSinglePass(
         context, html, page, log, options.debug, options.landscape,
         options.defaultPageSize, options.debugOutputPath, options.margins,
-        options.debugTypography,
+        options.debugTypography, fontScale,
       );
     }
 
@@ -535,11 +581,16 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
 }
 
 export async function launchBrowser(): Promise<Browser> {
-  return puppeteer.launch({
-    headless: true,
-    executablePath: resolveChromePath(),
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  const chromePath = resolveChromePath();
+  if (!chromePath) {
+    throw new Error('Chrome/Chromium executable not found; set PUPPETEER_EXECUTABLE_PATH or CHROME_PATH');
+  }
+  const browser = await puppeteer.launch(buildBrowserLaunchOptions({ chromePath }));
+  const process = browser.process();
+  if (process?.pid !== undefined) {
+    applySpawnedProcessPriority({ pid: process.pid, kill: () => process.kill() });
+  }
+  return browser;
 }
 
 export async function generatePDFWithBrowser(

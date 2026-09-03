@@ -6,8 +6,14 @@ import { Logger } from './utils/logger.js';
 import { preflight, PreflightError } from './commands/doctor.js';
 import { resolveOutput } from './utils/resolve-output.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from './version-generated.js';
+import { formatVersion } from './version.js';
 import type { PDFMargins } from './utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from './utils/pdf-security.js';
+import { parseFontSize } from './utils/font-size.js';
+import { parseRedactAllow } from './builders/remark-config.js';
+import type { GenerateOptions, PNGViewport, RenderFormat } from './types.js';
+import { parsePNGViewport } from './utils/png-generator.js';
+import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
 
 function numericOption(minimum: number): (value: string) => number {
   return (value: string): number => {
@@ -19,24 +25,52 @@ function numericOption(minimum: number): (value: string) => number {
   };
 }
 
+/** Point sizes are legitimately fractional, so this is not `numericOption`. */
+function fontSizeOption(value: string): number {
+  try {
+    return parseFontSize(value)!;
+  } catch (error) {
+    throw new InvalidArgumentError(error instanceof Error ? error.message : String(error));
+  }
+}
+
+function viewportOption(value: string): PNGViewport {
+  try {
+    return parsePNGViewport(value, '--viewport');
+  } catch (error) {
+    throw new InvalidArgumentError(error instanceof Error ? error.message : String(error));
+  }
+}
+
+function booleanOption(value: string): boolean {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new InvalidArgumentError('Expected true or false');
+}
+
 function parseDataLoaderArgs(): string[] {
   const dashIndex = process.argv.indexOf('--');
   return dashIndex !== -1 ? process.argv.slice(dashIndex + 1) : [];
 }
 
-// External tools a render command shells out to. Every render needs `pnpm`
-// (installs `.facet/`); PDF and live rendering additionally need Chromium;
-// `.ts` data loaders need tsx.
-function renderRequirements(command: 'html' | 'pdf', options: any): string[] {
-  const ids = ['pnpm'];
-  if (command === 'pdf' || options.live) ids.push('chromium');
+// Remote rendering needs `tar`; local rendering needs pnpm and may need Chromium.
+// TypeScript data loaders need tsx in either mode.
+function renderRequirements(command: RenderFormat, options: any): string[] {
+  if (options.facetURL) {
+    const ids = ['tar'];
+    if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
+    return ids;
+  }
+  const ids = options.skipModules ? [] : ['pnpm'];
+  if (command === 'pdf' || command === 'png' || options.live) ids.push('chromium');
+  if (options.autocrop) ids.push('sharp');
   if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
   return ids;
 }
 
 // Fail fast with one actionable message listing every missing tool, rather than
 // crashing deep in the pipeline with a cryptic spawn/import error.
-async function ensureRenderReady(command: 'html' | 'pdf', options: any, logger: Logger): Promise<void> {
+async function ensureRenderReady(command: RenderFormat, options: any, logger: Logger): Promise<void> {
   try {
     await preflight(renderRequirements(command, options), process.cwd());
   } catch (error) {
@@ -83,27 +117,41 @@ function buildSignature(options: any): PDFSignatureOptions | undefined {
 
 function addSharedOptions(cmd: Command): Command {
   return cmd
-    .option('-d, --data <file>', 'Path to JSON data file')
+    .option('-d, --data <file>', 'Path to JSON or YAML data file')
     .option('-l, --data-loader <file>', 'Path to data loader module (.ts or .js)')
     .option('-o, --output <path>', 'Output file path or directory', '.')
     .option('--output-name-field <field>', 'Data field to use for output filename', 'name')
-    .option('-v, --verbose', 'Enable verbose logging')
+    .option('-v, --verbose', 'Increase verbosity (-v Vite progress, -vv Vite debug, -vvv plugin debug + profile)', (_value, previous: number) => previous + 1, 0)
     .option('--refresh', 'Force re-fetch of remote template (bypass cache)')
     .option('--clear-cache', 'Delete .facet/ build cache and node_modules cache before generation')
     .option('--live', 'Render in a live browser (Vite dev server) instead of SSR; required for diagram components')
+    .option('--post-process-css <boolean>', 'Rebuild CSS after rendering to include data-dependent classes', booleanOption)
+    .option('--font-size <pt>', 'Base font size in pt; scales the whole type scale proportionally (default: 10)', fontSizeOption)
+    .option(
+      '--allow <attribute=values>',
+      'Permit a classified region to survive, e.g. --allow tier=Public,Customer-Shared. '
+      + 'Repeatable. A region declaring an attribute with no --allow fails the render.',
+      (value: string, previous: string[]) => [...previous, value],
+      [] as string[],
+    )
     .option('--sandbox [settings]', 'Enable sandbox via srt (optionally specify settings file path)');
 }
 
 const program = new Command();
 
-const versionStr = BUILD_DATE === 'dev'
-  ? `${VERSION} (dev)`
-  : `${VERSION} (${BUILD_DATE}${GIT_COMMIT ? ` ${GIT_COMMIT}` : ''})`;
+const versionStr = formatVersion({
+  version: VERSION,
+  buildDate: BUILD_DATE,
+  gitCommit: GIT_COMMIT,
+  executablePath: process.argv[1],
+});
 
 program
   .name('facet')
-  .description('Build beautiful datasheets and PDFs from React templates')
+  .description('Build beautiful HTML, PDF, and PNG output from React templates')
   .version(versionStr)
+  .option('--skip-modules', 'Use the shared Facet-only module install and ignore package.json dependencies')
+  .option('--facet-url <url>', 'Submit HTML, PDF, and PNG renders to a Facet server (or FACET_URL)')
   .hook('preAction', () => {
     console.log(chalk.gray(`facet ${versionStr}`));
   });
@@ -116,16 +164,16 @@ addSharedOptions(
     .option('--css-scope <prefix>', 'CSS scope prefix for scoped HTML generation')
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
-).action(async (templates: string[], options: any) => {
+).action(async (templates: string[], options: any, command: Command) => {
+  options = { ...options, ...command.optsWithGlobals() };
   const logger = new Logger(options.verbose);
   try {
-    await ensureRenderReady('html', options, logger);
+    const facetURL = resolveFacetURL(options.facetUrl);
+    await ensureRenderReady('html', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating HTML from template: ${template}`);
       const { outputDir, outputName } = resolveOutput(options.output);
-
-      const { generateHTML } = await import('./generators/html.js');
-      await generateHTML({
+      const generateOptions: GenerateOptions = {
         template,
         data: options.data,
         dataLoader: options.dataLoader,
@@ -139,15 +187,94 @@ addSharedOptions(
         verbose: options.verbose,
         refresh: options.refresh,
         clearCache: options.clearCache,
+        skipModules: options.skipModules,
+        redact: parseRedactAllow(options.allow ?? []),
         live: options.live,
+        postProcessCss: options.postProcessCss,
+        fontSize: options.fontSize,
         sandbox: options.sandbox,
-      });
+      };
+      if (facetURL) {
+        await renderWithServer({ facetURL, format: 'html', options: generateOptions });
+      } else {
+        const { generateHTML } = await import('./generators/html.js');
+        await generateHTML(generateOptions);
+      }
     }
 
     logger.success('HTML generated!');
     process.exit(0);
   } catch (error) {
     logger.error(`HTML generation failed: ${error instanceof Error ? error.message : String(error)}`);
+    if (options.verbose && error instanceof Error && error.stack) {
+      logger.debug(error.stack);
+    }
+    process.exit(1);
+  }
+});
+
+// png command
+addSharedOptions(
+  program
+    .command('png <templates...>')
+    .description('Generate PNG from one or more templates')
+    .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
+    .option('--no-validate', 'Skip data validation')
+    .option('--width <pixels>', 'Scale the capture to this output width (default: natural size)', numericOption(1))
+    .option('--height <pixels>', 'Scale the capture to this output height (default: natural size)', numericOption(1))
+    .option('--selector <selector>', 'CSS selector for the PNG capture target', 'body')
+    .option('--viewport <WxH>', 'Browser viewport the page is laid out against (default: 1280x800)', viewportOption)
+    .option('--autocrop', 'Trim the uniform background border off the capture before scaling')
+    .option('--autocrop-padding <pixels>', 'Background margin left around autocropped content (default: 0)', numericOption(0))
+).action(async (templates: string[], options: any, command: Command) => {
+  options = { ...options, ...command.optsWithGlobals() };
+  const logger = new Logger(options.verbose);
+  try {
+    const facetURL = resolveFacetURL(options.facetUrl);
+    await ensureRenderReady('png', { ...options, facetURL }, logger);
+    for (const template of templates) {
+      logger.info(`Generating PNG from template: ${template}`);
+      const { outputDir, outputName } = resolveOutput(options.output);
+      const generateOptions: GenerateOptions = {
+        template,
+        data: options.data,
+        dataLoader: options.dataLoader,
+        dataLoaderArgs: parseDataLoaderArgs(),
+        outputDir,
+        outputName: templates.length === 1 ? outputName : undefined,
+        outputNameField: options.outputNameField,
+        schema: options.schema,
+        validate: options.validate,
+        verbose: options.verbose,
+        refresh: options.refresh,
+        clearCache: options.clearCache,
+        skipModules: options.skipModules,
+        redact: parseRedactAllow(options.allow ?? []),
+        live: options.live,
+        postProcessCss: options.postProcessCss,
+        fontSize: options.fontSize,
+        sandbox: options.sandbox,
+        pngOptions: {
+          width: options.width,
+          height: options.height,
+          selector: options.selector,
+          viewport: options.viewport,
+          autocrop: options.autocrop,
+          autocropPadding: options.autocropPadding,
+        },
+      };
+      if (facetURL) {
+        await renderWithServer({ facetURL, format: 'png', options: generateOptions });
+      } else {
+        const { generatePNG } = await import('./generators/png.js');
+        await generatePNG(generateOptions);
+      }
+    }
+
+    logger.success('PNG generated!');
+    process.exit(0);
+  } catch (error) {
+    logger.error(`PNG generation failed: ${error instanceof Error ? error.message : String(error)}`);
     if (options.verbose && error instanceof Error && error.stack) {
       logger.debug(error.stack);
     }
@@ -164,7 +291,6 @@ addSharedOptions(
     .option('--no-validate', 'Skip data validation')
     .option('--debug', 'Add colored debug overlay lines for header/footer zones')
     .option('--debug-typography', 'Append a font-size reference page to the PDF')
-    .option('--font-size <pt>', 'Override base font size in pt (default: 10)', parseFloat)
     .option('--page-size <size>', 'Default page size (a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k)', 'a4')
     .option('--landscape', 'Use landscape orientation')
     .option('--margin-top <mm>', 'Top margin in mm', parseFloat)
@@ -183,16 +309,16 @@ addSharedOptions(
     .option('--sign-reason <reason>', 'Signature reason text')
     .option('--sign-name <name>', 'Signer name')
     .option('--timestamp-url <url>', 'RFC 3161 Timestamp Authority URL')
-).action(async (templates: string[], options: any) => {
+).action(async (templates: string[], options: any, command: Command) => {
+  options = { ...options, ...command.optsWithGlobals() };
   const logger = new Logger(options.verbose);
   try {
-    await ensureRenderReady('pdf', options, logger);
+    const facetURL = resolveFacetURL(options.facetUrl);
+    await ensureRenderReady('pdf', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating PDF from template: ${template}`);
       const { outputDir, outputName } = resolveOutput(options.output);
-
-      const { generatePDF } = await import('./generators/pdf.js');
-      await generatePDF({
+      const generateOptions: GenerateOptions = {
         template,
         data: options.data,
         dataLoader: options.dataLoader,
@@ -205,7 +331,10 @@ addSharedOptions(
         verbose: options.verbose,
         refresh: options.refresh,
         clearCache: options.clearCache,
+        skipModules: options.skipModules,
+        redact: parseRedactAllow(options.allow ?? []),
         live: options.live,
+        postProcessCss: options.postProcessCss,
         debug: options.debug,
         debugTypography: options.debugTypography,
         fontSize: options.fontSize,
@@ -216,7 +345,13 @@ addSharedOptions(
         footer: options.footer,
         encryption: buildEncryption(options),
         signature: buildSignature(options),
-      });
+      };
+      if (facetURL) {
+        await renderWithServer({ facetURL, format: 'pdf', options: generateOptions });
+      } else {
+        const { generatePDF } = await import('./generators/pdf.js');
+        await generatePDF(generateOptions);
+      }
     }
 
     logger.success('PDF generated!');
@@ -285,7 +420,8 @@ program
   .option('--s3-prefix <prefix>', 'S3 key prefix')
   .option('-v, --verbose', 'Enable verbose logging')
   .option('--sandbox [settings]', 'Enable sandbox via srt (optionally specify settings file path)')
-  .action(async (options: any) => {
+  .action(async (options: any, command: Command) => {
+    options = { ...options, ...command.optsWithGlobals() };
     const logger = new Logger(options.verbose);
     try {
       const { startServer } = await import('./server/preview.js');
@@ -310,6 +446,7 @@ program
         s3Region: options.s3Region,
         s3Prefix: options.s3Prefix,
         sandbox: options.sandbox,
+        skipModules: options.skipModules,
       });
     } catch (error) {
       logger.error(`Server failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -355,7 +492,8 @@ program
   .option('--json', 'Emit machine-readable JSON instead of human output')
   .option('--fix', 'Attempt safe remediations for failed checks (corepack enable, puppeteer install, .gitignore append, native-bindings nuke)')
   .option('-v, --verbose', 'Enable verbose logging')
-  .action(async (options: any) => {
+  .action(async (options: any, command: Command) => {
+    options = { ...options, ...command.optsWithGlobals() };
     const logger = new Logger(options.verbose);
     try {
       const { runDoctor } = await import('./commands/doctor.js');
@@ -364,6 +502,7 @@ program
         verbose: !!options.verbose,
         json: !!options.json,
         fix: !!options.fix,
+        skipModules: !!options.skipModules,
       });
       process.exit(exitCode);
     } catch (error) {
@@ -394,6 +533,11 @@ async function run(): Promise<void> {
   if (process.env.FACET_LOADER === 'dev') {
     const { runDevLoader } = await import('./loaders/dev.js');
     await runDevLoader();
+    return;
+  }
+  if (process.env.FACET_LOADER === 'css') {
+    const { runCssLoader } = await import('./loaders/css.js');
+    await runCssLoader();
     return;
   }
   program.parse();

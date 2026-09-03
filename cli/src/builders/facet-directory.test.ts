@@ -4,6 +4,7 @@ import { existsSync, symlinkSync, utimesSync, lstatSync, readlinkSync } from 'fs
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
+import { VERSION } from '../version-generated.js';
 import {
   FacetDirectory,
   localFacetBuildFingerprint,
@@ -11,6 +12,7 @@ import {
   needsLocalFacetCssBuild,
   resolveFacetPackageOverride,
   serializeInjectedData,
+  wrapFacetStylesInLayer,
 } from './facet-directory.js';
 
 let consumerRoot: string;
@@ -42,6 +44,17 @@ function newFacetDir(): FacetDirectory {
     logger,
   });
 }
+
+describe('wrapFacetStylesInLayer', () => {
+  it('keeps leading comments and imports outside the facet layer', () => {
+    const css = `${'/* / */\n'.repeat(1_000)}@import url("https://fonts.example/font.css");\nh1 { font-size: 22pt; }\n`;
+
+    const wrapped = wrapFacetStylesInLayer(css);
+
+    expect(wrapped).toContain('@import url("https://fonts.example/font.css");\n@layer theme');
+    expect(wrapped).toContain('@layer facet {\nh1 { font-size: 22pt; }\n}');
+  });
+});
 
 async function writeSentinels(deps: string[] = ['react', 'vite', '@vitejs/plugin-react', '@flanksource/facet']) {
   const nm = join(facetRoot, 'node_modules');
@@ -89,71 +102,26 @@ async function writeLocalFacetPackage(options: { scripts?: Record<string, string
   return root;
 }
 
-describe('FacetDirectory.needsInstall', () => {
-  it('returns true when node_modules is missing', async () => {
-    await writeFile(join(facetRoot, 'package.json'), '{}');
-    expect(newFacetDir().needsInstall()).toBe(true);
-  });
+describe('FacetDirectory.symlinkConsumerFiles', () => {
+  it('skips cache/tool entries, prunes stale links, and keeps .facet-fragments', async () => {
+    for (const dir of ['.pnpm-store', '.wrangler', '.tmp', 'npm-dist', '.facet-fragments', 'src']) {
+      await mkdir(join(consumerRoot, dir), { recursive: true });
+    }
+    const facetSrc = join(facetRoot, 'src');
+    await mkdir(facetSrc, { recursive: true });
+    // Stale link from a facet version that mirrored everything.
+    symlinkSync(join(consumerRoot, '.pnpm-store'), join(facetSrc, '.pnpm-store'), 'junction');
 
-  it('returns true when node_modules is empty', async () => {
-    await writeFile(join(facetRoot, 'package.json'), '{}');
-    await mkdir(join(facetRoot, 'node_modules'));
-    expect(newFacetDir().needsInstall()).toBe(true);
-  });
+    const dir = newFacetDir();
+    dir.create();
+    dir.symlinkConsumerFiles();
 
-  it('returns true when a sentinel package is missing', async () => {
-    await writeFile(join(facetRoot, 'package.json'), '{}');
-    await writeSentinels(['react', 'vite']); // missing @vitejs/plugin-react and @flanksource/facet
-    expect(newFacetDir().needsInstall()).toBe(true);
-  });
-
-  it('returns true when package.json mtime is newer than node_modules', async () => {
-    await writeSentinels();
-    await writeFile(join(facetRoot, 'package.json'), '{}');
-    const future = new Date(Date.now() + 60_000);
-    utimesSync(join(facetRoot, 'package.json'), future, future);
-    const past = new Date(Date.now() - 60_000);
-    utimesSync(join(facetRoot, 'node_modules'), past, past);
-    expect(newFacetDir().needsInstall()).toBe(true);
-  });
-
-  it('returns false when sentinels exist and node_modules is newer than package.json', async () => {
-    await writeFile(join(facetRoot, 'package.json'), '{}');
-    await writeSentinels();
-    const past = new Date(Date.now() - 60_000);
-    utimesSync(join(facetRoot, 'package.json'), past, past);
-    const future = new Date(Date.now() + 60_000);
-    utimesSync(join(facetRoot, 'node_modules'), future, future);
-    expect(newFacetDir().needsInstall()).toBe(false);
-  });
-});
-
-describe('FacetDirectory.isInstallBroken', () => {
-  it('returns true when node_modules is missing', () => {
-    expect(newFacetDir().isInstallBroken()).toBe(true);
-  });
-
-  it('returns true when node_modules is empty', async () => {
-    await mkdir(join(facetRoot, 'node_modules'));
-    expect(newFacetDir().isInstallBroken()).toBe(true);
-  });
-
-  it('returns true when react/package.json is missing', async () => {
-    await writeSentinels(['vite', '@vitejs/plugin-react', '@flanksource/facet']);
-    expect(newFacetDir().isInstallBroken()).toBe(true);
-  });
-
-  it('returns true when a sentinel symlink is dangling', async () => {
-    await writeSentinels(['react', '@vitejs/plugin-react', '@flanksource/facet']);
-    const viteDir = join(facetRoot, 'node_modules', 'vite');
-    await mkdir(viteDir, { recursive: true });
-    symlinkSync('/nonexistent-target', join(viteDir, 'package.json'));
-    expect(newFacetDir().isInstallBroken()).toBe(true);
-  });
-
-  it('returns false when all sentinels exist as real files', async () => {
-    await writeSentinels();
-    expect(newFacetDir().isInstallBroken()).toBe(false);
+    expect(existsSync(join(facetSrc, '.pnpm-store'))).toBe(false);
+    expect(existsSync(join(facetSrc, '.wrangler'))).toBe(false);
+    expect(existsSync(join(facetSrc, '.tmp'))).toBe(false);
+    expect(existsSync(join(facetSrc, 'npm-dist'))).toBe(false);
+    expect(lstatSync(join(facetSrc, '.facet-fragments')).isSymbolicLink()).toBe(true);
+    expect(lstatSync(join(facetSrc, 'src')).isSymbolicLink()).toBe(true);
   });
 });
 
@@ -187,23 +155,8 @@ describe('FacetDirectory.nukeInstall', () => {
   });
 });
 
-describe('FacetDirectory.isInstallBroken foreign markers', () => {
-  it('flags installs with a sibling package-lock.json as broken', async () => {
-    await writeSentinels();
-    await writeFile(join(facetRoot, 'package-lock.json'), '{}');
-    expect(newFacetDir().isInstallBroken()).toBe(true);
-  });
-
-  it('flags symlinked node_modules as broken', async () => {
-    const externalCache = await mkdtemp(join(tmpdir(), 'facet-cache-'));
-    symlinkSync(externalCache, join(facetRoot, 'node_modules'), 'junction');
-    expect(newFacetDir().isInstallBroken()).toBe(true);
-    await rm(externalCache, { recursive: true, force: true });
-  });
-});
-
 describe('FacetDirectory.generateViteConfig remark plugins', () => {
-  it('keeps remark-frontmatter + remark-gfm defaults and appends frontmatter plugins', async () => {
+  it('keeps Markdown extension defaults and appends frontmatter plugins', async () => {
     const dir = new FacetDirectory({
       consumerRoot,
       templateFile: 'doc.mdx',
@@ -214,15 +167,155 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
     const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
     expect(config).toContain("import remarkFrontmatter from 'remark-frontmatter';");
     expect(config).toContain(`import _remarkPlugin0 from "${join(consumerRoot, 'remark-financial-table.ts')}";`);
-    expect(config).toContain('remarkPlugins: [remarkFrontmatter, remarkGfm, _remarkPlugin0]');
-    expect(config).toContain('rehypePlugins: [_rehypePlugin0]');
+    expect(config).toContain("remarkPlugins: [remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }], [facetRedact, {\"allow\":{}}], _remarkPlugin0]");
+    expect(config).toContain(
+      "rehypePlugins: [[rehypeRaw, { passThrough: ['mdxFlowExpression', 'mdxJsxFlowElement', 'mdxJsxTextElement', 'mdxTextExpression', 'mdxjsEsm'] }], _rehypePlugin0]",
+    );
   });
 
   it('emits only the always-on defaults when no frontmatter plugins are declared', async () => {
     newFacetDir().generateViteConfig();
     const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
-    expect(config).toContain('remarkPlugins: [remarkFrontmatter, remarkGfm]');
-    expect(config).not.toContain('rehypePlugins:');
+    // Redaction is always installed, even with no policy: a build that skipped
+    // it would publish classified regions instead of failing on them.
+    expect(config).toContain("remarkPlugins: [remarkFrontmatter, remarkGfm, [remarkAlert, { tagName: 'blockquote' }], [facetRedact, {\"allow\":{}}]]");
+    expect(config).toContain("import facetRedact from './facet-redact.mjs';");
+      expect(config).toContain(
+        "rehypePlugins: [[rehypeRaw, { passThrough: ['mdxFlowExpression', 'mdxJsxFlowElement', 'mdxJsxTextElement', 'mdxTextExpression', 'mdxjsEsm'] }]]",
+      );
+  });
+
+  it('feeds the point type scale to the Tailwind theme on both major versions', async () => {
+    // Without this the `text-*` utilities resolve from Tailwind's rem defaults
+    // against an unset root, and outrank anything the stylesheet declares — so
+    // text-xs printed 9pt where the scale says 7pt.
+    await writeFile(join(consumerRoot, 'template.tsx'), 'export default function Template() { return null; }\n');
+    const dir = newFacetDir();
+    dir.create();
+    dir.symlinkConsumerFiles();
+    dir.copyStylesCss();
+    dir.generateTailwindConfig();
+    dir.generateEntryWrapper();
+
+    const v4 = await readFile(join(facetRoot, 'post-process-v4.css'), 'utf-8');
+    expect(v4).toContain('--text-xs: 7pt;');
+    expect(v4).toContain('--text-2xl: 24pt;');
+    // Leading travels with the size on both majors. Emitting size alone left
+    // text-2xl drawing 24pt glyphs on whatever leading the element had.
+    expect(v4).toContain('--text-xs--line-height: 9pt;');
+    expect(v4).toContain('--text-2xl--line-height: 28pt;');
+
+    const v3 = await readFile(join(facetRoot, 'tailwind.postprocess.config.js'), 'utf-8');
+    expect(v3).toContain('fontSize:');
+    expect(v3).toMatch(/"xs":\s*\[\s*"7pt",\s*\{\s*"lineHeight":\s*"9pt"\s*\}\s*\]/);
+  });
+
+  it('bundles icon data packages rather than externalising them', async () => {
+    // The SSR bundle is CJS, so an externalised dependency is require()d and a
+    // module whose only export is a default arrives as its namespace instead of
+    // the value. Iconify icon data is exactly that shape, and the failure is
+    // silent: the glyph renders as an empty <svg> and the PDF prints a blank.
+    newFacetDir().generateViteConfig();
+    const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
+
+    expect(config).toContain("new RegExp('^@iconify-icons/')");
+    expect(config).toContain("new RegExp('^@iconify/')");
+  });
+
+  it('transforms consumer Markdown before Vite parses files outside the generated .facet directory', async () => {
+    const dir = newFacetDir();
+    dir.generateViteConfig();
+    dir.generateClientScaffold({});
+
+    for (const config of await Promise.all([
+      readFile(join(facetRoot, 'vite.config.ts'), 'utf-8'),
+      readFile(join(facetRoot, 'vite.client.config.ts'), 'utf-8'),
+    ])) {
+      expect(config).toContain("enforce: 'pre'");
+      expect(config).toContain('include: [/\\.(md|mdx)$/]');
+    }
+  });
+});
+
+describe('FacetDirectory Tailwind integration', () => {
+  it('loads Facet defaults before template-owned consumer CSS', async () => {
+    await mkdir(join(consumerRoot, 'src/styles'), { recursive: true });
+    await writeFile(join(consumerRoot, 'template.tsx'), "import './src/styles/report.css';\nexport default function Template() { return null; }\n");
+    await writeFile(join(consumerRoot, 'src/styles/report.css'), '@import "tailwindcss";\n');
+    const dir = newFacetDir();
+    dir.create();
+    dir.symlinkConsumerFiles();
+    dir.copyStylesCss();
+    dir.generateEntryWrapper();
+
+    const entry = await readFile(join(facetRoot, 'entry.tsx'), 'utf-8');
+    const facetImport = entry.indexOf("import './facet.css';");
+    const templateImport = entry.indexOf("import Template from './src/template.tsx';");
+    expect(facetImport).toBeGreaterThanOrEqual(0);
+    expect(templateImport).toBeGreaterThan(facetImport);
+
+    const facetCss = await readFile(join(facetRoot, 'facet.css'), 'utf-8');
+    expect(facetCss).toMatch(/^@import ['"]https:\/\/fonts\.googleapis\.com\//);
+    // facet sits between base and utilities: above Tailwind preflight, so the
+    // stylesheet's element defaults survive, and below utilities, so a
+    // `text-lg` on the element still wins.
+    expect(facetCss).toContain('@layer theme, base, facet, components, utilities;');
+    expect(facetCss).toContain('@layer facet {');
+    expect(facetCss).not.toContain('layer(facet)');
+
+    const postProcessCss = await readFile(join(facetRoot, 'post-process.css'), 'utf-8');
+    expect(postProcessCss.indexOf("@import './facet.css';"))
+      .toBeLessThan(postProcessCss.indexOf("@import './src/src/styles/report.css';"));
+    expect(postProcessCss).not.toContain('@source');
+    // Without this the v3 pass emits no utilities of its own, runTailwindCached
+    // sees no directives and reuses the SSR CSS, and a consumer's own classes
+    // are never generated — they simply do nothing in the rendered document.
+    expect(postProcessCss).toContain('@tailwind utilities;');
+    expect(postProcessCss.indexOf("@import './facet.css';"))
+      .toBeLessThan(postProcessCss.indexOf('@tailwind utilities;'));
+
+    const postProcessV4Css = await readFile(join(facetRoot, 'post-process-v4.css'), 'utf-8');
+    expect(postProcessV4Css).toContain('@import "tailwindcss/theme.css" layer(theme);');
+    expect(postProcessV4Css).toContain('@import "tailwindcss/utilities.css" layer(utilities) source(none);');
+    expect(postProcessV4Css).not.toContain('preflight.css');
+    expect(postProcessV4Css).toContain('@source "./src/template.tsx";');
+    expect(postProcessV4Css).toContain('@source "./rendered-content.html";');
+  });
+
+  it('serves template utilities to the live client entry', async () => {
+    await writeFile(join(consumerRoot, 'template.tsx'), 'export default function Template() { return null; }\n');
+    const dir = newFacetDir();
+    dir.create();
+    dir.copyStylesCss();
+    dir.generateClientScaffold({});
+
+    expect(await readFile(join(facetRoot, 'live-tailwind.css'), 'utf-8')).toBe('@tailwind utilities;\n');
+    const clientEntry = await readFile(join(facetRoot, 'entry.client.tsx'), 'utf-8');
+    expect(clientEntry).toContain("import './live-tailwind.css';");
+  });
+
+  it('generates Vite configs that select the installed Tailwind major', async () => {
+    const dir = newFacetDir();
+    dir.generateViteConfig();
+    dir.generateClientScaffold({});
+
+    expect(await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8'))
+      .toContain("await import('@tailwindcss/vite')");
+    expect(await readFile(join(facetRoot, 'vite.client.config.ts'), 'utf-8'))
+      .toContain("await import('@tailwindcss/vite')");
+    expect(await readFile(join(facetRoot, 'postcss.config.js'), 'utf-8'))
+      .toContain("tailwindMajor === 3");
+  });
+
+  it('scans the template top-level source directory', async () => {
+    await mkdir(join(consumerRoot, 'src'), { recursive: true });
+    await writeFile(join(consumerRoot, 'src/template.tsx'), 'export default null;\n');
+    const dir = new FacetDirectory({ consumerRoot, templateFile: 'src/template.tsx', logger });
+    dir.create();
+    dir.copyStylesCss();
+
+    expect(await readFile(join(facetRoot, 'post-process-v4.css'), 'utf-8'))
+      .toContain('@source "./src/src";');
   });
 });
 
@@ -232,6 +325,43 @@ describe('FacetDirectory.generatePackageJson .npmrc', () => {
     await newFacetDir().generatePackageJson();
     const npmrc = await readFile(join(facetRoot, '.npmrc'), 'utf-8');
     expect(npmrc).toContain('confirm-modules-purge=false');
+  });
+
+  it('uses only the pinned default manifest in skip-modules mode', async () => {
+    await writeFile(join(consumerRoot, 'package.json'), JSON.stringify({
+      name: 'consumer',
+      dependencies: { 'custom-module': '2.0.0' },
+      packageManager: 'npm@11.0.0',
+    }));
+    process.env.FACET_PACKAGE_PATH = join(consumerRoot, 'mutable-facet-checkout');
+    const directory = new FacetDirectory({
+      consumerRoot,
+      templateFile: 'template.tsx',
+      logger,
+      skipModules: true,
+    });
+
+    await directory.generatePackageJson();
+
+    const generated = JSON.parse(await readFile(join(facetRoot, 'package.json'), 'utf-8'));
+    expect(generated.name).toBe('.facet-default-modules');
+    expect(generated.dependencies['@flanksource/facet']).toBe(VERSION);
+    expect(generated.dependencies['custom-module']).toBeUndefined();
+    expect(await readFile(join(facetRoot, '.npmrc'), 'utf-8')).not.toContain('Inherited from consumer');
+  });
+
+  it('preserves source symlink paths so skip mode resolves from shared modules', async () => {
+    const directory = new FacetDirectory({
+      consumerRoot,
+      templateFile: 'template.tsx',
+      logger,
+      skipModules: true,
+    });
+    directory.generateViteConfig();
+    directory.generateClientScaffold({});
+
+    expect(await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8')).toContain('preserveSymlinks: true');
+    expect(await readFile(join(facetRoot, 'vite.client.config.ts'), 'utf-8')).toContain('preserveSymlinks: true');
   });
 });
 
@@ -245,15 +375,37 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     expect(resolveFacetPackageOverride(tarball)).toEqual({ kind: 'tarball', path: tarball });
   });
 
-  it('copies default styles from the local checkout', async () => {
+  it('imports compiled default styles from the local checkout', async () => {
     const localRoot = await writeLocalFacetPackage();
     process.env.FACET_PACKAGE_PATH = localRoot;
+    await writeFile(join(consumerRoot, 'template.tsx'), 'export default function Template() { return null; }\n');
     const facetDir = newFacetDir();
     facetDir.create();
 
     facetDir.copyStylesCss();
 
-    expect(await readFile(join(facetRoot, 'src/styles.css'), 'utf-8')).toContain('local facet styles');
+    expect(await readFile(join(facetRoot, 'facet.css'), 'utf-8'))
+      .toContain('@layer facet {\n/* built local css */');
+  });
+
+  it('changes the build digest when the facet stylesheet changes', async () => {
+    // The SSR bundle inlines facet.css and is cached under this digest, keyed
+    // on the facet *version*. Editing facet's own CSS — or installing a patched
+    // build at the same version — therefore served a bundle with the old
+    // styles, and the edit looked like it simply did nothing.
+    const localRoot = await writeLocalFacetPackage();
+    process.env.FACET_PACKAGE_PATH = localRoot;
+    await writeFile(join(consumerRoot, 'template.tsx'), 'export default function Template() { return null; }\n');
+    const facetDir = newFacetDir();
+    facetDir.create();
+
+    facetDir.copyStylesCss();
+    const before = facetDir.generatedConfigDigest();
+
+    await writeFile(join(localRoot, 'dist/styles.css'), '/* built local css */\np { font-size: 11pt; }\n');
+    facetDir.copyStylesCss();
+
+    expect(facetDir.generatedConfigDigest()).not.toBe(before);
   });
 
   it('uses local package metadata and writes a build fingerprint into .facet/package.json', async () => {

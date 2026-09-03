@@ -26,6 +26,14 @@ function hasMagick(): boolean {
   return false;
 }
 
+function pngDimensions(png: Buffer): { width: number; height: number } {
+  expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  return {
+    width: png.readUInt32BE(16),
+    height: png.readUInt32BE(20),
+  };
+}
+
 describe('Render API', () => {
   let server: ServerHandle;
 
@@ -85,6 +93,8 @@ describe('Render API', () => {
     }
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
+    expect(res.headers.get('server-timing')).toMatch(/dependency-install;dur=[\d.]+;desc="Dependency install"/);
+    expect(res.headers.get('server-timing')).toMatch(/vite;dur=[\d.]+;desc="Vite"/);
     const html = await res.text();
     expect(html.length).toBeGreaterThan(100);
     expect(html).toContain('Test Report');
@@ -107,6 +117,7 @@ describe('Render API', () => {
       }),
     });
     expect(res.status).toBe(200);
+    expect(res.headers.get('server-timing')).toMatch(/pdf-generation;dur=[\d.]+;desc="PDF generation"/);
     const json = await res.json() as { url: string };
     expect(json.url).toMatch(/^\/results\//);
 
@@ -124,6 +135,112 @@ describe('Render API', () => {
     expect(width).toBeGreaterThan(500);
     expect(height).toBeGreaterThan(700);
   }, 60000);
+
+  test('POST /render returns a natural-size PNG and streams its cached result URL', async () => {
+    const requestBody = {
+      code: `
+import React from 'react';
+export default function Template() {
+  return (
+    <html>
+      <body>
+        <section id="export" style={{ width: 320, height: 180, background: '#dc2626' }}>PNG API target</section>
+        <aside>Excluded sibling</aside>
+      </body>
+    </html>
+  );
+}`,
+      format: 'png',
+      pngOptions: {
+        selector: '#export',
+      },
+    };
+    const res = await fetch(`${server.url}/render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('server-timing')).toMatch(
+      /png-generation;dur=[\d.]+;desc="PNG generation"/,
+    );
+    const result = await res.json() as { url: string };
+    expect(result.url).toMatch(/^\/results\//);
+
+    const pngRes = await fetch(`${server.url}${result.url}`);
+    expect(pngRes.status).toBe(200);
+    expect(pngRes.headers.get('content-type')).toContain('image/png');
+    expect(pngRes.headers.get('content-disposition')).toContain('render.png');
+    expect(pngDimensions(Buffer.from(await pngRes.arrayBuffer()))).toEqual({
+      width: 320,
+      height: 180,
+    });
+
+    const streamRes = await fetch(`${server.url}/render/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+    expect(streamRes.status).toBe(200);
+    const stream = await streamRes.text();
+    expect(stream).toContain('"message":"Cache hit"');
+    expect(stream).toContain('"contentType":"image/png"');
+    expect(stream).toContain(`"url":"${result.url}"`);
+  }, 120000);
+
+  test('POST /render captures a live diagram at its natural size and scales it on request', async () => {
+    const code = `// @live
+import React from 'react';
+import { Arrow, BoxNode, Diagram } from '@flanksource/facet';
+
+export default function Template() {
+  return (
+    <html>
+      <body>
+        <Diagram className="flex items-center justify-between p-8">
+          {(id) => (
+            <>
+              <BoxNode id={id('source')} title="Source" />
+              <BoxNode id={id('output')} title="Output" />
+              <Arrow from={id('source')} to={id('output')} />
+            </>
+          )}
+        </Diagram>
+      </body>
+    </html>
+  );
+}`;
+    const renderDiagram = async (pngOptions: Record<string, unknown>) => {
+      const res = await fetch(`${server.url}/render`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, format: 'png', pngOptions }),
+      });
+      if (res.status !== 200) console.error('Live PNG render error:', await res.text());
+      expect(res.status).toBe(200);
+      const { url } = await res.json() as { url: string };
+      const pngRes = await fetch(`${server.url}${url}`);
+      expect(pngRes.status).toBe(200);
+      return pngDimensions(Buffer.from(await pngRes.arrayBuffer()));
+    };
+
+    const selector = '[data-facet-diagram]';
+    const natural = await renderDiagram({ selector });
+    expect(natural.width).toBeGreaterThan(0);
+    expect(natural.height).toBeGreaterThan(0);
+
+    const scaled = await renderDiagram({ selector, width: natural.width * 2 });
+    // Chromium rounds the scaled clip to whole pixels.
+    expect(scaled.width).toBe(natural.width * 2);
+    expect(Math.abs(scaled.height - natural.height * 2)).toBeLessThanOrEqual(2);
+
+    // The diagram's own `p-8` padding is background nothing painted over, so
+    // autocrop reclaims it on every side.
+    const cropped = await renderDiagram({ selector, autocrop: true });
+    expect(cropped.width).toBeLessThan(natural.width);
+    expect(cropped.height).toBeLessThan(natural.height);
+  }, 240000);
 
   test('POST /render with archive upload returns valid PDF', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'facet-test-'));
@@ -238,7 +355,7 @@ export default function InlineTemplate({ data }: { data: any }) {
     expect(html).toContain('>MDX<');
     // The diagram example is a live template that imports the diagram primitives.
     expect(html).toContain('// @live');
-    expect(html).toContain('Diagram, BoxNode, Arrow, NodeSection');
+    expect(html).toContain('Diagram, BoxNode, Arrow, COLORS');
   });
 
   test('GET / playground serializes toolbar state to the URL', async () => {
@@ -252,6 +369,7 @@ export default function InlineTemplate({ data }: { data: any }) {
     expect(html).toContain('function applyUrlToolbar(');
     expect(html).toContain('new URLSearchParams(location.search)');
     expect(html).toContain('initUrlRouting()');
+    expect(html).toContain('showTimings(payload.timings)');
   });
 
   test('POST /render with inline code returns valid HTML', async () => {
@@ -278,10 +396,25 @@ export default function Template({ data }: { data: any }) {
     expect(html).toContain('Hello Inline');
   }, 120000);
 
-  test('POST /render with inline markdown (ext: md) returns valid HTML', async () => {
+  test('POST /render with inline markdown (ext: md) renders built-in extensions', async () => {
     const code = `# Hello Markdown
 
-Rendered from an inline **.md** file, auto-wrapped in a printable page.`;
+Rendered from an inline **.md** file, auto-wrapped in a printable page.
+
+> [!NOTE]
+> Alert content
+
+<details open>
+<summary>Deployment details</summary>
+
+Detail content
+
+</details>
+
+\`\`\`mermaid
+flowchart LR
+  Source --> Report
+\`\`\``;
     const res = await fetch(`${server.url}/render`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -294,6 +427,33 @@ Rendered from an inline **.md** file, auto-wrapped in a printable page.`;
     expect(html).toContain('Hello Markdown');
     // The markdown wrapper applies prose styling.
     expect(html).toContain('prose');
+    expect(html).toContain('markdown-alert-note');
+    expect(html).toContain('<details open="">');
+    expect(html).toContain('<summary>Deployment details</summary>');
+    expect(html).toMatch(/<svg[^>]+aria-roledescription="flowchart-v2"/);
+  }, 120000);
+
+  test('POST /render emits a distinct class and icon for every alert tone', async () => {
+    const tones = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'];
+    const code = tones.map(t => `> [!${t}]\n> Body for ${t}.`).join('\n\n');
+
+    const res = await fetch(`${server.url}/render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, format: 'html', ext: 'md', data: {} }),
+    });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+
+    for (const tone of tones) {
+      expect(html, `missing alert class for ${tone}`).toContain(
+        `markdown-alert-${tone.toLowerCase()}`,
+      );
+    }
+    // The title row carries the label and the icon the stylesheet sizes; without
+    // it the tone classes are on a box with nothing to colour.
+    expect(html).toContain('markdown-alert-title');
+    expect(html.match(/class="octicon"/g)?.length).toBe(tones.length);
   }, 120000);
 
   test('POST /render with inline MDX (ext: mdx) interpolates data and renders components', async () => {
@@ -360,6 +520,8 @@ export default function Template({ data }: { data: any }) {
     const [first, second] = await Promise.all([request('HEADER_A'), request('HEADER_B')]);
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
+    expect(first.headers.get('server-timing')).toMatch(/header-generation;dur=[\d.]+;desc="Header generation"/);
+    expect(second.headers.get('server-timing')).toMatch(/header-generation;dur=[\d.]+;desc="Header generation"/);
     const [firstHtml, secondHtml] = await Promise.all([first.text(), second.text()]);
     expect(firstHtml).toContain('data-test-header="HEADER_A"');
     expect(firstHtml).not.toContain('data-test-header="HEADER_B"');
@@ -388,6 +550,8 @@ export default function Template({ data }: { data: any }) {
     // Should contain the final result event
     expect(text).toContain('event: result');
     expect(text).toContain('Stream Test');
+    expect(text).toMatch(/"timings":\[.*"name":"dependency-install"/);
+    expect(text).toMatch(/"timings":\[.*"name":"vite"/);
   }, 120000);
 
   test('POST /render with unknown template returns 404', async () => {

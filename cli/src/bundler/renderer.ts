@@ -21,9 +21,12 @@ export function combineHTMLAndCSS(html: string, css: string): string {
   }
 
   // Otherwise, inline the CSS into the <head>
-  // Find the </head> tag and insert CSS before it
+  // Find the </head> tag and insert CSS before it.
+  // The replacement is passed as a function: as a string, `$&`, `$'` and `$n`
+  // inside the generated CSS would be expanded as substitution patterns rather
+  // than inserted literally.
   if (html.includes('</head>')) {
-    return html.replace('</head>', `<style>${css}</style></head>`);
+    return html.replace('</head>', () => `<style>${css}</style></head>`);
   }
 
   // If no <head>, try to insert after <html>

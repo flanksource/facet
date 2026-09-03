@@ -1,20 +1,20 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import DatasheetTemplate from '../../components/DatasheetTemplate';
+import Document from '../../components/Document';
 import Page from '../../components/Page';
 
 const meta = {
-  title: 'Components/DatasheetTemplate',
-  component: DatasheetTemplate,
+  title: 'Components/Document',
+  component: Document,
   parameters: {
     layout: 'fullscreen',
     docs: {
       description: {
-        component: 'Template wrapper for multi-page datasheet documents with consistent structure.',
+        component: 'The document shell: emits the html/head/body structure, the base typography rule, and the page defaults every Page reads.',
       },
     },
   },
   tags: ['autodocs'],
-} satisfies Meta<typeof DatasheetTemplate>;
+} satisfies Meta<typeof Document>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

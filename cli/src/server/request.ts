@@ -1,8 +1,16 @@
 import { RenderError } from './errors.js';
 import { MAX_TIMEOUT_MS } from './config.js';
+import { parseFontSize } from '../utils/font-size.js';
 import { parseRemoteRef } from '../utils/remote-resolver.js';
 import type { BufferPDFOptions, PDFMargins } from '../utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from '../utils/pdf-security.js';
+import type { PNGOptions, PNGViewport, RenderFormat } from '../types.js';
+import type { RedactPolicy } from '../builders/remark-config.js';
+import {
+  normalizePNGOptions,
+  parsePNGViewport,
+  type NormalizedPNGOptions,
+} from '../utils/png-generator.js';
 
 export type TemplateSource =
   | { kind: 'local'; name: string }
@@ -13,7 +21,7 @@ export type TemplateSource =
 export interface ParsedRenderRequest {
   source: TemplateSource;
   data: Record<string, unknown>;
-  format: 'pdf' | 'html';
+  format: RenderFormat;
   output: 'direct' | 's3';
   s3Key?: string;
   filename?: string;
@@ -25,6 +33,37 @@ export interface ParsedRenderRequest {
   signature?: PDFSignatureOptions;
   /** Render deadline in milliseconds, overriding the server default. */
   timeoutMs?: number;
+  pngOptions?: NormalizedPNGOptions;
+  live?: boolean;
+  postProcessCss?: boolean;
+  /** Base font size in pt. Top-level so it reaches html and png, not just pdf. */
+  fontSize?: number;
+  /** Which classified regions this render may carry. */
+  redact?: RedactPolicy;
+}
+
+/**
+ * A redaction policy arriving over the wire. Rejected rather than coerced: a
+ * malformed policy that silently became "allow everything" would publish the
+ * content it was sent to withhold.
+ */
+export function parseRedactPolicy(value: unknown, field: string): RedactPolicy | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'object' || Array.isArray(value)) throw new Error(`${field} must be an object`);
+  const source = value as Record<string, unknown>;
+  const element = source.element;
+  if (element !== undefined && typeof element !== 'string') throw new Error(`${field}.element must be a string`);
+  if (typeof source.allow !== 'object' || source.allow === null || Array.isArray(source.allow)) {
+    throw new Error(`${field}.allow must be an object`);
+  }
+  const allow: Record<string, string[]> = {};
+  for (const [attribute, values] of Object.entries(source.allow as Record<string, unknown>)) {
+    if (!Array.isArray(values) || values.some((entry) => typeof entry !== 'string')) {
+      throw new Error(`${field}.allow.${attribute} must be an array of strings`);
+    }
+    allow[attribute] = values as string[];
+  }
+  return element === undefined ? { allow } : { element, allow };
 }
 
 export async function parseRenderRequest(
@@ -46,6 +85,16 @@ export async function parseRenderRequest(
   throw new RenderError('INVALID_REQUEST', `Unsupported content type: ${contentType}`, 400);
 }
 
+export function validateRequestModuleMode(parsed: ParsedRenderRequest, skipModules: boolean): void {
+  if (skipModules && parsed.dependencies) {
+    throw new RenderError(
+      'INVALID_REQUEST',
+      'Request dependencies are unavailable while the server runs with --skip-modules; restart without the flag to install custom modules',
+      400,
+    );
+  }
+}
+
 async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> {
   let body: Record<string, unknown>;
   try {
@@ -62,8 +111,17 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
   }
 
   const data = (body.data ?? {}) as Record<string, unknown>;
-  const format = (body.format as string) === 'html' ? 'html' as const : 'pdf' as const;
+  const format = parseRenderFormat(body.format);
   const output = (body.output as string) === 's3' ? 's3' as const : 'direct' as const;
+  const pdfOptions = parsePDFOptions(body.pdfOptions as Record<string, unknown> | undefined);
+  const encryption = parseEncryptionOptions(body.encryption);
+  const signature = parseSignatureOptions(body.signature);
+  const pngOptions = parsePNGOptions(body.pngOptions, format);
+  validateFormatOptions(format, {
+    hasPDFOptions: body.pdfOptions !== undefined,
+    encryption,
+    signature,
+  });
 
   const source: TemplateSource = typeof code === 'string'
     ? { kind: 'inline', code, ext: parseInlineExt(body.ext) }
@@ -78,13 +136,18 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     output,
     s3Key: body.s3Key as string | undefined,
     filename: body.filename as string | undefined,
-    pdfOptions: parsePDFOptions(body.pdfOptions as Record<string, unknown> | undefined),
+    pdfOptions,
     dependencies: parseDependencies(body.dependencies),
     headerCode: typeof body.headerCode === 'string' ? body.headerCode : undefined,
     footerCode: typeof body.footerCode === 'string' ? body.footerCode : undefined,
-    encryption: parseEncryptionOptions(body.encryption),
-    signature: parseSignatureOptions(body.signature),
+    encryption,
+    signature,
     timeoutMs: parseTimeout(body.timeout),
+    pngOptions,
+    live: parseBoolean(body.live, 'live'),
+    postProcessCss: parseBoolean(body.postProcessCss, 'postProcessCss'),
+    redact: parseRedactPolicy(body.redact, 'redact'),
+    fontSize: parseFontSize(body.fontSize ?? (body.pdfOptions as Record<string, unknown> | undefined)?.fontSize),
   };
 }
 
@@ -156,8 +219,13 @@ async function parseMultipartRequest(
     }
   }
 
-  const format = (options.format as string) === 'html' ? 'html' as const : 'pdf' as const;
+  const format = parseRenderFormat(options.format);
   const output = (options.output as string) === 's3' ? 's3' as const : 'direct' as const;
+  const pdfOptions = parsePDFOptions(options.pdfOptions as Record<string, unknown> | undefined);
+  const pngOptions = parsePNGOptions(options.pngOptions, format);
+  validateFormatOptions(format, {
+    hasPDFOptions: options.pdfOptions !== undefined,
+  });
 
   return {
     source: { kind: 'archive', data: archiveBuffer, entryFile: options.entryFile as string | undefined },
@@ -166,8 +234,15 @@ async function parseMultipartRequest(
     output,
     s3Key: options.s3Key as string | undefined,
     filename: options.filename as string | undefined,
-    pdfOptions: parsePDFOptions(options.pdfOptions as Record<string, unknown> | undefined),
+    pdfOptions,
     timeoutMs: parseTimeout(options.timeout),
+    headerCode: typeof options.headerCode === 'string' ? options.headerCode : undefined,
+    footerCode: typeof options.footerCode === 'string' ? options.footerCode : undefined,
+    pngOptions,
+    live: parseBoolean(options.live, 'live'),
+    postProcessCss: parseBoolean(options.postProcessCss, 'postProcessCss'),
+    redact: parseRedactPolicy(options.redact, 'redact'),
+    fontSize: parseFontSize(options.fontSize ?? (options.pdfOptions as Record<string, unknown> | undefined)?.fontSize),
   };
 }
 
@@ -191,8 +266,9 @@ async function parseGzipRequest(
   }
 
   const url = new URL(request.url);
-  const format = url.searchParams.get('format') === 'html' ? 'html' as const : 'pdf' as const;
+  const format = parseRenderFormat(url.searchParams.get('format') ?? undefined);
   const output = url.searchParams.get('output') === 's3' ? 's3' as const : 'direct' as const;
+  const pngOptions = parsePNGQueryOptions(url.searchParams, format);
 
   return {
     source: {
@@ -206,7 +282,167 @@ async function parseGzipRequest(
     s3Key: url.searchParams.get('s3Key') ?? undefined,
     filename: url.searchParams.get('filename') ?? undefined,
     timeoutMs: parseTimeout(url.searchParams.get('timeout')),
+    pngOptions,
+    postProcessCss: parseBooleanQuery(url.searchParams.get('postProcessCss'), 'postProcessCss'),
+    fontSize: parseFontSize(url.searchParams.get('fontSize') ?? undefined),
   };
+}
+
+function parseRenderFormat(raw: unknown): RenderFormat {
+  if (raw === undefined) return 'pdf';
+  if (raw === 'html' || raw === 'pdf' || raw === 'png') return raw;
+  throw new RenderError('INVALID_REQUEST', 'format must be one of: html, pdf, png', 400);
+}
+
+function parsePNGOptions(raw: unknown, format: RenderFormat): NormalizedPNGOptions | undefined {
+  if (format !== 'png') {
+    if (raw !== undefined) {
+      throw new RenderError('INVALID_REQUEST', 'pngOptions can only be used with PNG renders', 400);
+    }
+    return undefined;
+  }
+  if (raw !== undefined && (raw === null || typeof raw !== 'object' || Array.isArray(raw))) {
+    throw new RenderError('INVALID_REQUEST', 'pngOptions must be an object', 400);
+  }
+  const options = (raw ?? {}) as Record<string, unknown>;
+  const pngOptions: PNGOptions = {};
+  if (options.width !== undefined) {
+    if (typeof options.width !== 'number') {
+      throw new RenderError('INVALID_REQUEST', 'pngOptions.width must be a positive integer', 400);
+    }
+    pngOptions.width = options.width;
+  }
+  if (options.height !== undefined) {
+    if (typeof options.height !== 'number') {
+      throw new RenderError('INVALID_REQUEST', 'pngOptions.height must be a positive integer', 400);
+    }
+    pngOptions.height = options.height;
+  }
+  if (options.selector !== undefined) {
+    if (typeof options.selector !== 'string') {
+      throw new RenderError('INVALID_REQUEST', 'pngOptions.selector must be a non-empty CSS selector', 400);
+    }
+    pngOptions.selector = options.selector;
+  }
+  if (options.viewport !== undefined) {
+    const viewport = options.viewport as Record<string, unknown>;
+    if (viewport === null || typeof viewport !== 'object' || Array.isArray(viewport)
+      || typeof viewport.width !== 'number' || typeof viewport.height !== 'number') {
+      throw new RenderError(
+        'INVALID_REQUEST',
+        'pngOptions.viewport must be an object with positive integer width and height',
+        400,
+      );
+    }
+    pngOptions.viewport = { width: viewport.width, height: viewport.height };
+  }
+  if (options.autocrop !== undefined) {
+    if (typeof options.autocrop !== 'boolean') {
+      throw new RenderError('INVALID_REQUEST', 'pngOptions.autocrop must be a boolean', 400);
+    }
+    pngOptions.autocrop = options.autocrop;
+  }
+  if (options.autocropPadding !== undefined) {
+    if (typeof options.autocropPadding !== 'number') {
+      throw new RenderError('INVALID_REQUEST', 'pngOptions.autocropPadding must be a non-negative integer', 400);
+    }
+    pngOptions.autocropPadding = options.autocropPadding;
+  }
+  try {
+    return normalizePNGOptions(pngOptions, 'pngOptions');
+  } catch (error) {
+    throw new RenderError(
+      'INVALID_REQUEST',
+      error instanceof Error ? error.message : String(error),
+      400,
+    );
+  }
+}
+
+function parsePNGQueryOptions(
+  params: URLSearchParams,
+  format: RenderFormat,
+): NormalizedPNGOptions | undefined {
+  const rawWidth = params.get('pngWidth');
+  const rawHeight = params.get('pngHeight');
+  const rawSelector = params.get('pngSelector');
+  const rawViewport = params.get('pngViewport');
+  const rawAutocrop = params.get('pngAutocrop');
+  const rawAutocropPadding = params.get('pngAutocropPadding');
+  if (format !== 'png') {
+    if (rawWidth !== null || rawHeight !== null || rawSelector !== null || rawViewport !== null
+      || rawAutocrop !== null || rawAutocropPadding !== null) {
+      throw new RenderError('INVALID_REQUEST', 'PNG query options require format=png', 400);
+    }
+    return undefined;
+  }
+  const parseDimension = (raw: string | null, field: string): number | undefined => {
+    if (raw === null) return undefined;
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new RenderError('INVALID_REQUEST', `${field} must be a positive integer`, 400);
+    }
+    return value;
+  };
+  let viewport: PNGViewport | undefined;
+  if (rawViewport !== null) {
+    try {
+      viewport = parsePNGViewport(rawViewport, 'pngViewport');
+    } catch (error) {
+      throw new RenderError(
+        'INVALID_REQUEST',
+        error instanceof Error ? error.message : String(error),
+        400,
+      );
+    }
+  }
+  let autocropPadding: number | undefined;
+  if (rawAutocropPadding !== null) {
+    autocropPadding = Number(rawAutocropPadding);
+    if (!Number.isSafeInteger(autocropPadding) || autocropPadding < 0) {
+      throw new RenderError('INVALID_REQUEST', 'pngAutocropPadding must be a non-negative integer', 400);
+    }
+  }
+  return parsePNGOptions({
+    width: parseDimension(rawWidth, 'pngWidth'),
+    height: parseDimension(rawHeight, 'pngHeight'),
+    selector: rawSelector ?? undefined,
+    viewport,
+    autocrop: parseBooleanQuery(rawAutocrop, 'pngAutocrop'),
+    autocropPadding,
+  }, format);
+}
+
+function validateFormatOptions(
+  format: RenderFormat,
+  options: {
+    hasPDFOptions: boolean;
+    encryption?: PDFEncryptionOptions;
+    signature?: PDFSignatureOptions;
+  },
+): void {
+  if (format !== 'png') return;
+  if (options.hasPDFOptions) {
+    throw new RenderError('INVALID_REQUEST', 'pdfOptions cannot be used with PNG renders', 400);
+  }
+  if (options.encryption || options.signature) {
+    throw new RenderError('INVALID_REQUEST', 'PDF security options cannot be used with PNG renders', 400);
+  }
+}
+
+function parseBoolean(raw: unknown, field: string): boolean | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'boolean') {
+    throw new RenderError('INVALID_REQUEST', `${field} must be a boolean`, 400);
+  }
+  return raw;
+}
+
+function parseBooleanQuery(raw: string | null, field: string): boolean | undefined {
+  if (raw === null) return undefined;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  throw new RenderError('INVALID_REQUEST', `${field} must be true or false`, 400);
 }
 
 function parseMargins(raw: unknown): PDFMargins | undefined {
@@ -225,6 +461,8 @@ function parsePDFOptions(raw?: Record<string, unknown>): BufferPDFOptions | unde
   return {
     landscape: raw.landscape as boolean | undefined,
     debug: raw.debug as boolean | undefined,
+    debugTypography: raw.debugTypography as boolean | undefined,
+    fontSize: parseFontSize(raw.fontSize),
     defaultPageSize: raw.defaultPageSize as string | undefined,
     margins: parseMargins(raw.margins),
   };

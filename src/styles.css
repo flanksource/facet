@@ -1,8 +1,14 @@
-/* Fonts referenced by the Tailwind 'mono' stack — must be loaded explicitly
- * because Puppeteer's headless Chromium has no system fonts installed.
- * Without this, PDF output falls back through Consolas/Monaco/Courier New.
+/* Fonts referenced by the Tailwind 'sans' and 'mono' stacks — must be loaded
+ * explicitly because Puppeteer's headless Chromium has no system fonts
+ * installed. Without this, body text falls back to whatever the platform
+ * offers (Liberation Sans in the Docker image) and code falls through
+ * Consolas/Monaco/Courier New.
+ *
+ * Open Sans was named in the body rule and in tailwind.config.js from the
+ * start but never actually loaded, so every document rendered in a fallback
+ * face with different metrics, line-breaking and page-fill than designed.
  */
-@import 'https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap';
+@import 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Fira+Code:wght@300;400;500;600;700&display=swap';
 
 /* Tailwind directives */
 @tailwind base;
@@ -14,64 +20,64 @@
 
 /* Remove max-width from prose class */
 .prose {
-  max-width: none !important;
+  max-width: none;
 }
 
-/* Reduce prose font size and line height for PDFs */
 @media print {
-  .prose {
-    font-size: 9pt !important;
-    line-height: 1.3 !important;
-  }
-
+  /* .prose carries paged spacing only. It used to restate the type scale, and
+   * disagreed with it: .prose p was 10pt where the global p rule is 9pt, so the
+   * same paragraph changed size depending on whether an ancestor happened to
+   * carry the class. Sizes now come from one place — the element rules below
+   * and the text-* scale — and markdown reads the same either way. */
   .prose p {
-    font-size: 10pt !important;
-    line-height: 1.3 !important;
-    margin-bottom: 2mm !important;
-  }
-
-  .prose h1, .prose h2, .prose h3, .prose h4 {
-    line-height: 1.2 !important;
+    margin-bottom: 2mm;
   }
 
   /* Override typography plugin with higher specificity */
   .prose h1 {
-    font-size: 22pt !important;
-    line-height: 26pt !important;
-    margin-bottom: 4mm !important;
-    font-weight: 700 !important;
+    font-size: 22pt;
+    line-height: 26pt;
+    margin-bottom: 4mm;
+    font-weight: 700;
   }
 
   .prose h2 {
-    font-size: 15pt !important;
-    line-height: 19pt !important;
-    margin-top: 4mm !important;
-    margin-bottom: 3mm !important;
-    font-weight: 600 !important;
+    font-size: 15pt;
+    line-height: 19pt;
+    margin-top: 4mm;
+    margin-bottom: 3mm;
+    font-weight: 600;
   }
 
   .prose h3 {
-    font-size: 12pt !important;
-    line-height: 15pt !important;
-    margin-top: 3mm !important;
-    margin-bottom: 2mm !important;
-    font-weight: 500 !important;
+    font-size: 12pt;
+    line-height: 15pt;
+    margin-top: 3mm;
+    margin-bottom: 2mm;
+    font-weight: 500;
   }
 
   .prose h4 {
-    font-size: 10pt !important;
-    line-height: 12pt !important;
-    margin-top: 2mm !important;
-    margin-bottom: 2mm !important;
-    font-weight: 600 !important;
+    font-size: 10pt;
+    line-height: 12pt;
+    margin-top: 2mm;
+    margin-bottom: 2mm;
+    font-weight: 600;
   }
 
   h1, h2, h3, h4, p {
       @apply text-gray-800;
   }
 
+  /* This was `inline-flex`, so that an `.icon` child would centre against the
+   * text. It shrink-wrapped the heading into an inline box, and `## Heading`
+   * immediately followed by `### Heading` — ordinary markdown — then shared one
+   * line. Nothing outside this block sets a display, so it also printed
+   * differently from how it rendered on screen. Block instead: `text-align`
+   * reaches a heading again, and a heading that wants to lay its own children
+   * out says so itself (CapabilitySection asks for `flex items-center`). */
   h2,h3,h4 {
-    @apply inline-flex;
+    @apply block;
   }
 
   .subtitle {
@@ -82,68 +88,40 @@
    @apply text-gray-400 h-full place-content-center inline-flex align-middle mr-1
   }
 
-  /* Reduce all typography sizes for PDFs while maintaining hierarchy */
+  /* Paged spacing only. Sizes are declared unconditionally further down, so
+   * that screen and print show the same scale; repeating them here is what
+   * previously let the two copies disagree. */
   h1 {
-    font-size: 22pt !important;
-    line-height: 26pt !important;
-    margin-bottom: 4mm !important;
+    margin-bottom: 4mm;
     @apply text-gray-700;
   }
 
   h2 {
-    font-size: 15pt !important;
-    line-height: 19pt !important;
-    margin-top: 4mm !important;
-    margin-bottom: 3mm !important;
-    @apply inline-flex;
+    margin-top: 4mm;
+    margin-bottom: 3mm;
   }
 
   h3 {
-    font-size: 12pt !important;
-    line-height: 15pt !important;
-    margin-top: 3mm !important;
-    margin-bottom: 2mm !important;
+    margin-top: 3mm;
+    margin-bottom: 2mm;
   }
 
   h4 {
-    font-size: 10pt !important;
-    line-height: 12pt !important;
-    margin-top: 2mm !important;
-    margin-bottom: 2mm !important;
+    margin-top: 2mm;
+    margin-bottom: 2mm;
   }
 
   p {
-    font-size: 9pt !important;
-    line-height: 12pt !important;
-    margin-bottom: 3mm !important;
+    margin-bottom: 3mm;
   }
 
-  .text-xs {
-    font-size: 7pt !important;
-  }
-
-  .text-sm {
-    font-size: 9pt !important;
-  }
-
-  .text-md {
-    font-size: 10pt !important;
-  }
-
-  .text-lg {
-    font-size: 15pt !important;
-  }
-
-  .text-xl {
-    font-size: 18pt !important;
-  }
-
-  .text-2xl {
-    font-size: 24pt !important;
-  }
+  /* The `text-*` scale is no longer redeclared here. It is fed to the Tailwind
+   * theme from cli/src/utils/type-scale.ts, so the utilities themselves carry
+   * the point scale. Redeclaring it in this layer was ineffective anyway —
+   * Tailwind's utilities layer outranks this one. */
 
   tbody td {
-    font-weight: 400 !important;
+    font-weight: 400;
   }
 }
 
@@ -167,6 +145,12 @@
 }
 
 /* Typography System - Open Sans Primary, Fira Code Monospace */
+/* Pin the root so any surviving rem is deterministic rather than resolved
+ * against whatever default the rendering browser happens to carry. */
+html {
+  font-size: 16px;
+}
+
 body {
   @apply text-gray-700 bg-white;
 
@@ -218,13 +202,13 @@ body {
 
   /* Table page break handling */
   table {
-    /* margin-top: 8mm !important; */
+    /* margin-top: 8mm; */
     page-break-inside: auto;
   }
 
   /* Ensure table wrappers also respect page margins */
   .overflow-x-auto {
-    margin-top: 8mm !important;
+    margin-top: 8mm;
   }
 
   thead {
@@ -251,14 +235,32 @@ body {
     widows: 2;
   }
 
-  /* Target the last page content to create space for footer */
-  main:last-of-type {
-    min-height: 240mm; /* Fill most of A4 page (297mm - margins - footer space) */
+  /* A page box fills its sheet: the paper minus the header and footer bands
+   * the renderer reserves as page margins.
+   *
+   * This floor used to sit on <main> alone at a flat 240mm, which ignored the
+   * page title rendered above it. 240mm of main plus a ~19mm title is 259.3mm
+   * against a 257mm printable area, so every page of every document overflowed
+   * by ~2mm and spilled a second, near-empty sheet — a five-page document
+   * printed as ten. Putting the floor on the page box instead counts the title,
+   * and main grows into whatever is left.
+   *
+   * The renderer injects the real figure per page size and margin set; the
+   * fallback covers `facet html` and a typical 24mm/16mm header and footer
+   * on A4. */
+  [data-page-size] {
+    display: flex;
+    flex-direction: column;
+    min-height: var(--facet-printable-height, 230mm);
+  }
+
+  [data-page-size] > main {
+    flex: 1 0 auto;
     display: flex;
     flex-direction: column;
   }
 
-  main:last-of-type article {
+  [data-page-size] > main > article {
     flex: 1 0 auto;
   }
 
@@ -298,20 +300,28 @@ body {
   }
 }
 
-/* Typography Scale from Style Guide (DS-10) */
+/* Typography Scale from Style Guide (DS-10)
+ *
+ * These are the document sizes, and they are unconditional: the output is a
+ * paged document, so the screen view should show what will print. There used
+ * to be a second, larger scale here (26/18/13/11pt) with the print sizes
+ * declared in the @media print block far above. Equal specificity and later
+ * source order meant this block won even while printing, so the print scale
+ * never applied. Keep sizes in one place; @media print carries paged spacing
+ * only, and the responsive blocks below still adapt narrow screens. */
 h1 {
   @apply text-slate-900 font-bold;
 
-  font-size: 26pt; /* DS-10: 24-28pt for product name */
-  line-height: 32pt;
+  font-size: 22pt;
+  line-height: 26pt;
   margin-bottom: 8mm;
 }
 
 h2 {
   @apply text-slate-900 font-semibold;
 
-  font-size: 18pt;
-  line-height: 24pt;
+  font-size: 15pt;
+  line-height: 19pt;
   margin-top: 6mm;
   margin-bottom: 4mm;
 }
@@ -319,8 +329,8 @@ h2 {
 h3 {
   @apply text-blue-500 font-medium;
 
-  font-size: 13pt;
-  line-height: 16pt;
+  font-size: 12pt;
+  line-height: 15pt;
   margin-top: 5mm;
   margin-bottom: 4mm;
 }
@@ -328,8 +338,8 @@ h3 {
 h4 {
   @apply text-gray-600 font-semibold;
 
-  font-size: 11pt;
-  line-height: 14pt;
+  font-size: 10pt;
+  line-height: 12pt;
   margin-top: 3mm;
   margin-bottom: 2mm;
 }
@@ -337,6 +347,11 @@ h4 {
 p {
   @apply text-gray-700;
 
+  /* Paragraphs sit one step below body, matching TYPOGRAPHY.P in theme.ts.
+   * This was previously only asserted by the inline-styled <P> component, so a
+   * markdown paragraph and a <P> rendered the same text at different sizes. */
+  font-size: 9pt;
+  line-height: 12pt;
   margin-bottom: 4mm;
 }
 
@@ -366,15 +381,108 @@ blockquote {
 }
 
 blockquote p {
+  /* Inherit the blockquote's size rather than falling back to the p rule.
+   * Without this a quote's bare text set at 10pt while a quote wrapped in a
+   * paragraph — which is what markdown produces — set at 9pt. */
+  font-size: inherit;
+  line-height: inherit;
   margin-bottom: 0;
   color: #52525b; /* zinc-600 */
 }
 
-blockquote.info {
-  @apply border-l-blue-500 bg-blue-50/50;
+/* GitHub alerts.
+ *
+ * `remark-github-blockquote-alert` runs with `tagName: 'blockquote'`, so
+ * `> [!NOTE]` lands on the element above and inherits the box, padding and
+ * type size for free; only the accent and text colour differ per tone. Without
+ * these rules the plugin still fires and all five tones render as the identical
+ * grey aside, which is what shipped until now — the plugin's own alert.css is
+ * never imported, so this stylesheet is the only place the mapping exists.
+ *
+ * `.info` is grouped with `note` rather than kept as a separate rule: it is the
+ * same advisory aside under a shorter hand-authored name.
+ *
+ * Tone colours are kept in step with VARIANT_STYLES in
+ * src/components/CalloutBox.tsx, so `> [!NOTE]` and `<CalloutBox variant="note">`
+ * render the same box.
+ */
+blockquote.info,
+blockquote.markdown-alert-note {
+  @apply border-l-blue-500 bg-blue-50/60;
 }
-blockquote.info p {
+blockquote.info p,
+blockquote.markdown-alert-note p {
+  @apply text-blue-900;
+}
+blockquote.markdown-alert-note .markdown-alert-title {
   @apply text-blue-700;
+}
+
+blockquote.markdown-alert-tip {
+  @apply border-l-emerald-500 bg-emerald-50/60;
+}
+blockquote.markdown-alert-tip p {
+  @apply text-emerald-900;
+}
+blockquote.markdown-alert-tip .markdown-alert-title {
+  @apply text-emerald-700;
+}
+
+blockquote.markdown-alert-important {
+  @apply border-l-purple-500 bg-purple-50/60;
+}
+blockquote.markdown-alert-important p {
+  @apply text-purple-900;
+}
+blockquote.markdown-alert-important .markdown-alert-title {
+  @apply text-purple-700;
+}
+
+blockquote.markdown-alert-warning {
+  @apply border-l-amber-500 bg-amber-50/60;
+}
+blockquote.markdown-alert-warning p {
+  @apply text-amber-900;
+}
+blockquote.markdown-alert-warning .markdown-alert-title {
+  @apply text-amber-700;
+}
+
+blockquote.markdown-alert-caution {
+  @apply border-l-red-500 bg-red-50/60;
+}
+blockquote.markdown-alert-caution p {
+  @apply text-red-900;
+}
+blockquote.markdown-alert-caution .markdown-alert-title {
+  @apply text-red-700;
+}
+
+/* The plugin injects the label as the blockquote's first paragraph, so it needs
+ * the tone colour above to outrank `blockquote p` — hence the three-class
+ * selectors — and its own row layout here. */
+.markdown-alert-title {
+  @apply flex items-center gap-2 font-semibold uppercase tracking-wide;
+
+  /* 7pt/9pt is the text-xs step, set directly rather than with `@apply text-xs`.
+   * `@apply` also pulls in any compound rule matching the class, so applying it
+   * here dragged the `table.text-xs th|td` padding rules in as dead
+   * `table.markdown-alert-title` selectors. */
+  font-size: 7pt;
+  line-height: 9pt;
+  margin-bottom: 1mm;
+}
+
+/* Sized and filled by CSS, not by props, so the plugin's inline SVG and
+ * CalloutBox's <AlertIcon> answer to one rule. `fill: currentColor` is what
+ * makes the glyph pick up the per-tone title colour above. */
+.markdown-alert .octicon,
+.octicon {
+  @apply inline-block shrink-0;
+
+  width: 3mm;
+  height: 3mm;
+  fill: currentColor;
 }
 
 /* Lists */
@@ -439,6 +547,13 @@ table.text-sm { font-size: 9pt; }
 table.text-sm th { padding: 1.5mm; }
 table.text-sm td { padding: 1mm 1.5mm; }
 
+/* TableSize accepts 'base', so it needs a rule of its own — without one it was
+ * the only size that took the default padding rather than its own. It shares
+ * text-md's 10pt, so it shares its padding too. */
+table.text-base { font-size: 10pt; }
+table.text-base th { padding: 2.5mm; }
+table.text-base td { padding: 2mm 2.5mm; }
+
 table.text-md { font-size: 10pt; }
 table.text-md th { padding: 2.5mm; }
 table.text-md td { padding: 2mm 2.5mm; }
@@ -492,7 +607,7 @@ article {
 }
 
 .header-meta p {
-  margin: 0 !important;
+  margin: 0;
 }
 
 /* CTA Footer */
@@ -528,7 +643,7 @@ article {
   font-size: 18pt;
   font-weight: 600;
   color: #fff;
-  margin: 0 !important;
+  margin: 0;
 }
 
 .section-header-bar .product-name {
@@ -552,7 +667,7 @@ article {
 }
 
 .datasheet-footer p {
-  margin: 0 0 1mm !important;
+  margin: 0 0 1mm;
   font-size: 8pt;
   line-height: 10pt;
 }
@@ -680,7 +795,7 @@ article {
 }
 
 .datasheet-footer--minimal p {
-  margin: 0 !important;
+  margin: 0;
 }
 
 /* Project links - Utility Class */
@@ -1028,8 +1143,6 @@ article {
     margin-bottom: 8mm;
   }
 }
-
-
 
 /* Markdown ------------------------------------------------------------------
    Styles for HTML produced at runtime by the Markdown component. Authored as

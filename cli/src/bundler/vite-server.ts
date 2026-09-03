@@ -7,20 +7,27 @@
  * template with a live DOM — required for diagram components (react-xarrows).
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
+import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
-import { installWithRetry } from './vite-builder.js';
+import { prepareModules } from './vite-builder.js';
 import { selfExecBase } from '../utils/self-exec.js';
 import { readRemarkFrontmatter } from '../utils/frontmatter.js';
+import type { RedactPolicy } from '../builders/remark-config.js';
+import { RenderTimings } from '../utils/performance.js';
+import { spawnLowPriority } from '../utils/subprocess-priority.js';
 
 export interface ViteServerOptions {
   templatePath: string;
   data: Record<string, unknown>;
   consumerRoot?: string;
   logger: Logger;
+  timings?: RenderTimings;
+  redact?: RedactPolicy;
+  skipModules?: boolean;
 }
 
 export interface ViteServer {
@@ -38,12 +45,15 @@ const STARTUP_TIMEOUT_MS = 60_000;
  */
 export async function startViteServer(options: ViteServerOptions): Promise<ViteServer> {
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
+  const timings = options.timings ?? new RenderTimings();
 
   const facetDir = new FacetDirectory({
     consumerRoot,
     templateFile: templatePath,
     logger,
     remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
+    redact: options.redact,
+    skipModules: options.skipModules,
   });
   facetDir.create();
   await facetDir.generatePackageJson();
@@ -54,19 +64,24 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
   facetDir.generateTailwindConfig();
   facetDir.generateClientScaffold(data);
 
-  await installWithRetry(facetDir, logger);
+  await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules));
 
-  const facetRoot = facetDir.getFacetRoot();
+  const facetRoot = realpathSync(facetDir.getFacetRoot());
 
   logger.info('Starting Vite dev server for live render...');
-  const [cmd, ...baseArgs] = selfExecBase();
-  const proc = spawn(cmd, [...baseArgs, `--facet-root=${facetRoot}`], {
-    cwd: facetRoot,
-    env: { ...process.env, FACET_LOADER: 'dev' },
-    stdio: ['ignore', 'pipe', 'inherit'],
+  const { proc, url } = await timings.measure('vite', async () => {
+    const [cmd, ...baseArgs] = selfExecBase();
+    const proc = spawnLowPriority({
+      command: cmd,
+      args: [...baseArgs, `--facet-root=${facetRoot}`],
+      options: {
+        cwd: facetRoot,
+        env: { ...process.env, FACET_LOADER: 'dev' },
+        stdio: ['ignore', 'pipe', 'inherit'],
+      },
+    });
+    return { proc, url: await readHandshake(proc) };
   });
-
-  const url = await readHandshake(proc);
   logger.debug(`Vite dev server ready at ${url}`);
 
   return {

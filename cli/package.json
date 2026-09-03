@@ -2,7 +2,7 @@
   "name": "facet",
   "version": "0.1.71",
   "type": "module",
-  "description": "Generate PDF reports, HTML pages, and embeddable WebComponents from React templates",
+  "description": "Generate PDF reports, PNG images, HTML pages, and embeddable WebComponents from React templates",
   "main": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "bin": {
@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "gen-version": "node scripts/gen-version.cjs",
-    "gen-assets": "pnpm run gen-version && node scripts/gen-samples.cjs && pnpm --dir .. run build:playground",
+    "gen-assets": "pnpm --dir .. run build:css && pnpm run gen-version && node scripts/gen-samples.cjs && pnpm --dir .. run build:playground",
     "prebuild:lib": "pnpm run gen-assets",
     "build:lib": "tsdown",
     "prebuild:bundle": "pnpm run gen-assets",
@@ -32,6 +32,7 @@
   },
   "keywords": [
     "pdf",
+    "png",
     "reports",
     "react",
     "typescript",
@@ -46,7 +47,7 @@
     "url": "https://github.com/flanksource/facet.git",
     "directory": "cli"
   },
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
   "engines": {
     "node": ">=20.19.0"
   },
@@ -70,6 +71,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "semver": "^7.6.0",
+    "sharp": "^0.35.3",
     "tsx": "^4.7.0"
   },
   "devDependencies": {
@@ -84,13 +86,5 @@
     "tsdown": "^0.16.0",
     "typescript": "^5.6.3",
     "vitest": "^4.1.5"
-  },
-  "pnpm": {
-    "overrides": {
-      "unrun": "0.2.37",
-      "crypto-js": "4.2.0",
-      "ws": "8.21.0",
-      "esbuild": "0.28.1"
-    }
   }
 }

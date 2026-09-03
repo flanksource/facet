@@ -1,6 +1,6 @@
 /**
  * Resolve bundled runtime assets (the repo-root package.json, openapi.yaml,
- * styles.css, and the two vite loaders) by name, returning an absolute path.
+ * styles.css, and Mermaid browser bundle) by name, returning an absolute path.
  *
  * Replaces Bun's `import x from './f' with { type: 'file' }`, which is not a
  * Node feature. Works in the source tree (run via tsx) and in the built package
@@ -36,7 +36,7 @@ function seaAssetPath(name: string): string | undefined {
 
 // Candidate locations relative to this module, first existing wins:
 //   - source layout: this module sits at cli/src/utils/, so repo-root files are
-//     three levels up and the loaders two levels up (cli/).
+//     three levels up.
 //   - built layout: the bundle sits at cli/dist/, with assets copied to
 //     cli/dist/assets/ — so `assets/<name>` resolves beside the bundle.
 // Paths are explicit (not a fuzzy multi-base walk) so package.json always
@@ -48,7 +48,16 @@ function seaAssetPath(name: string): string | undefined {
 const ASSET_CANDIDATES = {
   'package.json': ['assets/package.json', '../../../package.json'],
   'openapi.yaml': ['assets/openapi.yaml', '../../../openapi.yaml'],
-  'styles.css': ['assets/styles.css', '../../../src/styles.css'],
+  'styles.css': ['assets/styles.css', '../../../dist/styles.css'],
+  // Copied into .facet/ rather than resolved from @flanksource/facet: .facet
+  // pins whatever facet version the consumer declared, which may predate this
+  // file, and a failed import in postcss.config.js fails the whole CSS build.
+  'facet-font-scale.mjs': ['assets/facet-font-scale.mjs', '../../../postcss/facet-font-scale.mjs'],
+  // Same reasoning as facet-font-scale.mjs, and the stakes are higher: a failed
+  // import here would drop the redaction pass, so it is copied in rather than
+  // resolved from the consumer's pinned @flanksource/facet.
+  'facet-redact.mjs': ['assets/facet-redact.mjs', '../../../remark/facet-redact.mjs'],
+  'mermaid.min.js': ['assets/mermaid.min.js', '../../../node_modules/mermaid/dist/mermaid.min.js'],
 } satisfies Record<string, string[]>;
 
 export type AssetName = keyof typeof ASSET_CANDIDATES;

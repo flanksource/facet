@@ -21,6 +21,35 @@ export interface RemarkConfig {
 
 export const EMPTY_REMARK_CONFIG: RemarkConfig = { remarkPlugins: [], rehypePlugins: [] };
 
+/**
+ * Which classified regions this build may carry, as an explicit set of
+ * permitted values per attribute. A set rather than a threshold: a
+ * classification scheme need not be a total order, so a "level <= clearance"
+ * comparison cannot express a tier that is less sensitive yet more widely
+ * shared. `element` names the delimiting tag (default `Classified`).
+ */
+export interface RedactPolicy {
+  element?: string;
+  allow: Record<string, string[]>;
+}
+
+/** `tier=Public,Customer-Shared` → `{ tier: ['Public', 'Customer-Shared'] }`. */
+export function parseRedactAllow(declarations: string[]): RedactPolicy | undefined {
+  if (declarations.length === 0) return undefined;
+  const allow: Record<string, string[]> = {};
+  for (const declaration of declarations) {
+    const separator = declaration.indexOf('=');
+    if (separator < 1) {
+      throw new Error(`--allow must be <attribute>=<value[,value]>, received "${declaration}"`);
+    }
+    const attribute = declaration.slice(0, separator).trim();
+    const values = declaration.slice(separator + 1).split(',').map((value) => value.trim()).filter(Boolean);
+    if (values.length === 0) throw new Error(`--allow ${attribute} lists no values`);
+    allow[attribute] = [...(allow[attribute] ?? []), ...values];
+  }
+  return { allow };
+}
+
 export function hasPlugins(config: RemarkConfig): boolean {
   return config.remarkPlugins.length > 0 || config.rehypePlugins.length > 0;
 }
@@ -89,7 +118,37 @@ export function generatePluginCodegen(config: RemarkConfig, projectRoot: string)
   return { imports, remarkItems, rehypeItems };
 }
 
-/** The mdx() `remarkPlugins` array source: always-on defaults plus user items. */
-export function remarkPluginsArray(userItems: string[]): string {
-  return `[remarkFrontmatter, remarkGfm${userItems.length ? ', ' + userItems.join(', ') : ''}]`;
+/**
+ * The mdx() `remarkPlugins` array source: always-on defaults plus user items.
+ *
+ * `facetRedact` runs after remarkFrontmatter — so the YAML block is already a
+ * node rather than prose — and before the user's own plugins, so a
+ * frontmatter-declared plugin cannot observe redacted content.
+ */
+export function remarkPluginsArray(userItems: string[], redact?: RedactPolicy): string {
+  // Always installed, never conditional on a flag being passed. Omitting it
+  // when no policy is given would mean a forgotten `--allow` publishes every
+  // classified region instead of failing — the exact fail-open this exists to
+  // prevent. With an empty policy a document carrying no regions is untouched
+  // and one carrying a region errors.
+  const defaults = [
+    'remarkFrontmatter',
+    'remarkGfm',
+    `[remarkAlert, { tagName: 'blockquote' }]`,
+    `[facetRedact, ${JSON.stringify(redact ?? { allow: {} })}]`,
+  ];
+  return `[${[...defaults, ...userItems].join(', ')}]`;
+}
+
+/** The mdx() `rehypePlugins` array source: always-on defaults plus user items. */
+export function rehypePluginsArray(userItems: string[]): string {
+  const mdxNodeTypes = [
+    'mdxFlowExpression',
+    'mdxJsxFlowElement',
+    'mdxJsxTextElement',
+    'mdxTextExpression',
+    'mdxjsEsm',
+  ];
+  const passThrough = mdxNodeTypes.map((type) => `'${type}'`).join(', ');
+  return `[[rehypeRaw, { passThrough: [${passThrough}] }]${userItems.length ? ', ' + userItems.join(', ') : ''}]`;
 }

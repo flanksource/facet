@@ -2,13 +2,13 @@
 
 Build beautiful, print-ready datasheets and PDFs from React templates.
 
-**@flanksource/facet** is a framework for creating professional datasheets, reports, and documentation using React components. It provides a rich component library optimized for print and PDF generation, along with a powerful CLI for building HTML and PDF outputs.
+**@flanksource/facet** is a framework for creating professional datasheets, reports, and documentation using React components. It provides a rich component library optimized for print and browser rendering, along with a powerful CLI for building HTML, PDF, and PNG outputs.
 
 ## Features
 
 - 📄 **Print-optimized components** - 47+ components designed for professional datasheets
 - 🎨 **React & TypeScript** - Full type safety and modern React patterns
-- 🔧 **Zero-config CLI** - Build HTML and PDF with a single command
+- 🔧 **Zero-config CLI** - Build HTML, PDF, and PNG with a single command
 - 🔗 **Component imports** - `import { StatCard } from '@flanksource/facet'`
 - ⚡ **Fast builds** - Powered by Vite with smart caching
 - 📦 **Isolated builds** - `.facet/` build directory (like `.next` in Next.js)
@@ -23,10 +23,11 @@ npm install -g @flanksource/facet-cli
 # or: pnpm add -g @flanksource/facet-cli
 ```
 
-This installs the `facet` command, which runs on your Node.js (>=18). Rendering
-additionally needs `pnpm` on PATH and, for PDF output, a system Chrome/Chromium —
-run `facet doctor` to check. For a Node-free environment, use the standalone
-binary below.
+This installs the `facet` command, which runs on your Node.js (>=20.19). Rendering
+uses `pnpm` to populate the shared module cache and reconcile project-specific
+dependencies. PDF output also needs a system Chrome/Chromium. Run `facet doctor`
+to check the environment. For a Node-free environment, use the standalone binary
+below.
 
 ### Option 2: Standalone binary
 
@@ -52,7 +53,7 @@ Create a file `MyDatasheet.tsx` in your project:
 ```tsx
 import React from 'react';
 import {
-  DatasheetTemplate,
+  Document,
   Header,
   Page,
   StatCard,
@@ -62,7 +63,7 @@ import {
 
 export default function MyDatasheet() {
   return (
-    <DatasheetTemplate>
+    <Document>
       <Header
         title="Mission Control Platform"
         subtitle="Cloud-Native Observability & Incident Management"
@@ -86,7 +87,7 @@ export default function MyDatasheet() {
           ]} />
         </Section>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }
 ```
@@ -255,7 +256,7 @@ Keep the fixture, iteration count, worker settings, and environment unchanged.
 
 ### Build Process
 
-**CLI mode** — `facet html` and `facet pdf` run the full pipeline locally:
+**CLI mode** — without a Facet server URL, `facet html` and `facet pdf` run the full pipeline locally:
 
 1. **Setup `.facet/`** — Creates an isolated build directory with symlinks to your sources
 2. **Generate configs** — Auto-generates `vite.config.ts`, `tsconfig.json`, `entry.tsx`
@@ -266,6 +267,8 @@ Keep the fixture, iteration count, worker settings, and environment unchanged.
 7. **PDF output** *(optional)* — Puppeteer prints the HTML to PDF, with optional encryption and digital signatures
 
 **Server mode** — `facet serve` wraps the same pipeline behind an HTTP API with a worker pool, LRU cache, optional S3 upload, and an interactive playground at `localhost:3010`.
+
+When `FACET_URL` or `--facet-url` is set, the CLI loads and validates data locally, uploads the template project to `/render`, downloads the result, and writes it to the normal local output path. The upload excludes Git metadata, dependencies, Facet caches, temporary files, and build output.
 
 
 
@@ -392,7 +395,7 @@ import { Diagram, BoxNode, Arrow } from '@flanksource/facet';
 For live templates, facet runs one extra headless-browser pass: it hydrates the
 SSR HTML, lets `react-xarrows` draw the arrows into the DOM, then captures the
 now-static HTML with arrows baked as plain SVG. That baked HTML flows through the
-unchanged HTML/PDF pipeline. The bake fails loudly if hydration never completes —
+unchanged HTML/PDF/PNG pipeline. The bake fails loudly if hydration never completes —
 there is no silent arrow-less fallback.
 
 This works in `facet html`, `facet pdf`, and `facet serve` (including the
@@ -400,6 +403,44 @@ playground). In the playground, pick **Live Diagram** from the **Example**
 dropdown to try it.
 
 ## CLI Commands
+
+### Remote rendering
+
+Set `FACET_URL` or pass the global `--facet-url` option to submit `html`, `pdf`, and `png` jobs to a Facet server. The explicit flag takes precedence over the environment variable.
+
+```bash
+FACET_URL=https://facet.example.com facet pdf MyDatasheet.tsx -d data.json -o report.pdf
+facet --facet-url https://facet.example.com html MyDatasheet.tsx -o ./dist/
+facet --facet-url https://facet.example.com png MyDatasheet.tsx --width 1200 --height 630
+```
+
+Remote mode requires `tar` locally but does not require local Chromium or pnpm. Data loaders and schema validation still run locally. The server controls sandboxing, module mode, and cache lifecycle, so `--sandbox`, `--skip-modules`, and `--clear-cache` fail when combined with a Facet URL. A server or network error stops the command without falling back to local rendering.
+
+### Shared modules
+
+`--skip-modules` is a global option and may appear before or after any subcommand:
+
+```bash
+facet --skip-modules html MyDatasheet.tsx -d data.json
+facet pdf MyDatasheet.tsx --skip-modules -o out.pdf
+facet serve --skip-modules --templates-dir ./templates
+```
+
+The first use installs a Facet-only module set pinned to the CLI version under
+`${FACET_CACHE_DIR:-~/.facet/cache}/modules/<facet-version>/<platform>-<arch>-node<abi>`.
+Later invocations link `.facet/node_modules` directly to that immutable entry, so
+they do not read consumer or nested `package.json` files, package-manager pins,
+lockfiles, overrides, `.npmrc`, or directory-based `FACET_PACKAGE_PATH` overrides.
+Templates that import additional packages must run without `--skip-modules`.
+Server requests containing `dependencies` receive HTTP 400 while the server uses
+this mode. `facet doctor --skip-modules --fix` verifies or rebuilds the exact
+shared entry selected by the current Facet and Node versions.
+
+Without `--skip-modules`, a new `.facet` install is seeded by cloning the shared
+`node_modules` directory on APFS, then reconciled against the generated project
+manifest with `pnpm install`. Facet logs and uses a fresh install when cloning is
+unavailable, including on non-macOS filesystems. `--clear-cache` clears only the
+project `.facet` scaffold; it does not remove the versioned shared module cache.
 
 ### `facet html <template>`
 
@@ -412,12 +453,14 @@ Options:
   --css-scope <prefix>         CSS scope prefix for scoped HTML generation
   -s, --schema <file>          Path to JSON Schema file for data validation
   --no-validate                Skip data validation
-  -d, --data <file>            Path to JSON data file
+  -d, --data <file>            Path to JSON or YAML data file
   -l, --data-loader <file>     Path to data loader module (.ts or .js)
   -o, --output <path>          Output file path or directory (default: "dist")
   --output-name-field <field>  Data field to use for output filename
   -v, --verbose                Enable verbose logging
 ```
+
+Facet automatically starts render-related child processes at below-normal scheduling priority so Vite, pnpm, data loaders, archive extraction, and Chromium yield resources to interactive OS workloads. It uses background task policy with niceness `+10` on macOS, niceness `+10` on Linux, and below-normal process priority on Windows.
 
 **Example:**
 ```bash
@@ -435,7 +478,7 @@ facet pdf [options] <template>
 Options:
   -s, --schema <file>          Path to JSON Schema file for data validation
   --no-validate                Skip data validation
-  -d, --data <file>            Path to JSON data file
+  -d, --data <file>            Path to JSON or YAML data file
   -l, --data-loader <file>     Path to data loader module (.ts or .js)
   -o, --output <path>          Output file path or directory (default: "dist")
   --output-name-field <field>  Data field to use for output filename
@@ -444,7 +487,52 @@ Options:
 
 **Example:**
 ```bash
-facet pdf MyDatasheet.tsx -d data.json -o out.pdf
+facet pdf IncidentReport.tsx -d incident.yaml -o incident.pdf
+```
+
+### `facet png <template>`
+
+Generate a PNG from a React template. Facet captures the selected element at its **natural rendered size** — the DOM is never resized or reflowed to fit an output box. The selector must match exactly one HTML or SVG element.
+
+`--width` / `--height` set the rasterization **scale**, not a canvas: Facet computes a scale factor from the element's natural size and renders the same layout at that pixel density, so text and vectors stay crisp. Passing both uses the smaller of the two ratios, preserving aspect ratio — the output is never padded to exactly `width × height`.
+
+Page layout is controlled separately by `--viewport`, which sets the browser viewport the template is laid out against.
+
+`--autocrop` trims the uniform background border off the capture, measured from painted pixels rather than DOM geometry — so it also removes whitespace *inside* the target, such as SVG `viewBox` padding or flex centering that no selector can exclude. Cropping happens before scaling, so `--width` sizes the cropped result, and the final image is still rasterized by the browser at that scale. `--autocrop-padding` re-adds a margin of background, clamped to the original capture: content already flush against an edge had no border to trim there, so none is invented. A capture that is a single flat colour is rejected — that almost always means the template rendered empty (a `Diagram` captured without `--live`, say).
+
+```
+facet png [options] <template>
+
+Options:
+  --width <pixels>             Scale the capture to this output width (default: natural size)
+  --height <pixels>            Scale the capture to this output height (default: natural size)
+  --selector <selector>        CSS selector for the capture target (default: "body")
+  --viewport <WxH>             Browser viewport used for layout (default: 1280x800)
+  --autocrop                   Trim the uniform background border off the capture
+  --autocrop-padding <pixels>  Background margin left around autocropped content (default: 0)
+  -s, --schema <file>          Path to JSON Schema file for data validation
+  --no-validate                Skip data validation
+  -d, --data <file>            Path to JSON or YAML data file
+  -l, --data-loader <file>     Path to data loader module (.ts or .js)
+  -o, --output <path>          Output file path or directory
+```
+
+**Examples:**
+```bash
+# Capture the diagram exactly as it renders
+facet png Diagram.tsx --selector '[data-facet-diagram]' -o preview.png
+
+# Same layout, rendered at 2000px wide (height follows the aspect ratio)
+facet png Diagram.tsx --selector '[data-facet-diagram]' --width 2000 -o preview@2x.png
+
+# Lay out at 1920x1080, then scale the capture up to 3840px wide
+facet png MyDatasheet.tsx --viewport 1920x1080 --width 3840 -o hero.png
+
+# Trim the surrounding whitespace away, leaving a 24px background margin
+facet png Diagram.tsx --live --autocrop --autocrop-padding 24 -o tight.png
+
+# Crop first, then scale the cropped content to 2000px wide
+facet png Diagram.tsx --live --autocrop --width 2000 -o hero@2x.png
 ```
 
 ### `facet serve`
@@ -484,6 +572,9 @@ facet serve --api-key my-secret-key
 
 # With S3 upload
 facet serve --s3-endpoint https://s3.amazonaws.com --s3-bucket my-bucket
+
+# Reuse the immutable Facet-only modules for every request
+facet serve --skip-modules --templates-dir ./templates
 ```
 
 The playground is available at `http://localhost:3010/` with a Monaco editor, live preview, and render logs. Use the **Example** dropdown to load a starting point:
@@ -594,6 +685,109 @@ This is **MDX content** with a React component:
 <StatCard label="Users" value="10,000+" />
 ```
 
+### Admonitions
+
+GitHub-style alerts work in both `.md` and `.mdx`. A blockquote whose first line
+is one of five labels renders as a coloured callout with its own icon and title:
+
+```markdown
+> [!NOTE]
+> Context worth noticing while skimming.
+
+> [!CAUTION]
+> Never include credentials or other secrets in generated reports.
+```
+
+| Syntax | Tone | Use for |
+|---|---|---|
+| `> [!NOTE]` | blue | Context worth noticing while skimming |
+| `> [!TIP]` | emerald | A better way to do the thing |
+| `> [!IMPORTANT]` | purple | Necessary to get the result |
+| `> [!WARNING]` | amber | Needs attention to avoid a problem |
+| `> [!CAUTION]` | red | Risk of data loss or a security hole |
+
+A plain `>` blockquote — or `> ` with a `.info` class in TSX — stays the untinted
+zinc aside.
+
+In MDX (and TSX) the same five tones are available as a component, which adds an
+identifier chip, a label override and an attribution for annotated documents:
+
+```mdx
+import { CalloutBox } from '@flanksource/facet';
+
+<CalloutBox variant="caution" badge="N14" label="Correction" source="Jonno">
+  The two enforcement checks cannot be implemented as written.
+</CalloutBox>
+```
+
+`<CalloutBox variant="caution">` and `> [!CAUTION]` render the same box, so a
+document can move between markdown and MDX without a visual seam. Pass
+`emphasis` for a full border instead of the left rule, for callouts that block
+rather than inform.
+
+`label` and `icon` are set independently of `variant`, which is what lets one
+tone carry several meanings. A review document can run amber "TODO", blue
+"Assumption" and purple "Open question" callouts off the five built-in tones
+without inventing new ones:
+
+```mdx
+<CalloutBox variant="warning" label="TODO" icon="important" badge="BCR-08">
+  Run the first tabletop exercise and retain the record.
+</CalloutBox>
+```
+
+`icon` names any tone's glyph and defaults to the variant's own. It also gives
+the untinted `default` callout an icon, which it otherwise never draws.
+
+## Classified regions
+
+A Markdown document can carry regions that only some outputs are permitted to
+include. Wrap them in `<Classified>` and declare, per build, which values are
+allowed:
+
+```markdown
+<Classified tier="Internal">
+
+Review notes that must not reach a customer.
+
+</Classified>
+```
+
+```bash
+facet pdf policy.md --allow tier=Public                     # region removed
+facet pdf policy.md --allow tier=Public,Internal            # region kept
+```
+
+`--allow` is repeatable and takes `<attribute>=<value[,value]>`. A region is kept
+only when **every** attribute it declares is permitted.
+
+Three properties are deliberate:
+
+- **Removal, not concealment.** Redaction runs on the Markdown AST before the
+  bundle is built, so the text is absent from the output *and* from the build
+  cache. Hiding a region with CSS leaves it in the file for anyone who looks.
+- **Membership, not ranking.** Permitted values are an explicit set, never a
+  threshold. A classification scheme need not be a total order — a tier can be
+  less sensitive than another yet reach a wider audience — and `level <= clearance`
+  quietly misfiles exactly those cases.
+- **Fail closed.** A region declaring an attribute with no `--allow` fails the
+  render. Forgetting the flag must never publish the content it was meant to
+  govern.
+
+Redaction applies to `.md` and `.mdx`. The policy is part of the build-cache key,
+so two audiences of one document never share a cached bundle, and it travels with
+`--facet-url` remote renders.
+
+The header row — `badge`, `label` and `source` — has **no plain-markdown form**.
+`> [!TYPE]` carries the tone and nothing else: its label is fixed to the tone
+name, and there is no slot for an identifier or an attribution. An annotated
+document that needs to say which note a callout is, and who raised it, has to
+use `.mdx` (or raw HTML in `.md`, which `rehype-raw` passes through).
+
+Note that plain `.md` is compiled with `format: 'md'`, which has no JSX — in a
+`.md` file the blockquote syntax is the only route to an admonition. Rename to
+`.mdx` to use components.
+
 MDX can also be imported into a TSX template when you need a custom layout:
 
 ```tsx
@@ -602,9 +796,9 @@ import Content from './content.mdx';
 
 export default function MyDatasheet() {
   return (
-    <DatasheetTemplate>
+    <Document>
       <Content />
-    </DatasheetTemplate>
+    </Document>
   );
 }
 ```
@@ -627,6 +821,13 @@ pnpm run storybook
 pnpm run build:cli
 ```
 
+To build the npm CLI package from the current checkout and replace any existing
+global `facet` command managed through npm's prefix:
+
+```bash
+task install
+```
+
 ### Publishing
 
 ```bash
@@ -640,7 +841,7 @@ npm publish
 - **`src/styles.css`** - Global styles and Tailwind
 - **`cli/`** - CLI package source
   - **`cli/src/builders/`** - Build orchestration
-  - **`cli/src/generators/`** - HTML/PDF generators
+  - **`cli/src/generators/`** - HTML/PDF/PNG generators
   - **`cli/src/utils/`** - Shared utilities
   - **`cli/src/plugins/`** - Vite plugins
 - **`assets/`** - Static assets (logos, icons)

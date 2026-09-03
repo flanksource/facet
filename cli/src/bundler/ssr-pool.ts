@@ -1,14 +1,15 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { selfExecBase } from '../utils/self-exec.js';
 import type { Logger } from '../utils/logger.js';
+import { spawnLowPriority } from '../utils/subprocess-priority.js';
 
 export interface PersistentLoaderRequest {
   facetRoot: string;
   cacheKey: string;
   data: Record<string, unknown>;
-  verbose?: boolean;
+  verbosity?: number;
 }
 
 export interface PersistentLoaderResult {
@@ -30,6 +31,11 @@ class SsrLoaderProcess {
   private exited = false;
   private idleTimer?: ReturnType<typeof setTimeout>;
   private lastUsedAt = Date.now();
+  private teeStderr = false;
+
+  enableStderrTee(): void {
+    this.teeStderr = true;
+  }
 
   constructor(
     readonly facetRoot: string,
@@ -37,13 +43,18 @@ class SsrLoaderProcess {
     private readonly onExit: () => void,
   ) {
     const [command, ...baseArgs] = selfExecBase();
-    this.child = spawn(command, [...baseArgs, `--facet-root=${facetRoot}`], {
-      cwd: facetRoot,
-      env: { ...process.env, FACET_LOADER: 'ssr-daemon' },
-      stdio: ['pipe', 'pipe', 'pipe'],
+    this.child = spawnLowPriority<ChildProcessWithoutNullStreams>({
+      command,
+      args: [...baseArgs, `--facet-root=${facetRoot}`],
+      options: {
+        cwd: facetRoot,
+        env: { ...process.env, FACET_LOADER: 'ssr-daemon' },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
     });
     this.child.stderr.on('data', (chunk: Buffer) => {
       this.stderr = (this.stderr + chunk.toString()).slice(-64 * 1024);
+      if (this.teeStderr) process.stderr.write(chunk);
     });
     createInterface({ input: this.child.stdout }).on('line', (line) => {
       let reply: Reply;
@@ -85,14 +96,14 @@ class SsrLoaderProcess {
     return this.lastUsedAt;
   }
 
-  request(data: Record<string, unknown>, cacheKey: string, verbose = false): Promise<PersistentLoaderResult> {
+  request(payload: Record<string, unknown>): Promise<PersistentLoaderResult> {
     if (this.exited) return Promise.reject(new Error('Persistent SSR loader is not running'));
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.lastUsedAt = Date.now();
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.child.stdin.write(`${JSON.stringify({ id, data, cacheKey, verbose })}\n`, (error) => {
+      this.child.stdin.write(`${JSON.stringify({ id, ...payload })}\n`, (error) => {
         if (!error) return;
         this.pending.delete(id);
         reject(error);
@@ -147,6 +158,24 @@ export async function runPersistentSsrLoader(
   request: PersistentLoaderRequest,
   logger: Logger,
 ): Promise<PersistentLoaderResult> {
+  const loader = await acquireLoader(request.facetRoot, logger);
+  const verbosity = request.verbosity ?? logger.verbosity();
+  if (verbosity >= 1) loader.enableStderrTee();
+  return loader.request({ data: request.data, cacheKey: request.cacheKey, verbosity });
+}
+
+/** Build post-process CSS on the facetRoot's warm daemon Vite. */
+export async function runPersistentCssBuild(
+  request: { facetRoot: string; content: string },
+  logger: Logger,
+): Promise<string> {
+  const loader = await acquireLoader(request.facetRoot, logger);
+  const result = await loader.request({ kind: 'css', content: request.content });
+  return result.css;
+}
+
+async function acquireLoader(facetRoot: string, logger: Logger): Promise<SsrLoaderProcess> {
+  const request = { facetRoot };
   let loader = loaders.get(request.facetRoot);
   if (!loader) {
     const maxLoaders = validEnvInteger('FACET_MAX_SSR_LOADERS', 4, 1);
@@ -199,7 +228,7 @@ export async function runPersistentSsrLoader(
   } else {
     unownedLoaders.add(request.facetRoot);
   }
-  return loader.request(request.data, request.cacheKey, request.verbose);
+  return loader;
 }
 
 export async function shutdownPersistentSsrLoaders(owner?: PersistentSsrLoaderOwner): Promise<void> {
