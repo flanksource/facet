@@ -135,10 +135,24 @@ export function resolveFacetPackageOverride(raw = process.env['FACET_PACKAGE_PAT
 export function wrapFacetStylesInLayer(css: string): string {
   const imports: string[] = [];
   let remaining = css;
-  const leadingImport = /^((?:\s|\/\*[\s\S]*?\*\/)*@import\s+(?:"[^"]*"|'[^']*'|url\([^)]*\))[^;]*;)\s*/;
-  for (let match = remaining.match(leadingImport); match; match = remaining.match(leadingImport)) {
-    imports.push(match[1].trim());
-    remaining = remaining.slice(match[0].length);
+  const importStatement = /^@import\s+(?:"[^"\r\n]*"|'[^'\r\n]*'|url\([^\r\n)]*\))[^;\r\n]*;/;
+  while (remaining.length > 0) {
+    let importStart = 0;
+    while (importStart < remaining.length) {
+      if (/\s/.test(remaining[importStart])) {
+        importStart++;
+        continue;
+      }
+      if (!remaining.startsWith('/*', importStart)) break;
+      const commentEnd = remaining.indexOf('*/', importStart + 2);
+      if (commentEnd < 0) break;
+      importStart = commentEnd + 2;
+    }
+
+    const match = remaining.slice(importStart).match(importStatement);
+    if (!match) break;
+    imports.push(remaining.slice(0, importStart + match[0].length).trim());
+    remaining = remaining.slice(importStart + match[0].length).trimStart();
   }
   if (/@import\s/.test(remaining)) {
     throw new Error('Facet styles contain an @import after style rules; CSS imports must precede all layered rules');

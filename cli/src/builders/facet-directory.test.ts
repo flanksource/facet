@@ -4,6 +4,7 @@ import { existsSync, symlinkSync, utimesSync, lstatSync, readlinkSync } from 'fs
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
+import { VERSION } from '../version-generated.js';
 import {
   FacetDirectory,
   localFacetBuildFingerprint,
@@ -11,6 +12,7 @@ import {
   needsLocalFacetCssBuild,
   resolveFacetPackageOverride,
   serializeInjectedData,
+  wrapFacetStylesInLayer,
 } from './facet-directory.js';
 
 let consumerRoot: string;
@@ -42,6 +44,17 @@ function newFacetDir(): FacetDirectory {
     logger,
   });
 }
+
+describe('wrapFacetStylesInLayer', () => {
+  it('keeps leading comments and imports outside the facet layer', () => {
+    const css = `${'/* / */\n'.repeat(1_000)}@import url("https://fonts.example/font.css");\nh1 { font-size: 22pt; }\n`;
+
+    const wrapped = wrapFacetStylesInLayer(css);
+
+    expect(wrapped).toContain('@import url("https://fonts.example/font.css");\n@layer theme');
+    expect(wrapped).toContain('@layer facet {\nh1 { font-size: 22pt; }\n}');
+  });
+});
 
 async function writeSentinels(deps: string[] = ['react', 'vite', '@vitejs/plugin-react', '@flanksource/facet']) {
   const nm = join(facetRoot, 'node_modules');
@@ -332,7 +345,7 @@ describe('FacetDirectory.generatePackageJson .npmrc', () => {
 
     const generated = JSON.parse(await readFile(join(facetRoot, 'package.json'), 'utf-8'));
     expect(generated.name).toBe('.facet-default-modules');
-    expect(generated.dependencies['@flanksource/facet']).toBe('0.1.59');
+    expect(generated.dependencies['@flanksource/facet']).toBe(VERSION);
     expect(generated.dependencies['custom-module']).toBeUndefined();
     expect(await readFile(join(facetRoot, '.npmrc'), 'utf-8')).not.toContain('Inherited from consumer');
   });

@@ -19,12 +19,14 @@ describe('buildPackage', () => {
     mkdirSync(join(repoRoot, 'dist'), { recursive: true });
     mkdirSync(join(repoRoot, 'node_modules', 'mermaid', 'dist'), { recursive: true });
     mkdirSync(join(repoRoot, 'postcss'), { recursive: true });
+    mkdirSync(join(repoRoot, 'remark'), { recursive: true });
     mkdirSync(templateDir, { recursive: true });
     writeFileSync(join(repoRoot, 'package.json'), JSON.stringify({ name: '@flanksource/facet', version: '1.0.0' }));
     writeFileSync(join(repoRoot, 'dist', 'styles.css'), '.compiled{}');
     writeFileSync(join(repoRoot, 'openapi.yaml'), 'openapi: 3.0.0');
     writeFileSync(join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'), 'window.mermaid={}');
     writeFileSync(join(repoRoot, 'postcss', 'facet-font-scale.mjs'), 'export default () => ({});');
+    writeFileSync(join(repoRoot, 'remark', 'facet-redact.mjs'), 'export default () => (tree) => tree;');
     const bundlePath = join(root, 'cli.cjs');
     writeFileSync(bundlePath, '#!/usr/bin/env node\nconsole.log(1)');
     writeFileSync(join(templateDir, 'package.json'), JSON.stringify({ name: '@flanksource/facet-cli', version: '0.0.0', bin: { facet: 'facet.cjs' } }));
@@ -41,6 +43,7 @@ describe('buildPackage', () => {
     // copying it out of assets; a package missing it fails the CSS build of
     // every consumer document rather than degrading.
     expect(existsSync(join(outDir, 'assets', 'facet-font-scale.mjs'))).toBe(true);
+    expect(existsSync(join(outDir, 'assets', 'facet-redact.mjs'))).toBe(true);
     expect(existsSync(join(outDir, 'README.md'))).toBe(true);
 
     const pkg = JSON.parse(readFileSync(join(outDir, 'package.json'), 'utf8'));
