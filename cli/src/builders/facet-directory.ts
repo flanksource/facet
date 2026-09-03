@@ -17,6 +17,7 @@ import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSyn
 import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname, sep } from 'path';
 import { homedir } from 'os';
+import { load as loadYAML } from 'js-yaml';
 import type { Logger } from '../utils/logger.js';
 import {
   generatePluginCodegen,
@@ -310,6 +311,29 @@ function resolveLocalProtocol(version: string, pkgDir: string): string {
     }
   }
   return version;
+}
+
+/**
+ * pnpm 11 moved `overrides` out of `package.json`'s `pnpm` field and into
+ * `pnpm-workspace.yaml`. A consumer on pnpm 11 therefore has overrides that are
+ * invisible to a reader that only looks at package.json — and because the
+ * staging install runs inside the consumer root, pnpm still *applies* them while
+ * the seeded lockfile knows nothing about them. That mismatch surfaces as
+ * ERR_PNPM_LOCKFILE_CONFIG_MISMATCH at install time.
+ *
+ * Reading them here keeps `.facet/package.json` agreeing with the pnpm that
+ * installs it, on both the pnpm 10 and pnpm 11 layouts.
+ */
+function readWorkspaceOverrides(consumerRoot: string): Record<string, unknown> | undefined {
+  const workspacePath = join(consumerRoot, 'pnpm-workspace.yaml');
+  if (!existsSync(workspacePath)) return undefined;
+
+  const workspace = loadYAML(readFileSync(workspacePath, 'utf-8'));
+  if (!workspace || typeof workspace !== 'object') return undefined;
+
+  const overrides = (workspace as { overrides?: unknown }).overrides;
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return undefined;
+  return overrides as Record<string, unknown>;
 }
 
 // Resolve every local-path protocol inside an overrides-shaped record
@@ -868,11 +892,19 @@ export default defineConfig(async () => {
           dependencies[name] = resolveFileProtocol(ver, this.consumerRoot, this.facetRoot);
         }
 
+        // pnpm 11 keeps overrides in pnpm-workspace.yaml; pnpm 10 kept them in
+        // package.json. Merge both, with package.json winning on a key present
+        // in each, so a consumer mid-migration behaves the way pnpm itself does.
+        const workspaceOverrides = readWorkspaceOverrides(this.consumerRoot);
         const consumerPnpm = consumerPackage.pnpm;
-        if (consumerPnpm && typeof consumerPnpm === 'object') {
-          const resolvedPnpmField = { ...consumerPnpm } as Record<string, unknown>;
-          if (resolvedPnpmField.overrides) {
-            resolvedPnpmField.overrides = resolveOverrideValues(resolvedPnpmField.overrides as Record<string, unknown>, this.consumerRoot);
+        if ((consumerPnpm && typeof consumerPnpm === 'object') || workspaceOverrides) {
+          const resolvedPnpmField = { ...(consumerPnpm ?? {}) } as Record<string, unknown>;
+          const merged = {
+            ...workspaceOverrides,
+            ...(resolvedPnpmField.overrides as Record<string, unknown> | undefined),
+          };
+          if (Object.keys(merged).length > 0) {
+            resolvedPnpmField.overrides = resolveOverrideValues(merged, this.consumerRoot);
           }
           pnpmField = resolvedPnpmField;
         }

@@ -440,6 +440,13 @@ async function installModules(root: string, logger?: Logger): Promise<string> {
     '--ignore-workspace',
     '--ignore-scripts',
     '--config.confirmModulesPurge=false',
+    // The staging lockfile is seeded from the shared module store, so it is
+    // legitimately out of date with the project manifest being installed and
+    // has to be re-resolved. `.npmrc` already asks for this, but the install
+    // runs with CI=true — which makes pnpm default frozen-lockfile to true —
+    // and pnpm 11 no longer lets the .npmrc entry win against it. A CLI flag
+    // does, on every version.
+    '--no-frozen-lockfile',
   ];
   try {
     await runProcess(manager.cmd, baseArgs, root, { ...process.env, CI: 'true' });
