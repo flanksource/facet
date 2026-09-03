@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * The five GitHub alert tones.
  *
