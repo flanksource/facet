@@ -40,6 +40,7 @@ describe('runDoctor JSON contract', () => {
       'tar',
       'tsx',
       'tailwindcss',
+      'sharp',
       'facet-package-path',
       'facet-version',
       'npmrc-leakage',

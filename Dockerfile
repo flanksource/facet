@@ -15,14 +15,14 @@ RUN apt-get update && apt-get install -y \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pnpm
-RUN npm install -g pnpm@9.15.9
+# Install the package-manager version pinned by package.json
+RUN npm install -g pnpm@11.22.0
 
 # Set working directory
 WORKDIR /app
 
 # Copy package files
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY cli/package.json cli/pnpm-lock.yaml ./cli/
 
 # Install dependencies
@@ -82,7 +82,7 @@ RUN apt-get update && apt-get install -y ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm (used by facet at runtime to install template dependencies)
-RUN npm install -g pnpm@9.15.9
+RUN npm install -g pnpm@11.22.0
 
 # Install sandbox-runtime for template execution isolation
 RUN npm install -g @anthropic-ai/sandbox-runtime
