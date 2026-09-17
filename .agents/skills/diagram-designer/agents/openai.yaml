@@ -1,0 +1,4 @@
+interface:
+  display_name: "Diagram Designer"
+  short_description: "Design Flanksource-style architecture diagrams rendered with facet html"
+  default_prompt: "Use $diagram-designer to create a diagram of ..."

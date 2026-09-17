@@ -1,0 +1,13 @@
+{
+  "name": "facet-skills",
+  "version": "0.1.0",
+  "description": "Claude Code skills for Facet — build beautiful PDF, HTML and PNG output from React and Markdown templates",
+  "author": {
+    "name": "Flanksource",
+    "url": "https://github.com/flanksource/facet"
+  },
+  "repository": "https://github.com/flanksource/facet",
+  "license": "Apache-2.0",
+  "keywords": ["facet", "pdf", "html", "png", "react", "markdown", "mdx", "diagrams", "reports", "datasheet", "print", "tailwind"],
+  "skills": ["./skills/facet-documents", "./skills/facet-cli", "./skills/diagram-designer"]
+}
