@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render } from '@testing-library/react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import Markdown, { renderMarkdown, markdownToPlainText, sanitizeHTML } from './Markdown';
 
 describe('Markdown', () => {
@@ -79,6 +80,20 @@ describe('Markdown', () => {
       const wrapper = container.firstElementChild as HTMLElement;
       expect(wrapper.className).toContain('facet-markdown');
       expect(wrapper.className).toContain('text-xs');
+    });
+
+    it('anchors the first parsed heading without admitting raw HTML ids', () => {
+      const { container } = render(
+        <Markdown firstHeadingId="section-1">{'## Introduction\n\nText.\n\n### Detail'}</Markdown>,
+      );
+      expect(container.querySelector('h2')?.id).toBe('section-1');
+      expect(container.querySelector('h3')?.id).toBe('');
+      expect(renderMarkdown('<h2 id="raw-id">Unsafe anchor</h2>')).toBe('<h2>Unsafe anchor</h2>');
+    });
+
+    it('rejects a heading anchor without a heading', () => {
+      expect(() => renderMarkdown('Plain text', { firstHeadingId: 'section-1' })).toThrow('first heading');
+      expect(() => renderToStaticMarkup(<Markdown firstHeadingId="section-1">{'   '}</Markdown>)).toThrow('first heading');
     });
   });
 

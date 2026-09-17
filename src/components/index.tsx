@@ -23,11 +23,15 @@ export { default as CapabilitySection } from './CapabilitySection';
 export { default as CompactTable } from './CompactTable';
 export type { TableSize } from './CompactTable';
 export { default as ComparisonTable } from './ComparisonTable';
+export { default as CoverPage } from './CoverPage';
+export type { CoverPageProps } from './CoverPage';
 export { default as DatasheetTemplate } from './DatasheetTemplate';
-export { Diagram, BoxNode, Arrow, variantProps, NodePill, NodeSection, SectionDivider, COLORS, COLORS as DIAGRAM_COLORS } from './diagram';
-export type { DiagramProps, IdFn, BoxNodeProps, ArrowProps, ArrowVariant, DiagramColors } from './diagram';
+export { Diagram, DiagreDiagram, BoxNode, Arrow, variantProps, FlowDiagram, FlowStepBadge, NodePill, NodeSection, SectionDivider, COLORS, COLORS as DIAGRAM_COLORS } from './diagram';
+export type { DiagramProps, DiagreDiagramProps, DiagramDirection, DiagramGap, IdFn, BoxNodeProps, BoxNodePort, PortPosition, ArrowProps, ArrowVariant, ArrowLabelPosition, FlowDiagramProps, FlowEdge, FlowEdgeVariant, FlowIcon, FlowLane, FlowLaneKind, FlowLegendKey, FlowLegendLabels, FlowOffset, FlowStep, FlowStepBadgeProps, FlowStepTag, DiagramColors } from './diagram';
 export { default as Document, useDocumentDefaults } from './Document';
 export type { DocumentProps, DocumentDefaults } from './Document';
+export { default as DocumentFields } from './DocumentFields';
+export type { DocumentField, DocumentFieldsProps } from './DocumentFields';
 export { default as DynamicTable, formatCellValue } from './DynamicTable';
 export type { ColumnDef, ColumnType, CellAttributes, GaugeConfig, GaugeThreshold, DynamicTableProps } from './DynamicTable';
 export { default as FeatureLayout } from './FeatureLayout';
@@ -84,6 +88,13 @@ export { default as StatCard } from './StatCard';
 export { Status } from './Status';
 export { Steps } from './Steps';
 export { default as SyntaxHighlighter } from './SyntaxHighlighter';
+export { default as TableOfContents } from './TableOfContents';
+export type {
+  AutomaticTableOfContentsItem,
+  ExplicitTableOfContentsItem,
+  TableOfContentsItem,
+  TableOfContentsProps,
+} from './TableOfContents';
 export { default as TaskSummarySection } from './TaskSummarySection';
 export { default as TerminalOutput } from './TerminalOutput';
 export { default as TwoColumnSection } from './TwoColumnSection';

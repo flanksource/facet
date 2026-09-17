@@ -14,6 +14,8 @@ export interface MarkdownProps {
    * Useful for table cells and summary rows.
    */
   inline?: boolean;
+  /** Trusted id applied to the first parsed heading, for PDF table-of-contents targets. */
+  firstHeadingId?: string;
 }
 
 // Inline formatting survives everywhere; block tags only outside inline mode.
@@ -243,15 +245,26 @@ export function sanitizeHTML(html: string, options?: { inline?: boolean }): stri
  * Renders markdown to sanitized HTML. Never throws: if the source cannot be
  * parsed it is returned as escaped text so the surrounding page still renders.
  */
-export function renderMarkdown(source: string, options?: { inline?: boolean }): string {
+export function renderMarkdown(source: string, options?: { inline?: boolean; firstHeadingId?: string }): string {
+  let html: string;
   try {
     const parsed = options?.inline
       ? marked.parseInline(source, { async: false, gfm: true })
       : marked.parse(source, { async: false, gfm: true, breaks: true });
-    return sanitizeHTML(parsed as string, { inline: options?.inline });
+    html = sanitizeHTML(parsed as string, { inline: options?.inline });
   } catch {
-    return escapeHTML(source);
+    html = escapeHTML(source);
   }
+
+  if (options?.firstHeadingId !== undefined) {
+    if (options.inline || !/^[A-Za-z][A-Za-z0-9_.:-]*$/.test(options.firstHeadingId)) {
+      throw new Error(`Invalid first heading id "${options.firstHeadingId}"`);
+    }
+    const anchored = html.replace(/<h([1-6])>/, `<h$1 id="${options.firstHeadingId}">`);
+    if (anchored === html) throw new Error(`Markdown has no first heading for id "${options.firstHeadingId}"`);
+    return anchored;
+  }
+  return html;
 }
 
 /**
@@ -269,11 +282,11 @@ export function markdownToPlainText(source: string): string {
     .trim();
 }
 
-export default function Markdown({ children, className, inline }: MarkdownProps) {
+export default function Markdown({ children, className, inline, firstHeadingId }: MarkdownProps) {
   const source = typeof children === 'string' ? children : '';
   const html = React.useMemo(
-    () => (source.trim() ? renderMarkdown(source, { inline }) : ''),
-    [source, inline],
+    () => renderMarkdown(source, { inline, firstHeadingId }),
+    [source, inline, firstHeadingId],
   );
 
   if (!html) return null;
