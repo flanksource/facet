@@ -79,7 +79,10 @@ function regionParts(node, element, inline = false) {
     return [{ kind: 'element', attributes, inline, node }];
   }
   if (node.type === 'html') return htmlRegionParts(node, element, inline);
-  if (Array.isArray(node.children)) {
+  // A node that never had children — a self-closing MDX component such as
+  // `<Diagram />` — holds no region boundary to split on. Descending would
+  // rebuild it from an empty child list, and the flush below drops it.
+  if (Array.isArray(node.children) && node.children.length > 0) {
     const parts = [];
     let children = [];
     const flush = () => {
