@@ -1,5 +1,5 @@
 import {
-  DatasheetTemplate,
+  Document,
   Page,
   Badge,
   Status,
@@ -52,7 +52,7 @@ const WRAPPING_BADGES = [
 
 export default function BadgeExamples() {
   return (
-    <DatasheetTemplate title="Badge & Icon Examples" css="">
+    <Document title="Badge & Icon Examples" css="">
       <FlanksourceHeader variant="solid" title="Component Showcase" subtitle="Badges" />
       <FlanksourceFooter variant="compact" />
 
@@ -312,6 +312,6 @@ export default function BadgeExamples() {
           </div>
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }

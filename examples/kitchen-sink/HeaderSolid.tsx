@@ -1,5 +1,5 @@
 import {
-  DatasheetTemplate,
+  Document,
   Page,
   CompactTable,
   SpecificationTable,
@@ -12,7 +12,7 @@ import { specifications as specs, infrastructureData, releaseData } from './data
 
 export default function HeaderSolid() {
   return (
-    <DatasheetTemplate>
+    <Document>
       {/* Tall hero header for the cover page: 30mm band, 20mm logo */}
       <FlanksourceHeader
         type="first"
@@ -82,6 +82,6 @@ export default function HeaderSolid() {
           ]} />
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }

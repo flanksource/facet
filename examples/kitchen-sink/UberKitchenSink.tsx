@@ -1,6 +1,6 @@
 import {
   AIModelCard,
-  DatasheetTemplate,
+  Document,
   Page,
   Section,
   StatCard,
@@ -99,7 +99,7 @@ const BADGE_FIELD_VALUE_EXAMPLES = [
 
 export default function UberKitchenSink() {
   return (
-    <DatasheetTemplate title="Facet Kitchen Sink" css="">
+    <Document title="Facet Kitchen Sink" css="">
       <FlanksourceHeader variant="solid" title="Kitchen Sink" subtitle="Component Showcase" />
       <FlanksourceFooter variant="default" />
 
@@ -638,6 +638,6 @@ export default function UberKitchenSink() {
           <SpecificationTable title="Technical Specs (base)" specifications={specifications} size="base" />
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }

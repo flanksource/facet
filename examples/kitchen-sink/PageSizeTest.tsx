@@ -1,4 +1,4 @@
-import { DatasheetTemplate, Page, Header, Footer, type PageSize } from '@flanksource/facet';
+import { Document, Page, Header, Footer, type PageSize } from '@flanksource/facet';
 
 const HEADER_HEIGHT = 15;
 const FOOTER_HEIGHT = 10;
@@ -18,7 +18,7 @@ const pages: { size: PageSize; label: string; dims: string; bg: string }[] = [
 
 export default function PageSizeTest() {
   return (
-    <DatasheetTemplate title="Page Size Test" css="">
+    <Document title="Page Size Test" css="">
       <Header type="default" height={HEADER_HEIGHT} style={{ padding: 0 }}>
         <div className="datasheet-header" style={{ background: '#0066CC', padding: '3mm 10mm', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%' }}>
           <span style={{ color: 'white', fontWeight: 'bold', fontSize: '12pt' }}>BLUE HEADER ({HEADER_HEIGHT}mm)</span>
@@ -44,6 +44,6 @@ export default function PageSizeTest() {
           </div>
         </Page>
       ))}
-    </DatasheetTemplate>
+    </Document>
   );
 }

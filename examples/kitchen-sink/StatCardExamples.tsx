@@ -1,5 +1,5 @@
 import {
-  DatasheetTemplate,
+  Document,
   Page,
   StatCard,
   MetricGrid,
@@ -17,7 +17,7 @@ import FlanksourceFooter from './FlanksourceFooter';
 
 export default function StatCardExamples() {
   return (
-    <DatasheetTemplate title="StatCard Examples" css="">
+    <Document title="StatCard Examples" css="">
       <FlanksourceHeader variant="solid" title="Component Showcase" subtitle="StatCard" />
       <FlanksourceFooter variant="compact" />
 
@@ -116,6 +116,6 @@ export default function StatCardExamples() {
           </div>
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }
