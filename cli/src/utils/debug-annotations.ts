@@ -164,16 +164,25 @@ export function hasSpecificFontSizeSelector(matchedSelectors: string[]): boolean
   return matchedSelectors.some(selector => !/^[a-zA-Z][\w-]*$/.test(selector.trim()));
 }
 
-/** One heading/paragraph label: its computed size, and its drift note if any. */
-function headingLabel(probe: TypographyProbe & { actualPt: number }, scale: number): string {
+export interface TypographyDebugProbe extends TypographyProbe {
+  actualPt: number;
+  lineHeightPt: number;
+  marginTopMm: number;
+  marginBottomMm: number;
+}
+
+/** One heading/paragraph label: computed type metrics plus font-size drift. */
+export function formatTypographyDebugLabel(probe: TypographyDebugProbe, scale = 1): string {
   const expected = expectedFontPoints(probe, scale);
-  const size = `${probe.actualPt.toFixed(1)}pt`;
+  const font = `font=${probe.actualPt.toFixed(1)}pt`;
   // Compare as numbers. This used to compare the formatted string against a
   // literal without a decimal, so a correct 22pt heading read "22.0pt" against
   // "22pt" and never matched — every element was annotated `expected=`,
   // whether right or wrong, which made the flag say nothing.
-  if (expected == null || Math.abs(probe.actualPt - expected) <= 0.05) return size;
-  return `${size} expected=${Number(expected.toFixed(2))}pt`;
+  const size = expected == null || Math.abs(probe.actualPt - expected) <= 0.05
+    ? font
+    : `${font} expected=${Number(expected.toFixed(2))}pt`;
+  return `${size} line=${probe.lineHeightPt.toFixed(1)}pt space=${probe.marginTopMm.toFixed(1)}/${probe.marginBottomMm.toFixed(1)}mm`;
 }
 
 export async function injectDebugAnnotations(page: Page, scale = 1): Promise<void> {
@@ -215,19 +224,25 @@ export async function injectDebugAnnotations(page: Page, scale = 1): Promise<voi
       try { collect(sheet.cssRules); } catch { /* not readable */ }
     });
 
-    return Array.from(document.querySelectorAll('h1, h2, h3, h4, p')).map((el) => ({
-      tagName: el.tagName,
-      classNames: Array.from(el.classList),
-      hasInlineFontSize: !!(el as HTMLElement).style?.fontSize,
-      actualPt: parseFloat(window.getComputedStyle(el).fontSize) * 72 / 96,
-      skip: !!el.closest('.debug-annotation'),
-      matchedSelectors: fontSizeSelectors.filter((selector) => {
-        try { return !!selector && el.matches(selector); } catch { return false; }
-      }),
-    }));
+    return Array.from(document.querySelectorAll('h1, h2, h3, h4, p')).map((el) => {
+      const style = window.getComputedStyle(el);
+      return {
+        tagName: el.tagName,
+        classNames: Array.from(el.classList),
+        hasInlineFontSize: !!(el as HTMLElement).style?.fontSize,
+        actualPt: parseFloat(style.fontSize) * 72 / 96,
+        lineHeightPt: parseFloat(style.lineHeight) * 72 / 96,
+        marginTopMm: parseFloat(style.marginTop) * 25.4 / 96,
+        marginBottomMm: parseFloat(style.marginBottom) * 25.4 / 96,
+        skip: !!el.closest('.debug-annotation'),
+        matchedSelectors: fontSizeSelectors.filter((selector) => {
+          try { return !!selector && el.matches(selector); } catch { return false; }
+        }),
+      };
+    });
   });
 
-  const labels = probes.map(probe => (probe.skip ? null : headingLabel({
+  const labels = probes.map(probe => (probe.skip ? null : formatTypographyDebugLabel({
     ...probe,
     hasSpecificFontSizeRule: hasSpecificFontSizeSelector(probe.matchedSelectors),
   }, scale)));
@@ -274,9 +289,11 @@ export async function injectDebugAnnotations(page: Page, scale = 1): Promise<voi
       return div;
     };
 
-    // Annotate first occurrence of each unique font size per page
+    // Annotate the first occurrence of each unique size/leading pair per page.
+    // Block spacing is reported on headings and paragraphs above; treating every
+    // generic margin variant as distinct floods dense component pages with labels.
     document.querySelectorAll('[data-page-size]').forEach((pageEl) => {
-      const seenSizes = new Set<string>();
+      const seenMetrics = new Set<string>();
       const walker = document.createTreeWalker(pageEl, NodeFilter.SHOW_ELEMENT);
       let el: Element | null;
       while ((el = walker.nextNode() as Element | null)) {
@@ -285,28 +302,29 @@ export async function injectDebugAnnotations(page: Page, scale = 1): Promise<voi
         if (!el.textContent?.trim()) continue;
         const s = window.getComputedStyle(el);
         const size = pxToPt(s.fontSize);
-        if (!seenSizes.has(size)) {
-          seenSizes.add(size);
-          el.appendChild(makeLabel(size));
+        const metrics = `font=${size} line=${pxToPt(s.lineHeight)}`;
+        if (!seenMetrics.has(metrics)) {
+          seenMetrics.add(metrics);
+          el.appendChild(makeLabel(metrics));
         }
       }
     });
 
     document.querySelectorAll('table').forEach((table) => {
       const ts = window.getComputedStyle(table);
-      const tableInfo = `table: font=${pxToPt(ts.fontSize)} collapse=${ts.borderCollapse} w=${pxToMm(ts.width)}`;
+      const tableInfo = `table: font=${pxToPt(ts.fontSize)} line=${pxToPt(ts.lineHeight)} collapse=${ts.borderCollapse} w=${pxToMm(ts.width)}`;
       table.parentNode?.insertBefore(makeBlockLabel(tableInfo), table);
 
       const firstTh = table.querySelector('th');
       if (firstTh) {
         const ths = window.getComputedStyle(firstTh);
-        firstTh.appendChild(makeLabel(`th: ${pxToPt(ths.fontSize)} pad=${pxToMm(ths.padding)} bg=${ths.backgroundColor}`));
+        firstTh.appendChild(makeLabel(`th: ${pxToPt(ths.fontSize)} line=${pxToPt(ths.lineHeight)} pad=${pxToMm(ths.padding)} bg=${ths.backgroundColor}`));
       }
 
       const firstTd = table.querySelector('td');
       if (firstTd) {
         const tds = window.getComputedStyle(firstTd);
-        firstTd.appendChild(makeLabel(`td: ${pxToPt(tds.fontSize)} pad=${pxToMm(tds.padding)}`));
+        firstTd.appendChild(makeLabel(`td: ${pxToPt(tds.fontSize)} line=${pxToPt(tds.lineHeight)} pad=${pxToMm(tds.padding)}`));
       }
     });
   });

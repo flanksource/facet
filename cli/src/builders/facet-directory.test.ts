@@ -222,7 +222,7 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
     expect(config).toContain("new RegExp('^@iconify/')");
   });
 
-  it('transforms consumer Markdown before Vite parses files outside the generated .facet directory', async () => {
+  it('transforms consumer Markdown while leaving raw imports to Vite', async () => {
     const dir = newFacetDir();
     dir.generateViteConfig();
     dir.generateClientScaffold({});
@@ -233,6 +233,8 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
     ])) {
       expect(config).toContain("enforce: 'pre'");
       expect(config).toContain('include: [/\\.(md|mdx)$/]');
+      expect(config).toContain('exclude: [/\\?raw(?:&|$)/]');
+      expect(config).toContain('if (/(?:\\?|&)raw(?:&|$)/.test(id)) return null;');
     }
   });
 });

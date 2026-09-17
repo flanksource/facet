@@ -27,7 +27,16 @@ const CONFLICT_GROUPS: [string, RegExp][] = [
   ['w', /^w-/],
   ['h', /^h-/],
   ['rounded', /^rounded(-|$)/],
-  ['bg', /^bg-/],
+  ['background-image', /^bg-(none|gradient-to-(t|tr|r|br|b|bl|l|tl)|\[(image:|url\(|(repeating-)?(linear|radial|conic)-gradient))/],
+  ['background-size', /^bg-(auto|cover|contain|\[length:)/],
+  ['background-position', /^bg-(bottom|center|left(-bottom|-top)?|right(-bottom|-top)?|top|\[position:)/],
+  ['background-repeat', /^bg-(repeat(-x|-y|-round|-space)?|no-repeat)$/],
+  ['background-attachment', /^bg-(fixed|local|scroll)$/],
+  ['background-clip', /^bg-clip-/],
+  ['background-origin', /^bg-origin-/],
+  ['background-blend', /^bg-blend-/],
+  ['background-opacity', /^bg-opacity-/],
+  ['background-color', /^bg-/],
   ['border-color', /^border-(gray|red|green|blue|yellow|slate|zinc|neutral|stone|orange|amber|lime|emerald|teal|cyan|sky|indigo|violet|purple|fuchsia|pink|rose)-/],
 ];
 
@@ -54,6 +63,7 @@ export const conflictingTailwind: LintRule = {
               const existing = groups.get(groupName) || [];
               existing.push(cls);
               groups.set(groupName, existing);
+              break;
             }
           }
         }

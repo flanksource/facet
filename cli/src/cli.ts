@@ -289,7 +289,7 @@ addSharedOptions(
     .description('Generate PDF from one or more templates')
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
-    .option('--debug', 'Add colored debug overlay lines for header/footer zones')
+    .option('--debug', 'Add layout guides and font, line-height, and block-spacing annotations')
     .option('--debug-typography', 'Append a font-size reference page to the PDF')
     .option('--page-size <size>', 'Default page size (a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k)', 'a4')
     .option('--landscape', 'Use landscape orientation')

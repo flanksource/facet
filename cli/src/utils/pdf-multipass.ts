@@ -1,6 +1,6 @@
 import { writeFileSync } from 'fs';
 import * as zlib from 'zlib';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRef, rgb, StandardFonts } from 'pdf-lib';
 import type { Browser, BrowserContext, Page } from 'puppeteer-core';
 
 type PageProvider = Browser | BrowserContext;
@@ -40,8 +40,17 @@ export function resolvePageSize(name: string): PageSizeDimensions {
   return PAGE_SIZES[name.toLowerCase()] ?? PAGE_SIZES.a4;
 }
 
+export function resolveElementPageSize(pageSize: string | null | undefined, defaultPageSize?: string): string {
+  return (pageSize || defaultPageSize || 'a4').toLowerCase();
+}
+
 export function mmToPx(mm: number): number {
   return Math.round(mm * 96 / 25.4);
+}
+
+export function printableHeightCss(pageHeightMm: number, topMm: number, bottomMm: number): string {
+  const printable = pageHeightMm - topMm - bottomMm - 0.5;
+  return `:root { --facet-printable-height: ${printable}mm; }`;
 }
 
 export interface TypeDefinition {
@@ -78,8 +87,8 @@ interface RawDetectResult {
   }>;
 }
 
-export async function detectPageTypes(page: Page, overridePageSize?: string): Promise<PageTypeInfo | null> {
-  return page.evaluate((override: string | null): RawDetectResult | null => {
+export async function detectPageTypes(page: Page, defaultPageSize?: string): Promise<PageTypeInfo | null> {
+  return page.evaluate((): RawDetectResult | null => {
     const headerEls = document.querySelectorAll('[data-header-type]');
     const footerEls = document.querySelectorAll('[data-footer-type]');
     if (headerEls.length === 0 && footerEls.length === 0) return null;
@@ -90,7 +99,7 @@ export async function detectPageTypes(page: Page, overridePageSize?: string): Pr
     const pageMargins: { top: number; right: number; bottom: number; left: number }[] = [];
     pageEls.forEach(el => {
       types.push(el.getAttribute('data-page-type') || 'default');
-      pageSizes.push(override ?? (el.getAttribute('data-page-size') || 'a4').toLowerCase());
+      pageSizes.push(el.getAttribute('data-page-size') || '');
       pageMargins.push({
         top: parseInt(el.getAttribute('data-margin-top') || '0', 10),
         right: parseInt(el.getAttribute('data-margin-right') || '0', 10),
@@ -121,7 +130,7 @@ export async function detectPageTypes(page: Page, overridePageSize?: string): Pr
     });
 
     return { types, pageSizes, pageMargins, definitions: defs };
-  }, overridePageSize ?? null).then(raw => {
+  }).then(raw => {
     if (!raw) return null;
     const definitions = new Map<PageType, TypeDefinition>();
     const details: string[] = [];
@@ -131,7 +140,7 @@ export async function detectPageTypes(page: Page, overridePageSize?: string): Pr
     }
     return {
       types: raw.types as PageType[],
-      pageSizes: raw.pageSizes,
+      pageSizes: raw.pageSizes.map(pageSize => resolveElementPageSize(pageSize, defaultPageSize)),
       pageMargins: raw.pageMargins,
       definitions,
       heightDetails: details,
@@ -152,8 +161,12 @@ export function buildPageGroups(typeInfo: PageTypeInfo): PageGroup[] {
   for (let i = 0; i < typeInfo.types.length; i++) {
     const type = typeInfo.types[i];
     const size = typeInfo.pageSizes[i] ?? 'a4';
+    const margins = typeInfo.pageMargins[i];
     const last = groups[groups.length - 1];
-    if (last && last.type === type && last.size === size) {
+    const lastMargins = last && typeInfo.pageMargins[last.elementIndices[0]];
+    const hasSameHorizontalMargins = margins?.left === lastMargins?.left
+      && margins?.right === lastMargins?.right;
+    if (last && last.type === type && last.size === size && hasSameHorizontalMargins) {
       last.elementIndices.push(i);
     } else {
       groups.push({ type, size, elementIndices: [i] });
@@ -261,6 +274,8 @@ export function scaledHeight(baseMm: number, scale: number): number {
 export interface OverlayPdfs {
   headers: Map<string, Buffer>;
   footers: Map<string, Buffer>;
+  headersWithPlaceholders: Set<string>;
+  footersWithPlaceholders: Set<string>;
 }
 
 export function pageSizesForType(types: PageType[], pageSizes: string[], type: PageType): string[] {
@@ -279,6 +294,8 @@ export async function renderHeaderFooterPdfs(
 ): Promise<OverlayPdfs> {
   const headers = new Map<string, Buffer>();
   const footers = new Map<string, Buffer>();
+  const headersWithPlaceholders = new Set<string>();
+  const footersWithPlaceholders = new Set<string>();
   const sourcePage = await browser.newPage();
   await setPreparedContent(sourcePage, html);
 
@@ -312,6 +329,9 @@ export async function renderHeaderFooterPdfs(
           headers.set(key, await renderElementPdf(
             browser, headerHtml, headerSelector, h, dims.width, debugPath,
           ));
+          if (headerHtml.includes(PAGE_MARKER) || headerHtml.includes(TOTAL_MARKER)) {
+            headersWithPlaceholders.add(key);
+          }
         }
         if (footerHtml) {
           const h = scaledHeight(def.footerHeight, scale);
@@ -319,10 +339,13 @@ export async function renderHeaderFooterPdfs(
           footers.set(key, await renderElementPdf(
             browser, footerHtml, footerSelector, h, dims.width, debugPath,
           ));
+          if (footerHtml.includes(PAGE_MARKER) || footerHtml.includes(TOTAL_MARKER)) {
+            footersWithPlaceholders.add(key);
+          }
         }
       }
     }
-    return { headers, footers };
+    return { headers, footers, headersWithPlaceholders, footersWithPlaceholders };
   } finally {
     await sourcePage.close();
   }
@@ -553,15 +576,13 @@ export async function compositeHeaderFooter(
   const headerHasPlaceholders = new Map<string, boolean>();
   const footerHasPlaceholders = new Map<string, boolean>();
 
-  const htmlHasTokens = html ? (html.includes(PAGE_MARKER) || html.includes(TOTAL_MARKER)) : false;
-
   for (const [key, buf] of overlays.headers) {
-    const has = htmlHasTokens || bufferHasPlaceholders(buf);
+    const has = overlays.headersWithPlaceholders.has(key);
     headerHasPlaceholders.set(key, has);
     if (!has) embeddedHeaders.set(key, await embedOverlay(doc, buf));
   }
   for (const [key, buf] of overlays.footers) {
-    const has = htmlHasTokens || bufferHasPlaceholders(buf);
+    const has = overlays.footersWithPlaceholders.has(key);
     footerHasPlaceholders.set(key, has);
     if (!has) embeddedFooters.set(key, await embedOverlay(doc, buf));
   }
@@ -651,12 +672,30 @@ export async function assembleGroups(
   const pageSizeMap: string[] = [];
   const pageMarginMap: PageMargins[] = [];
   const defaultMargin: PageMargins = { top: 0, right: 0, bottom: 0, left: 0 };
+  const mergedDestinations = merged.context.obj({}) as PDFDict;
 
   for (const result of results) {
     const { group, pageCount } = result;
     const srcDoc = await PDFDocument.load(result.buffer);
     const indices = Array.from({ length: pageCount }, (_, i) => i);
     const copiedPages = await merged.copyPages(srcDoc, indices);
+    const sourceDestinations = srcDoc.catalog.lookup(PDFName.of('Dests'));
+    if (sourceDestinations !== undefined && !(sourceDestinations instanceof PDFDict)) {
+      throw new Error('Source PDF has an invalid named-destinations dictionary');
+    }
+    if (sourceDestinations instanceof PDFDict) {
+      const copiedRefs = new Map(srcDoc.getPages().map((page, index) => [page.ref.toString(), copiedPages[index].ref]));
+      for (const [name, value] of sourceDestinations.entries()) {
+        const destination = srcDoc.context.lookup(value);
+        if (!(destination instanceof PDFArray) || mergedDestinations.has(name)) {
+          throw new Error(`Invalid or duplicate named destination ${name.toString()}`);
+        }
+        const sourceRef = destination.get(0);
+        const copiedRef = sourceRef instanceof PDFRef ? copiedRefs.get(sourceRef.toString()) : undefined;
+        if (!copiedRef) throw new Error(`Named destination ${name.toString()} has no copied page`);
+        mergedDestinations.set(name, merged.context.obj([copiedRef, ...destination.asArray().slice(1)]));
+      }
+    }
     const elemMargin = typeInfo?.pageMargins?.[group.elementIndices[0]] ?? defaultMargin;
     for (const copiedPage of copiedPages) {
       merged.addPage(copiedPage);
@@ -671,6 +710,7 @@ export async function assembleGroups(
     log.info(`  Group ${group.type}/${group.size} (${group.elementIndices.length} elements): ${pageCount} pages (${width.toFixed(0)}x${height.toFixed(0)}pt)`);
   }
 
+  if (mergedDestinations.keys().length > 0) merged.catalog.set(PDFName.of('Dests'), mergedDestinations);
   log.info(`Assembled PDF: ${merged.getPageCount()} pages from ${results.length} groups`);
   return { buffer: await merged.save(), pageMap, pageSizeMap, pageMarginMap };
 }
@@ -1018,4 +1058,3 @@ export async function appendDebugFontPage(
   page.drawText('facet --debug-typography', { x: margin, y: 20, size: 7, font, color: gray });
   return doc.save();
 }
-

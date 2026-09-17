@@ -1,4 +1,4 @@
-import type { Page } from 'puppeteer-core';
+import type { HTTPRequest, HTTPResponse, Page } from 'puppeteer-core';
 import { assetPath } from './assets.js';
 
 export interface PageReadinessOptions {
@@ -98,7 +98,35 @@ export async function setPreparedContent(
   options: PageReadinessOptions = {},
 ): Promise<void> {
   const timeoutMs = options.timeoutMs ?? 30_000;
-  await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-  await renderMermaidInPage(page);
-  await waitForPageReady(page, options);
+  const failedAssets = new Set<string>();
+  const trackRequestFailure = (request: HTTPRequest) => {
+    if (request.resourceType() === 'stylesheet' || request.resourceType() === 'font') {
+      failedAssets.add(`${request.resourceType()} (${request.failure()?.errorText ?? 'network error'})`);
+    }
+  };
+  const trackResponseFailure = (response: HTTPResponse) => {
+    const resource = response.request().resourceType();
+    if ((resource === 'stylesheet' || resource === 'font') && response.status() >= 400) {
+      failedAssets.add(`${resource} (HTTP ${response.status()})`);
+    }
+  };
+  page.on('requestfailed', trackRequestFailure);
+  page.on('response', trackResponseFailure);
+  try {
+    await page.setContent(html, { waitUntil: 'load', timeout: timeoutMs });
+    await renderMermaidInPage(page);
+    await waitForPageReady(page, options);
+    const failedFonts = await page.evaluate(() => {
+      const families: string[] = [];
+      document.fonts.forEach((font) => {
+        if (font.status === 'error') families.push(font.family);
+      });
+      return families;
+    });
+    if (failedFonts.length > 0) failedAssets.add(`font faces (${failedFonts.join(', ')})`);
+    if (failedAssets.size > 0) throw new Error(`Page resources failed to load: ${[...failedAssets].join(', ')}`);
+  } finally {
+    page.off('requestfailed', trackRequestFailure);
+    page.off('response', trackResponseFailure);
+  }
 }

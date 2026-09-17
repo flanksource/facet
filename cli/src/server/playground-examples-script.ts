@@ -421,6 +421,12 @@ drop it inline. The heading above pulls its text from the Data tab.
         automaticLayout: true,
       });
 
+      // Any edit invalidates what the preview is showing, so the pane blanks
+      // rather than displaying a render of source that no longer exists.
+      [templateEditor, headerEditor, footerEditor, dataEditor, depsEditor].forEach(function(editor) {
+        editor.onDidChangeModelContent(markPreviewStale);
+      });
+
       // The example dropdown was already set from the URL in initUrlRouting; now
       // that the editors exist, swap in that example's content (datasheet is the
       // default already loaded, so it needs no swap).
@@ -449,6 +455,9 @@ drop it inline. The heading above pulls its text from the Data tab.
       currentExt = ex.ext;
       var model = templateEditor.getModel();
       if (model) monaco.editor.setModelLanguage(model, ex.lang);
+      // setValue above already fires the change listeners, but a swap that
+      // produced identical text would not, so mark it explicitly.
+      markPreviewStale();
       writeUrlState();
     }
 

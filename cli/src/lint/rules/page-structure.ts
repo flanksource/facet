@@ -1,12 +1,28 @@
 import type { LintRule, LintContext, LintIssue } from '../types.js';
 import { parseJSXTree, type JSXNode } from '../jsx-parser.js';
 
-const EXEMPT_FILES = ['Header.tsx', 'Footer.tsx', 'PageBreak.tsx', 'index.tsx'];
+const EXEMPT_FILES = ['Document.tsx', 'Header.tsx', 'Footer.tsx', 'PageBreak.tsx', 'index.tsx'];
 const ALLOWED_SIBLINGS = new Set(['Header', 'Footer', 'PageBreak']);
-const IMPORTS_PAGE = /import\b.*\bPage\b.*from\b/;
+// Scoped to one statement (imports end at `;`) so it spans a multi-line
+// `import { … }` without running across the whole file. A newline-blind pattern
+// silently disabled this rule for most real templates. Type-only imports do not
+// make a file a template.
+const IMPORTS_PAGE = /import\s+(?!type\b)[^;]*?\bPage\b[^;]*?\bfrom\b/;
+// Wrappers that carry no page structure: Document (and its deprecated alias)
+// hold the pages, and fragments are pure grouping. The structural checks apply
+// to their children.
+const ROOT_WRAPPERS = new Set(['Document', 'DatasheetTemplate', 'Fragment', 'React.Fragment']);
 
 function isPageComponent(name: string): boolean {
   return name === 'Page' || name.endsWith('Page');
+}
+
+function isChromeComponent(name: string): boolean {
+  return ALLOWED_SIBLINGS.has(name) || name.endsWith('Header') || name.endsWith('Footer');
+}
+
+function unwrapRoots(nodes: JSXNode[]): JSXNode[] {
+  return nodes.flatMap((n) => (ROOT_WRAPPERS.has(n.name) ? unwrapRoots(n.children) : [n]));
 }
 
 function isExempt(filePath: string): boolean {
@@ -50,7 +66,7 @@ export const pageStructure: LintRule = {
     if (isExempt(ctx.filePath)) return [];
 
     const issues: LintIssue[] = [];
-    const tree = parseJSXTree(ctx.content);
+    const tree = unwrapRoots(parseJSXTree(ctx.content));
     if (tree.length === 0) return [];
 
     if (isCustomPageFile(ctx)) {
@@ -82,7 +98,7 @@ export const pageStructure: LintRule = {
     }
 
     for (const node of tree) {
-      if (!isPageComponent(node.name) && !ALLOWED_SIBLINGS.has(node.name)) {
+      if (!isPageComponent(node.name) && !isChromeComponent(node.name)) {
         issues.push({
           file: ctx.filePath,
           line: node.line,

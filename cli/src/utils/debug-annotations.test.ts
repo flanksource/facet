@@ -1,5 +1,5 @@
 /**
- * The `--debug-typography` overlay reports an element as drifted when its
+ * The `--debug` typography overlay reports an element as drifted when its
  * computed size differs from what the type scale says it should be. Deciding
  * "should be" from the tag name alone made it cry wolf: a `<p class="text-xs">`
  * is 7pt on purpose, and the overlay flagged every one of them against the 9pt
@@ -7,7 +7,11 @@
  * the flag exists to inspect.
  */
 import { describe, expect, it } from 'vitest';
-import { expectedFontPoints, hasSpecificFontSizeSelector } from './debug-annotations.js';
+import {
+  expectedFontPoints,
+  formatTypographyDebugLabel,
+  hasSpecificFontSizeSelector,
+} from './debug-annotations.js';
 import { ELEMENT_SCALE, TEXT_SCALE } from './type-scale.js';
 
 const probe = (tagName: string, classNames: string[] = [], hasInlineFontSize = false) =>
@@ -109,5 +113,27 @@ describe('hasSpecificFontSizeSelector', () => {
 
   it('is false when nothing matched', () => {
     expect(hasSpecificFontSizeSelector([])).toBe(false);
+  });
+});
+
+describe('formatTypographyDebugLabel', () => {
+  it('reports font size, line height, and paragraph spacing', () => {
+    expect(formatTypographyDebugLabel({
+      ...probe('P'),
+      actualPt: 9,
+      lineHeightPt: 12,
+      marginTopMm: 0,
+      marginBottomMm: 4,
+    })).toBe('font=9.0pt line=12.0pt space=0.0/4.0mm');
+  });
+
+  it('keeps font drift visible alongside spacing', () => {
+    expect(formatTypographyDebugLabel({
+      ...probe('H2'),
+      actualPt: 16,
+      lineHeightPt: 19,
+      marginTopMm: 6,
+      marginBottomMm: 4,
+    })).toBe('font=16.0pt expected=15pt line=19.0pt space=6.0/4.0mm');
   });
 });
