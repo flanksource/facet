@@ -1,4 +1,4 @@
-import { ListTable, Page, DatasheetTemplate } from '@facet';
+import { ListTable, Page, Document } from '@facet';
 import { Icon } from '@flanksource/icons/icon';
 import { changeLog } from './data';
 
@@ -6,7 +6,7 @@ const rows = changeLog.slice(0, 5);
 
 export default function ListTableExample() {
   return (
-    <DatasheetTemplate title="ListTable Examples" css="">
+    <Document title="ListTable Examples" css="">
       <Page title="Density — Minimal" margins={{ top: 5, bottom: 5, left: 5, right: 5 }}>
         <div className="grid grid-cols-3 gap-6">
           <div>
@@ -115,6 +115,6 @@ export default function ListTableExample() {
           </div>
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }

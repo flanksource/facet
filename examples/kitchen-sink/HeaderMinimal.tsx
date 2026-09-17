@@ -1,5 +1,5 @@
 import {
-  DatasheetTemplate,
+  Document,
   Page,
   CompactTable,
   SpecificationTable,
@@ -12,7 +12,7 @@ import { specifications as specs, infrastructureData } from './data';
 
 export default function HeaderMinimal() {
   return (
-    <DatasheetTemplate title="Header: Minimal" css="">
+    <Document title="Header: Minimal" css="">
       <FlanksourceHeader variant="minimal" />
       <FlanksourceFooter variant="compact" />
       <Page
@@ -34,6 +34,6 @@ export default function HeaderMinimal() {
           <CompactTable variant="compact" title="Infrastructure" data={infrastructureData} />
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }

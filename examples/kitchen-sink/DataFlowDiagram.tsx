@@ -52,8 +52,8 @@ export default function DataFlowDiagram() {
                 </BoxNode>
               </div>
 
-              <Arrow variant="primary" start={id('source')} end={id('mc')} startAnchor="right" endAnchor="left" />
-              <Arrow variant="primary" start={id('mc')} end={id('report')} startAnchor="right" endAnchor="left" />
+              <Arrow variant="primary" from={id('source')} to={id('mc')} startAnchor="right" endAnchor="left" />
+              <Arrow variant="primary" from={id('mc')} to={id('report')} startAnchor="right" endAnchor="left" />
             </>
           )}
         </Diagram>

@@ -4,8 +4,8 @@
   "private": true,
   "description": "Quickstart example for @flanksource/facet",
   "scripts": {
-    "build": "facet generate html --template MyDatasheet.tsx",
-    "pdf": "facet generate pdf --template MyDatasheet.tsx"
+    "build": "facet html MyDatasheet.tsx -o dist",
+    "pdf": "facet pdf MyDatasheet.tsx -o dist"
   },
   "dependencies": {
     "@flanksource/facet": "file:../../..",

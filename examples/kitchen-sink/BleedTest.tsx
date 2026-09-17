@@ -1,4 +1,4 @@
-import { DatasheetTemplate, Page, Header, Footer } from '@flanksource/facet';
+import { Document, Page, Header, Footer } from '@flanksource/facet';
 
 const HEADER_HEIGHT = 18;
 const FOOTER_HEIGHT = 15;
@@ -14,7 +14,7 @@ const rows = Array.from({ length: ROW_COUNT }, (_, i) => {
 
 export default function BleedTest() {
   return (
-    <DatasheetTemplate title="Bleed Test" >
+    <Document title="Bleed Test" >
       <Header type="default" height={HEADER_HEIGHT} style={{ padding: 0 }}>
         <div className="datasheet-header" style={{ background: '#FF0000', padding: '3mm 10mm', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%' }}>
           <span style={{ color: 'white', fontWeight: 'bold', fontSize: '14pt' }}>RED HEADER ({HEADER_HEIGHT}mm)</span>
@@ -34,6 +34,6 @@ export default function BleedTest() {
           ))}
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }

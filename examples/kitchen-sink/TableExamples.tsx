@@ -1,4 +1,4 @@
-import { DatasheetTemplate, Page, CompactTable } from '@flanksource/facet';
+import { Document, Page, CompactTable } from '@flanksource/facet';
 import type { PageSize } from '@flanksource/facet';
 import FlanksourceHeader from './FlanksourceHeader';
 import FlanksourceFooter from './FlanksourceFooter';
@@ -45,7 +45,7 @@ const pricingEnterprise = [
 
 export default function TableExamples() {
   return (
-    <DatasheetTemplate title="Table Examples" css="">
+    <Document title="Table Examples" css="">
       <FlanksourceHeader variant="solid" title="Component Showcase" subtitle="Tables" />
       <FlanksourceFooter variant="compact" />
       {PAGE_SIZES.map(size => (
@@ -65,6 +65,6 @@ export default function TableExamples() {
           </div>
         </Page>
       ))}
-    </DatasheetTemplate>
+    </Document>
   );
 }

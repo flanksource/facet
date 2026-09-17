@@ -1,5 +1,5 @@
 import {
-  DatasheetTemplate,
+  Document,
   Page,
   CompactTable,
   SpecificationTable,
@@ -11,7 +11,7 @@ import { specifications as specs, infrastructureData } from './data';
 
 export default function HeaderNone() {
   return (
-    <DatasheetTemplate title="Header: None" css="">
+    <Document title="Header: None" css="">
       <FlanksourceFooter variant="default" />
       <Page
         title="No Header + Default Footer"
@@ -32,6 +32,6 @@ export default function HeaderNone() {
           <CompactTable variant="compact" title="Infrastructure" data={infrastructureData} />
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }

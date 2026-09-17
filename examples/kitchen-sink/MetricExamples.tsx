@@ -1,5 +1,5 @@
 import {
-  DatasheetTemplate,
+  Document,
   Page,
   Gauge,
   ScoreGauge,
@@ -11,7 +11,7 @@ import FlanksourceFooter from './FlanksourceFooter';
 
 export default function MetricExamples() {
   return (
-    <DatasheetTemplate title="Metric Examples" css="">
+    <Document title="Metric Examples" css="">
       <FlanksourceHeader variant="solid" title="Component Showcase" subtitle="Gauges & Scores" />
       <FlanksourceFooter variant="compact" />
 
@@ -84,6 +84,6 @@ export default function MetricExamples() {
           </div>
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }

@@ -1,5 +1,5 @@
 import {
-  DatasheetTemplate,
+  Document,
   Page,
   CompactTable,
   SpecificationTable,
@@ -12,7 +12,7 @@ import { specifications as specs, infrastructureData, releaseData } from './data
 
 export default function HeaderDefault() {
   return (
-    <DatasheetTemplate title="Header: Default" css="">
+    <Document title="Header: Default" css="">
       <FlanksourceHeader variant="default" />
       <FlanksourceFooter variant="default" />
       <Page
@@ -36,6 +36,6 @@ export default function HeaderDefault() {
           <CompactTable variant="inline" title="Release" data={releaseData} />
         </div>
       </Page>
-    </DatasheetTemplate>
+    </Document>
   );
 }

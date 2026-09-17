@@ -1,5 +1,5 @@
 import {
-  DatasheetTemplate,
+  Document,
   Page,
   Header,
   Footer,
@@ -26,7 +26,7 @@ const manyRows = Array.from({ length: 40 }, (_, i) => ({
 
 export default function MultiPageTable() {
   return (
-    <DatasheetTemplate title="Multi-Page Table Test" css="">
+    <Document title="Multi-Page Table Test" css="">
       <FlanksourceHeader variant="solid" title="Multi-Page Table" subtitle="Overflow Test" />
       <FlanksourceFooter variant="default" />
       {PAGE_SIZES.map(size => (
@@ -42,6 +42,6 @@ export default function MultiPageTable() {
           </div>
         </Page>
       ))}
-    </DatasheetTemplate>
+    </Document>
   );
 }
