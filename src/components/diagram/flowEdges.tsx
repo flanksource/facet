@@ -19,7 +19,7 @@ export function flowEdgeEndAnchor(sourceLaneIndex: number, targetLaneIndex: numb
 }
 
 function FlowEdgeLabel({ children, edge, color, textColor }: { children: React.ReactNode; edge: FlowEdge; color: string; textColor: string }) {
-  return (
+  const label = (
     <span
       className="block whitespace-nowrap rounded-full border px-1.5 text-[6.5pt] font-semibold leading-[1.5]"
       data-facet-label={`edge "${edge.from}" -> "${edge.to}" label`}
@@ -27,6 +27,15 @@ function FlowEdgeLabel({ children, edge, color, textColor }: { children: React.R
       style={{ backgroundColor: '#ffffff', borderColor: color, color: textColor }}
     >
       {children}
+    </span>
+  );
+  if (edge.labelAbove == null) return label;
+  return (
+    <span className="relative inline-block">
+      <span className="absolute bottom-[calc(100%+1mm)] left-1/2 -translate-x-1/2 whitespace-nowrap" data-facet-label={`edge "${edge.from}" -> "${edge.to}" annotation`} data-flow-edge-label-above>
+        {edge.labelAbove}
+      </span>
+      {label}
     </span>
   );
 }

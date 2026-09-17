@@ -12,6 +12,8 @@ export { default as AlertsTable } from './AlertsTable';
 export { Avatar } from './Avatar';
 export { AvatarGroup } from './AvatarGroup';
 export { default as Badge } from './Badge';
+export { Badge as DataBadge } from '@flanksource/clicky-ui/data';
+export type { BadgeProps as DataBadgeProps } from '@flanksource/clicky-ui/data';
 export { default as BulletList } from './BulletList';
 export { CountBadge } from './CountBadge';
 export { default as CalloutBox } from './CalloutBox';

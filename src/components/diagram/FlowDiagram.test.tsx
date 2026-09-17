@@ -208,6 +208,14 @@ describe('FlowDiagram edges', () => {
     expect(pill?.getAttribute('style')).toContain('background-color:#ffffff');
   });
 
+  it('places an edge annotation above its label', () => {
+    const props = edgeProps({ from: 'submit', to: 'approve', label: 'Valid evidence', labelAbove: <span>Q03 Email-MFA validity window</span> });
+    const dom = renderDom(props.labels!.middle);
+
+    expect(dom.querySelector('[data-flow-edge-label-above]')?.textContent).toBe('Q03 Email-MFA validity window');
+    expect(dom.querySelector('[data-flow-edge-label]')?.textContent).toBe('Valid evidence');
+  });
+
   it('renders alternate edges as muted static dashes that split from forward edges halfway and land on the target left edge', () => {
     expect(edgeProps({ from: 'submit', to: 'approve', variant: 'alternate' })).toEqual({
       path: 'grid',
@@ -393,6 +401,37 @@ describe('FlowDiagram steps and lanes', () => {
 
     expect(dom.querySelector('[data-flow-step="submit"]')?.children[1].getAttribute('data-flow-step-label')).toBe('bottom');
   });
+
+  it('uses an explicit label side and minimum width for a step annotation', () => {
+    const dom = renderDom(
+      <FlowDiagram
+        lanes={[...lanes]}
+        steps={[{ ...steps[0], labelPosition: 'top', labelWidthMm: 30 }, { ...steps[1], column: 2 }]}
+        columns={2}
+      />,
+    );
+
+    const step = dom.querySelector('[data-flow-step="submit"]') as HTMLElement;
+    expect(step.querySelector('[data-flow-step-label]')?.getAttribute('data-flow-step-label')).toBe('top');
+    expect(step.style.width).toBe('30mm');
+  });
+
+  it('positions a step annotation independently of its action label', () => {
+    const dom = renderDom(
+      <FlowDiagram
+        lanes={[...lanes]}
+        steps={[{ ...steps[0], annotation: <span>Q03 Validity window</span>, annotationPlacement: { xMm: 2, yMm: 12, widthMm: 28 } }, steps[1]]}
+        columns={2}
+      />,
+    );
+
+    const annotation = dom.querySelector('[data-flow-step-annotation="submit"]') as HTMLElement;
+    expect(annotation.textContent).toBe('Q03 Validity window');
+    expect(annotation.style.width).toBe('28mm');
+    expect(annotation.getAttribute('style')).toContain('left:calc(50% + 2mm)');
+    expect(annotation.getAttribute('style')).toContain('top:calc(50% + 12mm)');
+    expect(dom.querySelector('[data-flow-step="submit"] [data-flow-step-label]')?.textContent).toContain('Submit');
+  });
 });
 
 describe('FlowDiagram legend', () => {
@@ -451,5 +490,23 @@ describe('FlowDiagram legend', () => {
 
     const items = [...dom.querySelectorAll('[data-flow-legend-item]')].map((item) => [item.getAttribute('data-flow-legend-item'), item.textContent]);
     expect(items).toEqual([['return', 'Rework loop']]);
+  });
+
+  it('keeps custom legend content in the same bar as flow keys', () => {
+    const dom = renderDom(
+      <FlowDiagram
+        lanes={[...lanes]}
+        steps={legendSteps}
+        edges={legendEdges}
+        columns={2}
+        showLegend
+        legendExtra={<span data-testid="callout-legend">Q Decision needed</span>}
+      />,
+    );
+
+    const legend = dom.querySelector('[data-flow-legend]');
+    expect(legend?.querySelector('[data-testid="callout-legend"]')?.textContent).toBe('Q Decision needed');
+    expect(legend?.querySelector('[data-flow-legend-item="primary"]')).not.toBeNull();
+    expect(dom.querySelectorAll('[data-flow-legend]')).toHaveLength(1);
   });
 });

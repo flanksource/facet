@@ -31,6 +31,21 @@ function validateSteps<LaneKey extends string>(steps: readonly FlowStep<LaneKey>
     }
     stepByCell.set(cell, step);
     if (step.labelColumns !== undefined) validateLabelColumns(`step "${step.key}" labelColumns`, step.labelColumns);
+    if (step.labelWidthMm !== undefined && (!Number.isFinite(step.labelWidthMm) || step.labelWidthMm <= 0)) {
+      throw new Error(`FlowDiagram: step "${step.key}" labelWidthMm must be a positive finite number, received ${step.labelWidthMm}`);
+    }
+    if (step.labelPosition !== undefined && step.labelPosition !== 'top' && step.labelPosition !== 'bottom') {
+      throw new Error(`FlowDiagram: step "${step.key}" labelPosition must be top or bottom, received ${step.labelPosition}`);
+    }
+    if ((step.annotation != null) !== (step.annotationPlacement != null)) {
+      throw new Error(`FlowDiagram: step "${step.key}" annotation and annotationPlacement must be supplied together`);
+    }
+    if (step.annotationPlacement) {
+      const { xMm, yMm, widthMm } = step.annotationPlacement;
+      if ((xMm !== undefined && !Number.isFinite(xMm)) || !Number.isFinite(yMm) || !Number.isFinite(widthMm) || widthMm <= 0) {
+        throw new Error(`FlowDiagram: step "${step.key}" annotationPlacement must contain finite offsets and a positive width`);
+      }
+    }
     validateOffset(`step "${step.key}" placement offset`, step.placementOffset);
     if (step.tag) {
       if (tagColors.has(step.tag.label) && tagColors.get(step.tag.label) !== step.tag.color) {
