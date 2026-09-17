@@ -1452,6 +1452,7 @@ export default { plugins };
   generateTailwindConfig(): void {
     const consumerConfigName = ['tailwind.config.js', 'tailwind.config.cjs', 'tailwind.config.mjs', 'tailwind.config.ts']
       .find((name) => existsSync(join(this.consumerRoot, name)));
+    const content = consumerConfigName ? [] : ['src/**/*.{html,js,jsx,ts,tsx,md,mdx}', ...this.localDependencyContent()];
     const config = consumerConfigName
       ? `import consumerConfig from './src/${consumerConfigName}';
 export default consumerConfig;
@@ -1459,7 +1460,7 @@ export default consumerConfig;
       : `import typography from '@tailwindcss/typography';
 export default {
   content: [
-    "src/**/*.{html,js,jsx,ts,tsx,md,mdx}"
+    ${content.map((glob) => JSON.stringify(glob)).join(',\n    ')}
   ],
   theme: {
     extend: {
@@ -1501,6 +1502,27 @@ export default {
 `;
     writeFileSync(join(this.facetRoot, 'tailwind.postprocess.config.js'), postProcessConfig, 'utf-8');
     this.logger.debug('Generated tailwind.config.js');
+  }
+
+  /**
+   * Content globs for the consumer's local-path dependencies (file:, link:,
+   * portal:). pnpm installs them under .facet/node_modules, outside `src/**`,
+   * so a component kit shared between templates would otherwise have none of
+   * its classes generated. Their own node_modules are excluded.
+   */
+  private localDependencyContent(): string[] {
+    const consumerPackagePath = join(this.consumerRoot, 'package.json');
+    if (!existsSync(consumerPackagePath)) return [];
+    let consumerPackage: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    try {
+      consumerPackage = JSON.parse(readFileSync(consumerPackagePath, 'utf-8'));
+    } catch (error) {
+      throw new Error(`Cannot read Tailwind content dependencies from ${consumerPackagePath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const declared = { ...consumerPackage.dependencies, ...consumerPackage.devDependencies };
+    return Object.entries(declared)
+      .filter(([, version]) => ['file:', 'link:', 'portal:'].some((proto) => version.startsWith(proto)))
+      .flatMap(([name]) => [`node_modules/${name}/**/*.{html,js,jsx,ts,tsx,md,mdx}`, `!node_modules/${name}/node_modules/**`]);
   }
 
   /**

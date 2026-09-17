@@ -309,6 +309,26 @@ describe('FacetDirectory Tailwind integration', () => {
       .toContain("tailwindMajor === 3");
   });
 
+  it('scans local-path dependencies for utilities in the default Tailwind config', async () => {
+    // A component kit declared as `file:../kit` is installed as a copy under
+    // .facet/node_modules, outside the `src/**` glob, so the live pass generated
+    // none of the kit's classes and the browser measured an unstyled page.
+    await writeFile(join(consumerRoot, 'package.json'), JSON.stringify({
+      dependencies: { '@acme/kit': 'file:../kit', 'left-pad': '^1.3.0' },
+      devDependencies: { 'acme-linked': 'link:../linked' },
+    }));
+    const dir = newFacetDir();
+    dir.create();
+    dir.generateTailwindConfig();
+
+    const config = await readFile(join(facetRoot, 'tailwind.config.js'), 'utf-8');
+    expect(config).toContain('"src/**/*.{html,js,jsx,ts,tsx,md,mdx}"');
+    expect(config).toContain('"node_modules/@acme/kit/**/*.{html,js,jsx,ts,tsx,md,mdx}"');
+    expect(config).toContain('"!node_modules/@acme/kit/node_modules/**"');
+    expect(config).toContain('"node_modules/acme-linked/**/*.{html,js,jsx,ts,tsx,md,mdx}"');
+    expect(config).not.toContain('left-pad');
+  });
+
   it('scans the template top-level source directory', async () => {
     await mkdir(join(consumerRoot, 'src'), { recursive: true });
     await writeFile(join(consumerRoot, 'src/template.tsx'), 'export default null;\n');
