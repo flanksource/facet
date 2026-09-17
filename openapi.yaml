@@ -389,7 +389,7 @@ components:
           default: false
         debug:
           type: boolean
-          description: Add debug overlay lines for header/footer zones.
+          description: Add layout guides and font, line-height, and block-spacing annotations.
           default: false
         debugTypography:
           type: boolean

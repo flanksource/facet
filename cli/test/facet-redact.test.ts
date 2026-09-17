@@ -119,4 +119,17 @@ Closing body.
 
     expect(render(markdown, { element: 'Restricted', allow: { tier: ['Public'] } })).not.toContain('Body.');
   });
+
+  // MDX parses `<Diagram />` into a childless `mdxJsxFlowElement`. remark-mdx is
+  // not a CLI dependency, so the node is built in the shape @mdx-js/mdx hands the
+  // plugin. A component with no children carries no region boundary to split on,
+  // so it must survive untouched.
+  test('keeps a self-closing MDX component', () => {
+    const component = { type: 'mdxJsxFlowElement', name: 'JourneyDiagram', attributes: [], children: [] };
+    const tree = { type: 'root', children: [{ type: 'heading', depth: 2, children: [] }, component] };
+
+    facetRedact({ allow: { tier: ['Public'] } })(tree);
+
+    expect(tree.children).toContain(component);
+  });
 });

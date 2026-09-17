@@ -178,7 +178,12 @@ describe('page number placeholder replacement', () => {
 
       const result = await compositeHeaderFooter(
         contentBuf,
-        { headers: new Map(), footers: new Map([['default:a4', footerBuf]]) },
+        {
+          headers: new Map(),
+          footers: new Map([['default:a4', footerBuf]]),
+          headersWithPlaceholders: new Set(),
+          footersWithPlaceholders: new Set(['default:a4']),
+        },
         pageMap,
         typeInfo,
       );
@@ -203,7 +208,12 @@ describe('page number placeholder replacement', () => {
 
       const result = await compositeHeaderFooter(
         contentBuf,
-        { headers: new Map(), footers: new Map([['default:a4', footerBuf]]) },
+        {
+          headers: new Map(),
+          footers: new Map([['default:a4', footerBuf]]),
+          headersWithPlaceholders: new Set(),
+          footersWithPlaceholders: new Set(),
+        },
         pageMap,
         typeInfo,
       );
@@ -212,6 +222,44 @@ describe('page number placeholder replacement', () => {
       const joined = allTexts.join(' ');
       expect(joined).toContain('Static Footer');
       expect(joined).not.toContain(PAGE_MARKER);
+    });
+
+    it('does not re-render a static header when only the footer contains page markers', async () => {
+      const headerBuf = await createPdfWithText('Static Header');
+      const contentBuf = await createContentPdf(1);
+      const headerTypeInfo: PageTypeInfo = {
+        types: ['default' as PageType],
+        pageSizes: ['a4'],
+        pageMargins: [],
+        definitions: new Map([
+          ['default', { type: 'default' as PageType, headerHeight: 10, footerHeight: 0 }],
+        ]),
+      };
+      let renderCalls = 0;
+      const browser = {
+        newPage: async () => {
+          renderCalls += 1;
+          throw new Error('Static headers must not be rendered per page');
+        },
+      };
+
+      const result = await compositeHeaderFooter(
+        contentBuf,
+        {
+          headers: new Map([['default:a4', headerBuf]]),
+          footers: new Map(),
+          headersWithPlaceholders: new Set(),
+          footersWithPlaceholders: new Set(),
+        },
+        ['default' as PageType],
+        headerTypeInfo,
+        undefined,
+        browser as never,
+        `<footer>Page ${PAGE_MARKER}</footer>`,
+      );
+
+      expect(renderCalls).toBe(0);
+      expect((await extractAllTexts(result)).join(' ')).toContain('Static Header');
     });
   });
 });

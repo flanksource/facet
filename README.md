@@ -276,83 +276,131 @@ When `FACET_URL` or `--facet-url` is set, the CLI loads and validates data local
 
 The `Page` component is the primary layout container for multi-page PDF documents.
 
+Headers and footers are **not** `Page` props. They are declared once as siblings
+inside `<Document>` and matched to pages by `type`, then composited onto every
+physical page by the multi-pass pipeline described below.
+
 ```tsx
-<Page
-  title="Section Title"
-  product="Mission Control"
-  header={<Header variant="solid" />}
-  headerHeight={15}
-  footer={<PdfFooter />}
-  footerHeight={15}
-  margins={{ top: 5, right: 0, bottom: 0, left: 0 }}
-  watermark="DRAFT"
-  debug={false}
->
-  {/* page content */}
-</Page>
+<Document title="Quarterly Report">
+  {/* Chrome — declared once, applied to every page of the matching type */}
+  <Header type="first" variant="solid" height={30} />
+  <Header type="default" variant="minimal" height={14} />
+  <Footer type="default" height={8}>
+    <PageNo format="Page ${page} of ${total}" />
+  </Footer>
+
+  <Page
+    type="first"
+    title="Section Title"
+    product="Mission Control"
+    margins={{ top: 5, right: 0, bottom: 0, left: 0 }}
+    watermark="DRAFT"
+  >
+    {/* page content */}
+  </Page>
+</Document>
 ```
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `children` | `ReactNode` | — | Page content |
+| `id` | `string` | — | Stable target used by automatic `TableOfContents` entries |
 | `title` | `string` | — | Section title bar text (renders a blue bar below the header) |
+| `titleClassName` | `string` | — | Extra CSS class applied to the title bar |
 | `product` | `string` | — | Sub-label shown in the title bar |
-| `header` | `ReactNode` | — | Fixed header rendered at the top of every physical page |
-| `headerHeight` | `number` (mm) | `0` | Height of the header; used to offset content so it doesn't overlap |
-| `footer` | `ReactNode` | — | Fixed footer rendered at the bottom of every physical page |
-| `footerHeight` | `number` (mm) | `15` | Height of the footer; used to add bottom padding to content |
-| `margins` | `PageMargins` | `{}` | Additional content margins `{ top, right, bottom, left }` in mm |
-| `pageSize` | `string` | `'a4'` | Page size — `a4`, `a3`, `letter`, `legal`, `fhd`, `a4-landscape`, or custom `WxH` in mm |
-| `type` | `string` | `'default'` | Page type — groups pages for header/footer extraction (e.g. `cover`, `default`) |
+| `margins` | `PageMargins` | inherited | Content margins `{ top, right, bottom, left }` in mm; merged field-by-field over `<Document>` defaults |
+| `pageSize` | `PageSize` | `'a4'` | Page size — `a4`, `a3`, `letter`, `legal`, `fhd`, `qhd`, `wqhd`, `4k`, `5k`, `16k`, any `-landscape` variant, or custom `WxH` in mm |
+| `type` | `PageType` | `'default'` | `'first' \| 'default' \| 'last'` — selects which `Header`/`Footer` this page gets |
 | `watermark` | `string` | — | Diagonal watermark text (e.g. `"DRAFT"`, `"CONFIDENTIAL"`) |
-| `debug` | `boolean` | `false` | Renders dashed red lines at margin boundaries for layout debugging |
 | `className` | `string` | — | Extra CSS class applied to the `<main>` element |
+
+> [!NOTE]
+> `<Page>` clips rather than reflows — content that overflows a single `<Page>`
+> is dropped. Long tables must be the direct overflow path (see
+> `examples/kitchen-sink/MultiPageTable.tsx`).
+>
+> To debug header/footer zones and inspect computed font, line-height, and block spacing, use the `facet pdf --debug` CLI flag; there is no `debug` prop.
+
+### Cover page and table of contents
+
+`CoverPage` is an opinionated traditional first page. Compose `DocumentFields` into its lower section for ordered metadata; both labels and values remain on one line without truncation. `TableOfContents` accepts either a `target` matching a `Page id` or an element `id` inside a Page for automatic physical PDF numbering, or an explicit `page` label.
+
+```tsx
+<CoverPage title="Annual report" subtitle="Year ended 2026" id="cover">
+  <DocumentFields fields={[
+    { label: 'Prepared for', value: 'Board of Directors' },
+    { label: 'Document number', value: 'ACME-2026-001' },
+  ]} />
+</CoverPage>
+
+<Page id="contents">
+  <TableOfContents items={[
+    { title: 'Executive summary', target: 'summary' },
+    { title: 'Appendix', page: 'A-1', level: 2 },
+  ]} />
+</Page>
+
+<Page id="summary" title="Executive summary">
+  {/* content */}
+</Page>
+```
+
+For a continuously flowing Page, place the TOC and sections together without forcing page breaks. `Markdown firstHeadingId` anchors its first parsed heading while leaving raw HTML `id` attributes sanitized:
+
+```tsx
+<Page>
+  <TableOfContents items={[{ title: '1. Introduction', target: 'section-1' }]} />
+  <Markdown firstHeadingId="section-1">{'## 1. Introduction\n\nReport text.'}</Markdown>
+</Page>
+```
+
+Automatic labels count from the first physical PDF sheet, including the cover and any logical `Page` that spans multiple sheets. Missing or duplicate targets fail PDF generation. HTML and PNG show an em dash for automatic entries because those formats have no physical PDF page number; explicit labels render unchanged in every format.
 
 ### Multi-page PDF layout
 
-A single React document with mixed page sizes (e.g. `<Page size="a4" type="cover">`, `<Page size="a4">`, `<Page size="a4-landscape">`) is compiled into a final PDF via a 4-phase multi-pass pipeline:
+A single React document with mixed page sizes (e.g. `<Page pageSize="a4" type="first">`, `<Page pageSize="a4">`, `<Page pageSize="a4-landscape">`) is compiled into a final PDF via a 4-phase multi-pass pipeline:
 
-1. **DOM Scan** — Puppeteer renders to DOM, measures header/footer heights per type×size group (e.g. `cover:a4`, `default:a4`, `default:a4-landscape`)
+1. **DOM Scan** — Puppeteer renders to DOM, measures header/footer heights per type×size group (e.g. `first:a4`, `default:a4`, `default:a4-landscape`)
 2. **Extract** — Each unique type×size group's header and footer are rendered as isolated PDFs using a dedicated Puppeteer pass, loaded into pdf-lib
 3. **Content Render** — Decorators are stripped from the DOM; `@page` margins are set to the measured header/footer heights; Puppeteer prints content-only PDFs per group
 4. **Composite** — pdf-lib `page.drawPage()` overlays the correct header at the top and footer at the bottom of every physical page, producing a single merged PDF
 
 ```tsx
-  {/* Cover page with unique header/footer */}
-  <Page pageSize="a4" type="cover">
-    <Header height={20} />
+<Document>
+  {/* Chrome is declared once per type, as a sibling of the pages */}
+  <Header type="first" height={20} />
+  <Footer type="first" height={10} />
+  <Header type="default" height={18} />
+  <Footer type="default" height={8} />
+
+  {/* Cover page — picks up the type="first" header/footer */}
+  <Page pageSize="a4" type="first">
     <CoverContent />
-    <Footer height={10} />
   </Page>
 
-  {/* Standard A4 page */}
+  {/* Standard A4 page — content starts after the header automatically */}
   <Page pageSize="a4">
-    <Header height={18} />
-    {/* Content starts after header automatically */}
-    <Footer height={8} />
+    <BodyContent />
   </Page>
 
-  {/* Landscape page for wide content */}
+  {/* Landscape page for wide content — same default chrome, new size group */}
   <Page pageSize="a4-landscape">
-    <Header height={18} />
     <WideTableContent />
-    <Footer height={8} />
   </Page>
+</Document>
 ```
 
 ![](assets/pdf-layout.svg)
 
 ## Diagrams
 
-Facet ships box-and-arrow diagram primitives for data-flow and architecture
-diagrams. Boxes are pure CSS (server-rendered), while arrows are drawn by
-[`react-xarrows`](https://www.npmjs.com/package/react-xarrows), which measures
-the rendered DOM positions of the boxes at runtime.
+Facet ships box-and-arrow diagram primitives for data-flow and architecture diagrams. Boxes are pure CSS (server-rendered), while arrows measure the rendered DOM positions of their endpoints at runtime.
 
 | Component | Description |
 |-----------|-------------|
 | `Diagram` | Render-prop container. Yields an `id(name)` helper for stable, per-instance element ids and defers arrows until after mount. |
-| `BoxNode` | Pure-CSS box with optional header/body. Connected to other boxes via its `id`. |
+| `DiagreDiagram` | Auto-layout container with the same `id(name)` helper. Infers nodes and edges from direct `BoxNode` and `Arrow` children, then lays them out left-to-right or top-to-bottom. |
+| `BoxNode` | Pure-CSS box with optional header/body, plus `ports` — chips docked on its border. Connected to other boxes via its `id`, or a port's. |
 | `Arrow` | Connector between two box ids (`from` / `to`), with `primary` / `secondary` presets. |
 | `NodeSection` | Labeled vertical column of boxes (e.g. "Sources", "Outputs"). |
 | `COLORS` | Shared 5-color diagram palette. |
@@ -379,6 +427,20 @@ import { Diagram, BoxNode, Arrow, NodeSection, COLORS } from '@flanksource/facet
 </Diagram>
 ```
 
+Use `DiagreDiagram` when the component should position its nodes. `gapX` and `gapY` set minimum and maximum pixel spacing; available container space determines the spacing within those bounds. Keep `BoxNode` and `Arrow` as direct children (fragments are allowed), and use `labelPosition` to place arrow labels on the line, above/left of it (`top`), or below/right of it (`bottom`).
+
+```tsx
+import { Arrow, BoxNode, DiagreDiagram } from '@flanksource/facet';
+
+<DiagreDiagram direction="LR" gapX={{ min: 40, max: 100 }} gapY={{ min: 24, max: 60 }}>
+  {(id) => <>
+    <BoxNode id={id('source')} title="Source" />
+    <BoxNode id={id('target')} title="Target" />
+    <Arrow from={id('source')} to={id('target')} labelPosition="top" labels={{ middle: 'events' }} />
+  </>}
+</DiagreDiagram>
+```
+
 ### `// @live` — hydrate and bake
 
 Because arrows are measured from the DOM, they can't be produced by server-side
@@ -393,7 +455,7 @@ import { Diagram, BoxNode, Arrow } from '@flanksource/facet';
 ```
 
 For live templates, facet runs one extra headless-browser pass: it hydrates the
-SSR HTML, lets `react-xarrows` draw the arrows into the DOM, then captures the
+SSR HTML, lets `Arrow` draw the connectors into the DOM, then captures the
 now-static HTML with arrows baked as plain SVG. That baked HTML flows through the
 unchanged HTML/PDF/PNG pipeline. The bake fails loudly if hydration never completes —
 there is no silent arrow-less fallback.
@@ -837,7 +899,7 @@ npm publish
 
 ## Architecture
 
-- **`src/components/`** - React component library (47 components)
+- **`src/components/`** - React component library
 - **`src/styles.css`** - Global styles and Tailwind
 - **`cli/`** - CLI package source
   - **`cli/src/builders/`** - Build orchestration
@@ -848,12 +910,30 @@ npm publish
 
 ## Examples
 
-See `src/examples/` for complete working examples:
+See `examples/` for complete working examples:
 
 - **Basic Datasheet** - Simple single-page datasheet
 - **Multi-page Report** - Complex multi-page document
 - **Security Report** - Security-focused datasheet
 - **POC Evaluation** - POC evaluation template
+- **Document Front Matter** - Traditional cover, document fields, and table of contents (`DocumentFrontMatter.tsx`)
+
+## Claude Code plugin
+
+This repo doubles as a Claude Code plugin marketplace. Installing it gives agents three skills covering the whole surface: authoring templates, driving the CLI, and designing diagrams.
+
+```
+/plugin marketplace add flanksource/facet
+/plugin install facet-skills@flanksource-facet
+```
+
+| Skill | Covers |
+| --- | --- |
+| `facet-documents` | `Document`/`Page`/`Header`/`Footer`, page sizes and margins, the component library, the pt type scale, `Theme`, Markdown/MDX |
+| `facet-cli` | `html`/`pdf`/`png`/`fill-pdf`/`serve`/`lint`/`doctor`, data loading, remote templates, troubleshooting |
+| `diagram-designer` | Node-and-arrow architecture and ER diagrams, with five runnable layout examples |
+
+Source and layout: [`.agents/skills/`](.agents/skills/README.md).
 
 ## Contributing
 

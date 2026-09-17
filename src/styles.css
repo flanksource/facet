@@ -23,6 +23,30 @@
   max-width: none;
 }
 
+@layer components {
+  .prose :where(li):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+    font-size: 9pt;
+    line-height: 12pt;
+  }
+
+  .prose :where(table):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+    font-size: 9pt;
+    line-height: 14pt;
+  }
+
+  .prose :where(thead th):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+    color: #fff;
+  }
+
+  .prose :where(thead th:first-child):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+    padding-left: 2mm;
+  }
+
+  .prose :where(tbody td:first-child):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+    padding-left: 1.5mm;
+  }
+}
+
 @media print {
   /* .prose carries paged spacing only. It used to restate the type scale, and
    * disagreed with it: .prose p was 10pt where the global p rule is 9pt, so the
@@ -198,6 +222,15 @@ body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     color-adjust: exact;
+  }
+
+  /* Chromium renders box-shadow into the PDF as a soft mask (/SMask plus a
+   * /Transparency group). Not every reader composites those correctly —
+   * macOS Preview flattens them to an opaque grey block sitting behind the
+   * element, which is far worse than no shadow at all. Screen output (HTML
+   * embeds, PNG) is unaffected and keeps its shadows. */
+  * {
+    box-shadow: none !important;
   }
 
   /* Table page break handling */
@@ -1190,6 +1223,11 @@ article {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+.facet-markdown code::before,
+.facet-markdown code::after {
+  content: none;
+}
+
 .facet-markdown pre {
   background: #f9fafb;
   border-radius: 0.5mm;
@@ -1261,7 +1299,6 @@ article {
 
 @media print {
   .facet-markdown pre,
-  .facet-markdown table,
   .facet-markdown blockquote {
     page-break-inside: avoid;
     break-inside: avoid;

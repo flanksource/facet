@@ -184,3 +184,25 @@ cli/dist-playground/
 examples/kitchen-sink/
 cli/npm-dist/
 .facet-*/
+
+# Claude Code plugin content ships from the repo. A global core.excludesFile
+# commonly ignores .agents/, which would silently keep the plugin out of the
+# published marketplace — so re-include exactly the shipped paths, and nothing
+# else (vendored skills such as coss stay ignored).
+!.claude-plugin/
+!.agents/
+.agents/*
+!.agents/.claude-plugin/
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/README.md
+!.agents/skills/facet-documents/
+!.agents/skills/facet-cli/
+!.agents/skills/diagram-designer/
+.agents/skills/*/examples/.facet/
+.agents/skills/*/examples/node_modules/
+.agents/skills/*/examples/dist/
+# Reference renders shipped as layout previews (blanket *.png above would drop them).
+# Rendered *.html is regenerable and deliberately not shipped.
+!.agents/skills/*/examples/*.png
+examples/quickstart/node_modules

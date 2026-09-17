@@ -166,6 +166,26 @@ describe('conflicting-tailwind', () => {
       `<div className="gap-x-2 gap-y-4">`));
     expect(issues).toHaveLength(0);
   });
+
+  it('allows background utilities that set different CSS properties', () => {
+    const issues = conflictingTailwind.check(ctx('Foo.tsx',
+      `<div className="bg-white bg-gradient-to-r bg-[length:100%_1mm] bg-top bg-no-repeat">`));
+    expect(issues).toHaveLength(0);
+  });
+
+  it('flags conflicting background colors', () => {
+    const issues = conflictingTailwind.check(ctx('Foo.tsx',
+      `<div className="bg-white bg-slate-50">`));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain('background-color');
+  });
+
+  it('flags conflicting background images', () => {
+    const issues = conflictingTailwind.check(ctx('Foo.tsx',
+      `<div className="bg-none bg-gradient-to-r">`));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain('background-image');
+  });
 });
 
 describe('conflicting-print-css', () => {

@@ -137,6 +137,70 @@ describe('computed print typography', () => {
     }
   }, 120000);
 
+  it('renders prose list items at the paragraph scale', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.emulateMediaType('print');
+      await page.setContent(html, { waitUntil: 'load' });
+
+      const points = await page.evaluate(() => {
+        const prose = document.createElement('article');
+        prose.className = 'prose';
+        prose.innerHTML = '<p>Paragraph</p><ul><li>List item</li><li class="text-lg">Large list item</li></ul>';
+        document.body.appendChild(prose);
+        const pt = (selector: string) => parseFloat(getComputedStyle(prose.querySelector(selector)!).fontSize) * 72 / 96;
+        return { paragraph: pt('p'), listItem: pt('li'), largeListItem: pt('li.text-lg') };
+      });
+
+      expect(points.listItem).toBeCloseTo(points.paragraph, PT_PRECISION);
+      expect(points.listItem).toBeCloseTo(ELEMENT_SCALE.p.pt, PT_PRECISION);
+      expect(points.largeListItem).toBeCloseTo(TEXT_SCALE.lg.pt, PT_PRECISION);
+    } finally {
+      await page.close();
+    }
+  }, 120000);
+
+  it('renders prose tables at the document table scale', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.emulateMediaType('print');
+      await page.setContent(html, { waitUntil: 'load' });
+
+      const points = await page.evaluate(() => {
+        const prose = document.createElement('article');
+        prose.className = 'prose';
+        prose.innerHTML = '<table><thead><tr><th>Header</th></tr></thead><tbody><tr><td>Cell</td></tr></tbody></table><table class="text-xs"><tbody><tr><td>Small cell</td></tr></tbody></table>';
+        document.body.appendChild(prose);
+        const tables = prose.querySelectorAll('table');
+        const header = tables[0].querySelector('th')!;
+        const cell = tables[0].querySelector('td')!;
+        const pt = (element: Element) => parseFloat(getComputedStyle(element).fontSize) * 72 / 96;
+        const mm = (value: string) => parseFloat(value) * 25.4 / 96;
+        return {
+          table: pt(tables[0]),
+          tableLeading: parseFloat(getComputedStyle(tables[0]).lineHeight) * 72 / 96,
+          header: pt(header),
+          headerColor: getComputedStyle(header).color,
+          headerPaddingLeft: mm(getComputedStyle(header).paddingLeft),
+          cell: pt(cell),
+          cellPaddingLeft: mm(getComputedStyle(cell).paddingLeft),
+          smallTable: pt(tables[1]),
+        };
+      });
+
+      expect(points.table).toBeCloseTo(TEXT_SCALE.sm.pt, PT_PRECISION);
+      expect(points.tableLeading).toBeCloseTo(14, PT_PRECISION);
+      expect(points.header).toBeCloseTo(TEXT_SCALE.sm.pt + 1, PT_PRECISION);
+      expect(points.headerColor).toBe('rgb(255, 255, 255)');
+      expect(points.headerPaddingLeft).toBeCloseTo(2, PT_PRECISION);
+      expect(points.cell).toBeCloseTo(TEXT_SCALE.sm.pt, PT_PRECISION);
+      expect(points.cellPaddingLeft).toBeCloseTo(1.5, PT_PRECISION);
+      expect(points.smallTable).toBeCloseTo(TEXT_SCALE.xs.pt, PT_PRECISION);
+    } finally {
+      await page.close();
+    }
+  }, 120000);
+
   it('renders each text utility at the declared point scale', async () => {
     const probes = Object.keys(TEXT_SCALE).map(step => `span.text-${step}`);
     const points = await probePoints(browser, html, probes);
