@@ -1,0 +1,9 @@
+{
+  "name": "diagram-designer-examples",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Runnable facet templates for the diagram-designer skill. Anchors the facet consumer root to this directory.",
+  "scripts": {
+    "html": "facet html pipeline.tsx data-flow.tsx fan-in-fan-out.tsx entity-model.tsx hub-and-spoke.tsx swimlane-flow.tsx -o dist"
+  }
+}
