@@ -1,5 +1,7 @@
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, it, expect } from 'vitest';
-import { variantProps } from './Arrow';
+
+import { markerShape, variantProps } from './Arrow';
 import { COLORS } from './colors';
 
 // Reference: the diagram Line Style Catalog. Each variant maps to a fixed,
@@ -36,5 +38,25 @@ describe('variantProps', () => {
     expect(props.headShape).toBe('circle');
     expect(props.tailShape).toBe('circle');
     expect(props.dashness).toBeUndefined();
+  });
+});
+
+describe('markerShape', () => {
+  it.each([
+    ['arrow1', '<path d="M 0 0 L 1 0.5 L 0 1 L 0.25 0.5 z"'],
+    ['heart', '<path d="M 0 0.25 A 0.125 0.125 0 0 1 0.5 0.25 A 0.125 0.125 0 0 1 1 0.25 Q 1 0.625 0.5 1 Q 0 0.625 0 0.25 z"'],
+    ['circle', '<circle cx="0.5" cy="0.5" r="0.5"'],
+  ] as const)('renders the built-in %s marker', (shape, expectedMarkup) => {
+    expect(renderToStaticMarkup(markerShape(shape, COLORS.primary))).toContain(expectedMarkup);
+  });
+
+  it('renders custom marker content with the arrow color and marker props', () => {
+    const markup = renderToStaticMarkup(markerShape(
+      { svgElem: <rect height="1" width="1" />, offsetForward: 0 },
+      COLORS.primary,
+      { stroke: COLORS.background },
+    ));
+
+    expect(markup).toContain(`<g fill="${COLORS.primary}" stroke="${COLORS.background}"><rect height="1" width="1"></rect></g>`);
   });
 });

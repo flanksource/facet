@@ -1,9 +1,13 @@
 export { default as Diagram } from './Diagram';
 export type { DiagramProps, IdFn } from './Diagram';
+export { default as DiagreDiagram } from './DiagreDiagram';
+export type { DiagreDiagramProps, DiagramDirection, DiagramGap } from './DiagreDiagram';
 export { default as BoxNode } from './BoxNode';
-export type { BoxNodeProps } from './BoxNode';
+export type { BoxNodeProps, BoxNodePort, PortPosition } from './BoxNode';
 export { default as Arrow, variantProps } from './Arrow';
-export type { ArrowProps, ArrowVariant } from './Arrow';
+export type { ArrowProps, ArrowVariant, ArrowLabelPosition } from './Arrow';
+export { default as FlowDiagram, FlowStepBadge } from './FlowDiagram';
+export type { FlowDiagramProps, FlowEdge, FlowEdgeVariant, FlowIcon, FlowLane, FlowLaneKind, FlowLegendKey, FlowLegendLabels, FlowOffset, FlowStep, FlowStepBadgeProps, FlowStepTag } from './FlowDiagram';
 export { NodePill, NodeSection, SectionDivider } from './content';
 export { COLORS } from './colors';
 export type { DiagramColors } from './colors';
