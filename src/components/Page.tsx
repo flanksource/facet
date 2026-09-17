@@ -13,6 +13,7 @@ export interface PageMargins {
 
 export interface PageProps {
   children: React.ReactNode;
+  id?: string;
   title?: string;
   titleClassName?: string;
   product?: string;
@@ -34,6 +35,7 @@ function mergeMargins(defaults?: PageMargins, overrides?: PageMargins): PageMarg
 
 export default function Page({
   children,
+  id,
   title,
   titleClassName = "text-xl font-bold text-gray-900 mb-4 border-b border-gray-200 pb-2",
   className,
@@ -61,7 +63,7 @@ export default function Page({
   };
 
   return (
-    <div data-page-size={resolvedPageSize} data-page-type={type}
+    <div id={id} data-facet-page-id={id} data-page-size={resolvedPageSize} data-page-type={type}
       data-margin-top={marginTop} data-margin-right={marginRight} data-margin-bottom={marginBottom} data-margin-left={marginLeft}
       style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
 
