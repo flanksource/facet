@@ -20,6 +20,7 @@ import { setPreparedContent } from './browser-readiness.js';
 import { injectFontScale } from './font-size.js';
 import { ELEMENT_SCALE } from './type-scale.js';
 import { applySpawnedProcessPriority, buildLowPriorityCommand } from './subprocess-priority.js';
+import { resolveAutomaticTableOfContents, type TocPageRenderSpec } from './toc-pagination.js';
 
 function readVersion(): string {
   try {
@@ -57,6 +58,9 @@ import {
   resolvePageSize,
   overlayKey,
   mmToPx,
+  printableHeightCss,
+  PAGE_MARKER,
+  TOTAL_MARKER,
   type PageTypeInfo,
   type GroupResult,
   type PageType,
@@ -105,24 +109,6 @@ export function buildBrowserLaunchOptions(options: {
     ignoreDefaultArgs: true,
     args: command.args,
   };
-}
-
-/**
- * The height a page box may occupy before it spills onto a second sheet: the
- * paper minus the header and footer bands reserved as page margins.
- *
- * The stylesheet needs this to make a page fill its sheet without overflowing
- * it, and CSS cannot derive it — the bands are measured from the document and
- * applied as PDF margins, not as anything the page can see. Left to a constant,
- * it was 2.3mm too tall and every page in every document printed twice.
- *
- * A half-millimetre comes off the figure because the box is laid out in
- * fractional pixels: an exact fit rounds up as often as down, and rounding up
- * costs a whole extra sheet.
- */
-export function printableHeightCss(pageHeightMm: number, topMm: number, bottomMm: number): string {
-  const printable = pageHeightMm - topMm - bottomMm - 0.5;
-  return `:root { --facet-printable-height: ${printable}mm; }`;
 }
 
 async function loadAndPrepare(browser: PageProvider, html: string, widthMm?: number): Promise<Page> {
@@ -189,6 +175,19 @@ function filterEmptyPages(info: PageTypeInfo, emptyIndices: Set<number>): PageTy
   return { types, pageSizes, pageMargins, definitions: info.definitions, heightDetails: info.heightDetails };
 }
 
+function tocPageSpecs(typeInfo: PageTypeInfo): TocPageRenderSpec[] {
+  return typeInfo.types.map((type, index) => {
+    const size = typeInfo.pageSizes[index] ?? 'a4';
+    const margins = computeMarginsForSize(typeInfo.definitions, size);
+    const elementMargins = typeInfo.pageMargins[index];
+    if (elementMargins) {
+      margins.left = elementMargins.left;
+      margins.right = elementMargins.right;
+    }
+    return { type, size, margins };
+  });
+}
+
 async function renderMultiPass(
   browser: PageProvider,
   _html: string,
@@ -218,6 +217,24 @@ async function renderMultiPass(
       return Buffer.alloc(0);
     }
     html = await removeEmptyPages(browser, html, emptyIndices);
+  }
+
+  const pageSpecs = tocPageSpecs(typeInfo);
+  if (html.includes('data-facet-toc-target=')) {
+    const tocSourcePage = await loadAndPrepare(browser, html);
+    try {
+      html = await resolveAutomaticTableOfContents({
+        browser,
+        sourcePage: tocSourcePage,
+        specs: pageSpecs,
+        preparePage: async (page) => {
+          if (debug || debugTypography) await injectDebugAnnotations(page, fontScale);
+          if (debugTypography) await injectTypographyAnnotations(page);
+        },
+      });
+    } finally {
+      await tocSourcePage.close();
+    }
   }
 
   const overlays = await renderHeaderFooterPdfs(browser, html, typeInfo, typeInfo.pageSizes, debugBasePath);
@@ -256,12 +273,7 @@ async function renderMultiPass(
   try {
     for (const group of groups) {
       const dims = resolvePageSize(group.size);
-      const margins = computeMarginsForSize(typeInfo.definitions, group.size);
-      const elemMargin = typeInfo.pageMargins[group.elementIndices[0]];
-      if (elemMargin) {
-        margins.left = elemMargin.left;
-        margins.right = elemMargin.right;
-      }
+      const margins = pageSpecs[group.elementIndices[0]].margins;
       const minimalHtml = await groupHtml(group.elementIndices);
       const page = await loadAndPrepare(browser, minimalHtml, dims.width);
       try {
@@ -301,19 +313,23 @@ async function renderLegacyElementPdf(
   selector: string,
   heightMm: number,
   widthMm: number = 210,
-): Promise<Buffer | null> {
+): Promise<{ buffer: Buffer; hasPlaceholders: boolean } | null> {
   const { renderElementPdf } = await import('./pdf-multipass.js');
   const page = await browser.newPage();
+  let fragment = '';
   try {
     await setPreparedContent(page, html);
-    const exists = await page.evaluate((sel: string) => !!document.querySelector(sel), selector);
+    fragment = await page.evaluate((sel: string) => document.querySelector(sel)?.outerHTML ?? '', selector);
     await page.close();
-    if (!exists) return null;
+    if (!fragment) return null;
   } catch {
     await page.close().catch(() => {});
     return null;
   }
-  return renderElementPdf(browser, html, selector, heightMm, widthMm);
+  return {
+    buffer: await renderElementPdf(browser, html, selector, heightMm, widthMm),
+    hasPlaceholders: fragment.includes(PAGE_MARKER) || fragment.includes(TOTAL_MARKER),
+  };
 }
 
 // Single-pass overlay pipeline (no typed headers, uses .datasheet-header/.datasheet-footer)
@@ -377,6 +393,17 @@ async function renderSinglePass(
   const marginLeft = overrideMargins?.left ?? 0;
   const marginRight = overrideMargins?.right ?? 0;
 
+  const logicalPageCount = await page.evaluate(() => document.querySelectorAll('[data-page-size]').length);
+  await resolveAutomaticTableOfContents({
+    browser,
+    sourcePage: page,
+    specs: Array.from({ length: logicalPageCount }, () => ({
+      type: 'default',
+      size: pageInfo.pageSize,
+      margins: { top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight },
+    })),
+  });
+
   await page.addStyleTag({ content: printableHeightCss(pdfHeight, marginTop, marginBottom) });
 
   if (marginTop === 0 && marginBottom === 0 && marginLeft === 0 && marginRight === 0) {
@@ -405,23 +432,30 @@ async function renderSinglePass(
 
   const debugBasePath = debug && outputPath ? outputPath.replace(/\.pdf$/, '') : undefined;
   const key = overlayKey('default', pageInfo.pageSize);
-  const overlays: OverlayPdfs = { headers: new Map(), footers: new Map() };
+  const overlays: OverlayPdfs = {
+    headers: new Map(),
+    footers: new Map(),
+    headersWithPlaceholders: new Set(),
+    footersWithPlaceholders: new Set(),
+  };
   if (pageInfo.top > 0) {
-    const buf = await renderLegacyElementPdf(browser, html, '.datasheet-header', pageInfo.top, dims.width);
-    if (buf) {
-      overlays.headers.set(key, buf);
+    const overlay = await renderLegacyElementPdf(browser, html, '.datasheet-header', pageInfo.top, dims.width);
+    if (overlay) {
+      overlays.headers.set(key, overlay.buffer);
+      if (overlay.hasPlaceholders) overlays.headersWithPlaceholders.add(key);
       if (debugBasePath) {
-        writeFileSync(`${debugBasePath}.debug-header-${key}.pdf`, buf);
+        writeFileSync(`${debugBasePath}.debug-header-${key}.pdf`, overlay.buffer);
         log.info(`Debug: wrote ${debugBasePath}.debug-header-${key}.pdf`);
       }
     }
   }
   if (pageInfo.bottom > 0) {
-    const buf = await renderLegacyElementPdf(browser, html, '.datasheet-footer', pageInfo.bottom, dims.width);
-    if (buf) {
-      overlays.footers.set(key, buf);
+    const overlay = await renderLegacyElementPdf(browser, html, '.datasheet-footer', pageInfo.bottom, dims.width);
+    if (overlay) {
+      overlays.footers.set(key, overlay.buffer);
+      if (overlay.hasPlaceholders) overlays.footersWithPlaceholders.add(key);
       if (debugBasePath) {
-        writeFileSync(`${debugBasePath}.debug-footer-${key}.pdf`, buf);
+        writeFileSync(`${debugBasePath}.debug-footer-${key}.pdf`, overlay.buffer);
         log.info(`Debug: wrote ${debugBasePath}.debug-footer-${key}.pdf`);
       }
     }

@@ -9,6 +9,8 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       document.getElementById('pdfOptions').style.display = fmt === 'pdf' ? 'flex' : 'none';
       document.getElementById('pngOptions').style.display = fmt === 'png' ? 'flex' : 'none';
       closeRenderMenu();
+      // A PDF render must not stay on screen under a "Render PNG" button.
+      markPreviewStale();
       writeUrlState();
     }
 
@@ -285,6 +287,68 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
 
     function escapeHtml(s) {
       return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    /* Preview banner — the pane's own status line.
+
+       The body is blanked for every state that does not have a current render
+       to show, so a stale render can never sit under changed source. 'done' and
+       'error' leave the body alone; their caller fills it first. */
+    const PREVIEW_BLANKS = { idle: 1, stale: 1, rendering: 1 };
+    const PREVIEW_TEXT = {
+      idle: 'Click "Render" to preview your template',
+      stale: 'Template changed \\u2014 click Render',
+      rendering: 'Rendering\\u2026',
+      done: 'Rendered',
+      error: 'Render failed',
+    };
+
+    function setPreviewState(state, detail, timings) {
+      document.getElementById('previewBanner').className = 'preview-banner ' + state;
+      document.getElementById('previewText').textContent = detail || PREVIEW_TEXT[state];
+      document.getElementById('previewTimings').textContent = formatPreviewTimings(timings);
+      if (PREVIEW_BLANKS[state]) document.getElementById('preview').innerHTML = '';
+    }
+
+    function formatPreviewTimings(timings) {
+      if (!Array.isArray(timings) || !timings.length) return '';
+      return timings
+        .map(function(t) { return t.description + ' ' + (t.durationMs / 1000).toFixed(1) + 's'; })
+        .join(' \\u00b7 ');
+    }
+
+    // Only a pane that is actually showing a render can go stale, so edits made
+    // before the first render (including the example applied from the URL on
+    // load) leave the idle prompt in place.
+    let previewHasRender = false;
+
+    function markPreviewStale() {
+      if (!previewHasRender) return;
+      previewHasRender = false;
+      setPreviewState('stale');
+    }
+
+    // An <iframe> fires no error event for an HTTP failure — it renders the JSON
+    // error envelope as a document instead. /results is same-origin, so read it
+    // back. A real PDF is drawn by the browser's viewer and exposes no such text.
+    function checkPreviewFrame(frame, url) {
+      let text;
+      try {
+        const body = frame.contentDocument && frame.contentDocument.body;
+        text = body ? body.textContent.trim() : '';
+      } catch (e) {
+        return;
+      }
+      if (text.charAt(0) === '{' && text.indexOf('"error"') !== -1) onPreviewLoadError(url);
+    }
+
+    // Surfaces a result that failed to load — an evicted cache entry (404) or,
+    // with --api-key, a subresource the browser cannot authenticate (401).
+    function onPreviewLoadError(url) {
+      setPreviewState('error', 'Could not load the render \\u2014 it may have expired');
+      document.getElementById('preview').innerHTML =
+        '<div class="error">The server did not return the render at ' + escapeHtml(url)
+        + '.\\nIt may have been evicted from the render cache. Click Render again.</div>';
     }
 
 `;

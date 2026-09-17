@@ -5,8 +5,27 @@
 'use strict';
 
 const { execFileSync } = require('node:child_process');
-const { writeFileSync, copyFileSync, mkdirSync, chmodSync, existsSync } = require('node:fs');
+const { writeFileSync, copyFileSync, mkdirSync, chmodSync, existsSync, readFileSync } = require('node:fs');
 const { join } = require('node:path');
+
+// Node SEA injects the blob by overwriting a sentinel string compiled into the
+// node executable. Shared-library builds (Homebrew's `node` is a ~68KB launcher
+// against libnode.dylib) keep that sentinel in the dylib, so postject fails with
+// an opaque "Could not find the sentinel" error. Check before injecting.
+function assertSeaCapable(binary, fuse) {
+  if (readFileSync(binary).includes(fuse)) return;
+  throw new Error(
+    `${binary} does not contain the Node SEA sentinel, so the blob cannot be injected.\n` +
+      `This node (${process.execPath}, v${process.versions.node}) is almost certainly a\n` +
+      `shared-library build — Homebrew's node links against libnode and ships a small launcher.\n` +
+      `Node SEA requires a statically linked node.\n\n` +
+      `Fixes:\n` +
+      `  - Build the binary with an official Node distribution (nodejs.org, nvm, or\n` +
+      `    actions/setup-node in CI, which is what the release workflow uses).\n` +
+      `  - For ordinary development you do not need this binary: 'pnpm run build'\n` +
+      `    builds the library and CLI; run 'pnpm run build:binary' only for releases.`,
+  );
+}
 
 const cliRoot = join(__dirname, '..');
 const repoRoot = join(cliRoot, '..');
@@ -45,6 +64,7 @@ chmodSync(outBinary, 0o755);
 console.log('Injecting blob with postject...');
 const postject = require.resolve('postject/dist/cli.js');
 const fuse = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
+assertSeaCapable(outBinary, fuse);
 const args = [postject, outBinary, 'NODE_SEA_BLOB', blob, '--sentinel-fuse', fuse];
 if (process.platform === 'darwin') args.push('--macho-segment-name', 'NODE_SEA');
 execFileSync(process.execPath, args, { stdio: 'inherit' });

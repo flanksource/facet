@@ -1,4 +1,6 @@
+import { randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
+import { performance } from 'node:perf_hooks';
 import { Readable } from 'node:stream';
 
 import { generatePDFBuffer } from '../utils/pdf-generator.js';
@@ -31,7 +33,7 @@ import {
   type RenderFormatMetadata,
 } from './render-format.js';
 
-export function handleResultsRoute(id: string, cache: RenderCache): Response {
+export function handleResultsRoute(id: string, cache: RenderCache, request?: Request): Response {
   const cached = cache.lookup(id);
   if (!cached) {
     return Response.json(
@@ -39,14 +41,27 @@ export function handleResultsRoute(id: string, cache: RenderCache): Response {
       { status: 404 },
     );
   }
+  // The id already identifies the render inputs, so it doubles as the validator.
+  const etag = `"${id}"`;
+  // Deliberately revalidate rather than `immutable`: an entry can be evicted and
+  // re-rendered under floating dependency ranges, producing different bytes at
+  // the same id. The ETag keeps repeat loads cheap without pinning stale output.
+  const cacheHeaders = {
+    etag,
+    'cache-control': 'private, no-cache',
+    'server-timing': 'cache;desc="hit"',
+  };
+  if (request?.headers.get('if-none-match') === etag) {
+    return new Response(null, { status: 304, headers: cacheHeaders });
+  }
   const metadata = renderContentTypeMetadata(cached.contentType);
   const stream = Readable.toWeb(createReadStream(cached.file)) as ReadableStream<Uint8Array>;
   return new Response(stream, {
     headers: {
+      ...cacheHeaders,
       'content-type': cached.contentType,
       'content-length': String(cached.size),
       'content-disposition': `inline; filename="render.${metadata.extension}"`,
-      'cache-control': 'private, max-age=600',
     },
   });
 }
@@ -141,8 +156,11 @@ export function handleRenderStream(
     }
 
     const cacheKey = cacheKeyForRequest(parsed, config);
-    const cached = cache.get(cacheKey);
+    const cacheable = isCacheable(parsed);
+    const lookupStartedAt = performance.now();
+    const cached = cacheable ? cache.get(cacheKey) : undefined;
     if (cached) {
+      timings.record('cache-hit', performance.now() - lookupStartedAt);
       progress.emit('done', 'Cache hit');
       const resultUrl = `/results/${cacheKey}`;
       const metadata = renderContentTypeMetadata(cached.contentType);
@@ -150,6 +168,7 @@ export function handleRenderStream(
         cached.contentType,
         metadata.binary ? '' : cached.data.toString('utf-8'),
         resultUrl,
+        timings.entries(),
       );
       progress.close();
       return;
@@ -177,11 +196,12 @@ export function handleRenderStream(
       const data = typeof result.content === 'string'
         ? Buffer.from(result.content)
         : Buffer.from(result.content);
-      cache.set(cacheKey, result.metadata.contentType, data);
+      const storageKey = cacheable ? cacheKey : freshResultKey();
+      cache.set(storageKey, result.metadata.contentType, data);
       progress.emitResult(
         result.metadata.contentType,
         result.metadata.binary ? '' : data.toString('utf-8'),
-        `/results/${cacheKey}`,
+        `/results/${storageKey}`,
         timings.entries(),
       );
       progress.emit('done', 'Render complete');
@@ -206,7 +226,7 @@ export function handleRenderStream(
   });
 }
 
-function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerConfig): string {
+export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerConfig): string {
   return computeCacheKey({
     facetVersion: VERSION,
     moduleMode: config.skipModules ? 'skip' : 'project',
@@ -225,7 +245,30 @@ function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerConfig): 
     // Without this, two audiences of the same document share a cache entry and
     // serve each other's bytes — a classification leak, not a stale render.
     redact: parsed.redact,
+    // Reaches html and png as well as pdf (injectFontScale), so it must key the
+    // render even when it did not arrive via pdfOptions.
+    fontSize: parsed.fontSize,
   });
+}
+
+/**
+ * A signed PDF embeds the signing time (and, with a TSA, a fresh timestamp
+ * token), so its bytes are not a function of its inputs. Caching one replays
+ * the original timestamp on every later render, so these bypass the cache.
+ * Only the PDF path applies the signature, so other formats stay cacheable.
+ */
+function isCacheable(parsed: ParsedRenderRequest): boolean {
+  return !(parsed.signature && parsed.format === 'pdf');
+}
+
+/**
+ * Result id for a render that must not be reused. It still lands in the cache
+ * so /results can serve and eventually evict it, but no later request can
+ * derive this id, and its ETag differs from the previous render's.
+ * Matches the 16-hex shape the /results route accepts.
+ */
+function freshResultKey(): string {
+  return randomBytes(8).toString('hex');
 }
 
 interface RenderOptions {
@@ -260,7 +303,8 @@ async function materializeBrowserHTML(html: string, pool: WorkerPool): Promise<s
 async function doRender(options: DirectRenderOptions): Promise<Response> {
   const { parsed, config, pool, templates, cache, s3, logger, timings } = options;
   const cacheKey = cacheKeyForRequest(parsed, config);
-  const cached = cache.lookup(cacheKey);
+  const cacheable = isCacheable(parsed);
+  const cached = cacheable ? cache.lookup(cacheKey) : undefined;
   if (cached) {
     const metadata = renderContentTypeMetadata(cached.contentType);
     if (metadata.binary) {
@@ -342,7 +386,8 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
           }, logger);
         }
       }
-      cache.set(cacheKey, metadata.contentType, output);
+      const storageKey = cacheable ? cacheKey : freshResultKey();
+      cache.set(storageKey, metadata.contentType, output);
       if (parsed.output === 's3') {
         return respondWithOutput({
           content: output,
@@ -354,7 +399,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
           logger,
         });
       }
-      return Response.json({ url: `/results/${cacheKey}` });
+      return Response.json({ url: `/results/${storageKey}` });
     } catch (error) {
       workerHealthy = worker.browser.connected;
       throw error;

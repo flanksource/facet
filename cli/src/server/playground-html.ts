@@ -33,10 +33,29 @@ const HTML = `<!DOCTYPE html>
     .editor-tabs button.active { color: #fff; border-bottom-color: #2563eb; }
     #template-editor, #data-editor, #deps-editor, #header-editor, #footer-editor { flex: 1; min-height: 0; }
     .preview-panel { flex: 1; display: flex; flex-direction: column; background: #fff; min-height: 0; }
+    .preview-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
     .preview-panel iframe { flex: 1; border: none; width: 100%; }
     .preview-panel img { max-width: 100%; max-height: 100%; object-fit: contain; margin: auto; }
     .preview-panel .error { padding: 16px; color: #dc2626; font-family: monospace; font-size: 13px; white-space: pre-wrap; background: #fef2f2; flex: 1; overflow: auto; }
     .preview-panel .empty { display: flex; align-items: center; justify-content: center; flex: 1; color: #888; font-size: 14px; background: #f5f5f5; }
+
+    /* Render banner — the pane's own status line. Survives body replacement, so
+       it can report staleness and timings without the log dialog being open. */
+    .preview-banner { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 12px;
+                      background: #f5f5f5; border-bottom: 1px solid #e0e0e0; color: #555; flex-shrink: 0; }
+    .preview-banner .preview-dot { width: 8px; height: 8px; border-radius: 50%; background: #bbb; flex-shrink: 0; }
+    .preview-banner .preview-text { flex-shrink: 0; }
+    .preview-banner .preview-timings { color: #999; font-size: 11px; margin-left: auto; text-align: right;
+                                       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .preview-banner.stale { background: #fffbeb; border-bottom-color: #fde68a; color: #92400e; }
+    .preview-banner.stale .preview-dot { background: #f59e0b; }
+    .preview-banner.rendering { background: #eff6ff; border-bottom-color: #bfdbfe; color: #1d4ed8; }
+    .preview-banner.rendering .preview-dot { background: #2563eb; animation: preview-pulse 1s ease-in-out infinite; }
+    .preview-banner.done { background: #f0fdf4; border-bottom-color: #bbf7d0; color: #166534; }
+    .preview-banner.done .preview-dot { background: #16a34a; }
+    .preview-banner.error { background: #fef2f2; border-bottom-color: #fecaca; color: #b91c1c; }
+    .preview-banner.error .preview-dot { background: #dc2626; }
+    @keyframes preview-pulse { 50% { opacity: 0.25; } }
 
     /* Split render button */
     .render-group { display: flex; align-items: stretch; position: relative; }
@@ -211,8 +230,13 @@ const HTML = `<!DOCTYPE html>
       <div id="data-editor" style="display:none"></div>
       <div id="deps-editor" style="display:none"></div>
     </div>
-    <div class="preview-panel" id="preview">
-      <div class="empty">Click "Render" to preview your template</div>
+    <div class="preview-panel">
+      <div class="preview-banner" id="previewBanner">
+        <span class="preview-dot"></span>
+        <span class="preview-text" id="previewText">Click "Render" to preview your template</span>
+        <span class="preview-timings" id="previewTimings"></span>
+      </div>
+      <div class="preview-body" id="preview"></div>
     </div>
   </div>
   <div id="fill-pdf-root"></div>
@@ -246,6 +270,7 @@ ${PLAYGROUND_CONTROLS_SCRIPT}
       clearLogs();
       openLogs();
       setLogStatus('Rendering...', true);
+      setPreviewState('rendering', 'Rendering ' + currentFormat.toUpperCase() + '\\u2026');
 
       const code = templateEditor.getValue();
       const format = currentFormat;
@@ -258,6 +283,7 @@ ${PLAYGROUND_CONTROLS_SCRIPT}
         data = JSON.parse(dataEditor.getValue());
       } catch (e) {
         preview.innerHTML = '<div class="error">Invalid JSON in data editor:\\n' + e.message + '</div>';
+        setPreviewState('error', 'Invalid JSON in data editor');
         btn.disabled = false;
         drop.disabled = false;
         setLogStatus('Failed', false);
@@ -269,6 +295,8 @@ ${PLAYGROUND_CONTROLS_SCRIPT}
       try {
         deps = JSON.parse(depsEditor.getValue());
       } catch (e) {
+        preview.innerHTML = '<div class="error">Invalid JSON in dependencies editor:\\n' + e.message + '</div>';
+        setPreviewState('error', 'Invalid JSON in dependencies editor');
         setLogStatus('Failed', false);
         addLog('error', 'Invalid JSON in dependencies editor: ' + e.message);
         btn.disabled = false;
@@ -334,6 +362,7 @@ ${PLAYGROUND_CONTROLS_SCRIPT}
         if (!res.ok) {
           const err = await res.text();
           preview.innerHTML = '<div class="error">Render failed (' + res.status + '):\\n' + err + '</div>';
+          setPreviewState('error', 'Render failed (HTTP ' + res.status + ')');
           setLogStatus('Failed', false);
           addLog('error', 'HTTP ' + res.status + ': ' + err);
           btn.disabled = false;
@@ -345,16 +374,22 @@ ${PLAYGROUND_CONTROLS_SCRIPT}
         const decoder = new TextDecoder();
         let buffer = '';
         let gotResult = false;
+        // Must outlive a single read. A frame's "event:" line and its "data:"
+        // line routinely arrive in different chunks once the payload is large
+        // (an inlined HTML document always is), and resetting per chunk
+        // downgraded those results to unhandled progress messages — the render
+        // completed but the preview never updated.
+        let eventType = 'message';
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
+          buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
           const lines = buffer.split('\\n');
-          buffer = lines.pop() || '';
+          // Nothing follows the final read, so flush the remainder instead of
+          // holding it back as a partial line.
+          buffer = done ? '' : (lines.pop() || '');
 
-          let eventType = 'message';
           for (const line of lines) {
             if (line.startsWith('event: ')) {
               eventType = line.slice(7).trim();
@@ -372,49 +407,62 @@ ${PLAYGROUND_CONTROLS_SCRIPT}
               gotResult = true;
               const elapsed = ((Date.now() - start) / 1000).toFixed(1);
               showTimings(payload.timings);
+              let rendered = true;
               if (payload.contentType === 'text/html') {
                 preview.innerHTML = '<iframe sandbox="allow-same-origin allow-scripts"></iframe>';
                 preview.querySelector('iframe').srcdoc = payload.data;
               } else if (payload.contentType === 'image/png' && payload.url) {
                 preview.innerHTML = '<img alt="PNG render">';
-                preview.querySelector('img').src = payload.url;
+                const img = preview.querySelector('img');
+                img.onerror = function () { onPreviewLoadError(payload.url); };
+                img.src = payload.url;
               } else if (payload.url) {
                 preview.innerHTML = '<iframe></iframe>';
-                preview.querySelector('iframe').src = payload.url;
-              } else if (payload.data) {
-                try {
-                  const bytes = Uint8Array.from(atob(payload.data), c => c.charCodeAt(0));
-                  const blob = new Blob([bytes], { type: 'application/pdf' });
-                  preview.innerHTML = '<iframe></iframe>';
-                  preview.querySelector('iframe').src = URL.createObjectURL(blob);
-                } catch (pdfErr) {
-                  preview.innerHTML = '<div class="error">Failed to decode PDF: ' + escapeHtml(pdfErr.message) + '</div>';
-                }
+                const frame = preview.querySelector('iframe');
+                frame.onload = function () { checkPreviewFrame(frame, payload.url); };
+                frame.src = payload.url;
               } else {
                 preview.innerHTML = '<div class="error">Render returned empty result</div>';
+                rendered = false;
               }
+              previewHasRender = rendered;
+              setPreviewState(
+                rendered ? 'done' : 'error',
+                rendered ? 'Rendered in ' + elapsed + 's' : 'Render returned empty result',
+                payload.timings,
+              );
               setLogStatus('Done (' + elapsed + 's)', false);
               addLog('done', 'Completed in ' + elapsed + 's');
               if (!renderHadError) setTimeout(closeLogs, 600);
             } else if (eventType === 'error') {
               preview.innerHTML = '<div class="error">' + escapeHtml(payload.message) + '</div>';
+              setPreviewState('error', payload.message);
               setLogStatus('Failed', false);
               addLog('error', payload.message);
             } else if (payload.stage || payload.message) {
+              // A trailing 'done' stage arrives after the result on the success
+              // path; it must not reset the banner or blank the render.
+              if (!gotResult) setPreviewState('rendering', payload.message);
               setLogStatus(payload.message, true);
               addLog(payload.stage, payload.message, payload.elapsed, payload.duration);
             }
             eventType = 'message';
           }
+
+          if (done) break;
         }
 
-        if (!gotResult) {
-          const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-          setLogStatus('Done (' + elapsed + 's)', false);
-          if (!renderHadError) setTimeout(closeLogs, 600);
+        // The stream ended without a result. Reporting "Done" here left the
+        // previous render on screen looking current; it is a failure.
+        if (!gotResult && !renderHadError) {
+          preview.innerHTML = '<div class="error">The render stream ended without returning a result.</div>';
+          setPreviewState('error', 'Render ended without a result');
+          setLogStatus('Failed', false);
+          addLog('error', 'Stream closed before a result was received');
         }
       } catch (e) {
         preview.innerHTML = '<div class="error">Network error:\\n' + e.message + '</div>';
+        setPreviewState('error', 'Network error');
         setLogStatus('Error', false);
         addLog('error', 'Network: ' + e.message);
       } finally {

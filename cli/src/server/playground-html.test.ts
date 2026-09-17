@@ -16,6 +16,14 @@ describe('playgroundHtml', () => {
       showsResultTimings: html.includes('showTimings(payload.timings)'),
       injectsVersion: html.includes('"@flanksource/facet": "1.2.3"'),
       hasUnexpandedModulePlaceholder: html.includes('${PLAYGROUND_'),
+      hasPreviewBanner: html.includes('id="previewBanner"'),
+      blanksPreviewOnStale: html.includes('function markPreviewStale()'),
+      blanksPreviewOnEdit: html.includes('editor.onDidChangeModelContent(markPreviewStale)'),
+      blanksPreviewOnRender: html.includes("setPreviewState('rendering'"),
+      showsTimingsInBanner: html.includes('function formatPreviewTimings(timings)'),
+      handlesResultLoadFailure: html.includes('function onPreviewLoadError(url)'),
+      // The base64/Blob path was unreachable: emitResult always sends a url.
+      hasDeadBlobBranch: html.includes('URL.createObjectURL'),
     }).toEqual({
       hasEditor: true,
       hasExamples: true,
@@ -27,6 +35,13 @@ describe('playgroundHtml', () => {
       showsResultTimings: true,
       injectsVersion: true,
       hasUnexpandedModulePlaceholder: false,
+      hasPreviewBanner: true,
+      blanksPreviewOnStale: true,
+      blanksPreviewOnEdit: true,
+      blanksPreviewOnRender: true,
+      showsTimingsInBanner: true,
+      handlesResultLoadFailure: true,
+      hasDeadBlobBranch: false,
     });
   });
 });

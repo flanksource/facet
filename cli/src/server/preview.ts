@@ -121,7 +121,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
 
     const resultsMatch = url.pathname.match(/^\/results\/([a-f0-9]{16})$/);
     if (resultsMatch && request.method === 'GET') {
-      return handleResultsRoute(resultsMatch[1], cache);
+      return handleResultsRoute(resultsMatch[1], cache, request);
     }
 
     if (url.pathname === '/render/stream' && request.method === 'POST') {

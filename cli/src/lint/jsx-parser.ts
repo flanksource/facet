@@ -97,25 +97,47 @@ function jsxNodeFrom(node: ts.JsxElement | ts.JsxSelfClosingElement, source: ts.
   let hasContent = ts.isJsxSelfClosingElement(node);
 
   if (ts.isJsxElement(node)) {
-    for (const child of node.children) {
-      if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
-        children.push(jsxNodeFrom(child, source));
-        hasContent = true;
-      } else if (ts.isJsxExpression(child) && child.expression) {
-        collectFromExpression(child.expression, source, children);
-        hasContent = true;
-      } else if (ts.isJsxText(child) && child.text.trim().length > 0) {
-        hasContent = true;
-      }
-    }
+    hasContent = appendJsxChildren(node.children, source, children) || hasContent;
   }
 
   return { name, line, children, hasContent };
 }
 
+// Fragments carry no structure of their own, so their children are spliced into
+// the parent. Without this, anything inside a `<>…</>` is invisible to the rules.
+function appendJsxChildren(
+  nodes: ts.NodeArray<ts.JsxChild>,
+  source: ts.SourceFile,
+  out: JSXNode[],
+): boolean {
+  let hasContent = false;
+
+  for (const child of nodes) {
+    if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
+      out.push(jsxNodeFrom(child, source));
+      hasContent = true;
+    } else if (ts.isJsxFragment(child)) {
+      appendJsxChildren(child.children, source, out);
+      hasContent = true;
+    } else if (ts.isJsxExpression(child) && child.expression) {
+      collectFromExpression(child.expression, source, out);
+      hasContent = true;
+    } else if (ts.isJsxText(child) && child.text.trim().length > 0) {
+      hasContent = true;
+    }
+  }
+
+  return hasContent;
+}
+
 function collectFromExpression(expr: ts.Expression, source: ts.SourceFile, out: JSXNode[]) {
   if (ts.isJsxElement(expr) || ts.isJsxSelfClosingElement(expr)) {
     out.push(jsxNodeFrom(expr, source));
+    return;
+  }
+
+  if (ts.isJsxFragment(expr)) {
+    appendJsxChildren(expr.children, source, out);
     return;
   }
 

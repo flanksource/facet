@@ -2,6 +2,7 @@ import { performance } from 'node:perf_hooks';
 import type { Logger } from './logger.js';
 
 const RENDER_PHASES = [
+  { name: 'cache-hit', description: 'Cache hit' },
   { name: 'dependency-install', description: 'Dependency install' },
   { name: 'vite', description: 'Vite' },
   { name: 'tailwind', description: 'Tailwind CSS' },
@@ -32,6 +33,11 @@ export class RenderTimings {
     } finally {
       this.durations.set(phase, (this.durations.get(phase) ?? 0) + this.now() - startedAt);
     }
+  }
+
+  /** Records an already-measured phase, for work not wrapped by measure(). */
+  record(phase: RenderTimingPhase, durationMs: number): void {
+    this.durations.set(phase, (this.durations.get(phase) ?? 0) + durationMs);
   }
 
   entries(): RenderTimingEntry[] {

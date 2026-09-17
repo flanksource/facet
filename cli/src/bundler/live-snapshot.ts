@@ -2,7 +2,7 @@
  * Live Snapshot (live render path)
  *
  * Loads a Vite-dev-served template in a real browser (so react-xarrows and other
- * DOM-measuring components render), waits for the diagram to settle, then either
+ * DOM-measuring components render), waits for every diagram to settle, then either
  * captures the rendered DOM as self-contained static HTML or prints it to PDF.
  */
 
@@ -16,10 +16,45 @@ import {
   resolvePNGTarget,
 } from '../utils/png-generator.js';
 import type { PNGOptions } from '../types.js';
+import { DIAGRAM_SELECTOR, diagramReadiness, type DiagramState } from './diagram-readiness.js';
 
-/** Max time to wait for `data-facet-ready` before falling back to a fixed delay. */
+/** Max time to wait for every diagram to set `data-facet-ready` or `data-facet-error`. */
 const READY_TIMEOUT_MS = 15_000;
 const FALLBACK_SETTLE_MS = 800;
+
+function readDiagramStates(page: Page): Promise<DiagramState[]> {
+  return page.$$eval(DIAGRAM_SELECTOR, (diagrams) =>
+    diagrams.map((diagram) => ({
+      ready: diagram.getAttribute('data-facet-ready'),
+      error: diagram.getAttribute('data-facet-error'),
+    })),
+  );
+}
+
+async function waitForDiagrams(page: Page, logger: Logger): Promise<void> {
+  try {
+    // Mirrors diagramReadiness().settled — page functions cannot import it.
+    await page.waitForFunction(
+      (selector: string) =>
+        Array.from(document.querySelectorAll(selector)).every(
+          (diagram) =>
+            diagram.hasAttribute('data-facet-error') ||
+            diagram.getAttribute('data-facet-ready') === 'true',
+        ),
+      { timeout: READY_TIMEOUT_MS },
+      DIAGRAM_SELECTOR,
+    );
+  } catch (err) {
+    const { pending } = diagramReadiness(await readDiagramStates(page));
+    throw new Error(
+      `${pending} diagram(s) did not settle within ${READY_TIMEOUT_MS}ms: ${(err as Error).message}`,
+    );
+  }
+  const states = await readDiagramStates(page);
+  const { errors } = diagramReadiness(states);
+  if (errors.length > 0) throw new Error(errors.join('\n'));
+  logger.debug(`${states.length} diagram(s) settled`);
+}
 
 async function loadLivePage(
   browser: Browser,
@@ -59,25 +94,11 @@ async function loadLivePage(
   if (normalizedPNG) await resolvePNGTarget(page, normalizedPNG);
 
   // A <Diagram> flips its root's data-facet-ready to "true" after react-xarrows
-  // has measured and drawn. Wait for that; if no diagram is present, fall back
-  // to a bounded settle delay.
-  const hasDiagram = await page.$('[data-facet-diagram]');
+  // has measured and drawn. Wait for every diagram; if none is present, fall
+  // back to a bounded settle delay.
+  const hasDiagram = await page.$(DIAGRAM_SELECTOR);
   if (hasDiagram) {
-    try {
-      await page.waitForFunction(
-        () => !!document.querySelector(
-          '[data-facet-diagram][data-facet-ready="true"], [data-facet-diagram][data-facet-error]',
-        ),
-        { timeout: READY_TIMEOUT_MS },
-      );
-    } catch {
-      logger.warn(`Diagram did not signal ready within ${READY_TIMEOUT_MS}ms; capturing anyway`);
-    }
-    const diagramError = await page.$eval(
-      '[data-facet-diagram]',
-      (diagram) => diagram.getAttribute('data-facet-error'),
-    );
-    if (diagramError) throw new Error(diagramError);
+    await waitForDiagrams(page, logger);
   } else {
     await new Promise((r) => setTimeout(r, FALLBACK_SETTLE_MS));
   }

@@ -1530,8 +1530,30 @@ export const facetTypes = `declare module '@flanksource/facet' {
       bottom?: number;
       left?: number;
   }
+  export interface CoverPageProps {
+      title: string;
+      subtitle?: string;
+      logo?: React.ReactNode;
+      children?: React.ReactNode;
+      id?: string;
+      pageSize?: PageSize;
+      margins?: PageMargins;
+      watermark?: string;
+      className?: string;
+  }
+  export function CoverPage(props: CoverPageProps): JSX.Element;
+  export interface DocumentField {
+      label: string;
+      value: React.ReactNode;
+  }
+  export interface DocumentFieldsProps {
+      fields: DocumentField[];
+      className?: string;
+  }
+  export function DocumentFields(props: DocumentFieldsProps): JSX.Element;
   export interface PageProps {
       children: React.ReactNode;
+      id?: string;
       title?: string;
       titleClassName?: string;
       product?: string;
@@ -1541,7 +1563,27 @@ export const facetTypes = `declare module '@flanksource/facet' {
       watermark?: string;
       type?: PageType;
   }
-  export function Page({ children, title, titleClassName, className, pageSize, margins, watermark, type, }: PageProps): JSX.Element;
+  export function Page({ children, id, title, titleClassName, className, pageSize, margins, watermark, type, }: PageProps): JSX.Element;
+
+  export interface TableOfContentsItemBase {
+      title: string;
+      level?: 1 | 2 | 3;
+  }
+  export interface AutomaticTableOfContentsItem extends TableOfContentsItemBase {
+      target: string;
+      page?: never;
+  }
+  export interface ExplicitTableOfContentsItem extends TableOfContentsItemBase {
+      page: string | number;
+      target?: never;
+  }
+  export type TableOfContentsItem = AutomaticTableOfContentsItem | ExplicitTableOfContentsItem;
+  export interface TableOfContentsProps {
+      items: TableOfContentsItem[];
+      title?: string;
+      className?: string;
+  }
+  export function TableOfContents(props: TableOfContentsProps): JSX.Element;
 
   /**
    * PageBreak Component

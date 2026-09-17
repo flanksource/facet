@@ -638,8 +638,16 @@ export default defineConfig(async () => {
       remarkPlugins: ${remarkArray},
       rehypePlugins: ${rehypeArray},
       include: [/\\.(md|mdx)$/],
+      exclude: [/\\?raw(?:&|$)/],
     }),
   };
+  const mdxTransform = mdxPlugin.transform;
+  if (typeof mdxTransform === 'function') {
+    mdxPlugin.transform = function(code, id, ...args) {
+      if (/(?:\\?|&)raw(?:&|$)/.test(id)) return null;
+      return mdxTransform.call(this, code, id, ...args);
+    };
+  }
   // Rolldown crosses the native->JS boundary for every module unless a hook
   // declares a filter (the plugin's own include only filters inside JS). With
   // zero markdown files this dispatch tax was measured at 76% of build time.
@@ -781,20 +789,29 @@ export default defineConfig(async () => {
   const tailwindPlugins = tailwindMajor === 4
     ? [(await import('@tailwindcss/vite')).default()]
     : [];
+  const mdxPlugin = {
+    enforce: 'pre',
+    ...mdx({
+      remarkPlugins: ${remarkArray},
+      rehypePlugins: ${rehypeArray},
+      include: [/\\.(md|mdx)$/],
+      exclude: [/\\?raw(?:&|$)/],
+    }),
+  };
+  const mdxTransform = mdxPlugin.transform;
+  if (typeof mdxTransform === 'function') {
+    mdxPlugin.transform = function(code, id, ...args) {
+      if (/(?:\\?|&)raw(?:&|$)/.test(id)) return null;
+      return mdxTransform.call(this, code, id, ...args);
+    };
+  }
   return {
   plugins: [
     ...tailwindPlugins,
     // enforce: 'pre' — in dev mode plugin-react's transform runs before
     // array-ordered plugins, so MDX must be hoisted to the pre stage or
     // react-babel parses raw .mdx and fails. Build mode respects array order.
-    {
-      enforce: 'pre',
-      ...mdx({
-        remarkPlugins: ${remarkArray},
-        rehypePlugins: ${rehypeArray},
-        include: [/\\.(md|mdx)$/],
-      }),
-    },
+    mdxPlugin,
     react({
       include: /\\.(md|mdx|js|jsx|ts|tsx)$/,
     }),
