@@ -99,4 +99,19 @@ describe('measureArrow', () => {
       to: 'target',
     })).toBeNull();
   });
+
+  it('returns perpendicular label normals for horizontal and vertical paths', () => {
+    const horizontal = measureArrow({
+      curveness: 0.8, endAnchor: 'left', from: 'source', path: 'straight', root,
+      startAnchor: 'right', to: 'target',
+    });
+    const vertical = measureArrow({
+      curveness: 0.8, endAnchor: 'top', from: 'source', path: 'straight',
+      root: rootWith({ source: rect(100, 100, 100, 60), target: rect(100, 300, 100, 60) }),
+      startAnchor: 'bottom', to: 'target',
+    });
+
+    expect(horizontal?.labelMiddle.normal.y).toBeLessThan(0);
+    expect(vertical?.labelMiddle.normal.x).toBeLessThan(0);
+  });
 });

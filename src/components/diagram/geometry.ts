@@ -8,15 +8,19 @@ interface Point {
   y: number;
 }
 
+export interface LabelPoint extends Point {
+  normal: Point;
+}
+
 interface PositionedAnchor extends Point {
   position: AnchorPosition;
 }
 
 export interface ArrowGeometry {
   end: Point;
-  labelEnd: Point;
-  labelMiddle: Point;
-  labelStart: Point;
+  labelEnd: LabelPoint;
+  labelMiddle: LabelPoint;
+  labelStart: LabelPoint;
   path: string;
   start: Point;
 }
@@ -110,7 +114,7 @@ function interpolate(start: Point, end: Point, ratio: number): Point {
   };
 }
 
-function pointAlong(points: Point[], ratio: number): Point {
+function pointAlong(points: Point[], ratio: number): LabelPoint {
   const segments = points.slice(1).map((point, index) => ({
     end: point,
     length: distance(points[index], point),
@@ -121,11 +125,18 @@ function pointAlong(points: Point[], ratio: number): Point {
   for (const segment of segments) {
     if (segment.length === 0) continue;
     if (traversed + segment.length >= target) {
-      return interpolate(segment.start, segment.end, (target - traversed) / segment.length);
+      const point = interpolate(segment.start, segment.end, (target - traversed) / segment.length);
+      const dx = (segment.end.x - segment.start.x) / segment.length;
+      const dy = (segment.end.y - segment.start.y) / segment.length;
+      const normal = Math.abs(dx) >= Math.abs(dy)
+        ? { x: dy * Math.sign(dx || 1), y: -Math.abs(dx) }
+        : { x: -Math.abs(dy), y: dx * Math.sign(dy || 1) };
+      return { ...point, normal };
     }
     traversed += segment.length;
   }
-  return points.at(-1) ?? points[0];
+  const point = points.at(-1) ?? points[0];
+  return { ...point, normal: { x: 0, y: -1 } };
 }
 
 export function measureArrow(options: {
@@ -173,6 +184,16 @@ export function measureArrow(options: {
     const startDirection = direction(start.position, start, end);
     const endDirection = direction(end.position, end, start);
     path = `M ${start.x} ${start.y} C ${start.x + startDirection.x * bend} ${start.y + startDirection.y * bend}, ${end.x + endDirection.x * bend} ${end.y + endDirection.y * bend}, ${end.x} ${end.y}`;
+    const controlStart = { x: start.x + startDirection.x * bend, y: start.y + startDirection.y * bend };
+    const controlEnd = { x: end.x + endDirection.x * bend, y: end.y + endDirection.y * bend };
+    labelPath = Array.from({ length: 33 }, (_, index) => {
+      const t = index / 32;
+      const inverse = 1 - t;
+      return {
+        x: inverse ** 3 * start.x + 3 * inverse ** 2 * t * controlStart.x + 3 * inverse * t ** 2 * controlEnd.x + t ** 3 * end.x,
+        y: inverse ** 3 * start.y + 3 * inverse ** 2 * t * controlStart.y + 3 * inverse * t ** 2 * controlEnd.y + t ** 3 * end.y,
+      };
+    });
   }
 
   return {

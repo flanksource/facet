@@ -2,6 +2,8 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { COLORS, type DiagramColors } from './colors';
 import { DiagramLayoutProvider } from './context';
+import { layoutErrors } from './layoutCheck';
+import { measureLayout } from './layoutMeasure';
 
 export type IdFn = (name: string) => string;
 
@@ -78,6 +80,11 @@ function LayoutSettler({
         stable = 0;
         last = '';
       } else if (stable >= STABLE_FRAMES && arrowsReady(root)) {
+        const errors = layoutErrors(measureLayout(root));
+        if (errors.length > 0) {
+          root.dataset.facetError = errors.join('\n');
+          return;
+        }
         onSettledRef.current();
         return;
       }

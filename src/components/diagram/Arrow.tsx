@@ -1,10 +1,11 @@
-import React, { useId, useLayoutEffect, useState } from 'react';
+import React, { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { xarrowPropsType } from 'react-xarrows';
 import { COLORS } from './colors';
 import { useDiagramLayout } from './context';
-import { measureArrow, type ArrowGeometry } from './geometry';
+import { measureArrow, type ArrowGeometry, type LabelPoint } from './geometry';
 
 export type ArrowVariant = 'primary' | 'secondary' | 'er' | 'bidirectional';
+export type ArrowLabelPosition = 'center' | 'top' | 'bottom';
 
 type VariantProps = Pick<
   xarrowPropsType,
@@ -60,6 +61,7 @@ export interface ArrowProps extends Omit<xarrowPropsType, keyof VariantProps | '
   tailShape?: xarrowPropsType['tailShape'];
   showHead?: boolean;
   showTail?: boolean;
+  labelPosition?: ArrowLabelPosition;
 }
 
 function labelsFrom(props: ArrowProps['labels']): {
@@ -71,36 +73,59 @@ function labelsFrom(props: ArrowProps['labels']): {
   return (props ?? {}) as { start?: React.ReactNode; middle?: React.ReactNode; end?: React.ReactNode };
 }
 
-function markerShape(
+export function markerShape(
   shape: ArrowProps['headShape'],
   color: string,
-  markerProps: Record<string, unknown> | undefined,
-) {
-  if (shape === 'circle') {
-    return <circle cx="5" cy="5" fill={color} r="4" {...markerProps} />;
-  }
+  markerProps?: Record<string, unknown>,
+): React.ReactElement {
   if (typeof shape === 'object' && React.isValidElement(shape.svgElem)) {
-    return React.cloneElement(shape.svgElem, markerProps);
+    return <g fill={color} {...markerProps}>{shape.svgElem}</g>;
   }
-  return <path d="M 0 0 L 10 5 L 0 10 z" fill={color} {...markerProps} />;
+  if (shape === 'heart') {
+    return <path d="M 0 0.25 A 0.125 0.125 0 0 1 0.5 0.25 A 0.125 0.125 0 0 1 1 0.25 Q 1 0.625 0.5 1 Q 0 0.625 0 0.25 z" fill={color} {...markerProps} />;
+  }
+  if (shape === 'circle') {
+    return <circle cx="0.5" cy="0.5" r="0.5" fill={color} {...markerProps} />;
+  }
+  return <path d="M 0 0 L 1 0.5 L 0 1 L 0.25 0.5 z" fill={color} {...markerProps} />;
 }
 
 function ArrowLabel({
   children,
   point,
+  position,
 }: {
   children: React.ReactNode;
-  point: { x: number; y: number };
+  point: LabelPoint;
+  position: ArrowLabelPosition;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      setSize((current) => current.width === rect.width && current.height === rect.height
+        ? current : { width: rect.width, height: rect.height });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [children]);
   if (children == null) return null;
+  const offset = position === 'center' ? 0 : Math.abs(point.normal.x) * size.width / 2 + Math.abs(point.normal.y) * size.height / 2 + 4;
+  const side = position === 'bottom' ? -1 : 1;
   return (
     <div
+      ref={ref}
       style={{
         display: 'table',
-        left: point.x,
+        left: point.x + point.normal.x * offset * side,
         pointerEvents: 'auto',
         position: 'absolute',
-        top: point.y,
+        top: point.y + point.normal.y * offset * side,
         transform: 'translate(-50%, -50%)',
         width: 'max-content',
       }}
@@ -117,6 +142,7 @@ export default function Arrow({
   startAnchor,
   endAnchor,
   labels,
+  labelPosition = 'center',
   path = 'smooth',
   gridBreak,
   curveness,
@@ -219,9 +245,9 @@ export default function Arrow({
                 markerUnits="strokeWidth"
                 markerWidth={resolvedHeadSize}
                 orient="auto"
-                refX="9"
-                refY="5"
-                viewBox="0 0 10 10"
+                refX="0.9"
+                refY="0.5"
+                viewBox="0 0 1 1"
               >
                 {markerShape(
                   resolvedHeadShape,
@@ -235,9 +261,9 @@ export default function Arrow({
                 markerUnits="strokeWidth"
                 markerWidth={resolvedTailSize}
                 orient="auto-start-reverse"
-                refX="1"
-                refY="5"
-                viewBox="0 0 10 10"
+                refX="0.1"
+                refY="0.5"
+                viewBox="0 0 1 1"
               >
                 {markerShape(
                   resolvedTailShape,
@@ -268,9 +294,9 @@ export default function Arrow({
               )}
             </path>
           </svg>
-          <ArrowLabel point={geometry.labelStart}>{parsedLabels.start}</ArrowLabel>
-          <ArrowLabel point={geometry.labelMiddle}>{parsedLabels.middle}</ArrowLabel>
-          <ArrowLabel point={geometry.labelEnd}>{parsedLabels.end}</ArrowLabel>
+          <ArrowLabel point={geometry.labelStart} position={labelPosition}>{parsedLabels.start}</ArrowLabel>
+          <ArrowLabel point={geometry.labelMiddle} position={labelPosition}>{parsedLabels.middle}</ArrowLabel>
+          <ArrowLabel point={geometry.labelEnd} position={labelPosition}>{parsedLabels.end}</ArrowLabel>
         </>
       )}
     </div>
