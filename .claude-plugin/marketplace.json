@@ -1,0 +1,14 @@
+{
+  "name": "flanksource-facet",
+  "owner": {
+    "name": "Flanksource",
+    "url": "https://github.com/flanksource"
+  },
+  "plugins": [
+    {
+      "name": "facet-skills",
+      "description": "Skills for Facet — author React/Markdown templates into PDF, HTML and PNG, drive the facet CLI, and design node-and-arrow architecture diagrams",
+      "source": "./.agents"
+    }
+  ]
+}
