@@ -19,12 +19,11 @@ export interface CalloutBoxProps {
   /** Inline label in the header row. Defaults to the variant's own name. */
   label?: string;
   /**
-   * Glyph to draw, named independently of `variant`. Defaults to the variant's
-   * own icon. Set it when the colour and the symbol need to say different
-   * things — an amber "TODO" that reads as a question, say — or to give an
-   * untinted `default` callout an icon it would otherwise not draw.
+   * Glyph to draw, named independently of `variant` or supplied as an element.
+   * Defaults to the variant's own icon. Set it when the colour and the symbol
+   * need to say different things, or to give a default callout an icon.
    */
-  icon?: AlertTone;
+  icon?: AlertTone | React.ReactElement;
   /** Leading identifier chip, e.g. an annotation number. */
   badge?: string;
   /** Muted trailing attribution, e.g. a reviewer or source name. */
@@ -177,7 +176,7 @@ export default function CalloutBox({
           )}
           {glyph && (
             <span className={styles.icon}>
-              <AlertIcon tone={glyph} />
+              {typeof glyph === 'string' ? <AlertIcon tone={glyph} /> : glyph}
             </span>
           )}
           {labelText && (

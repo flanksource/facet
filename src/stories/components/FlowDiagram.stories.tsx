@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import {
   UiDatabase,
+  UiQuestion,
   UiRocket,
   UiSealCheck,
   UiUser,
 } from '@flanksource/clicky-ui/icons';
+import Badge from '../../components/Badge';
 import { COLORS, FlowDiagram } from '../../components/diagram';
 import type { FlowEdge, FlowLane, FlowStep } from '../../components/diagram';
 
@@ -101,18 +103,24 @@ const meta = {
     showLaneDivider: true,
     showLaneDetails: true,
     showLaneSeparators: true,
+    showLegend: false,
   },
   argTypes: {
     lanes: { control: false },
     steps: { control: false },
     edges: { control: false },
+    legendLabels: { control: false },
+    legendExtra: { control: false },
     columns: { control: { type: 'number', min: 1 } },
     laneWidthMm: { control: { type: 'range', min: 36, max: 70, step: 1 } },
     stepOffsetMm: { control: { type: 'range', min: 22, max: 40, step: 1 } },
     rowHeightMm: { control: { type: 'range', min: 20, max: 40, step: 1 } },
+    maxLabelColumns: { control: { type: 'range', min: 1, max: 3, step: 0.25 } },
     backgroundColor: { control: 'color' },
     laneBackgroundColor: { control: 'color' },
+    laneBackgroundOpacity: { control: { type: 'range', min: 0, max: 1, step: 0.02 } },
     laneSeparatorColor: { control: 'color' },
+    laneSeparatorOpacity: { control: { type: 'range', min: 0, max: 1, step: 0.05 } },
     textColor: { control: 'color' },
     mutedColor: { control: 'color' },
     arrowColor: { control: 'color' },
@@ -152,6 +160,7 @@ const branchingSteps = [
     action: 'Close request',
     detail: 'Rejected, no change applied',
     narrative: 'The requester is told the request was rejected and no change is made.',
+    labelColumns: 1,
   },
   ...steps.slice(2),
 ] as const satisfies readonly FlowStep<LaneKey>[];
@@ -199,7 +208,67 @@ export const StretchedLabels: Story = {
     edges: stretchedEdges,
     maxLabelColumns: 2,
   },
-  argTypes: {
-    maxLabelColumns: { control: { type: 'range', min: 1, max: 3, step: 0.25 } },
+};
+
+const overrideSteps = [
+  steps[0],
+  { ...steps[1], action: 'Review request and evidence', detail: 'labelWidthMm: 44', labelWidthMm: 44 },
+  steps[2],
+  { ...steps[3], detail: "labelPosition: 'top'", labelPosition: 'top' },
+  ...steps.slice(4),
+] as const satisfies readonly FlowStep<LaneKey>[];
+
+/**
+ * `labelPosition` pins a label to one side of its badge instead of deriving it
+ * from the incoming edge, and `labelWidthMm` sets a minimum label width that
+ * ignores the column cap. Here every label is capped to one column, except
+ * "Review" (`labelWidthMm: 44`) and "Apply" (`labelPosition: 'top'`).
+ */
+export const LabelOverrides: Story = {
+  args: {
+    steps: overrideSteps,
+    maxLabelColumns: 1,
+  },
+};
+
+function OpenQuestion({ id, children }: { id: string; children?: string }) {
+  return (
+    <Badge variant="label" size="xxs" shape="rounded" icon={UiQuestion} color={COLORS.accent} textColor="#ffffff" label={id} value={children} />
+  );
+}
+
+const annotatedSteps = [
+  steps[0],
+  {
+    ...steps[1],
+    annotation: <OpenQuestion id="Q01">Delegate approvals?</OpenQuestion>,
+    annotationPlacement: { xMm: 20, yMm: -8, widthMm: 36 },
+  },
+  ...steps.slice(2),
+] as const satisfies readonly FlowStep<LaneKey>[];
+
+const annotatedEdges = [
+  ...edges.slice(0, 3),
+  { from: 'apply', to: 'enforce', label: 'Applied', labelAbove: <OpenQuestion id="Q02">Rollback owner?</OpenQuestion> },
+  edges[4],
+] as const satisfies readonly FlowEdge[];
+
+/**
+ * Review notes pinned onto the flow. A step `annotation` is placed by
+ * `annotationPlacement`, in millimetres from the badge centre; an edge
+ * `labelAbove` sits over that edge's label pill. `legendExtra` adds a key for
+ * the markers to the same legend bar as the flow notation.
+ */
+export const Annotations: Story = {
+  args: {
+    steps: annotatedSteps,
+    edges: annotatedEdges,
+    showLegend: true,
+    legendExtra: (
+      <span className="flex items-center gap-1">
+        <OpenQuestion id="Q" />
+        Open question
+      </span>
+    ),
   },
 };

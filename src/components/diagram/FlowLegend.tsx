@@ -1,3 +1,4 @@
+import type React from 'react';
 import { FLOW_STATIC_DASH } from './flowEdges';
 import { FlowTagPill } from './FlowTagPill';
 import type {
@@ -73,6 +74,7 @@ export function FlowLegend<LaneKey extends string>({
   steps,
   edges,
   labels,
+  extra,
   arrowColor,
   mutedColor,
   textColor,
@@ -81,12 +83,13 @@ export function FlowLegend<LaneKey extends string>({
   steps: readonly FlowStep<LaneKey>[];
   edges: readonly FlowEdge[];
   labels?: FlowLegendLabels;
+  extra?: React.ReactNode;
   arrowColor: string;
   mutedColor: string;
   textColor: string;
 }) {
   const items = flowLegendItems({ lanes, steps, edges });
-  if (items.length === 0) return null;
+  if (items.length === 0 && extra == null) return null;
   return (
     <div
       aria-label="Flow legend"
@@ -104,6 +107,7 @@ export function FlowLegend<LaneKey extends string>({
           <span data-facet-label={`legend "${item.kind}"`}>{labels?.[item.kind] ?? DEFAULT_FLOW_LEGEND_LABELS[item.kind]}</span>
         </div>
       ))}
+      {extra}
     </div>
   );
 }

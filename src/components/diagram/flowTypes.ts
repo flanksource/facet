@@ -29,6 +29,12 @@ export interface FlowOffset {
   y?: number;
 }
 
+export interface FlowAnnotationPlacement {
+  xMm?: number;
+  yMm: number;
+  widthMm: number;
+}
+
 export interface FlowStep<LaneKey extends string = string> {
   key: string;
   lane: LaneKey;
@@ -41,6 +47,10 @@ export interface FlowStep<LaneKey extends string = string> {
   fullColor?: boolean;
   placementOffset?: FlowOffset;
   labelColumns?: number;
+  labelPosition?: 'top' | 'bottom';
+  labelWidthMm?: number;
+  annotation?: React.ReactNode;
+  annotationPlacement?: FlowAnnotationPlacement;
 }
 
 export type FlowEdgeVariant = 'primary' | 'alternate' | 'return';
@@ -49,6 +59,7 @@ export interface FlowEdge {
   from: string;
   to: string;
   label?: React.ReactNode;
+  labelAbove?: React.ReactNode;
   variant?: FlowEdgeVariant;
   startOffset?: FlowOffset;
   endOffset?: FlowOffset;
@@ -83,5 +94,6 @@ export interface FlowDiagramProps<LaneKey extends string = string> {
   showLaneSeparators?: boolean;
   showLegend?: boolean;
   legendLabels?: FlowLegendLabels;
+  legendExtra?: React.ReactNode;
   className?: string;
 }

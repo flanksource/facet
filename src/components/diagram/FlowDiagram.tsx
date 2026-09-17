@@ -13,6 +13,7 @@ export { flowAnchor, flowEdgeArrowProps, flowEdgeEndAnchor } from './flowEdges';
 export type { FlowEdgeArrowInput, FlowEdgeArrowProps, FlowEdgeStyle } from './flowEdges';
 export type {
   FlowDiagramProps,
+  FlowAnnotationPlacement,
   FlowEdge,
   FlowEdgeVariant,
   FlowIcon,
@@ -231,7 +232,7 @@ function FlowStepCells<LaneKey extends string>({
 }: Required<Pick<FlowDiagramProps<LaneKey>, 'lanes' | 'steps' | 'edges' | 'columns' | 'stepOffsetMm' | 'maxLabelColumns' | 'backgroundColor' | 'textColor' | 'mutedColor'>> & { id: (name: string) => string }) {
   const laneIndex = new Map(lanes.map((lane, index) => [lane.key as string, index]));
   const stepByKey = new Map(steps.map((step) => [step.key, step]));
-  const labelPositions = new Map(steps.map((step) => [step.key, flowStepLabelPosition({ step, edges, stepByKey, laneIndex })]));
+  const labelPositions = new Map(steps.map((step) => [step.key, step.labelPosition ?? flowStepLabelPosition({ step, edges, stepByKey, laneIndex })]));
   return steps.map((step) => {
     const stepLaneIndex = laneIndex.get(step.lane)!;
     const labelColumns = flowStepLabelColumns({ step, steps, labelPositions, columns, maxLabelColumns });
@@ -247,7 +248,22 @@ function FlowStepCells<LaneKey extends string>({
             : undefined,
         }}
       >
-        <StepNode id={id(step.key)} step={step} lane={lanes[stepLaneIndex]} widthMm={labelColumns * stepOffsetMm - LABEL_GUTTER_MM} labelPosition={labelPositions.get(step.key)!} {...colors} />
+        <StepNode id={id(step.key)} step={step} lane={lanes[stepLaneIndex]} widthMm={Math.max(step.labelWidthMm ?? 0, labelColumns * stepOffsetMm - LABEL_GUTTER_MM)} labelPosition={labelPositions.get(step.key)!} {...colors} />
+        {step.annotation != null && step.annotationPlacement && (
+          <div
+            className="absolute z-30"
+            data-facet-label={`step "${step.key}" annotation`}
+            data-flow-step-annotation={step.key}
+            style={{
+              width: `${step.annotationPlacement.widthMm}mm`,
+              left: `calc(50% + ${step.annotationPlacement.xMm ?? 0}mm)`,
+              top: `calc(50% + ${step.annotationPlacement.yMm}mm)`,
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            {step.annotation}
+          </div>
+        )}
       </div>
     );
   });
@@ -277,6 +293,7 @@ export default function FlowDiagram<LaneKey extends string = string>({
   showLaneSeparators = true,
   showLegend = false,
   legendLabels,
+  legendExtra,
   className = 'relative py-2',
 }: FlowDiagramProps<LaneKey>) {
   validateFlow({ lanes, steps, edges, columns, maxLabelColumns });
@@ -296,7 +313,7 @@ export default function FlowDiagram<LaneKey extends string = string>({
             </div>
           </div>
           <FlowArrows id={id} lanes={lanes} steps={steps} edges={edges} stepOffsetMm={stepOffsetMm} rowHeightMm={rowHeightMm} arrowColor={arrowColor} mutedColor={mutedColor} textColor={textColor} />
-          {showLegend && <FlowLegend lanes={lanes} steps={steps} edges={edges} labels={legendLabels} arrowColor={arrowColor} mutedColor={mutedColor} textColor={textColor} />}
+          {showLegend && <FlowLegend lanes={lanes} steps={steps} edges={edges} labels={legendLabels} extra={legendExtra} arrowColor={arrowColor} mutedColor={mutedColor} textColor={textColor} />}
           <FlowStepList lanes={lanes} steps={steps} backgroundColor={backgroundColor} mutedColor={mutedColor} />
         </div>
       )}

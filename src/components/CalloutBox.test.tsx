@@ -51,6 +51,18 @@ describe('CalloutBox', () => {
   });
 
   describe('icon', () => {
+    it('renders a supplied icon while retaining the callout tone', () => {
+      const { container } = render(
+        <CalloutBox variant="warning" icon={<svg data-testid="detail-question" aria-hidden="true" />}>
+          Body copy.
+        </CalloutBox>,
+      );
+
+      expect(screen.getByTestId('detail-question')).toBeInTheDocument();
+      expect(container.querySelector('svg.octicon')).toBeNull();
+      expect((container.firstChild as HTMLElement).className).toContain('border-l-amber-500');
+    });
+
     it('draws the glyph named by the icon prop while keeping the variant colour', () => {
       const { container } = render(
         <CalloutBox variant="warning" icon="important">Body copy.</CalloutBox>,
