@@ -67,6 +67,7 @@ tasks:
       - "{{.FACET_BINARY}}"
     cmds:
       - pnpm run build
+      - pnpm run build:binary
 
   build:npm-cli:
     desc: "Build the local @flanksource/facet-cli npm package"

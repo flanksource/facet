@@ -691,7 +691,7 @@ export default defineConfig(async () => {
     // small, so bundling them costs little of what externalizing icons saved.
     noExternal: [
       '@flanksource/facet',
-      new RegExp('^@flanksource/(?!icons)'),
+      new RegExp('^@flanksource/(?:$|[^i]|i(?:$|[^c]|c(?:$|[^o]|o(?:$|[^n]|n(?:$|[^s])))))'),
       new RegExp('^@iconify-icons/'),
       new RegExp('^@iconify/'),
     ],
@@ -962,6 +962,12 @@ export default defineConfig(async () => {
 
     // Extract only the dependencies we need for building
     const requiredDeps = [
+      '@codemirror/autocomplete',
+      '@codemirror/commands',
+      '@codemirror/lang-json',
+      '@codemirror/lang-sql',
+      '@codemirror/state',
+      '@codemirror/view',
       'react',
       'react-dom',
       'vite',
@@ -975,7 +981,13 @@ export default defineConfig(async () => {
       'react-icons',
       'react-xarrows',
       '@flanksource/icons',
+      '@floating-ui/react',
       '@iconify/react',
+      '@monaco-editor/react',
+      '@radix-ui/react-compose-refs',
+      '@radix-ui/react-slot',
+      '@tanstack/react-query',
+      'class-variance-authority',
       'typescript',
       '@tailwindcss/typography',
       '@tailwindcss/postcss',
@@ -995,6 +1007,13 @@ export default defineConfig(async () => {
       'd3-shape',
       'd3-time',
       'd3-time-format',
+      'dompurify',
+      'jotai',
+      'monaco-editor',
+      'monaco-yaml',
+      'recharts',
+      'tailwind-merge',
+      'yaml',
     ];
 
     for (const dep of requiredDeps) {

@@ -26,6 +26,12 @@ import { spawnLowPriority } from '../utils/subprocess-priority.js';
 import { SHARP_VERSION } from '../utils/sharp.js';
 
 const REQUIRED_DEPENDENCIES = [
+  '@codemirror/autocomplete',
+  '@codemirror/commands',
+  '@codemirror/lang-json',
+  '@codemirror/lang-sql',
+  '@codemirror/state',
+  '@codemirror/view',
   'react',
   'react-dom',
   'vite',
@@ -39,7 +45,13 @@ const REQUIRED_DEPENDENCIES = [
   'react-icons',
   'react-xarrows',
   '@flanksource/icons',
+  '@floating-ui/react',
   '@iconify/react',
+  '@monaco-editor/react',
+  '@radix-ui/react-compose-refs',
+  '@radix-ui/react-slot',
+  '@tanstack/react-query',
+  'class-variance-authority',
   'typescript',
   '@tailwindcss/typography',
   '@tailwindcss/postcss',
@@ -55,6 +67,13 @@ const REQUIRED_DEPENDENCIES = [
   'd3-shape',
   'd3-time',
   'd3-time-format',
+  'dompurify',
+  'jotai',
+  'monaco-editor',
+  'monaco-yaml',
+  'recharts',
+  'tailwind-merge',
+  'yaml',
 ] as const;
 
 const SENTINEL_DEPENDENCIES = ['react', 'vite', '@vitejs/plugin-react', '@flanksource/facet'] as const;
