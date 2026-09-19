@@ -597,6 +597,21 @@ facet png Diagram.tsx --live --autocrop --autocrop-padding 24 -o tight.png
 facet png Diagram.tsx --live --autocrop --width 2000 -o hero@2x.png
 ```
 
+### `facet lint [paths...]`
+
+Lint explicit files or recursively scan lowercase `.tsx`, `.mdx`, and `.md` files. Hidden and generated directories are skipped, as are recursive TSX test/spec/story files. Built-in layout rules apply only to TSX; optional Vale checks apply to Markdown/MDX.
+
+```text
+facet lint [options] [paths...]
+  --rule <name>       Run one built-in rule
+  --severity <level>  warning or error (default: warning)
+  --vale              Run Vale prose checks
+  --diagrams          Run Captain static checks and live-render diagram candidates (no AI)
+  --diagrams-ai       Add Captain visual AI review to rendered candidates (requires --diagrams)
+```
+
+`--diagrams` requires Captain, `pnpm`, and Chrome/Chromium: it validates Captain's schema/provenance and live-renders real `Diagram`, `FlowDiagram`, and `DiagreDiagram` candidates to surface compiler and readiness errors. It never makes a model call. `--diagrams-ai` additionally requires Captain model credentials and incurs model usage costs; it adds visual review of the rendered PNG. Failures, missing credentials, and malformed output are hard errors. `--vale` and `--diagrams` use external tools only when explicitly requested. The command exits 0 for clean input (including no supported files), 1 for findings or tool/configuration failures.
+
 ### `facet serve`
 
 Start an API server with a built-in playground for interactive template development.

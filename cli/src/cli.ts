@@ -460,10 +460,13 @@ program
 // lint command
 program
   .command('lint [paths...]')
-  .description('Scan TSX files for styling, CSS, and page layout issues')
+  .description('Scan TSX, MDX, and Markdown files with built-in and optional external checks')
   .option('-v, --verbose', 'Show detailed output including passing files')
-  .option('--rule <name>', 'Run only a specific rule')
-  .option('--severity <level>', 'Minimum severity to report (warning, error)', 'warning')
+  .option('--rule <name>', 'Run only a specific built-in rule')
+  .option('--severity <level>', 'Minimum severity to report: warning or error', 'warning')
+  .option('--vale', 'Run Vale prose checks for Markdown and MDX files')
+  .option('--diagrams', 'Run Captain static checks and live-render diagram candidates (no AI)')
+  .option('--diagrams-ai', 'Add Captain visual AI review to rendered candidates (requires --diagrams)')
   .action(async (paths: string[], options: any) => {
     const logger = new Logger(options.verbose);
     try {
@@ -473,6 +476,9 @@ program
         verbose: options.verbose,
         rule: options.rule,
         severity: options.severity,
+        vale: !!options.vale,
+        diagrams: !!options.diagrams,
+        diagramsAi: !!options.diagramsAi,
         logger,
       });
       process.exit(exitCode);

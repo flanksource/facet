@@ -44,6 +44,8 @@ describe('buildPackage', () => {
     // every consumer document rather than degrading.
     expect(existsSync(join(outDir, 'assets', 'facet-font-scale.mjs'))).toBe(true);
     expect(existsSync(join(outDir, 'assets', 'facet-redact.mjs'))).toBe(true);
+    expect(existsSync(join(outDir, 'assets', 'review-diagram.prompt'))).toBe(true);
+    expect(readFileSync(join(outDir, 'assets', 'review-diagram.prompt'), 'utf8')).toContain('arrow-rendering');
     expect(existsSync(join(outDir, 'README.md'))).toBe(true);
 
     const pkg = JSON.parse(readFileSync(join(outDir, 'package.json'), 'utf8'));

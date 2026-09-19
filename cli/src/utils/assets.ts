@@ -58,6 +58,7 @@ const ASSET_CANDIDATES = {
   // resolved from the consumer's pinned @flanksource/facet.
   'facet-redact.mjs': ['assets/facet-redact.mjs', '../../../remark/facet-redact.mjs'],
   'mermaid.min.js': ['assets/mermaid.min.js', '../../../node_modules/mermaid/dist/mermaid.min.js'],
+  'review-diagram.prompt': ['assets/review-diagram.prompt', '../../../.agents/skills/diagram-designer/prompts/review-diagram.prompt'],
 } satisfies Record<string, string[]>;
 
 export type AssetName = keyof typeof ASSET_CANDIDATES;

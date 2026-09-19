@@ -46,6 +46,7 @@ export const conflictingTailwind: LintRule = {
   name: 'conflicting-tailwind',
   description: 'Contradictory Tailwind utilities in the same className',
   severity: 'error',
+  fileTypes: ['tsx'],
 
   check(ctx: LintContext): LintIssue[] {
     const issues: LintIssue[] = [];

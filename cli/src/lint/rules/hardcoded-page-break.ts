@@ -8,6 +8,7 @@ export const hardcodedPageBreak: LintRule = {
   name: 'hardcoded-page-break',
   description: 'Inline page-break styles should use <PageBreak /> component or .page-break class',
   severity: 'error',
+  fileTypes: ['tsx'],
 
   check(ctx: LintContext): LintIssue[] {
     if (EXEMPT_FILES.some((f) => ctx.filePath.endsWith(f))) return [];

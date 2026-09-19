@@ -11,7 +11,7 @@ import { interactiveContent } from '../src/lint/rules/interactive-content.js';
 import type { LintContext } from '../src/lint/types.js';
 
 function ctx(filePath: string, content: string): LintContext {
-  return { filePath, lines: content.split('\n'), content };
+  return { filePath, fileType: 'tsx', lines: content.split('\n'), content };
 }
 
 describe('hardcoded-page-break', () => {

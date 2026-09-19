@@ -8,6 +8,7 @@ export const inlineHexColors: LintRule = {
   name: 'inline-hex-colors',
   description: 'Hardcoded hex colors in inline styles should use Tailwind classes',
   severity: 'warning',
+  fileTypes: ['tsx'],
 
   check(ctx: LintContext): LintIssue[] {
     const issues: LintIssue[] = [];

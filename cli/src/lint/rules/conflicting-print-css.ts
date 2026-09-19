@@ -9,6 +9,7 @@ export const conflictingPrintCss: LintRule = {
   name: 'conflicting-print-css',
   description: 'CSS that conflicts with facet page sizing and print management',
   severity: 'error',
+  fileTypes: ['tsx'],
 
   check(ctx: LintContext): LintIssue[] {
     const issues: LintIssue[] = [];
