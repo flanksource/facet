@@ -20,6 +20,7 @@ function buildPackage({ version, bundlePath, repoRoot, templateDir, outDir }) {
   fs.copyFileSync(path.join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'), path.join(outDir, 'assets', 'mermaid.min.js'));
   fs.copyFileSync(path.join(repoRoot, 'postcss', 'facet-font-scale.mjs'), path.join(outDir, 'assets', 'facet-font-scale.mjs'));
   fs.copyFileSync(path.join(repoRoot, 'remark', 'facet-redact.mjs'), path.join(outDir, 'assets', 'facet-redact.mjs'));
+  fs.copyFileSync(path.join(__dirname, '..', 'assets', 'review-diagram.prompt'), path.join(outDir, 'assets', 'review-diagram.prompt'));
 
   fs.copyFileSync(path.join(templateDir, 'README.md'), path.join(outDir, 'README.md'));
   const pkg = JSON.parse(fs.readFileSync(path.join(templateDir, 'package.json'), 'utf8'));

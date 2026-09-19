@@ -3,7 +3,7 @@ import { pageStructure } from './page-structure.js';
 import type { LintContext } from '../types.js';
 
 function ctx(content: string, filePath = 'Report.tsx'): LintContext {
-  return { filePath, content, lines: content.split('\n') };
+  return { filePath, fileType: 'tsx', content, lines: content.split('\n') };
 }
 
 const SINGLE_LINE_IMPORT = `import { Document, Header, Footer, Page, PageNo } from '@flanksource/facet';`;

@@ -61,6 +61,7 @@ export const pageStructure: LintRule = {
   name: 'page-structure',
   description: 'All content must be inside a <Page> wrapper; no nested pages or orphaned content',
   severity: 'error',
+  fileTypes: ['tsx'],
 
   check(ctx: LintContext): LintIssue[] {
     if (isExempt(ctx.filePath)) return [];

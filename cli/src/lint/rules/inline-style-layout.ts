@@ -25,6 +25,7 @@ export const inlineStyleLayout: LintRule = {
   name: 'inline-style-layout',
   description: 'Layout properties in inline styles should use Tailwind arbitrary values',
   severity: 'warning',
+  fileTypes: ['tsx'],
 
   check(ctx: LintContext): LintIssue[] {
     const issues: LintIssue[] = [];

@@ -1,109 +1,108 @@
-import { readFileSync, readdirSync, statSync } from 'fs';
-import { resolve, relative } from 'path';
-import type { Logger } from '../utils/logger.js';
-import type { LintIssue, LintContext, Severity } from './types.js';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { runCaptain } from './captain.js';
+import { cwdRelativePath } from './external-paths.js';
+import { defaultDiagramRenderer, createDiagramTempDir, type DiagramRenderer } from './diagram-renderer.js';
+import { hasDirectDiagramCandidate } from './diagram-candidates.js';
+import { runExternalTool, type ExternalToolRunner } from './external-runner.js';
 import { allRules } from './rules/index.js';
 import { formatIssues } from './reporter.js';
+import type { LintContext, LintFileType, LintIssue, Severity } from './types.js';
+import { runVale } from './vale.js';
+import { runVisualReview, type VisualMetadata } from './visual.js';
 
-interface LintOptions {
-  paths: string[];
-  verbose: boolean;
-  rule?: string;
-  severity: string;
-  logger: Logger;
+export interface LintLogger { error(message: string): void; info(message: string): void; log(message: string): void; warn(message: string): void; }
+export interface LintOptions {
+  paths: string[]; verbose: boolean; rule?: string; severity: string; vale?: boolean; diagrams?: boolean; diagramsAi?: boolean;
+  logger: LintLogger; cwd?: string; runner?: ExternalToolRunner; diagramRenderer?: DiagramRenderer;
 }
-
 const SKIP_DIRS = new Set(['node_modules', '.facet', 'dist', '.git', 'storybook-static']);
-const SKIP_SUFFIXES = ['.test.tsx', '.stories.tsx', '.spec.tsx'];
+const SKIP_TSX_SUFFIXES = ['.test.tsx', '.stories.tsx', '.spec.tsx'];
+function fileType(path: string): LintFileType | undefined { if (path.endsWith('.tsx')) return 'tsx'; if (path.endsWith('.mdx')) return 'mdx'; if (path.endsWith('.md')) return 'md'; return undefined; }
+function lexical(left: string, right: string): number { return left < right ? -1 : left > right ? 1 : 0; }
 
-function discoverFiles(paths: string[]): string[] {
-  const files: string[] = [];
-
-  for (const p of paths) {
-    const abs = resolve(p);
-    const stat = statSync(abs, { throwIfNoEntry: false });
-    if (!stat) continue;
-
-    if (stat.isFile() && abs.endsWith('.tsx')) {
-      files.push(abs);
-    } else if (stat.isDirectory()) {
-      collectTsx(abs, files);
-    }
+export function discoverFiles(paths: string[], cwd = process.cwd()): string[] {
+  const files = new Set<string>();
+  for (const input of paths) {
+    const absolute = resolve(cwd, input);
+    const stat = statSync(absolute, { throwIfNoEntry: false });
+    if (!stat) throw new Error(`Path does not exist: ${input}`);
+    if (stat.isFile()) { if (fileType(absolute)) files.add(absolute); }
+    else if (stat.isDirectory()) collectFiles(absolute, files);
   }
-
-  return files;
+  return [...files].sort(lexical);
 }
-
-function collectTsx(dir: string, files: string[]): void {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+function collectFiles(directory: string, files: Set<string>): void {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (entry.name.startsWith('.')) continue;
-
-    if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name)) {
-        collectTsx(resolve(dir, entry.name), files);
-      }
-    } else if (entry.isFile() && entry.name.endsWith('.tsx')) {
-      if (!SKIP_SUFFIXES.some((s) => entry.name.endsWith(s))) {
-        files.push(resolve(dir, entry.name));
-      }
-    }
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) { if (!SKIP_DIRS.has(entry.name)) collectFiles(path, files); continue; }
+    if (!entry.isFile()) continue;
+    const type = fileType(entry.name);
+    if (type && !(type === 'tsx' && SKIP_TSX_SUFFIXES.some((suffix) => entry.name.endsWith(suffix)))) files.add(path);
   }
 }
-
-function isDisabled(lines: string[], lineIndex: number): boolean {
-  const line = lines[lineIndex];
-  if (line.includes('// facet-lint-disable')) return true;
-  if (lineIndex > 0 && lines[lineIndex - 1].includes('// facet-lint-disable-next-line')) return true;
-  return false;
+export function findDiagramCandidates(files: string[], cwd = process.cwd()): string[] {
+  return files.filter((file) => {
+    const type = fileType(file);
+    if (type !== 'tsx' && type !== 'mdx') return false;
+    return hasDirectDiagramCandidate(readFileSync(resolve(cwd, file), 'utf8'), type);
+  });
+}
+function disabled(lines: string[], index: number): boolean { return lines[index]?.includes('// facet-lint-disable') === true || (index > 0 && lines[index - 1].includes('// facet-lint-disable-next-line')); }
+function compare(left: LintIssue, right: LintIssue): number { return lexical(left.file, right.file) || left.line - right.line || (left.column ?? 0) - (right.column ?? 0) || lexical(left.rule, right.rule) || lexical(left.severity, right.severity) || lexical(left.message, right.message); }
+function parseSeverity(value: string): Severity { if (value === 'warning' || value === 'error') return value; throw new Error(`Invalid severity "${value}". Expected "warning" or "error"`); }
+function logMetadata(logger: LintLogger, file: string, metadata: VisualMetadata): void {
+  const fields = [`file=${file}`, `model=${metadata.model ?? 'unknown'}`, `provider=${metadata.provider ?? 'unknown'}`, `inputTokens=${metadata.inputTokens ?? 0}`, `outputTokens=${metadata.outputTokens ?? 0}`, `duration=${metadata.duration ?? 'unknown'}`, `costUSD=${metadata.costUSD ?? 0}`];
+  logger.info(`Diagram AI review: ${fields.join(' ')}`);
 }
 
 export async function runLint(options: LintOptions): Promise<number> {
-  const { logger, verbose, severity } = options;
-  const minSeverity: Severity = severity === 'error' ? 'error' : 'warning';
-
-  const rules = options.rule
-    ? allRules.filter((r) => r.name === options.rule)
-    : allRules;
-
-  if (options.rule && rules.length === 0) {
-    logger.error(`Unknown rule: ${options.rule}`);
-    logger.log(`Available rules: ${allRules.map((r) => r.name).join(', ')}`);
-    return 1;
+  const { logger } = options;
+  const cwd = resolve(options.cwd ?? process.cwd());
+  const minimum = parseSeverity(options.severity);
+  if (options.diagramsAi && !options.diagrams) { logger.error('--diagrams-ai requires --diagrams'); return 1; }
+  const rules = options.rule ? allRules.filter((rule) => rule.name === options.rule) : allRules;
+  if (options.rule && !rules.length) { logger.error(`Unknown rule: ${options.rule}`); logger.log(`Available rules: ${allRules.map((rule) => rule.name).join(', ')}`); return 1; }
+  const files = discoverFiles(options.paths, cwd);
+  if (!files.length) { logger.warn('No supported files found (.tsx, .mdx, .md)'); return 0; }
+  if (options.verbose) logger.info(`Scanning ${files.length} file${files.length === 1 ? '' : 's'}...`);
+  const issues: LintIssue[] = [];
+  for (const absolute of files) {
+    const type = fileType(absolute)!;
+    const applicable = rules.filter((rule) => rule.fileTypes.includes(type));
+    if (!applicable.length) continue;
+    const content = readFileSync(absolute, 'utf8');
+    const context: LintContext = { filePath: cwdRelativePath(cwd, absolute), fileType: type, lines: content.split('\n'), content };
+    for (const rule of applicable) for (const issue of rule.check(context)) if (!disabled(context.lines, issue.line - 1)) issues.push(issue);
   }
-
-  const files = discoverFiles(options.paths);
-  if (files.length === 0) {
-    logger.warn('No .tsx files found');
-    return 0;
-  }
-
-  if (verbose) {
-    logger.info(`Scanning ${files.length} file${files.length !== 1 ? 's' : ''}...`);
-  }
-
-  const allIssues: LintIssue[] = [];
-
-  for (const filePath of files) {
-    const content = readFileSync(filePath, 'utf-8');
-    const lines = content.split('\n');
-    const relPath = relative(process.cwd(), filePath);
-
-    const ctx: LintContext = { filePath: relPath, lines, content };
-
-    for (const rule of rules) {
-      if (minSeverity === 'error' && rule.severity === 'warning') continue;
-
-      const issues = rule.check(ctx);
-      for (const issue of issues) {
-        if (!isDisabled(lines, issue.line - 1)) {
-          allIssues.push(issue);
+  const relativeFiles = files.map((file) => cwdRelativePath(cwd, file));
+  const runner = options.runner ?? runExternalTool;
+  if (options.vale) issues.push(...await runVale(relativeFiles.filter((file) => file.endsWith('.md') || file.endsWith('.mdx')), cwd, runner));
+  let totalCost = 0;
+  if (options.diagrams) {
+    issues.push(...await runCaptain(relativeFiles, cwd, runner));
+    const candidates = findDiagramCandidates(files, cwd);
+    const renderer = options.diagramRenderer ?? defaultDiagramRenderer;
+    if (candidates.length > 0) {
+      const temp = await createDiagramTempDir();
+      try {
+        for (const candidate of candidates) {
+          const pngPath = await renderer.render(candidate, cwd, temp);
+          if (options.diagramsAi) {
+            const review = await runVisualReview(candidate, pngPath, cwd, runner);
+            issues.push(...review.issues);
+            logMetadata(logger, cwdRelativePath(cwd, candidate), review.metadata);
+            totalCost += review.metadata.costUSD ?? 0;
+          }
         }
-      }
+      } finally { await rm(temp, { recursive: true, force: true }); }
+      if (options.diagramsAi) logger.info(`Diagram AI aggregate costUSD=${totalCost}`);
     }
   }
-
-  const output = formatIssues(allIssues, verbose);
+  const filtered = issues.filter((issue) => minimum === 'warning' || issue.severity === 'error').sort(compare);
+  const output = formatIssues(filtered, options.verbose);
   if (output) logger.log(output);
-
-  return allIssues.length > 0 ? 1 : 0;
+  return filtered.length ? 1 : 0;
 }

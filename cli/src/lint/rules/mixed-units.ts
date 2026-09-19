@@ -7,6 +7,7 @@ export const mixedUnits: LintRule = {
   name: 'mixed-units',
   description: 'Use mm or pt units instead of px in PDF-targeted components',
   severity: 'warning',
+  fileTypes: ['tsx'],
 
   check(ctx: LintContext): LintIssue[] {
     const issues: LintIssue[] = [];

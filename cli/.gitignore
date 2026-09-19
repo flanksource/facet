@@ -34,5 +34,7 @@ output/
 *.pdf
 !src/server/samples/*.pdf
 assets/
+!assets/
+!assets/review-diagram.prompt
 .facet/
 dist-sea/

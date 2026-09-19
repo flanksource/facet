@@ -62,6 +62,7 @@ export const interactiveContent: LintRule = {
   name: 'interactive-content',
   description: 'Detect interactive features that don\'t work in static PDFs',
   severity: 'warning',
+  fileTypes: ['tsx'],
 
   check(ctx: LintContext): LintIssue[] {
     const issues: LintIssue[] = [];

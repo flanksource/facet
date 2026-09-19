@@ -15,11 +15,16 @@ export function formatIssues(issues: LintIssue[], verbose: boolean): string {
 
   const lines: string[] = [];
 
-  for (const [file, fileIssues] of byFile) {
+  const fileEntries = [...byFile.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+  for (const [file, fileIssues] of fileEntries) {
     lines.push('');
     lines.push(chalk.white.bold(file));
 
-    const sorted = fileIssues.sort((a, b) => a.line - b.line);
+    const sorted = fileIssues.sort((a, b) => a.line - b.line
+      || (a.column ?? 0) - (b.column ?? 0)
+      || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0)
+      || (a.severity < b.severity ? -1 : a.severity > b.severity ? 1 : 0)
+      || (a.message < b.message ? -1 : a.message > b.message ? 1 : 0));
     for (const issue of sorted) {
       const pos = `${issue.line}:${issue.column ?? 0}`;
       const sev = issue.severity === 'error'

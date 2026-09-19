@@ -24,6 +24,7 @@ export const emptyPage: LintRule = {
   name: 'empty-page',
   description: 'Detect <Page> components with no content that produce blank pages',
   severity: 'warning',
+  fileTypes: ['tsx'],
 
   check(ctx: LintContext): LintIssue[] {
     const tree = parseJSXTree(ctx.content);
