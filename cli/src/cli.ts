@@ -465,8 +465,11 @@ program
   .option('--rule <name>', 'Run only a specific built-in rule')
   .option('--severity <level>', 'Minimum severity to report: warning or error', 'warning')
   .option('--vale', 'Run Vale prose checks for Markdown and MDX files')
-  .option('--diagrams', 'Run Captain static checks and live-render diagram candidates (no AI)')
-  .option('--diagrams-ai', 'Add Captain visual AI review to rendered candidates (requires --diagrams)')
+  .option('--diagrams', 'Detect and live-render diagram candidates (no AI)')
+  .option('--diagrams-ai', 'Review rendered diagram PNGs with a configured visual model (requires --diagrams)')
+  .option('--llm-provider <openai|anthropic>', 'Visual review provider (also FACET_LLM_PROVIDER)')
+  .option('--llm-model <model>', 'Visual review model (also FACET_LLM_MODEL)')
+  .option('--llm-base-url <url>', 'LLM HTTP base URL (also FACET_LLM_BASE_URL)')
   .action(async (paths: string[], options: any) => {
     const logger = new Logger(options.verbose);
     try {
@@ -479,6 +482,9 @@ program
         vale: !!options.vale,
         diagrams: !!options.diagrams,
         diagramsAi: !!options.diagramsAi,
+        llmProvider: options.llmProvider,
+        llmModel: options.llmModel,
+        llmBaseUrl: options.llmBaseUrl,
         logger,
       });
       process.exit(exitCode);

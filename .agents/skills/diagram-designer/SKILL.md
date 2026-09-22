@@ -63,13 +63,7 @@ Now write code, and iterate: render → look at the PNG → fix → repeat. Neve
 
 1. Copy the chosen style's `examples/*.tsx` as the skeleton (keep `// @live` as line 1) and fill in the Phase 2 elements. For swimlanes, supply `lanes`, `steps`, and `edges` to `FlowDiagram`; do not copy its internal grid and arrow mechanics into the report.
 2. Render a PNG: `facet png diagram.tsx -o dist` (defaults 1280×800, `--selector body`; pass `--width` for wide layouts). For an embedded or print diagram, also render the containing page: an autocropped diagram cannot reveal duplicate headings, forced page starts, sparse continuation pages, or wasted page whitespace.
-3. Run the structured visual review on exactly one rendered image:
-
-   ```bash
-   captain prompt run ~/.agents/skills/diagram-designer/prompts/review-diagram.prompt --attach dist/diagram.png
-   ```
-
-   The prompt reports alignment, spacing, text-overlap, and arrow-rendering defects as structured findings. Treat those findings as evidence, not as a substitute for looking at the render yourself.
+3. Optionally run the provider-neutral structured visual review on exactly one rendered image with `facet lint --diagrams --diagrams-ai` and the configured LLM provider. The review prompt reports alignment, spacing, text-overlap, and arrow-rendering defects as structured findings. Treat those findings as evidence, not as a substitute for looking at the render yourself.
 4. **Read `dist/diagram.png`** and review it against the checklist:
    - [ ] No arrow crosses through or routes behind a box
    - [ ] ≤ 4 arrow crossings total; no overlapping arrow bundles at one anchor
@@ -84,7 +78,7 @@ Now write code, and iterate: render → look at the PNG → fix → repeat. Neve
    - [ ] Labels and narrative text wrap naturally to the available width; no manual newline artifacts, avoidable one-word lines, orphaned headings, or isolated continuation fragments
    - [ ] Every icon is legible: `*White` variants only on colored headers, colored variants on light bodies
    - [ ] Only `COLORS.*` tokens (hub-and-spoke may use the semantic Tailwind palette); no text below `text-[8px]`
-5. Fix every visible checklist failure and every actionable Captain finding, then re-render and repeat both reviews. Common symptom → fix:
+5. Fix every visible checklist failure and every actionable visual-review finding, then re-render and repeat both reviews. Common symptom → fix:
 
 | Symptom | Fix |
 | --- | --- |
@@ -100,7 +94,7 @@ Now write code, and iterate: render → look at the PNG → fix → repeat. Neve
 | Diagram feels crowded | Cut elements back toward the Phase 2 minimal set, or split into another `<Section>` |
 
    Deep dives: **`references/arrows-and-flows.md`**, **`references/anti-patterns.md`**.
-6. When the checklist passes and Captain returns `pass: true`, show the user the final PNG, then produce the deliverable the Phase 1 brief calls for: `facet html diagram.tsx -o dist` for embedding, `facet pdf` for print, or the PNG itself.
+6. When the checklist passes and the visual review returns `pass: true` (when enabled), show the user the final PNG, then produce the deliverable the Phase 1 brief calls for: `facet html diagram.tsx -o dist` for embedding, `facet pdf` for print, or the PNG itself.
 
 ## Core primitives
 

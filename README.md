@@ -606,11 +606,21 @@ facet lint [options] [paths...]
   --rule <name>       Run one built-in rule
   --severity <level>  warning or error (default: warning)
   --vale              Run Vale prose checks
-  --diagrams          Run Captain static checks and live-render diagram candidates (no AI)
-  --diagrams-ai       Add Captain visual AI review to rendered candidates (requires --diagrams)
+  --diagrams          Detect and live-render diagram candidates (no AI)
+  --diagrams-ai       Review rendered diagram PNGs with a configured visual model (requires --diagrams)
+  --llm-provider      Visual review provider: openai or anthropic
+  --llm-model         Visual review model
+  --llm-base-url      LLM HTTP base URL
 ```
 
-`--diagrams` requires Captain, `pnpm`, and Chrome/Chromium: it validates Captain's schema/provenance and live-renders real `Diagram`, `FlowDiagram`, and `DiagreDiagram` candidates to surface compiler and readiness errors. It never makes a model call. `--diagrams-ai` additionally requires Captain model credentials and incurs model usage costs; it adds visual review of the rendered PNG. Failures, missing credentials, and malformed output are hard errors. `--vale` and `--diagrams` use external tools only when explicitly requested. The command exits 0 for clean input (including no supported files), 1 for findings or tool/configuration failures.
+`--diagrams` requires `pnpm` and Chrome/Chromium: it detects real `Diagram`, `FlowDiagram`, and `DiagreDiagram` candidates and live-renders them to surface compiler and readiness errors. It never makes a model or network call. `--diagrams-ai` additionally reviews each rendered PNG through a provider-neutral visual reviewer and requires `--diagrams`. Set `FACET_LLM_PROVIDER`, `FACET_LLM_MODEL`, `FACET_LLM_BASE_URL`, and `FACET_LLM_API_KEY`; CLI options override the corresponding `FACET_LLM_*` values, which override provider-standard base URLs and keys (`OPENAI_BASE_URL`/`OPENAI_API_KEY` or `ANTHROPIC_BASE_URL`/`ANTHROPIC_API_KEY`). The default provider is `openai`, and a model is always required for AI review. OpenAI-compatible endpoints (OpenAI, OpenRouter, Ollama, vLLM, LM Studio, and LiteLLM) use `--llm-provider openai`; for a keyless local endpoint use `FACET_LLM_BASE_URL=http://localhost:11434/v1`; set `FACET_LLM_API_KEY=` explicitly to suppress any ambient `OPENAI_API_KEY` fallback. Claude uses `--llm-provider anthropic --llm-model claude-3-5-sonnet-latest` with `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_BASE_URL`). API keys are never accepted as CLI options. Failures and malformed output are hard errors. `--vale` and `--diagrams` use external tools only when explicitly requested. The command exits 0 for clean input (including no supported files), 1 for findings or tool/configuration failures.
+
+Examples:
+
+```sh
+FACET_LLM_PROVIDER=anthropic FACET_LLM_MODEL=claude-3-5-sonnet-latest ANTHROPIC_API_KEY=... facet lint --diagrams --diagrams-ai docs/
+FACET_LLM_PROVIDER=openai FACET_LLM_MODEL=llava FACET_LLM_BASE_URL=http://localhost:11434/v1 FACET_LLM_API_KEY= facet lint --diagrams --diagrams-ai docs/
+```
 
 ### `facet serve`
 
