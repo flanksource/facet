@@ -63,7 +63,7 @@ Now write code, and iterate: render → look at the PNG → fix → repeat. Neve
 
 1. Copy the chosen style's `examples/*.tsx` as the skeleton (keep `// @live` as line 1) and fill in the Phase 2 elements. For swimlanes, supply `lanes`, `steps`, and `edges` to `FlowDiagram`; do not copy its internal grid and arrow mechanics into the report.
 2. Render a PNG: `facet png diagram.tsx -o dist` (defaults 1280×800, `--selector body`; pass `--width` for wide layouts). For an embedded or print diagram, also render the containing page: an autocropped diagram cannot reveal duplicate headings, forced page starts, sparse continuation pages, or wasted page whitespace.
-3. Optionally run the provider-neutral structured visual review on exactly one rendered image with `facet lint --diagrams --diagrams-ai` and the configured LLM provider. The review prompt reports alignment, spacing, text-overlap, and arrow-rendering defects as structured findings. Treat those findings as evidence, not as a substitute for looking at the render yourself.
+3. Optionally run the structured visual review on exactly one rendered image with `facet lint --diagrams --diagrams-ai`. Facet uses Captain only as a generic prompt runner; select any Captain-supported model with `--llm-model` or use Captain's configured default. The review prompt reports alignment, spacing, text-overlap, and arrow-rendering defects as structured findings. Treat those findings as evidence, not as a substitute for looking at the render yourself.
 4. **Read `dist/diagram.png`** and review it against the checklist:
    - [ ] No arrow crosses through or routes behind a box
    - [ ] ≤ 4 arrow crossings total; no overlapping arrow bundles at one anchor
