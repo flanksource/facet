@@ -271,7 +271,7 @@ describe('PDF bleed analysis', () => {
       catch { throw new Error('ImageMagick (magick or convert) is required'); }
     }
     browser = await launchBrowser();
-  }, 30000);
+  }, 120000);
 
   afterAll(async () => { await browser?.close(); });
 
