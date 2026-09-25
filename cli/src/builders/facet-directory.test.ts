@@ -323,6 +323,7 @@ describe('FacetDirectory Tailwind integration', () => {
 
     const config = await readFile(join(facetRoot, 'tailwind.config.js'), 'utf-8');
     expect(config).toContain('"src/**/*.{html,js,jsx,ts,tsx,md,mdx}"');
+    expect(config).toContain('"!src/**/node_modules/**"');
     expect(config).toContain('"node_modules/@acme/kit/**/*.{html,js,jsx,ts,tsx,md,mdx}"');
     expect(config).toContain('"!node_modules/@acme/kit/node_modules/**"');
     expect(config).toContain('"node_modules/acme-linked/**/*.{html,js,jsx,ts,tsx,md,mdx}"');
