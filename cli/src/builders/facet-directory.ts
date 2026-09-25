@@ -1471,7 +1471,11 @@ export default { plugins };
   generateTailwindConfig(): void {
     const consumerConfigName = ['tailwind.config.js', 'tailwind.config.cjs', 'tailwind.config.mjs', 'tailwind.config.ts']
       .find((name) => existsSync(join(this.consumerRoot, name)));
-    const content = consumerConfigName ? [] : ['src/**/*.{html,js,jsx,ts,tsx,md,mdx}', ...this.localDependencyContent()];
+    const content = consumerConfigName ? [] : [
+      'src/**/*.{html,js,jsx,ts,tsx,md,mdx}',
+      '!src/**/node_modules/**',
+      ...this.localDependencyContent(),
+    ];
     const config = consumerConfigName
       ? `import consumerConfig from './src/${consumerConfigName}';
 export default consumerConfig;
