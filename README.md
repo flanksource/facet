@@ -325,6 +325,8 @@ physical page by the multi-pass pipeline described below.
 
 `CoverPage` is an opinionated traditional first page. Compose `DocumentFields` into its lower section for ordered metadata; both labels and values remain on one line without truncation. `TableOfContents` accepts either a `target` matching a `Page id` or an element `id` inside a Page for automatic physical PDF numbering, or an explicit `page` label.
 
+Automatic entries are clickable internal PDF links, including links between pages with different header types, sizes or margins. Targets resolve to their actual printed page when content flows across sheets. Explicit `page` labels are plain text. In multi-pass PDFs, internal fragment links require a unique target inside a Page; missing or duplicate targets fail PDF generation.
+
 ```tsx
 <CoverPage title="Annual report" subtitle="Year ended 2026" id="cover">
   <DocumentFields fields={[

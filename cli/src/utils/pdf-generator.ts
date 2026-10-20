@@ -21,6 +21,7 @@ import { injectFontScale } from './font-size.js';
 import { ELEMENT_SCALE } from './type-scale.js';
 import { applySpawnedProcessPriority, buildLowPriorityCommand } from './subprocess-priority.js';
 import { resolveAutomaticTableOfContents, type TocPageRenderSpec } from './toc-pagination.js';
+import { prepareInternalLinks, restoreInternalLinks } from './pdf-internal-links.js';
 
 function readVersion(): string {
   try {
@@ -249,6 +250,7 @@ async function renderMultiPass(
   // group. Previously every group parsed and laid out the entire report before
   // deleting unrelated pages, which scaled poorly for large mixed documents.
   const sourcePage = await loadAndPrepare(browser, html);
+  const internalLinkTargets = await prepareInternalLinks(sourcePage);
   const groupHtml = async (indices: number[]): Promise<string> => sourcePage.evaluate((visibleIndices) => {
     const clone = document.documentElement.cloneNode(true) as HTMLElement;
     const visible = new Set(visibleIndices);
@@ -299,7 +301,8 @@ async function renderMultiPass(
   }
 
   const { buffer, pageMap, pageSizeMap, pageMarginMap } = await assembleGroups(results, log, typeInfo);
-  const composited = await compositeHeaderFooter(Buffer.from(buffer), overlays, pageMap, typeInfo, pageSizeMap, browser, html, FACET_CREATOR);
+  const linkedBuffer = await restoreInternalLinks(buffer, internalLinkTargets);
+  const composited = await compositeHeaderFooter(Buffer.from(linkedBuffer), overlays, pageMap, typeInfo, pageSizeMap, browser, html, FACET_CREATOR);
   if (debug) {
     const debugBuffer = await drawDebugOverlay(composited, pageMap, pageSizeMap, typeInfo, pageMarginMap, buildDebugInfo());
     return Buffer.from(debugBuffer);

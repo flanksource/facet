@@ -51,7 +51,7 @@ async function printedAnchorOffsets(buffer: Buffer, targets: string[]): Promise<
   const pageByRef = new Map(pdf.getPages().map((page, index) => [page.ref.toString(), index]));
   const offsets = new Map<string, number>();
   for (const target of targets) {
-    const destination = destinations.lookup(PDFName.of(target));
+    const destination = destinations.lookup(PDFName.of(encodeURIComponent(target)));
     const pageRef = destination instanceof PDFArray ? destination.get(0) : undefined;
     const offset = pageRef instanceof PDFRef ? pageByRef.get(pageRef.toString()) : undefined;
     if (offset === undefined) {
