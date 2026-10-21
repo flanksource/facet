@@ -109,6 +109,15 @@ This creates:
 facet pdf MyDatasheet.tsx
 ```
 
+### Inspect a Word document
+
+```bash
+facet inspect output/report.docx
+facet inspect output/report.docx --json
+```
+
+`inspect` reads a local DOCX without changing it or creating files. It reports section sizes and margins in millimetres, embedded assets and their body/header/footer references, Word font references and embedded variants, and fonts inside embedded PDFs. PDF assets include their payload sizes and page dimensions; OLE objects include their types and stream names. Section settings describe the document's layout configuration, rather than its rendered page count. Font references describe declared names and theme mappings, rather than the fonts Word ultimately selects. Chrome, Word, Microsoft 365, and dependency installation are not required. `--json` emits only structured JSON for scripting.
+
 ## Performance benchmarks
 
 Facet includes a repeatable end-to-end benchmark for cold and warm HTML/PDF generation:

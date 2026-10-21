@@ -35,3 +35,12 @@ m365 file convert pdf --sourceFile "output/TypographyTest.docx" --targetFile "ou
 ```
 
 The conversion requires an authenticated Microsoft 365 CLI session. It temporarily uploads the DOCX to your tenant, converts it with Microsoft Graph, and removes the uploaded source. Check the resulting PDF visually: successful conversion alone does not establish that the service rendered embedded PDF artwork.
+
+Inspect an existing Word document without converting it:
+
+```bash
+facet inspect output/report.docx
+facet inspect output/report.docx --json
+```
+
+The tables show section sizes and margins in millimetres; embedded PDFs, images, fonts and other files; their references and displayed dimensions; and Word/PDF font metadata. PDF fonts include embedding and subset status, including fonts inside nested form resources. Assets shared by multiple references are listed once. Missing section properties remain unspecified, and unresolved font themes are identified as theme references. Inspection reads local package contents without extracting assets, installing dependencies, launching a browser, or contacting external services.

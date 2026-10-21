@@ -14,6 +14,7 @@ import { parseRedactAllow } from './builders/remark-config.js';
 import type { GenerateOptions, PNGViewport, RenderFormat } from './types.js';
 import { parsePNGViewport } from './utils/png-generator.js';
 import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
+import { registerInspectCommand } from './commands/inspect.js';
 
 function numericOption(minimum: number): (value: string) => number {
   return (value: string): number => {
@@ -152,9 +153,12 @@ program
   .version(versionStr)
   .option('--skip-modules', 'Use the shared Facet-only module install and ignore package.json dependencies')
   .option('--facet-url <url>', 'Submit HTML, PDF, and PNG renders to a Facet server (or FACET_URL)')
-  .hook('preAction', () => {
+  .hook('preAction', (_command, actionCommand) => {
+    if (actionCommand.name() === 'inspect' && actionCommand.opts().json) return;
     console.log(chalk.gray(`facet ${versionStr}`));
   });
+
+registerInspectCommand(program);
 
 // html command
 addSharedOptions(
