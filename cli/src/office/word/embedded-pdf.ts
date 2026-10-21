@@ -8,11 +8,15 @@ export interface EmbeddedPdf { id: string; path: string; data: Uint8Array }
 export function pdfObject(options: { part: EmbeddedPdf; width: number; height: number; shapeId: string; y?: number }): D.TextRun {
   const { part, width, height, shapeId, y } = options;
   const position = y === undefined ? '' : `position:absolute;margin-left:0pt;margin-top:${y * 0.75}pt;z-index:-1;mso-position-horizontal-relative:page;mso-position-vertical-relative:page;mso-wrap-style:none;`;
-  return new D.TextRun({ children: [D.ImportedXmlComponent.fromXmlString(`<w:object w:dxaOrig="${twips(width)}" w:dyaOrig="${twips(height)}">
-    <v:shapetype id="_x0000_t75" coordsize="21600,21600" o:spt="75" filled="f" stroked="f"><v:path o:connecttype="rect"/></v:shapetype>
-    <v:shape id="${shapeId}" type="#_x0000_t75" o:ole="" filled="f" stroked="f" style="${position}width:${width * 0.75}pt;height:${height * 0.75}pt"/>
-    <o:OLEObject Type="Embed" ProgID="AcroExch.Document.7" ShapeID="${shapeId}" DrawAspect="Content" ObjectID="_${shapeId}" r:id="${part.id}"/>
-    </w:object>`)] });
+  const object = new D.ImportedXmlComponent('w:object', { 'w:dxaOrig': twips(width), 'w:dyaOrig': twips(height) });
+  const shapeType = new D.ImportedXmlComponent('v:shapetype', { id: '_x0000_t75', coordsize: '21600,21600', 'o:spt': 75, filled: 'f', stroked: 'f' });
+  shapeType.push(new D.ImportedXmlComponent('v:path', { 'o:connecttype': 'rect' }));
+  object.push(shapeType);
+  object.push(new D.ImportedXmlComponent('v:shape', { id: shapeId, type: '#_x0000_t75', 'o:ole': '', filled: 'f', stroked: 'f',
+    style: `${position}width:${width * 0.75}pt;height:${height * 0.75}pt` }));
+  object.push(new D.ImportedXmlComponent('o:OLEObject', { Type: 'Embed', ProgID: 'AcroExch.Document.7', ShapeID: shapeId,
+    DrawAspect: 'Content', ObjectID: `_${shapeId}`, 'r:id': part.id }));
+  return new D.TextRun({ children: [object] });
 }
 
 function oleString(text: string): Buffer {
