@@ -17,8 +17,10 @@ import { shouldPostProcessTemplateCSS, shouldUseLiveRendering } from '../utils/l
 import { RenderTimings } from '../utils/performance.js';
 import { renderBrowserHTML } from '../utils/browser-html.js';
 import type { BrowserLayout } from '../utils/render-layout.js';
+import { pageSizeLayout } from '../utils/page-size-layout.js';
 
 export async function renderTemplateHTML({ options, layout }: { options: GenerateOptions; layout?: BrowserLayout }): Promise<{ html: string; outputName: string; consumerRoot?: string }> {
+  layout ??= pageSizeLayout(options.pageSizeOverride, options.landscape);
   const logger = new Logger(options.verbose);
   const timings = options.timings ?? new RenderTimings();
   const ownsTimings = options.timings == null;
@@ -116,6 +118,7 @@ export async function renderTemplateHTML({ options, layout }: { options: Generat
 
     const combinedHTML = await renderBrowserHTML({
       html: combineHTMLAndCSS(htmlWithoutCSS, generatedCSS),
+      layout,
     });
     const scopedHTML = options.cssScope
       ? scopeHTML(combinedHTML, { scopeClass: options.cssScope })

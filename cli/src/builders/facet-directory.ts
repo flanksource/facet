@@ -101,7 +101,7 @@ export interface FacetPackageOverride {
 const LOCAL_BUILD_TIMEOUT_MS = 5 * 60 * 1000;
 
 const SOURCE_DIR_SKIP = new Set(['node_modules', 'dist', '.git', '.facet', 'storybook-static']);
-const COMPONENT_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
+const COMPONENT_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.json']);
 const CSS_BUILD_INPUTS = [
   'src/styles.css',
   'tailwind.config.js',

@@ -20,17 +20,19 @@ describe('live Office layout', () => {
   beforeAll(async () => { browser = await launchBrowser(); });
   afterAll(async () => { await browser?.close(); });
 
-  it('applies widescreen dimensions before template code measures its content', async () => {
+  it.each([
+    ['a4', 1280], ['powerpoint-wide', 1280], ['powerpoint-standard', 960],
+  ])('applies %s dimensions before template code measures its content', async (pageSize, width) => {
     const server = createServer((_request, response) => {
       response.setHeader('content-type', 'text/html');
-      response.end('<html><head><style>:root{--facet-font-scale:1}</style></head><body><div id="facet-root"><div data-page-size="a4"><p>Measured content</p></div></div><script>const root=document.querySelector("[data-page-size]");root.setAttribute("data-initial-width",String(root.getBoundingClientRect().width));root.setAttribute("data-initial-font",getComputedStyle(document.body).fontSize);</script></body></html>');
+      response.end(`<html><head><style>:root{--facet-font-scale:1}</style></head><body><div id="facet-root"><div data-page-size="${pageSize}"><p>Measured content</p></div></div><script>const root=document.querySelector("[data-page-size]");root.setAttribute("data-initial-width",String(root.getBoundingClientRect().width));root.setAttribute("data-initial-font",getComputedStyle(document.body).fontSize);</script></body></html>`);
     });
     await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
     try {
       const address = server.address();
       if (!address || typeof address === 'string') throw new Error('Expected a local TCP address');
       const html = await snapshotHTML(`http://127.0.0.1:${address.port}`, new Logger(false), { layout: officeLayout('pptx') });
-      expect(html).toContain('data-initial-width="1280"');
+      expect(html).toContain(`data-initial-width="${width}"`);
       expect(html).toContain('data-initial-font="24px"');
     } finally { await new Promise<void>((done, reject) => server.close((error) => error ? reject(error) : done())); }
   });

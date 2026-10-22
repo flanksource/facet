@@ -9,6 +9,7 @@ import { applyPDFSecurity } from '../utils/pdf-security.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
 import { RenderProfiler, RenderTimings } from '../utils/performance.js';
 import { loadDataFile } from '../utils/data-loader.js';
+import { pageSizeLayout } from '../utils/page-size-layout.js';
 
 function extractBodyContent(html: string): string {
   const match = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
@@ -66,7 +67,7 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
   const htmlPath = join(outputDir, `${outputName}.html`);
   let finalHTML = await readFile(htmlPath, 'utf-8');
 
-  const data = options.data ? await loadDataFile(options.data) : {};
+  const data = options.loadedData?.data ?? (options.data ? await loadDataFile(options.data) : {});
 
   if (options.header) {
     logger.info('Building header template...');
@@ -102,7 +103,7 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
       debug: options.debug,
       debugTypography: options.debugTypography,
       fontSize: options.fontSize,
-      defaultPageSize: options.pageSize,
+      defaultPageSize: pageSizeLayout(options.pageSizeOverride, options.landscape)?.pageSizeOverride ?? options.pageSize,
       landscape: options.landscape,
       margins: options.margins,
     })));

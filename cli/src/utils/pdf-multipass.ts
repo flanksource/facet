@@ -7,6 +7,7 @@ type PageProvider = Browser | BrowserContext;
 import type { Logger } from './logger.js';
 import { setPreparedContent } from './browser-readiness.js';
 import { ELEMENT_SCALE, TEXT_SCALE } from './type-scale.js';
+import { PAGE_SIZE_PRESETS } from './page-size-presets.js';
 
 export type PageType = 'first' | 'default' | 'last';
 
@@ -17,22 +18,12 @@ export interface PageSizeDimensions {
   height: number;
 }
 
-export const PAGE_SIZES: Record<string, PageSizeDimensions> = {
-  a4: { width: 210, height: 297 },
-  'a4-landscape': { width: 297, height: 210 },
-  a3: { width: 297, height: 420 },
-  'a3-landscape': { width: 420, height: 297 },
-  letter: { width: 215.9, height: 279.4 },
-  'letter-landscape': { width: 279.4, height: 215.9 },
-  legal: { width: 215.9, height: 355.6 },
-  'legal-landscape': { width: 355.6, height: 215.9 },
-  fhd: { width: 508, height: 285.75 },
-  qhd: { width: 677.33, height: 381 },
-  wqhd: { width: 846.67, height: 381 },
-  '4k': { width: 1016, height: 571.5 },
-  '5k': { width: 1354.67, height: 762 },
-  '16k': { width: 406.4, height: 304.8 },
-};
+export const PAGE_SIZES: Record<string, PageSizeDimensions> = Object.fromEntries(
+  Object.entries(PAGE_SIZE_PRESETS).map(([name, preset]) => [name, {
+    width: preset.unit === 'px' ? preset.width * 25.4 / 96 : preset.width,
+    height: preset.unit === 'px' ? preset.height * 25.4 / 96 : preset.height,
+  }]),
+);
 
 export function resolvePageSize(name: string): PageSizeDimensions {
   const wxh = name.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);

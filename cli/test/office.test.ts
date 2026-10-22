@@ -70,6 +70,21 @@ describe('Office CLI/library and render API', { timeout: 180000 }, () => {
     expect(cachedFile.headers.get('server-timing')).toBe('cache;desc="hit"');
   });
 
+  it.each([
+    ['powerpoint-standard', 9144000], ['powerpoint-wide', 12192000],
+  ])('renders PowerPoint presets through the API: %s', async (pageSize, width) => {
+    const code = `import { Document, Page } from '@flanksource/facet';
+      export default function Presentation() { return <Document pageSize="${pageSize}"><Page><h1>Acme presentation</h1></Page></Document>; }`;
+    const response = await fetch(`${server.url}/render`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code, ext: 'tsx', format: 'pptx' }) });
+    expect(response.status, await response.clone().text()).toBe(200);
+    const result = await response.json() as { url: string };
+    const download = await fetch(`${server.url}${result.url}`);
+    const zip = await JSZip.loadAsync(await download.arrayBuffer());
+    expect(await zip.file('ppt/presentation.xml')!.async('string')).toContain(`cx="${width}" cy="6858000"`);
+    expect(officeText(await zip.file('ppt/slides/slide1.xml')!.async('string'))).toContain('Acme presentation');
+  });
+
   it.each(['docx', 'pptx'] as const)('streams MDX %s progress and an Office download URL', async (format) => {
     const response = await fetch(`${server.url}/render/stream`, { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ code: '# {props.title}\n\nMDX **editable** text.', ext: 'mdx', format, data: { title: 'Stream Office report' } }) });

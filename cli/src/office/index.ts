@@ -12,6 +12,7 @@ import { renderWordChrome } from './word/pdf-chrome.js';
 import { renderWordDiagram } from './word/pdf-diagrams.js';
 import type { Block } from './model.js';
 import { logVisual } from './logging.js';
+import { presentationSize } from './powerpoint/size.js';
 
 export async function generateOfficeBuffer(options: {
   browser: Browser;
@@ -32,6 +33,7 @@ export async function generateOfficeBuffer(options: {
     await setPreparedContent(page, styledHTML);
     await page.evaluate(applyBrowserLayout, layout);
     const officeDocument = await page.evaluate(readOfficeDOM, options.format);
+    if (options.format === 'pptx') presentationSize(officeDocument.pages);
     const snapshot = await page.content();
     const hydrate = async (blocks: Block[]): Promise<void> => {
       for (const block of blocks) {

@@ -62,7 +62,7 @@ Passing `children` to `Header`/`Footer` is a full escape hatch: all styling prop
 
 ## Pages and sizes
 
-Named sizes: `a4`, `a3`, `letter`, `legal` (each with an `-landscape` variant), plus screen sizes `fhd`, `qhd`, `wqhd`, `4k`, `5k`, `16k`. Custom sizes are `WxH` in mm — `pageSize="297x210"`. Source of truth: `cli/src/utils/pdf-multipass.ts`.
+Named sizes: `a4`, `a3`, `letter`, `legal` (each with an `-landscape` variant), plus screen sizes `fhd`, `qhd`, `wqhd`, `4k`, `5k`, `16k`. Platform presets include `powerpoint-wide` (16:9), `powerpoint-standard` (4:3), and `facebook-*`, `linkedin-*`, `reddit-*`, `google-ads-*` for posts, ads and covers. These pixel presets establish fixed HTML/PNG canvases and convert to PDF at 96 CSS pixels per inch. PowerPoint presets also select the entire PPTX deck's dimensions; conflicting presets fail. Custom sizes are `WxH` in mm — `pageSize="297x210"`. Source of truth: `src/types/page-sizes.json`; see `docs/page-sizes.md` for every preset and runnable examples.
 
 Margins are **plain numbers in mm**, applied as padding inside the page. Full-bleed is automatic: `@page { margin: 0 }`, and headers/footers are drawn at the physical edge during compositing. Colored chrome must touch the paper edge — `examples/kitchen-sink/BleedTest.tsx` is the regression guard.
 

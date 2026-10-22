@@ -49,6 +49,7 @@ const ASSET_CANDIDATES = {
   'package.json': ['assets/package.json', '../../../package.json'],
   'openapi.yaml': ['assets/openapi.yaml', '../../../openapi.yaml'],
   'styles.css': ['assets/styles.css', '../../../dist/styles.css'],
+  'page-sizes.json': ['assets/page-sizes.json', '../../../src/types/page-sizes.json'],
   // Copied into .facet/ rather than resolved from @flanksource/facet: .facet
   // pins whatever facet version the consumer declared, which may predate this
   // file, and a failed import in postcss.config.js fails the whole CSS build.

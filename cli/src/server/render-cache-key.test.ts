@@ -19,6 +19,7 @@ const baseline: ParsedRenderRequest = {
  * for html, png and pdf, but was absent from the key.
  */
 const outputAffectingVariants: Array<[string, Partial<ParsedRenderRequest>]> = [
+  ['pageSizeOverride', { pageSizeOverride: 'facebook-square' }],
   ['source', { source: { kind: 'inline', code: 'export default () => 1;', ext: 'tsx' } }],
   ['data', { data: { title: 'Changed' } }],
   ['format', { format: 'png' }],

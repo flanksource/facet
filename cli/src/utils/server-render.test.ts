@@ -143,10 +143,12 @@ describe('renderWithServer', () => {
       height: 360,
       selector: '#export',
     };
+    options.pageSizeOverride = 'facebook-square';
 
     await renderWithServer({ facetURL, format: 'png', options });
 
     expect(received.body).toContain('"format":"png"');
+    expect(received.body).toContain('"pageSizeOverride":"facebook-square"');
     expect(received.body).toContain('"width":640');
     await expect(readFile(join(options.outputDir, 'report.png'))).resolves.toEqual(png);
   });

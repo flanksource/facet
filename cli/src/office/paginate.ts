@@ -1,5 +1,5 @@
 import type { Block, OfficePage, Paragraph, Row, Table } from './model.js';
-import { SLIDE } from './model.js';
+import { presentationSize } from './powerpoint/size.js';
 
 export interface PlacedBlock { block: Exclude<Block, { kind: 'break' }>; x: number; y: number; width: number; height: number }
 export interface Slide { page: OfficePage; blocks: PlacedBlock[] }
@@ -23,13 +23,14 @@ function rowGroups(rows: Row[]): Row[][] {
 }
 
 export function paginate(documentPages: OfficePage[]): Slide[] {
+  const size = presentationSize(documentPages);
   const slides: Slide[] = [];
   for (const page of documentPages) {
     const left = px(page.margins.left);
     const right = px(page.margins.right);
     const top = px(page.margins.top) + (page.header?.height ?? 0);
-    const bottom = SLIDE.height - px(page.margins.bottom) - (page.footer?.height ?? 0);
-    const availableWidth = SLIDE.width - left - right;
+    const bottom = size.height - px(page.margins.bottom) - (page.footer?.height ?? 0);
+    const availableWidth = size.width - left - right;
     if (bottom <= top || availableWidth <= 0) throw new Error('Slide margins and chrome leave no content area');
     let slide: Slide = { page, blocks: [] };
     let y = top;
@@ -52,7 +53,7 @@ export function paginate(documentPages: OfficePage[]): Slide[] {
       if (y + height + spacing > bottom + 0.5) throw new Error(`Office content cannot fit below the slide title: ${block.source}`);
       y += spacing;
       const x = Math.max(left, block.box.x);
-      const width = Math.min(block.box.width || availableWidth, SLIDE.width - right - x);
+      const width = Math.min(block.box.width || availableWidth, size.width - right - x);
       if (width <= 0) throw new Error(`Office content is outside the slide: ${block.source}`);
       slide.blocks.push({ block, x, y, width, height });
       y += height + block.style.after;

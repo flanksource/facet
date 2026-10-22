@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import Page from '../../components/Page';
+import { PAGE_SIZE_PRESETS } from '../../utils/page-size-presets';
 
 const meta = {
   title: 'Components/Page',
@@ -8,6 +9,9 @@ const meta = {
     layout: 'fullscreen',
   },
   tags: ['autodocs'],
+  argTypes: {
+    pageSize: { control: 'select', options: Object.keys(PAGE_SIZE_PRESETS) },
+  },
 } satisfies Meta<typeof Page>;
 
 export default meta;
@@ -111,4 +115,24 @@ export const PageTypes: Story = {
       </Page>
     </div>
   ),
+};
+
+export const PowerPointStandard: Story = {
+  args: { pageSize: 'powerpoint-standard', title: 'Standard presentation', children: <p>A 960×720 canvas; exports to a 4:3 PowerPoint deck.</p> },
+};
+
+export const FacebookSquare: Story = {
+  args: { pageSize: 'facebook-square', title: 'Square creative', children: <p>A 1080×1080 canvas for a feed post or carousel card.</p> },
+};
+
+export const LinkedInCover: Story = {
+  args: { pageSize: 'linkedin-company-cover', title: 'Company cover', children: <p>A 1512×256 company-page cover.</p> },
+};
+
+export const RedditBanner: Story = {
+  args: { pageSize: 'reddit-banner', children: <p>A 1072×128 community banner.</p> },
+};
+
+export const GoogleDisplayAd: Story = {
+  args: { pageSize: 'google-ads-300x250', title: 'Display ad', children: <p>A 300×250 display canvas.</p> },
 };

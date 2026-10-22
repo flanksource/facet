@@ -113,6 +113,17 @@ facet pdf MyDatasheet.tsx
 
 DOCX preserves editable headings, paragraphs, rich text, links, lists, code, and tables. `<Page>` provides section sizes and margins, while Word flows content across physical pages. Headers, footers, figures, and diagram components are captured as paired PDF and PNG assets in the browser. Word receives EMF pictures containing the original PDF bytes and a bitmap display representation, matching Word's PDF insertion format. Figures include their captions and legends, and page numbers remain native Word fields. Vector rendering and selectable diagram text in exported PDFs depend on the viewer's support for the embedded PDF representation. Flex and grid columns use native layout tables; data tables retain cell padding, borders, merges and vertical alignment.
 
+### Render PNG/PDF in multiple sizes
+
+Use repeatable `--sizes` with exact presets or quoted globs. Facet lays out every variant at its selected size and appends the size to the filename:
+
+```bash
+facet png examples/page-sizes/Canvas.tsx --sizes 'facebook-*' --sizes 'linkedin-*' -o out/campaign.png
+facet pdf examples/page-sizes/Canvas.tsx --sizes 'google-ads-*' -o out/campaign.pdf
+```
+
+Outputs include `campaign-facebook-square.png` and `campaign-google-ads-300x250.pdf`. Selections override template page sizes and work with remote rendering. See [multi-size rendering](docs/page-sizes.md#render-multiple-sizes) for custom dimensions, naming, capture options, and API usage.
+
 ### Inspect PDF, PNG and Word documents
 
 ```bash
@@ -326,7 +337,7 @@ physical page by the multi-pass pipeline described below.
 | `titleClassName` | `string` | — | Extra CSS class applied to the title bar |
 | `product` | `string` | — | Sub-label shown in the title bar |
 | `margins` | `PageMargins` | inherited | Content margins `{ top, right, bottom, left }` in mm; merged field-by-field over `<Document>` defaults |
-| `pageSize` | `PageSize` | `'a4'` | Page size — `a4`, `a3`, `letter`, `legal`, `fhd`, `qhd`, `wqhd`, `4k`, `5k`, `16k`, any `-landscape` variant, or custom `WxH` in mm |
+| `pageSize` | `PageSize` | `'a4'` | Paper/screen presets, `powerpoint-wide`, `powerpoint-standard`, `facebook-*`, `linkedin-*`, `reddit-*`, `google-ads-*`, or custom `WxH` in mm. See the [page-size catalog](docs/page-sizes.md). |
 | `type` | `PageType` | `'default'` | `'first' \| 'default' \| 'last'` — selects which `Header`/`Footer` this page gets |
 | `watermark` | `string` | — | Diagonal watermark text (e.g. `"DRAFT"`, `"CONFIDENTIAL"`) |
 | `className` | `string` | — | Extra CSS class applied to the `<main>` element |
