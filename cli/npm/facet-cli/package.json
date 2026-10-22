@@ -1,7 +1,7 @@
 {
   "name": "@flanksource/facet-cli",
   "version": "0.0.0",
-  "description": "CLI for @flanksource/facet — generate print-ready PDFs and HTML from React templates",
+  "description": "CLI for @flanksource/facet — generate HTML, PDF, PNG, editable DOCX and PPTX from React templates",
   "bin": {
     "facet": "facet.cjs"
   },
@@ -24,6 +24,6 @@
   },
   "homepage": "https://github.com/flanksource/facet#readme",
   "engines": {
-    "node": ">=20.19"
+    "node": ">=24"
   }
 }
