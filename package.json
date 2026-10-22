@@ -1,7 +1,7 @@
 {
   "name": "@flanksource/facet",
   "version": "0.1.71",
-  "description": "Build beautiful HTML, PDF, and PNG output from React templates",
+  "description": "Build HTML, PDF, PNG, editable DOCX and PPTX output from React templates",
   "type": "module",
   "repository": {
     "type": "git",
@@ -15,6 +15,10 @@
       "import": "./dist/components/index.js"
     },
     "./styles.css": "./dist/styles.css",
+    "./cli": {
+      "types": "./cli/dist/index.d.mts",
+      "import": "./cli/dist/index.mjs"
+    },
     "./*": {
       "types": "./dist/components/*.d.ts",
       "import": "./dist/components/*.js"
@@ -82,9 +86,10 @@
     "monaco-editor": "^0.55.1",
     "monaco-yaml": "5.1.1",
     "pdf-lib": "^1.17.1",
-    "recharts": "^3.0.0",
+    "puppeteer-core": "^22.15.0",
     "react-icons": "^5.4.0",
     "react-xarrows": "^2.0.2",
+    "recharts": "^3.0.0",
     "shiki": "^1.0.0",
     "source-map-support": "^0.5.21",
     "tailwind-merge": "^2.6.0",
@@ -133,6 +138,6 @@
     "vitest": "^4.1.1"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=24"
   }
 }

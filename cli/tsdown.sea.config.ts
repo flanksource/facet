@@ -16,7 +16,7 @@ export default defineConfig({
   // external and is resolved from the .facet module store at runtime.
   external: ['vite', 'react', 'react-dom', '@vitejs/plugin-react', '@mdx-js/rollup', 'remark-gfm', 'tsx', 'sharp'],
   platform: 'node',
-  target: 'node20',
+  target: 'node24',
   shims: true,
   // SEA embeds a single main script — force everything into one chunk. The
   // entry's own `#!/usr/bin/env node` shebang is preserved, which the SEA
