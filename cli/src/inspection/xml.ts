@@ -1,19 +1,25 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 
-export interface XmlNode { name: string; attributes: Record<string, string>; children: XmlNode[] }
+export interface XmlNode { name: string; path: string; attributes: Record<string, string>; children: XmlNode[] }
 
 function record(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Expected an XML node');
   return value as Record<string, unknown>;
 }
 
-function nodes(value: unknown): XmlNode[] {
+function nodes(value: unknown, parent = ''): XmlNode[] {
   if (!Array.isArray(value)) throw new Error('Expected ordered XML nodes');
+  const counts = new Map<string, number>();
   return value.flatMap((item): XmlNode[] => {
     const entry = record(item);
     const attributes = Object.fromEntries(Object.entries(entry[':@'] === undefined ? {} : record(entry[':@'])).map(([key, value]) => [key, String(value)]));
     return Object.entries(entry).filter(([name]) => ![':@', '#text', '#comment', '#cdata'].includes(name) && !name.startsWith('?'))
-      .map(([name, children]) => ({ name, attributes, children: nodes(children) }));
+      .map(([name, children]) => {
+        const index = (counts.get(name) ?? 0) + 1;
+        counts.set(name, index);
+        const path = `${parent}/${name}[${index}]`;
+        return { name, path, attributes, children: nodes(children, path) };
+      });
   });
 }
 

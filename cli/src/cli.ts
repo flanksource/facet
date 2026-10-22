@@ -156,7 +156,7 @@ program
   .option('--skip-modules', 'Use the shared Facet-only module install and ignore package.json dependencies')
   .option('--facet-url <url>', 'Submit template renders to a Facet server (or FACET_URL)')
   .hook('preAction', (_command, actionCommand) => {
-    if (actionCommand.name() === 'inspect' && actionCommand.opts().json) return;
+    if (['lint', 'inspect'].includes(actionCommand.name()) && actionCommand.opts().json) return;
     console.log(chalk.gray(`facet ${versionStr}`));
   });
 
@@ -467,10 +467,12 @@ program
 // lint command
 program
   .command('lint [paths...]')
-  .description('Scan TSX files for styling, CSS, and page layout issues')
+  .description('Lint TSX and PNG files and inspect PDF/DOCX documents')
   .option('-v, --verbose', 'Show detailed output including passing files')
+  .option('--json', 'Export ESLint-compatible JSON results to stdout')
+  .option('--embedded-images', 'Include embedded-image and PDF payload inspection for documents')
   .option('--rule <name>', 'Run only a specific rule')
-  .option('--severity <level>', 'Minimum severity to report (warning, error)', 'warning')
+  .option('--severity <level>', 'Minimum severity to report (info, warning, error)', 'info')
   .action(async (paths: string[], options: any) => {
     const logger = new Logger(options.verbose);
     try {
@@ -481,14 +483,16 @@ program
         rule: options.rule,
         severity: options.severity,
         logger,
+        json: options.json,
+        embeddedImages: options.embeddedImages,
       });
-      process.exit(exitCode);
+      process.exitCode = exitCode;
     } catch (error) {
       logger.error(`Lint failed: ${error instanceof Error ? error.message : String(error)}`);
       if (options.verbose && error instanceof Error && error.stack) {
-        logger.debug(error.stack);
+        process.stderr.write(error.stack + '\n');
       }
-      process.exit(1);
+      process.exitCode = options.json ? 2 : 1;
     }
   });
 

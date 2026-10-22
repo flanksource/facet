@@ -32,7 +32,7 @@ function shapeSize(node: XmlNode | undefined): Dimensions | undefined {
 
 export function inspectReferences(pkg: DocxPackage): AssetReferences {
   const result: AssetReferences = { uses: new Map(), progIds: new Map(), previews: new Map() };
-  const add = (part: string, id: string, details: Pick<AssetUse, 'kind' | 'dimensions' | 'preview'>): string | undefined => {
+  const add = (part: string, id: string, details: Pick<AssetUse, 'kind' | 'dimensions' | 'preview' | 'elementPath'>): string | undefined => {
     const rel = relationship(pkg, part, id);
     if (rel.external) return undefined;
     const uses = result.uses.get(rel.target) ?? [];
@@ -46,8 +46,8 @@ export function inspectReferences(pkg: DocxPackage): AssetReferences {
         const shape = [...walk(node.children)].find((child) => child.name === 'shape' && child.attributes.id === object.attributes.ShapeID);
         const dimensions = shapeSize(shape);
         const imageId = shape ? first(shape.children, 'imagedata')?.attributes.id : undefined;
-        const preview = imageId ? add(part, imageId, { kind: 'image', dimensions }) : undefined;
-        const target = add(part, object.attributes.id, { kind: 'object', ...(dimensions ? { dimensions } : {}), ...(preview ? { preview } : {}) });
+        const preview = imageId ? add(part, imageId, { kind: 'image', dimensions, elementPath: shape?.path }) : undefined;
+        const target = add(part, object.attributes.id, { kind: 'object', elementPath: object.path, ...(dimensions ? { dimensions } : {}), ...(preview ? { preview } : {}) });
         if (target && object.attributes.ProgID) result.progIds.set(target, (result.progIds.get(target) ?? new Set()).add(object.attributes.ProgID));
         if (preview && target) result.previews.set(preview, (result.previews.get(preview) ?? new Set()).add(target));
       }
@@ -58,17 +58,17 @@ export function inspectReferences(pkg: DocxPackage): AssetReferences {
       const dimensions = extent?.attributes.cx !== undefined && extent.attributes.cy !== undefined ? {
         widthMm: mm(numeric(extent.attributes.cx, `${part}: image width`) / 36000), heightMm: mm(numeric(extent.attributes.cy, `${part}: image height`) / 36000),
       } : undefined;
-      for (const image of walk(node.children)) if (image.name === 'blip' && image.attributes.embed) add(part, image.attributes.embed, { kind: 'image', ...(dimensions ? { dimensions } : {}) });
+      for (const image of walk(node.children)) if (image.name === 'blip' && image.attributes.embed) add(part, image.attributes.embed, { kind: 'image', elementPath: image.path, ...(dimensions ? { dimensions } : {}) });
       return;
     }
     if (node.name === 'pict') {
       for (const shape of walk(node.children)) if (shape.name === 'shape') {
         const image = first(shape.children, 'imagedata');
-        if (image?.attributes.id) add(part, image.attributes.id, { kind: 'image', dimensions: shapeSize(shape) });
+        if (image?.attributes.id) add(part, image.attributes.id, { kind: 'image', elementPath: image.path, dimensions: shapeSize(shape) });
       }
       return;
     }
-    if (/^embed(Regular|Bold|Italic|BoldItalic)$/.test(node.name) && node.attributes.id) add(part, node.attributes.id, { kind: 'font' });
+    if (/^embed(Regular|Bold|Italic|BoldItalic)$/.test(node.name) && node.attributes.id) add(part, node.attributes.id, { kind: 'font', elementPath: node.path });
     node.children.forEach((child) => visit(part, child));
   };
   for (const [part, nodes] of pkg.xml) nodes.forEach((node) => visit(part, node));

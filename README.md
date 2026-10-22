@@ -113,14 +113,18 @@ facet pdf MyDatasheet.tsx
 
 DOCX preserves editable headings, paragraphs, rich text, links, lists, code, and tables. `<Page>` provides section sizes and margins, while Word flows content across physical pages. Headers, footers, figures, and diagram components are captured as paired PDF and PNG assets in the browser. Word receives EMF pictures containing the original PDF bytes and a bitmap display representation, matching Word's PDF insertion format. Figures include their captions and legends, and page numbers remain native Word fields. Vector rendering and selectable diagram text in exported PDFs depend on the viewer's support for the embedded PDF representation. Flex and grid columns use native layout tables; data tables retain cell padding, borders, merges and vertical alignment.
 
-### Inspect a Word document
+### Inspect PDF, PNG and Word documents
 
 ```bash
 facet inspect output/report.docx
-facet inspect output/report.docx --json
+facet inspect output/report.docx output/report.pdf output/diagram.png --json
+facet inspect output/report.docx --fonts=true --font-position=false --colors=true --color-positions=false
+facet inspect output/report.docx --embedded-images --json
 ```
 
-`inspect` reads a local DOCX without changing it or creating files. It reports section sizes and margins in millimetres, embedded assets and their body/header/footer references, Word font references and embedded variants, and fonts inside embedded PDFs. PDFs inside EMF pictures, OLE objects, and raw PDF parts include their payload sizes and page dimensions; OLE objects also include their types and stream names. Section settings describe the document's layout configuration, rather than its rendered page count. Font references describe declared names and theme mappings, rather than the fonts Word ultimately selects. Chrome, Word, Microsoft 365, and dependency installation are not required. `--json` emits only structured JSON for scripting.
+`inspect` reads native font and color inventories without modifying inputs or extracting files. Fonts and colors are enabled by default; their positions are disabled. PNG font metadata is explicitly unavailable, and its colors use an approximate palette of up to 32 RGBA groups. PDF and DOCX font references describe declared names and resources. Section settings describe Word layout configuration rather than rendered pagination. See [inspection options and output](docs/inspection.md).
+
+`--embedded-images` opts into image information and payload inspection. DOCX image entries include format, byte sizes, display dimensions, body/header/footer references, and preview relationships. PDFs inside EMF pictures, OLE objects, and raw PDF parts include their page and font information. Standalone PDFs report image resources with page and object references. Shared assets retain every reference. Document/package structure and references are always validated; embedded payload inspection runs only with the flag. PDF/DOCX inspection reports metadata; PNG visual checks apply to standalone PNG files.
 
 ## Performance benchmarks
 
@@ -480,6 +484,39 @@ playground). In the playground, pick **Live Diagram** from the **Example**
 dropdown to try it.
 
 ## CLI Commands
+
+### Lint templates, images and documents
+
+```bash
+facet lint Report.tsx diagram.png
+facet lint diagrams/ --rule png-line-crossing
+facet lint diagram.png --severity error
+facet lint Report.tsx diagram.png --json > lint-results.json
+facet lint report.docx report.pdf --embedded-images --json
+```
+
+Lint scans directories recursively for TSX, PNG, PDF and DOCX files. PNG checks run locally using image pixels, without a browser or AI service. `--severity info` is the default; `--severity warning` hides informational entries and `--severity error` reports only errors. Info-only reports exit 0. Warnings and errors return exit 1. Missing paths, invalid configuration, and unreadable or corrupt documents fail with the filename or option context.
+
+`--json` writes a two-space-indented [ESLint JSON report](https://eslint.org/docs/latest/use/formatters/#json) to stdout. Results use absolute `filePath`, `messages`, numeric severities, and error/warning/fixable counts. Each message also carries its native `level`, `locations`, and available inspection `data`. Info entries use ESLint severity 1 and contribute to `warningCount`; a separate `infoCount` identifies them. They do not make lint fail. Errors use severity 2. Clean files and empty optional metadata are omitted; zero counts, zero coordinates and `false` values are retained. No reported findings produces `[]`. Banners and progress messages are suppressed even with `--verbose`. Operational failures go to stderr with exit code 2.
+
+Source findings retain one-based ESLint `line`/`column` fields. Binary findings use native locations instead of synthetic source lines:
+
+| Location type | Native fields |
+| --- | --- |
+| `source` | Line and optional column |
+| `png` | Zero-based top-left pixel coordinates, image dimensions, measured bounds where available; units `px` |
+| `pdf` | One-based page, indirect object reference and resource path where available; page data uses `pt` |
+| `docx` | Package part, indexed local-name element path, relationship ID, role and asset path where available; embedded PDFs retain a nested `pdf` location |
+
+Document info rules are `docx-section`, `docx-embedded-image`, `pdf-page` and `pdf-embedded-image`. Font inventories belong to `facet inspect` and are not collected by linters, including inside embedded PDFs. Image entries and information inside DOCX embedded PDFs require `--embedded-images`; `--rule` filters the resulting entries.
+
+| PNG rule | Severity | Detects |
+| --- | --- | --- |
+| `png-empty` | Error | Completely transparent or uniform-colour images |
+| `png-line-crossing` | Warning | Possible overlapping horizontal and vertical lines, reported at zero-based pixel coordinates |
+| `png-edge-content` | Warning | Content at the capture boundary that may be clipped |
+
+Line detection targets diagram strokes 1–6 pixels thick and at least 24 pixels long, with at least 90% continuity and contrast against their immediate surroundings. It allows corners and T junctions. Crossings and edge content need review because intentional junctions, full-bleed artwork, borders and grids can trigger warnings. This pixel heuristic does not detect text overlap, curved or diagonal connectors, or fully obscured coincident lines. A clean result is not a complete visual layout review.
 
 ### Remote rendering
 

@@ -3,7 +3,9 @@ import type { AssetInfo, PdfFont } from './types.js';
 import type { DocxPackage } from './package.js';
 import { inspectReferences } from './uses.js';
 import { inspectPdf } from './pdf.js';
-import { isEmf, readEmfPdf } from '../emf/decode.js';
+import { isEmf, readEmfPdf } from '../office/emf/decode.js';
+import { inspectPdfColors } from './pdf-colors.js';
+import { inspectPng } from './png.js';
 
 function mediaFormat(data: Uint8Array, contentType: string): string {
   const bytes = Buffer.from(data);
@@ -17,7 +19,7 @@ function mediaFormat(data: Uint8Array, contentType: string): string {
   return 'FILE';
 }
 
-export async function inspectAssets(pkg: DocxPackage): Promise<{ assets: AssetInfo[]; fonts: PdfFont[] }> {
+export async function inspectAssets(pkg: DocxPackage, options: { fonts?: boolean; colors?: boolean; colorPositions?: boolean } = {}): Promise<{ assets: AssetInfo[]; fonts: PdfFont[] }> {
   const refs = inspectReferences(pkg);
   const assets: AssetInfo[] = [];
   const fonts: PdfFont[] = [];
@@ -43,12 +45,14 @@ export async function inspectAssets(pkg: DocxPackage): Promise<{ assets: AssetIn
       } catch (cause) { throw new Error(`${path}: invalid OLE object: ${cause instanceof Error ? cause.message : String(cause)}`, { cause }); }
     }
     if (pdf) {
-      const inspected = await inspectPdf({ data: pdf, asset: path });
+      const inspected = await inspectPdf({ data: pdf, asset: path, embeddedImages: true, fonts: options.fonts });
       asset.format = 'PDF';
       asset.payloadBytes = pdf.length;
-      asset.pdf = { pages: inspected.pages };
+      asset.pdf = inspected;
+      if (options.colors) inspected.colors = await inspectPdfColors(pdf, options.colorPositions ?? false);
       fonts.push(...inspected.fonts);
     }
+    if (asset.format === 'PNG' && options.colors) asset.colors = (await inspectPng({ data, colors: true, positions: options.colorPositions ?? false })).colors;
     assets.push(asset);
   }
   return { assets, fonts };

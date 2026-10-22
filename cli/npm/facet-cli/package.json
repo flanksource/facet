@@ -23,6 +23,10 @@
     "url": "git+https://github.com/flanksource/facet.git"
   },
   "homepage": "https://github.com/flanksource/facet#readme",
+  "dependencies": {
+    "pdfjs-dist": "6.4.299",
+    "@napi-rs/canvas": "1.0.10"
+  },
   "engines": {
     "node": ">=24"
   }

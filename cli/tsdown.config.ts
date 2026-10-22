@@ -9,7 +9,7 @@ export default defineConfig({
   clean: true,
   splitting: false,
   minify: false,
-  external: ['tsx', 'puppeteer-core', 'sharp', 'vite', 'react', 'react-dom', /\.yaml$/, /\.css$/],
+  external: ['tsx', 'puppeteer-core', 'sharp', 'pdfjs-dist/legacy/build/pdf.mjs', '@napi-rs/canvas', 'vite', 'react', 'react-dom', /\.yaml$/, /\.css$/],
   noExternal: [/.*/],
   outputOptions: { inlineDynamicImports: true },
   platform: 'node',
