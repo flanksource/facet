@@ -6,6 +6,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { copyRuntimeAssets } = require('./copy-runtime-assets.cjs');
 
 function buildPackage({ version, bundlePath, repoRoot, templateDir, outDir }) {
   fs.mkdirSync(path.join(outDir, 'assets'), { recursive: true });
