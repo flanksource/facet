@@ -54,6 +54,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
     "@aws-sdk/s3-request-presigner": "^3.600.0",
+    "@napi-rs/canvas": "1.0.10",
     "@pdfsmaller/pdf-encrypt": "^1.0.2",
     "@signpdf/placeholder-plain": "^3.3.0",
     "@signpdf/signer-p12": "^3.3.0",
@@ -71,6 +72,7 @@
     "ora": "^5.4.1",
     "pdf-lib": "^1.17.1",
     "pdf-rfc3161": "^0.1.4",
+    "pdfjs-dist": "6.4.299",
     "pptxgenjs-plus": "^4.3.4",
     "puppeteer-core": "^22.0.0",
     "react": "^18.3.1",

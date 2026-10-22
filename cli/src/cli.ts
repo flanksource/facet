@@ -156,7 +156,7 @@ program
   .option('--skip-modules', 'Use the shared Facet-only module install and ignore package.json dependencies')
   .option('--facet-url <url>', 'Submit template renders to a Facet server (or FACET_URL)')
   .hook('preAction', (_command, actionCommand) => {
-    if (actionCommand.name() === 'inspect' && actionCommand.opts().json) return;
+    if (['lint', 'inspect'].includes(actionCommand.name()) && actionCommand.opts().json) return;
     console.log(chalk.gray(`facet ${versionStr}`));
   });
 
@@ -489,14 +489,16 @@ program
         diagramsAi: !!options.diagramsAi,
         llmModel: options.llmModel,
         logger,
+        json: options.json,
+        embeddedImages: options.embeddedImages,
       });
-      process.exit(exitCode);
+      process.exitCode = exitCode;
     } catch (error) {
       logger.error(`Lint failed: ${error instanceof Error ? error.message : String(error)}`);
       if (options.verbose && error instanceof Error && error.stack) {
-        logger.debug(error.stack);
+        process.stderr.write(error.stack + '\n');
       }
-      process.exit(1);
+      process.exitCode = options.json ? 2 : 1;
     }
   });
 

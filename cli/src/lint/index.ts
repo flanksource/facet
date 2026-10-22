@@ -57,6 +57,30 @@ function logMetadata(logger: LintLogger, file: string, metadata: VisualMetadata)
   logger.info(`Diagram AI review: file=${file} provider=${metadata.provider} model=${metadata.model} inputTokens=${metadata.inputTokens ?? 0} outputTokens=${metadata.outputTokens ?? 0} duration=${metadata.duration ?? 'unknown'} costUSD=${metadata.costUSD ?? 0}`);
 }
 
+async function lintFile(options: { filePath: string; rule?: string; embeddedImages: boolean }): Promise<LintIssue[]> {
+  const { filePath, rule, embeddedImages } = options;
+  const file = relative(process.cwd(), filePath);
+  const extension = extname(filePath).toLowerCase();
+  const rules = allRules.filter(candidate => !rule || candidate.name === rule);
+  try {
+    if (extension === '.png') return !rule || pngRules.some(candidate => candidate.name === rule) ? await lintPng(readFileSync(filePath), file) : [];
+    if (extension === '.pdf' || extension === '.docx') {
+      return !rule || documentRules.some(candidate => candidate.name === rule)
+        ? await lintDocument({ data: readFileSync(filePath), file, format: extension === '.pdf' ? 'pdf' : 'docx', embeddedImages }) : [];
+    }
+    if (!rules.length) return [];
+    const content = readFileSync(filePath, 'utf-8');
+    const lines = content.split('\n');
+    const ctx: LintContext = { filePath: file, lines, content };
+    return rules.flatMap(candidate => candidate.check(ctx)).filter(issue => {
+      if (issue.line === undefined || issue.line < 1 || issue.line > lines.length) throw new Error(`Invalid source location for rule ${issue.rule}`);
+      return !isDisabled(lines, issue.line - 1);
+    });
+  } catch (cause) {
+    throw new Error(`Cannot lint ${extension.slice(1).toUpperCase()} ${file}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+  }
+}
+
 export async function runLint(options: LintOptions): Promise<number> {
   const { logger } = options;
   const cwd = resolve(options.cwd ?? process.cwd());

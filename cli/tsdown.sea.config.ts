@@ -14,7 +14,7 @@ export default defineConfig({
   noExternal: [/.*/],
   // sharp is a native addon: it cannot be embedded in the SEA blob, so it stays
   // external and is resolved from the .facet module store at runtime.
-  external: ['vite', 'react', 'react-dom', '@vitejs/plugin-react', '@mdx-js/rollup', 'remark-gfm', 'tsx', 'sharp'],
+  external: ['vite', 'react', 'react-dom', '@vitejs/plugin-react', '@mdx-js/rollup', 'remark-gfm', 'tsx', 'sharp', 'pdfjs-dist/legacy/build/pdf.mjs', '@napi-rs/canvas'],
   platform: 'node',
   target: 'node24',
   shims: true,

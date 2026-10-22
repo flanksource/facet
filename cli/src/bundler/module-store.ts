@@ -24,6 +24,7 @@ import type { Logger } from '../utils/logger.js';
 import { resolvePackageManager } from '../utils/package-manager.js';
 import { spawnLowPriority } from '../utils/subprocess-priority.js';
 import { SHARP_VERSION } from '../utils/sharp.js';
+import { PDFJS_VERSION, PDFJS_CANVAS_VERSION } from '../utils/pdfjs.js';
 
 const REQUIRED_DEPENDENCIES = [
   '@codemirror/autocomplete',
@@ -164,6 +165,8 @@ export function createDefaultModulePackageJson(options: DefaultModulePackageOpti
   }
   dependencies.lightningcss = '^1.30.2';
   dependencies.sharp = SHARP_VERSION;
+  dependencies['pdfjs-dist'] = PDFJS_VERSION;
+  dependencies['@napi-rs/canvas'] = PDFJS_CANVAS_VERSION;
 
   const manifest: Record<string, unknown> = {
     name: '.facet-default-modules',

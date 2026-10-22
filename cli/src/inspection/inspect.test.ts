@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { inspectDOCX } from './index.js';
+import { inspectDOCX as inspectDocument } from './index.js';
 import { fixture, oleFixture, pdfFixture, PNG, relations } from './fixtures.test-utils.js';
 import { PDFDocument, PDFName } from 'pdf-lib';
 import sharp from 'sharp';
-import { encodePdfEmf } from '../emf/encode.js';
+import { encodePdfEmf } from '../office/emf/encode.js';
+
+const inspectDOCX = (data: Uint8Array) => inspectDocument({ data, embeddedImages: true });
 
 describe('read-only DOCX inspection', () => {
   it('finds the original PDF and its fonts inside EMF image media', async () => {
@@ -34,9 +36,9 @@ describe('read-only DOCX inspection', () => {
       <w:sectPr><w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/><w:pgMar w:left="1440"/></w:sectPr>`);
     const result = await inspectDOCX(await zip.generateAsync({ type: 'uint8array' }));
     expect(result.sections).toEqual([
-      { index: 1, size: { widthMm: 210.009, heightMm: 297.004 }, orientation: null,
+      { index: 1, elementPath: '/document[1]/body[1]/p[1]/pPr[1]/sectPr[1]', size: { widthMm: 210.009, heightMm: 297.004 }, orientation: null,
         margins: { topMm: 25.4, rightMm: 12.7, bottomMm: 25.4, leftMm: 12.7, headerMm: 6.35, footerMm: 6.35, gutterMm: 0 } },
-      { index: 2, size: { widthMm: 279.4, heightMm: 215.9 }, orientation: 'landscape',
+      { index: 2, elementPath: '/document[1]/body[1]/sectPr[1]', size: { widthMm: 279.4, heightMm: 215.9 }, orientation: 'landscape',
         margins: { topMm: null, rightMm: null, bottomMm: null, leftMm: 25.4, headerMm: null, footerMm: null, gutterMm: null } },
     ]);
     expect(result).not.toHaveProperty('pages');
@@ -64,11 +66,11 @@ describe('read-only DOCX inspection', () => {
     const diagram = result.assets[0];
     expect(diagram.payloadBytes).toBe(pdf.length);
     expect(diagram.pdf?.pages).toEqual([{ widthMm: 50.8, heightMm: 25.4 }]);
-    expect(diagram.uses).toEqual([{ part: 'word/document.xml', relationshipId: 'diagram', role: 'body', kind: 'object', dimensions: { widthMm: 50.8, heightMm: 25.4 }, preview: 'word/media/shared image.png' }]);
+    expect(diagram.uses).toEqual([{ part: 'word/document.xml', elementPath: '/document[1]/body[1]/p[2]/r[1]/object[1]/OLEObject[1]', relationshipId: 'diagram', role: 'body', kind: 'object', dimensions: { widthMm: 50.8, heightMm: 25.4 }, preview: 'word/media/shared image.png' }]);
     expect(result.assets[2].previewFor).toEqual(['word/embeddings/diagram.bin']);
     expect(result.assets[2].uses).toHaveLength(3);
     expect(result.assets[2].uses.some((use) => use.role === 'header')).toBe(true);
-    expect(result.fonts.pdf.filter((font) => font.asset === diagram.path)).toEqual([
+    expect(result.fonts.pdf.filter((font) => font.asset === diagram.path).map(({ locations: _locations, ...font }) => font)).toEqual([
       { asset: diagram.path, name: 'ABCDEF+DiagramFace', type: 'Type0', embedded: true, subset: true, pages: [1] },
       { asset: diagram.path, name: 'Helvetica', type: 'Type1', embedded: false, subset: false, pages: [1] },
     ]);
@@ -96,7 +98,7 @@ describe('read-only DOCX inspection', () => {
     zip.file('word/fontTable.xml', '<fonts/>');
     zip.file('word/_rels/document.xml.rels', relations([{ id: 'fonts', type: 'fontTable', target: 'fontTable.xml' }]));
     expect((await inspectDOCX(await zip.generateAsync({ type: 'uint8array' }))).fonts.word).toEqual([
-      { name: 'Body Face', kind: 'font', sources: ['word/document.xml'], embedded: [] },
+      { name: 'Body Face', kind: 'font', sources: ['word/document.xml'], embedded: [], locations: [{ part: 'word/document.xml', elementPath: '/document[1]/body[1]/p[1]/r[1]/rPr[1]/rFonts[1]' }] },
     ]);
   });
 
@@ -111,7 +113,7 @@ describe('read-only DOCX inspection', () => {
     zip.file('word/theme/theme1.xml', '<theme><minorFont><cs typeface="Complex Face"/><ea typeface=""/></minorFont></theme>');
     const fonts = (await inspectDOCX(await zip.generateAsync({ type: 'uint8array' }))).fonts.word;
     expect(fonts.find((font) => font.name === 'Complex Face')?.sources).toContain('word/document.xml');
-    expect(fonts.find((font) => font.name === 'minorEastAsia')).toEqual({ name: 'minorEastAsia', kind: 'theme', sources: ['word/document.xml'], embedded: [] });
+    expect(fonts.find((font) => font.name === 'minorEastAsia')).toEqual({ name: 'minorEastAsia', kind: 'theme', sources: ['word/document.xml'], embedded: [], locations: [{ part: 'word/document.xml', elementPath: '/document[1]/body[1]/p[1]/r[1]/rPr[1]/rFonts[1]' }] });
   });
 
   it('reports Type3 fonts whose glyph programs are embedded rather than stored in FontFile streams', async () => {
@@ -120,7 +122,7 @@ describe('read-only DOCX inspection', () => {
     page.node.set(PDFName.of('Resources'), pdf.context.obj({ Font: { Symbols: pdf.context.obj({ Type: 'Font', Subtype: 'Type3', Name: 'DiagramSymbols', CharProcs: { Glyph: pdf.context.register(pdf.context.flateStream('')) } }) } }));
     const zip = fixture('<w:p/>');
     zip.file('word/embeddings/symbols.pdf', await pdf.save());
-    expect((await inspectDOCX(await zip.generateAsync({ type: 'uint8array' }))).fonts.pdf).toEqual([
+    expect((await inspectDOCX(await zip.generateAsync({ type: 'uint8array' }))).fonts.pdf.map(({ locations: _locations, ...font }) => font)).toEqual([
       { asset: 'word/embeddings/symbols.pdf', name: 'DiagramSymbols', type: 'Type3', embedded: true, subset: false, pages: [1] },
     ]);
   });

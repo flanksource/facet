@@ -33,6 +33,7 @@ import { createDefaultModulePackageJson, defaultModuleNpmrc } from '../bundler/m
 import { VERSION } from '../version-generated.js';
 import { LowPriorityProcessError, runLowPriority } from '../utils/subprocess-priority.js';
 import { SHARP_VERSION } from '../utils/sharp.js';
+import { PDFJS_VERSION, PDFJS_CANVAS_VERSION } from '../utils/pdfjs.js';
 import { tailwindFontSizeTheme, tailwindThemeBlock } from '../utils/type-scale.js';
 
 const rootPackageJson = assetPath('package.json');
@@ -1062,6 +1063,8 @@ export default defineConfig(async () => {
     if (!dependencies['sharp']) {
       dependencies['sharp'] = SHARP_VERSION;
     }
+    dependencies['pdfjs-dist'] = PDFJS_VERSION;
+    dependencies['@napi-rs/canvas'] = PDFJS_CANVAS_VERSION;
 
     this.logger.debug(`Merged with facet build dependencies, total: ${Object.keys(dependencies).length}`);
 
