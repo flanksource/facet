@@ -26,6 +26,7 @@ export interface CachedTailwindOptions {
 }
 
 const tailwindLocks = new Map<string, Promise<string>>();
+const TAILWIND_CACHE_VERSION = '2';
 
 export function resolveTailwindMajor(facetRoot: string): number {
   const facetRequire = createRequire(join(facetRoot, 'package.json'));
@@ -142,7 +143,7 @@ export function tailwindDirectivesPresent(facetRoot: string): boolean {
  * which reads as the change simply not working.
  */
 export function cssInputKey(facetRoot: string): string {
-  const hash = createHash('sha256');
+  const hash = createHash('sha256').update(TAILWIND_CACHE_VERSION);
   for (const name of ['facet.css', 'post-process.css', 'post-process-v4.css']) {
     try {
       hash.update(readFileSync(join(facetRoot, name)));

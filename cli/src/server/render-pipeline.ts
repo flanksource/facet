@@ -196,6 +196,7 @@ export async function renderHTMLStreamed(options: StreamedHTMLOptions): Promise<
     persistentLoader,
     timings,
     skipModules: options.skipModules,
+    redact: options.redact,
   });
   try {
     progress.emit('tailwind', 'Processing Tailwind CSS...');

@@ -211,6 +211,8 @@ const HTML = `<!DOCTYPE html>
         <button onclick="setFormat('html')"><span class="check" id="checkHtml">&#10003;</span>HTML</button>
         <button onclick="setFormat('pdf')"><span class="check" id="checkPdf">&nbsp;</span>PDF</button>
         <button onclick="setFormat('png')"><span class="check" id="checkPng">&nbsp;</span>PNG</button>
+        <button onclick="setFormat('docx')"><span class="check" id="checkDocx">&nbsp;</span>Word (DOCX)</button>
+        <button onclick="setFormat('pptx')"><span class="check" id="checkPptx">&nbsp;</span>PowerPoint (PPTX)</button>
       </div>
     </div>
     </div>
@@ -416,6 +418,8 @@ ${PLAYGROUND_CONTROLS_SCRIPT}
                 const img = preview.querySelector('img');
                 img.onerror = function () { onPreviewLoadError(payload.url); };
                 img.src = payload.url;
+              } else if ((format === 'docx' || format === 'pptx') && payload.url) {
+                await showOfficeResult(preview, payload.url, body, format);
               } else if (payload.url) {
                 preview.innerHTML = '<iframe></iframe>';
                 const frame = preview.querySelector('iframe');

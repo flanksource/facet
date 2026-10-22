@@ -16,6 +16,7 @@ import { parsePNGViewport } from './utils/png-generator.js';
 import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
 import { registerOfficeCommands } from './commands/office.js';
 import { registerInspectCommand } from './commands/inspect.js';
+import { dispatchLoader } from './loaders/dispatch.js';
 
 function numericOption(minimum: number): (value: string) => number {
   return (value: string): number => {
@@ -526,26 +527,7 @@ program.on('command:*', () => {
 });
 
 async function run(): Promise<void> {
-  // Loader dispatch: when re-exec'd as a render subprocess (FACET_LOADER set),
-  // run the bundled Vite loader instead of the CLI. Behind a dynamic import so
-  // Vite is only ever loaded in a render subprocess. No top-level await here so
-  // the bundle stays CommonJS-compatible for the Node SEA binary.
-  if (process.env.FACET_LOADER === 'ssr' || process.env.FACET_LOADER === 'ssr-daemon') {
-    const loader = await import('./loaders/ssr.js');
-    if (process.env.FACET_LOADER === 'ssr-daemon') await loader.runSsrDaemon();
-    else await loader.runSsrLoader();
-    return;
-  }
-  if (process.env.FACET_LOADER === 'dev') {
-    const { runDevLoader } = await import('./loaders/dev.js');
-    await runDevLoader();
-    return;
-  }
-  if (process.env.FACET_LOADER === 'css') {
-    const { runCssLoader } = await import('./loaders/css.js');
-    await runCssLoader();
-    return;
-  }
+  if (await dispatchLoader()) return;
   program.parse();
 }
 

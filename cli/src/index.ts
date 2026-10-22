@@ -1,3 +1,7 @@
+import { dispatchLoader } from './loaders/dispatch.js';
+
+await dispatchLoader();
+
 // Public API exports
 export { generatePDF } from './generators/pdf.js';
 export { generatePNG } from './generators/png.js';

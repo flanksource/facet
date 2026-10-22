@@ -21,7 +21,7 @@ function parseArgs(): { facetRoot: string; outputFile: string; contentFile?: str
 
 /**
  * Run the post-process CSS build with Vite resolved from .facet/. Every scratch
- * artifact (rendered-content file, v4 entry, outDir) is unique per build so
+ * artifact (rendered-content file, config, CSS entry, outDir) is unique per build so
  * concurrent builds inside one .facet/ never collide. Returns the built CSS.
  */
 export async function buildPostProcessCss(
@@ -38,6 +38,19 @@ export async function buildPostProcessCss(
   const outDir = join(facetRoot, `post-process-dist-${uid}`);
   const scratch: string[] = [];
   let entry = join(facetRoot, 'post-process.entry.ts');
+  if (tailwindMajor === 3) {
+    const configName = `tailwind.postprocess-${uid}.config.js`;
+    const cssName = `post-process-${uid}.css`;
+    writeFileSync(join(facetRoot, configName), [
+      "import base from './tailwind.postprocess.config.js';",
+      'const content = Array.isArray(base.content) ? { files: base.content } : base.content;',
+      `export default { ...base, content: { ...content, files: [...content.files, { raw: ${JSON.stringify(options.content ?? '')}, extension: 'html' }] } };`,
+    ].join('\n'), 'utf-8');
+    writeFileSync(join(facetRoot, cssName), `${readFileSync(join(facetRoot, 'post-process.css'), 'utf-8')}\n@config './${configName}';\n`, 'utf-8');
+    entry = join(facetRoot, `post-process-${uid}.entry.ts`);
+    writeFileSync(entry, `import './${cssName}';\n`, 'utf-8');
+    scratch.push(join(facetRoot, configName), join(facetRoot, cssName), entry);
+  }
   if (tailwindMajor === 4) {
     let pluginPath: string;
     try {
