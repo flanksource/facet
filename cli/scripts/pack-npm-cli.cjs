@@ -6,6 +6,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { copyRuntimeAssets } = require('./copy-runtime-assets.cjs');
 
 function buildPackage({ version, bundlePath, repoRoot, templateDir, outDir }) {
   fs.mkdirSync(path.join(outDir, 'assets'), { recursive: true });
@@ -13,13 +14,7 @@ function buildPackage({ version, bundlePath, repoRoot, templateDir, outDir }) {
   fs.copyFileSync(bundlePath, path.join(outDir, 'facet.cjs'));
   fs.chmodSync(path.join(outDir, 'facet.cjs'), 0o755);
 
-  // Runtime assets resolved by assetPath() at render time.
-  fs.copyFileSync(path.join(repoRoot, 'package.json'), path.join(outDir, 'assets', 'package.json'));
-  fs.copyFileSync(path.join(repoRoot, 'dist', 'styles.css'), path.join(outDir, 'assets', 'styles.css'));
-  fs.copyFileSync(path.join(repoRoot, 'openapi.yaml'), path.join(outDir, 'assets', 'openapi.yaml'));
-  fs.copyFileSync(path.join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'), path.join(outDir, 'assets', 'mermaid.min.js'));
-  fs.copyFileSync(path.join(repoRoot, 'postcss', 'facet-font-scale.mjs'), path.join(outDir, 'assets', 'facet-font-scale.mjs'));
-  fs.copyFileSync(path.join(repoRoot, 'remark', 'facet-redact.mjs'), path.join(outDir, 'assets', 'facet-redact.mjs'));
+  copyRuntimeAssets({ repoRoot, outDir: path.join(outDir, 'assets') });
 
   fs.copyFileSync(path.join(templateDir, 'README.md'), path.join(outDir, 'README.md'));
   const pkg = JSON.parse(fs.readFileSync(path.join(templateDir, 'package.json'), 'utf8'));
