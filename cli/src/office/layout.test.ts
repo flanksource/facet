@@ -5,6 +5,15 @@ import { launchBrowser } from '../utils/pdf-generator.js';
 import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { Logger } from '../utils/logger.js';
 import { officeLayout } from './layout.js';
+import { createRequire } from 'node:module';
+import { readFile } from 'node:fs/promises';
+import LaneLabel from '../../../src/components/diagram/FlowLaneLabel.js';
+import Header from '../../../src/components/Header.js';
+import Footer from '../../../src/components/Footer.js';
+
+const rootRequire = createRequire(new URL('../../../package.json', import.meta.url));
+const { createElement }: typeof import('react') = rootRequire('react');
+const { renderToStaticMarkup }: typeof import('react-dom/server') = rootRequire('react-dom/server');
 
 describe('live Office layout', () => {
   let browser: Browser;
@@ -34,6 +43,35 @@ describe('live Office layout', () => {
       await page.evaluate(applyBrowserLayout, officeLayout('docx'));
       const width = await page.$eval('[data-page-size]', (element) => element.getBoundingClientRect().width);
       expect(width).toBeCloseTo(297 * 96 / 25.4, 0);
+    } finally { await page.close(); }
+  });
+
+  it('keeps narrow swimlane labels inside their lanes at presentation font sizes', async () => {
+    const page = await browser.newPage();
+    try {
+      const css = await readFile(new URL('../../../dist/styles.css', import.meta.url), 'utf8');
+      const label = renderToStaticMarkup(createElement(LaneLabel, {
+        lane: { key: 'user', label: 'Engineer', color: '#112233' }, mutedColor: '#445566', showDivider: false, showDetail: false,
+      }));
+      await page.setContent(`<html><head><style>${css}${officeLayout('pptx').css}</style></head><body><div style="width:33mm;height:28mm">${label}</div></body></html>`);
+      const overflow = await page.$eval('[data-facet-label]', (label) => {
+        const box = label.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        return Math.max(0, ...Array.from(range.getClientRects()).map((line) => Math.max(box.left - line.left, line.right - box.right)));
+      });
+      expect(overflow).toBeLessThanOrEqual(0.5);
+    } finally { await page.close(); }
+  });
+
+  it.each(['header', 'footer'] as const)('bounds custom %s children to the declared height', async (kind) => {
+    const page = await browser.newPage();
+    try {
+      const chrome = renderToStaticMarkup(createElement(kind === 'header' ? Header : Footer, { height: 12 },
+        createElement('div', { 'data-content': '', style: { height: '100%' } }, 'Editable chrome')));
+      await page.setContent(`<html><body style="height:4000px">${chrome}</body></html>`);
+      const height = await page.$eval('[data-content]', (element) => element.getBoundingClientRect().height);
+      expect(height).toBeCloseTo(12 * 96 / 25.4, 1);
     } finally { await page.close(); }
   });
 });

@@ -623,6 +623,7 @@ import remarkFrontmatter from 'remark-frontmatter';
 import { remarkAlert } from 'remark-github-blockquote-alert';
 import rehypeRaw from 'rehype-raw';
 import { resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { createRequire } from 'module';${imports}
 
 const facetRequire = createRequire(import.meta.url);
@@ -668,13 +669,13 @@ export default defineConfig(async () => {
     // reachable; dedupe keeps a single React copy across the symlinked packages.
     dedupe: ['react', 'react-dom'],
     preserveSymlinks: ${this.skipModules},
-    alias: {
-      '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@facet/core': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@src': resolve(__dirname, 'src'),
-      'react-icons': resolve(__dirname, 'node_modules/react-icons'),
-    },
+    alias: [
+      { find: new RegExp('^@flanksource/facet(?:/.*)?$'), replacement: '$&', customResolver(source) { return fileURLToPath(import.meta.resolve(source)); } },
+      { find: '@facet/core', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
+      { find: '@facet', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
+      { find: '@src', replacement: resolve(__dirname, 'src') },
+      { find: 'react-icons', replacement: resolve(__dirname, 'node_modules/react-icons') },
+    ],
     conditions: ['import', 'module', 'browser', 'default'],
   },
   ssr: {
@@ -780,6 +781,7 @@ import remarkFrontmatter from 'remark-frontmatter';
 import { remarkAlert } from 'remark-github-blockquote-alert';
 import rehypeRaw from 'rehype-raw';
 import { resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { createRequire } from 'module';${imports}
 
 const facetRequire = createRequire(import.meta.url);
@@ -822,13 +824,13 @@ export default defineConfig(async () => {
     // dedupe keeps a single React copy, which preserveSymlinks otherwise guarded.
     dedupe: ['react', 'react-dom'],
     preserveSymlinks: ${this.skipModules},
-    alias: {
-      '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@facet/core': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@src': resolve(__dirname, 'src'),
-      'react-icons': resolve(__dirname, 'node_modules/react-icons'),
-    },
+    alias: [
+      { find: new RegExp('^@flanksource/facet(?:/.*)?$'), replacement: '$&', customResolver(source) { return fileURLToPath(import.meta.resolve(source)); } },
+      { find: '@facet/core', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
+      { find: '@facet', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
+      { find: '@src', replacement: resolve(__dirname, 'src') },
+      { find: 'react-icons', replacement: resolve(__dirname, 'node_modules/react-icons') },
+    ],
     conditions: ['import', 'module', 'browser', 'default'],
   },
   };

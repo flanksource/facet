@@ -156,6 +156,18 @@ describe('FacetDirectory.nukeInstall', () => {
 });
 
 describe('FacetDirectory.generateViteConfig remark plugins', () => {
+  it('resolves public Facet subpaths through the package exports in both renderers', async () => {
+    const dir = newFacetDir();
+    dir.generateViteConfig();
+    dir.generateClientScaffold({});
+
+    for (const name of ['vite.config.ts', 'vite.client.config.ts']) {
+      const config = await readFile(join(facetRoot, name), 'utf-8');
+      expect(config).toContain('fileURLToPath(import.meta.resolve(source))');
+      expect(config).not.toContain("'@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet')");
+    }
+  });
+
   it('keeps Markdown extension defaults and appends frontmatter plugins', async () => {
     const dir = new FacetDirectory({
       consumerRoot,

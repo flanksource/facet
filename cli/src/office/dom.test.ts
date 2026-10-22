@@ -39,4 +39,16 @@ describe('Office semantic DOM extraction', () => {
       expect(result.pages[0].blocks.map((block) => block.kind === 'paragraph' ? block.list?.ordinal : undefined)).toEqual([3, undefined, 4]);
     } finally { await page.close(); }
   });
+
+  it('retains block and inline anchors for PowerPoint slide navigation', async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent('<html><body><main id="section"><p>Before <span id="inline">inline target</span> after.</p></main></body></html>');
+      const result = await page.evaluate(readOfficeDOM, 'pptx');
+      const block = result.pages[0].blocks[0];
+      expect(block).toMatchObject({ kind: 'paragraph', anchors: ['section'] });
+      if (block.kind !== 'paragraph') throw new Error('Expected a paragraph');
+      expect(block.lines.flatMap((line) => line.runs).filter((run) => run.anchors?.includes('inline')).map((run) => run.text)).toEqual(['inline']);
+    } finally { await page.close(); }
+  });
 });

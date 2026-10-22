@@ -96,4 +96,26 @@ describe('editable Office exports', () => {
     const xml = await zip.file(format === 'docx' ? 'word/document.xml' : 'ppt/slides/slide1.xml')!.async('string');
     expect(officeText(xml)).toContain('Before imageAfter image');
   });
+
+  it('preserves the PowerPoint header background behind editable text', async () => {
+    const html = '<html><body><header data-header-type="default" data-header-height="20" style="height:20mm;background:#123456;color:white"><p>Visible header</p></header><main data-page-size="a4"><p>Body</p></main></body></html>';
+    const zip = await JSZip.loadAsync(await generateOfficeBuffer({ browser, html, format: 'pptx' }));
+    const xml = await zip.file('ppt/slides/slide1.xml')!.async('string');
+    expect(xml).toContain('val="123456"');
+    expect(officeText(xml)).toContain('Visible header');
+  });
+
+  it('resolves automatic PowerPoint contents labels after pagination and retains literal labels', async () => {
+    const html = '<html><body><main data-page-size="a4"><p><a href="#appendix">Appendix <span data-facet-toc-target="appendix">—</span></a> <span>A-1</span></p></main><main data-page-size="a4" id="appendix"><h1>Appendix</h1></main></body></html>';
+    const zip = await JSZip.loadAsync(await generateOfficeBuffer({ browser, html, format: 'pptx' }));
+    expect(officeText(await zip.file('ppt/slides/slide1.xml')!.async('string'))).toBe('Appendix 2 A-1');
+  });
+
+  it('draws a footer top border without adding borders on the other sides', async () => {
+    const html = '<html><body><main data-page-size="a4"><p>Body</p></main><footer data-footer-type="default" data-footer-height="10" style="height:10mm;border-top:2px solid #123456"><p>Footer</p></footer></body></html>';
+    const zip = await JSZip.loadAsync(await generateOfficeBuffer({ browser, html, format: 'pptx' }));
+    const xml = await zip.file('ppt/slides/slide1.xml')!.async('string');
+    expect(xml.match(/prst="line"/g)).toHaveLength(1);
+    expect(xml).toContain('val="123456"');
+  });
 });

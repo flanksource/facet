@@ -58,6 +58,7 @@ export function paginate(documentPages: OfficePage[]): Slide[] {
       y += height + block.style.after;
     };
     const paragraph = (block: Paragraph): void => {
+      if (!block.lines.length && block.anchors?.length) { place(block, 0); return; }
       let start = 0;
       while (start < block.lines.length) {
         let end = start;
@@ -70,7 +71,8 @@ export function paginate(documentPages: OfficePage[]): Slide[] {
           next(); continue;
         }
         const lines = block.lines.slice(start, end);
-        place({ ...block, lines, runs: lines.flatMap((line, index) => index ? [{ text: '\n', style: block.style }, ...line.runs] : line.runs), list: start ? undefined : block.list }, height);
+        place({ ...block, lines, runs: lines.flatMap((line, index) => index ? [{ text: '\n', style: block.style }, ...line.runs] : line.runs),
+          anchors: start ? undefined : block.anchors, list: start ? undefined : block.list }, height);
         start = end;
         if (start < block.lines.length) next();
       }

@@ -41,10 +41,12 @@ export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument 
   const paragraph = (el: Element, nodes: Node[], origin: DOMRect): Paragraph => {
     const runs: Run[] = [];
     const lines: Array<Line & { top: number }> = [];
+    let pendingAnchors: string[] = [];
     const visit = (node: Node): void => {
       if (node instanceof Element && hidden(node)) return;
       if (node instanceof Element && node.matches('input,button,select,textarea,video,audio,iframe,object,embed')) throw new Error(`Unsupported Office content: ${source(node)}`);
       if (format === 'docx' && node instanceof Element && node.id) runs.push({ text: '', style: style(node), anchors: [node.id] });
+      if (format === 'pptx' && node instanceof Element && node.id) pendingAnchors.push(node.id);
       if (node instanceof HTMLBRElement) {
         runs.push({ text: '\n', style: style(node) });
         return;
@@ -56,13 +58,15 @@ export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument 
       const text = node.textContent ?? '';
       const runStyle = style(parent);
       const href = parent.closest('a')?.getAttribute('href') ?? undefined;
+      const pageTarget = format === 'pptx' ? parent.closest('[data-facet-toc-target]')?.getAttribute('data-facet-toc-target') : undefined;
       for (const match of text.matchAll(/\S+|[^\S\n]+|\n/g)) {
         const range = document.createRange();
         range.setStart(node, match.index!);
         range.setEnd(node, match.index! + match[0].length);
         const rect = range.getBoundingClientRect();
         const value = preserve ? match[0] : match[0].replace(/\s+/g, ' ');
-        const run = { text: value, style: runStyle, href };
+        const run: Run = { text: value, style: runStyle, href, ...(pageTarget ? { pageTarget } : {}), ...(pendingAnchors.length ? { anchors: pendingAnchors } : {}) };
+        pendingAnchors = [];
         runs.push(run);
         if (preserve && value === '\n') continue;
         if (!rect.height) continue;
@@ -76,11 +80,13 @@ export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument 
       }
     };
     nodes.forEach(visit);
+    if (pendingAnchors.length && lines.length) lines[lines.length - 1].runs.push({ text: '', style: style(el), anchors: pendingAnchors });
     if (runs.length) { runs[0].text = runs[0].text.trimStart(); runs[runs.length - 1].text = runs[runs.length - 1].text.trimEnd(); }
     const result: Paragraph = {
       kind: 'paragraph', runs, lines: lines.map(({ runs: lineRuns, height }) => ({ runs: lineRuns.map((run) => ({ ...run })), height })),
       box: box(el, origin), style: style(el), source: source(el),
       heading: /^H[1-6]$/.test(el.tagName) ? Number(el.tagName[1]) : undefined,
+      ...(pendingAnchors.length && !lines.length ? { anchors: pendingAnchors } : {}),
     };
     const item = el.tagName === 'LI' ? el : el.parentElement?.tagName === 'LI' && el.parentElement.firstElementChild === el ? el.parentElement : undefined;
     if (item) {
@@ -162,7 +168,7 @@ export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument 
     const blocks = children(el, origin, format === 'docx' && columns);
     const containerStyle = style(el);
     const decorated = containerStyle.fill || Object.values(containerStyle.padding!).some(Boolean) || Object.values(containerStyle.borders!).some((border) => border.width);
-    if ((columns && el.children.length > 1) || (format === 'docx' && (chromeRoot || decorated))) {
+    if ((columns && el.children.length > 1) || chromeRoot || (format === 'docx' && decorated)) {
       return [{ kind: 'group', blocks, box: box(el, origin), style: containerStyle, source: source(el), layout: columns ? 'columns' : 'stack',
         display: display.includes('grid') ? 'grid' : 'flex', justify: getComputedStyle(el).justifyContent,
         gap: getComputedStyle(el).columnGap === 'normal' ? 0 : parseFloat(getComputedStyle(el).columnGap) }];
@@ -170,7 +176,7 @@ export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument 
     return blocks;
   };
   const anchored = (el: Element, blocks: Block[], origin: DOMRect): Block[] => {
-    if (format !== 'docx' || !el.id || hidden(el)) return blocks;
+    if (!el.id || hidden(el)) return blocks;
     if (!blocks.length && !el.matches('[data-header-type],[data-footer-type],script,style,meta,link,noscript')) blocks.push(paragraph(el, [], origin));
     const first = blocks.find((block) => block.kind !== 'break');
     if (first) first.anchors = [el.id, ...(first.anchors ?? [])];
@@ -181,7 +187,7 @@ export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument 
     const blocks: Block[] = [];
     let inline: Node[] = [];
     const flush = (): void => {
-      if (inline.some((node) => node.textContent?.trim() || (format === 'docx' && node instanceof Element && (node.id || node.querySelector('[id]'))))) blocks.push(paragraph(el, inline, origin));
+      if (inline.some((node) => node.textContent?.trim() || (node instanceof Element && (node.id || node.querySelector('[id]'))))) blocks.push(paragraph(el, inline, origin));
       inline = [];
     };
     for (const node of Array.from(el.childNodes)) {
@@ -206,7 +212,7 @@ export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument 
     const declared = el.getAttribute(`data-${kind}-height`);
     const height = declared === null ? el.getBoundingClientRect().height : Number(declared) * 96 / 25.4;
     if (!Number.isFinite(height) || height < 0) throw new Error(`Invalid Office ${kind} height: ${declared}`);
-    return { blocks: format === 'docx' ? [] : children(el, el.getBoundingClientRect()), height,
+    return { blocks: format === 'docx' || height === 0 ? [] : read(el, el.getBoundingClientRect(), true), height,
       selector: `[data-${kind}-type="${el.getAttribute(`data-${kind}-type`)}"]` };
   };
   const roots = Array.from(document.querySelectorAll('[data-page-size]'));

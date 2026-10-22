@@ -23,7 +23,7 @@ export interface TextStyle {
   wordWrap?: boolean;
 }
 
-export interface Run { text: string; style: TextStyle; href?: string; anchors?: string[] }
+export interface Run { text: string; style: TextStyle; href?: string; anchors?: string[]; pageTarget?: string }
 export interface Line { runs: Run[]; height: number }
 export interface BlockBase { box: Box; style: TextStyle; source: string; anchors?: string[] }
 export interface Paragraph extends BlockBase {
