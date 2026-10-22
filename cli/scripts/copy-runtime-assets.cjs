@@ -8,6 +8,7 @@ function copyRuntimeAssets({ repoRoot, outDir }) {
   const sources = {
     'package.json': 'package.json',
     'styles.css': 'dist/styles.css',
+    'page-sizes.json': 'src/types/page-sizes.json',
     'openapi.yaml': 'openapi.yaml',
     'mermaid.min.js': 'node_modules/mermaid/dist/mermaid.min.js',
     'facet-font-scale.mjs': 'postcss/facet-font-scale.mjs',

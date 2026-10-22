@@ -70,6 +70,8 @@ export { default as MetricHeader } from './MetricHeader';
 export { default as MetricsCallout } from './MetricsCallout';
 export { default as Page } from './Page';
 export type { PageProps, PageSize, PageMargins } from './Page';
+export { PAGE_SIZE_PRESETS } from '../utils/page-size-presets';
+export type { PageSizePreset } from '../utils/page-size-presets';
 export { default as PageBreak } from './PageBreak';
 export { default as PageNo, PAGE_PLACEHOLDER, TOTAL_PLACEHOLDER } from './PageNo';
 export type { PageNoProps } from './PageNo';

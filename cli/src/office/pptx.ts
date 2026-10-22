@@ -2,7 +2,7 @@ import PptxGenJS from 'pptxgenjs-plus';
 import { performance } from 'node:perf_hooks';
 import type { Logger } from '../utils/logger.js';
 import type { Block, OfficeDocument, Run, Table, TextStyle } from './model.js';
-import { SLIDE } from './model.js';
+import { presentationSize } from './powerpoint/size.js';
 import { paginate } from './paginate.js';
 import { logVisual } from './logging.js';
 import { slideLinks, type SlideLinks } from './powerpoint/links.js';
@@ -85,9 +85,10 @@ function draw(options: {
 
 export async function writePPTX(options: { document: OfficeDocument; logger?: Pick<Logger, 'debug'> }): Promise<Buffer> {
   const { document, logger } = options;
+  const size = presentationSize(document.pages);
   const presentation = new PptxGenJS();
-  presentation.defineLayout({ name: 'FACET_WIDE', width: SLIDE.inchesWidth, height: SLIDE.inchesHeight });
-  presentation.layout = 'FACET_WIDE';
+  presentation.defineLayout({ name: 'FACET', width: size.inchesWidth, height: size.inchesHeight });
+  presentation.layout = 'FACET';
   presentation.title = document.title;
   presentation.author = 'Facet';
   const slides = paginate(document.pages);
@@ -102,7 +103,7 @@ export async function writePPTX(options: { document: OfficeDocument; logger?: Pi
     });
     if (spec.page.header) chrome(spec.page.header.blocks, 0);
     spec.blocks.forEach((block) => draw({ ...position, ...block }));
-    if (spec.page.footer) chrome(spec.page.footer.blocks, SLIDE.height - spec.page.footer.height);
+    if (spec.page.footer) chrome(spec.page.footer.blocks, size.height - spec.page.footer.height);
   });
   return await presentation.write({ outputType: 'nodebuffer' }) as Buffer;
 }

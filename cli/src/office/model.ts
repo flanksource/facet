@@ -60,5 +60,3 @@ export interface OfficePage {
   footer?: Chrome;
 }
 export interface OfficeDocument { title: string; pages: OfficePage[] }
-
-export const SLIDE = { width: 1280, height: 720, inchesWidth: 40 / 3, inchesHeight: 7.5 };

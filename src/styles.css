@@ -189,6 +189,19 @@ body {
   flex-direction: column;
 }
 
+body:has([data-facet-canvas]) {
+  width: max-content;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+[data-facet-canvas] > main {
+  flex: 1;
+  min-height: 0;
+}
+
 /* Print-specific styles */
 @media print {
 

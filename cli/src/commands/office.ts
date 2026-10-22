@@ -33,12 +33,12 @@ export function registerOfficeCommands(options: {
 }): void {
   for (const format of ['docx', 'pptx'] as const) {
     options.addSharedOptions(options.program.command(`${format} <templates...>`)
-      .description(format === 'docx' ? 'Generate editable Word documents' : 'Generate editable widescreen PowerPoint slides with automatic pagination')
+      .description(format === 'docx' ? 'Generate editable Word documents' : 'Generate editable PowerPoint slides with automatic pagination')
       .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
       .option('--no-validate', 'Skip data validation'))
       .addHelpText('after', format === 'docx'
         ? '\nWord exports use Page/Header/Footer template props. Headers, footers, figures and diagrams are captured as PDF and PNG, then embedded as EMF pictures containing both representations. Page numbers stay native. PDF export rendering depends on the viewer. Ordinary images and logos remain images.\n'
-        : '\nOffice exports use Page/Header/Footer template props. Complex visuals are embedded images. PPTX uses 16:9 slides and an 18pt default body size.\n')
+        : '\nOffice exports use Page/Header/Footer template props. Select powerpoint-wide (16:9) or powerpoint-standard (4:3) with pageSize. A deck must use one PowerPoint size. Other templates reflow to 16:9. Complex visuals are embedded images; default body size is 18pt.\n')
       .action(async (templates: string[], _flags: OfficeFlags, command: Command) => {
         const flags = command.optsWithGlobals<OfficeFlags>();
         const logger = new Logger(flags.verbose);

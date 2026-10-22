@@ -407,7 +407,7 @@ async function renderSinglePass(
     })),
   });
 
-  await page.addStyleTag({ content: printableHeightCss(pdfHeight, marginTop, marginBottom) });
+  await page.addStyleTag({ content: printableHeightCss(dims.height, marginTop, marginBottom) });
 
   if (marginTop === 0 && marginBottom === 0 && marginLeft === 0 && marginRight === 0) {
     const pdf = await page.pdf({

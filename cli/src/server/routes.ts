@@ -5,6 +5,7 @@ import { Readable } from 'node:stream';
 
 import { injectFontScale } from '../utils/font-size.js';
 import { officeLayout } from '../office/layout.js';
+import { pageSizeLayout } from '../utils/page-size-layout.js';
 import { renderBinary } from './render-binary.js';
 import { hasMermaidCodeBlocks, renderBrowserHTML } from '../utils/browser-html.js';
 import { Logger } from '../utils/logger.js';
@@ -245,6 +246,7 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
     // Reaches html and png as well as pdf (injectFontScale), so it must key the
     // render even when it did not arrive via pdfOptions.
     fontSize: parsed.fontSize,
+    pageSizeOverride: parsed.pageSizeOverride,
   });
 }
 
@@ -348,7 +350,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       signal,
       redact: parsed.redact,
       pngOptions: parsed.pngOptions,
-      layout: parsed.format === 'docx' || parsed.format === 'pptx' ? officeLayout(parsed.format, parsed.fontSize) : undefined,
+      layout: parsed.format === 'docx' || parsed.format === 'pptx' ? officeLayout(parsed.format, parsed.fontSize) : pageSizeLayout(parsed.pageSizeOverride, parsed.pdfOptions?.landscape),
     });
     signal?.throwIfAborted();
     html = await injectHeaderFooter({
@@ -447,7 +449,7 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
       skipModules: config.skipModules,
       redact: parsed.redact,
       pngOptions: parsed.pngOptions,
-      layout: parsed.format === 'docx' || parsed.format === 'pptx' ? officeLayout(parsed.format, parsed.fontSize) : undefined,
+      layout: parsed.format === 'docx' || parsed.format === 'pptx' ? officeLayout(parsed.format, parsed.fontSize) : pageSizeLayout(parsed.pageSizeOverride, parsed.pdfOptions?.landscape),
     });
     html = await injectHeaderFooter({
       html,

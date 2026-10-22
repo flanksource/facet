@@ -42,6 +42,7 @@ const seaConfig = {
   assets: {
     'package.json': join(repoRoot, 'package.json'),
     'styles.css': join(repoRoot, 'dist', 'styles.css'),
+    'page-sizes.json': join(repoRoot, 'src', 'types', 'page-sizes.json'),
     'openapi.yaml': join(repoRoot, 'openapi.yaml'),
     'mermaid.min.js': join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'),
     'facet-font-scale.mjs': join(repoRoot, 'postcss', 'facet-font-scale.mjs'),

@@ -8,6 +8,7 @@ import { Logger } from '../utils/logger.js';
 import { RenderProfiler, RenderTimings } from '../utils/performance.js';
 import { generatePNGBuffer } from '../utils/png-generator.js';
 import { generateHTML } from './html.js';
+import { pageSizeLayout } from '../utils/page-size-layout.js';
 
 export async function generatePNG(options: GenerateOptions): Promise<void> {
   const logger = new Logger(options.verbose);
@@ -29,7 +30,10 @@ export async function generatePNG(options: GenerateOptions): Promise<void> {
   try {
     const png = await timings.measure('png-generation', () =>
       profiler.measure('chromium-and-png', () =>
-        generatePNGBuffer(browser, html, options.pngOptions)));
+        generatePNGBuffer(browser, html, {
+          ...options.pngOptions,
+          ...(options.pageSizeOverride ? { viewport: pageSizeLayout(options.pageSizeOverride)!.viewport } : {}),
+        })));
     await writeFile(pngPath, png);
   } finally {
     await browser.close();

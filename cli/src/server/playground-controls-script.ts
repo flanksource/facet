@@ -114,7 +114,7 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       const example = p.get('example');
       if (example && EXAMPLES[example]) document.getElementById('example').value = example;
       const pageSize = p.get('pageSize');
-      if (pageSize) document.getElementById('pageSize').value = pageSize;
+      if (pageSize) document.getElementById('pageSize').value = pageSize.toLowerCase();
       document.getElementById('landscape').checked = p.get('landscape') === '1';
       document.getElementById('debug').checked = p.get('debug') === '1';
       for (const key in MARGIN_PARAMS) {

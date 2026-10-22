@@ -90,6 +90,11 @@ paths:
             type: string
             enum: [html, pdf, png, docx, pptx]
           description: Output format (gzip mode only).
+        - name: pageSizeOverride
+          in: query
+          schema:
+            type: string
+          description: Concrete PNG/PDF preset or positive WIDTHxHEIGHT in millimetres (gzip mode only). Overrides template sizes; cannot be combined with pngViewport. Globs are not accepted.
         - name: pngWidth
           in: query
           schema:
@@ -334,7 +339,10 @@ components:
           default: pdf
           description: >-
             DOCX emits editable flowing Word content. PPTX reflows content into editable
-            16:9 slides and continues overflowing content across slides. Complex visuals
+            slides and continues overflowing content across slides. Template pageSize
+            presets powerpoint-wide (16:9) and powerpoint-standard (4:3) set the deck
+            dimensions; other templates reflow to 16:9. Conflicting PowerPoint presets
+            in a single deck are rejected. Complex visuals
             are embedded images. PDF/PNG-specific options cannot be used with Office formats.
         output:
           type: string
@@ -380,6 +388,15 @@ components:
             Base font size in points, applied to every format (PPTX defaults to 18pt). Scales
             the whole type scale proportionally rather than setting body text
             alone. Rejected outside this range rather than silently ignored.
+        pageSizeOverride:
+          type: string
+          description: >-
+            Concrete preset name or positive WIDTHxHEIGHT in millimetres, valid only
+            for PNG/PDF. Overrides every template page size and sets the layout
+            viewport before live diagrams mount. Cannot be combined with
+            pngOptions.viewport. Globs are expanded by the CLI --sizes option;
+            each API request produces one artifact. Included in the render cache key.
+          example: facebook-square
         pdfOptions:
           $ref: "#/components/schemas/PDFOptions"
         pngOptions:
@@ -394,8 +411,12 @@ components:
       properties:
         defaultPageSize:
           type: string
-          description: Page size name.
-          enum: [a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k]
+          description: >-
+            Named paper/screen or platform preset (powerpoint-wide, powerpoint-standard,
+            facebook-*, linkedin-*, reddit-*, google-ads-*), or custom WIDTHxHEIGHT in
+            millimetres. Platform pixel dimensions convert at 96 CSS pixels per inch.
+            Explicit template Page/Document props take precedence over this default.
+          example: google-ads-300x250
         landscape:
           type: boolean
           default: false

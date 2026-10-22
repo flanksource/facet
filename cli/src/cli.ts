@@ -17,6 +17,7 @@ import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
 import { registerOfficeCommands } from './commands/office.js';
 import { registerInspectCommand } from './commands/inspect.js';
 import { dispatchLoader } from './loaders/dispatch.js';
+import { expandRenderSizes, renderSizes } from './utils/render-sizes.js';
 
 function numericOption(minimum: number): (value: string) => number {
   return (value: string): number => {
@@ -225,6 +226,7 @@ addSharedOptions(
   program
     .command('png <templates...>')
     .description('Generate PNG from one or more templates')
+    .option('--sizes <pattern>', 'Render each matching page size and append it to the filename; repeatable (quote globs)', (value: string, previous: string[]) => [...previous, value], [] as string[])
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
     .option('--width <pixels>', 'Scale the capture to this output width (default: natural size)', numericOption(1))
@@ -238,6 +240,8 @@ addSharedOptions(
   const logger = new Logger(options.verbose);
   try {
     const facetURL = resolveFacetURL(options.facetUrl);
+    const sizes = expandRenderSizes(options.sizes);
+    if (sizes.length && options.viewport) throw new Error('--sizes cannot be combined with --viewport');
     await ensureRenderReady('png', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating PNG from template: ${template}`);
@@ -270,12 +274,14 @@ addSharedOptions(
           autocropPadding: options.autocropPadding,
         },
       };
-      if (facetURL) {
-        await renderWithServer({ facetURL, format: 'png', options: generateOptions });
-      } else {
-        const { generatePNG } = await import('./generators/png.js');
-        await generatePNG(generateOptions);
-      }
+      await renderSizes({ sizes, options: generateOptions, render: async (variant) => {
+        if (facetURL) {
+          await renderWithServer({ facetURL, format: 'png', options: variant });
+        } else {
+          const { generatePNG } = await import('./generators/png.js');
+          await generatePNG(variant);
+        }
+      } });
     }
 
     logger.success('PNG generated!');
@@ -294,11 +300,12 @@ addSharedOptions(
   program
     .command('pdf <templates...>')
     .description('Generate PDF from one or more templates')
+    .option('--sizes <pattern>', 'Render each matching page size and append it to the filename; repeatable (quote globs)', (value: string, previous: string[]) => [...previous, value], [] as string[])
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
     .option('--debug', 'Add layout guides and font, line-height, and block-spacing annotations')
     .option('--debug-typography', 'Append a font-size reference page to the PDF')
-    .option('--page-size <size>', 'Default page size (a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k)', 'a4')
+    .option('--page-size <size>', 'Default page size: paper/screen presets, powerpoint-wide/standard, facebook-*, linkedin-*, reddit-*, google-ads-* or WxH in mm (see docs/page-sizes.md)', 'a4')
     .option('--landscape', 'Use landscape orientation')
     .option('--margin-top <mm>', 'Top margin in mm', parseFloat)
     .option('--margin-bottom <mm>', 'Bottom margin in mm', parseFloat)
@@ -321,6 +328,8 @@ addSharedOptions(
   const logger = new Logger(options.verbose);
   try {
     const facetURL = resolveFacetURL(options.facetUrl);
+    const sizes = expandRenderSizes(options.sizes);
+    if (sizes.length && command.getOptionValueSource('pageSize') === 'cli') throw new Error('--sizes cannot be combined with --page-size');
     await ensureRenderReady('pdf', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating PDF from template: ${template}`);
@@ -345,7 +354,7 @@ addSharedOptions(
         debug: options.debug,
         debugTypography: options.debugTypography,
         fontSize: options.fontSize,
-        pageSize: options.pageSize,
+        pageSize: sizes.length ? undefined : options.pageSize,
         landscape: options.landscape,
         margins: buildMargins(options),
         header: options.header,
@@ -353,12 +362,14 @@ addSharedOptions(
         encryption: buildEncryption(options),
         signature: buildSignature(options),
       };
-      if (facetURL) {
-        await renderWithServer({ facetURL, format: 'pdf', options: generateOptions });
-      } else {
-        const { generatePDF } = await import('./generators/pdf.js');
-        await generatePDF(generateOptions);
-      }
+      await renderSizes({ sizes, options: generateOptions, render: async (variant) => {
+        if (facetURL) {
+          await renderWithServer({ facetURL, format: 'pdf', options: variant });
+        } else {
+          const { generatePDF } = await import('./generators/pdf.js');
+          await generatePDF(variant);
+        }
+      } });
     }
 
     logger.success('PDF generated!');

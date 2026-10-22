@@ -35,6 +35,7 @@ export class DataLoader {
   constructor(private logger: Logger) { }
 
   async load(options: GenerateOptions): Promise<LoadedData> {
+    if (options.loadedData) return options.loadedData;
     let data: Record<string, unknown>;
 
     if (options.data) {

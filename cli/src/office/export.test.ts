@@ -51,16 +51,18 @@ describe('editable Office exports', () => {
     }
   });
 
-  it('continues long tables across widescreen slides without losing or duplicating rows', async () => {
+  it.each([
+    ['a4', 12192000], ['powerpoint-wide', 12192000], ['powerpoint-standard', 9144000],
+  ])('continues %s tables with repeated headers and the correct slide dimensions', async (pageSize, width) => {
     const rows = Array.from({ length: 75 }, (_, index) => `<tr><td>Item ${index.toString().padStart(3, '0')}</td><td>Value ${index}</td></tr>`).join('');
-    const html = `<html><body><div data-page-size="a4"><h1>Inventory</h1><table><thead><tr><th>Item name</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table></div></body></html>`;
+    const html = `<html><body><div data-page-size="${pageSize}"><h1>Inventory</h1><table><thead><tr><th>Item name</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table></div></body></html>`;
     const zip = await JSZip.loadAsync(await generateOfficeBuffer({ browser, html, format: 'pptx' }));
     const slides = Object.values(zip.files).filter((file) => /^ppt\/slides\/slide\d+\.xml$/.test(file.name));
     expect(slides.length).toBeGreaterThan(1);
     const xml = await Promise.all(slides.map((slide) => slide.async('string')));
     expect(xml.every((slide) => officeText(slide).includes('Item name'))).toBe(true);
     for (let index = 0; index < 75; index++) expect(xml.map(officeText).join('').split(`Item ${index.toString().padStart(3, '0')}`).length - 1).toBe(1);
-    expect(await zip.file('ppt/presentation.xml')!.async('string')).toContain('cx="12192000" cy="6858000"');
+    expect(await zip.file('ppt/presentation.xml')!.async('string')).toContain(`cx="${width}" cy="6858000"`);
   });
 
   it('fails on interactive content instead of silently dropping it', async () => {

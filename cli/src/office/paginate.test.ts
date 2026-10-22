@@ -23,4 +23,15 @@ describe('Office slide pagination', () => {
     const group = { kind: 'group' as const, source: 'div#columns', style, box: { x: 0, y: 0, width: 1200, height: 800 }, blocks: [paragraph('column')] };
     expect(() => paginate([page([group])])).toThrow('div#columns');
   });
+  it('uses the standard slide width for every page in the presentation', () => {
+    const standard = { ...page([paragraph('standard')]), size: 'powerpoint-standard', width: 960 };
+    const slides = paginate([standard, page([paragraph('paper')])]);
+    expect(slides.map((slide) => slide.blocks[0].width)).toEqual([960, 960]);
+  });
+  it('rejects conflicting presentation sizes', () => {
+    expect(() => paginate([
+      { ...page([paragraph('standard')]), size: 'powerpoint-standard' },
+      { ...page([paragraph('wide')]), size: 'powerpoint-wide' },
+    ])).toThrow(/conflicting PowerPoint/i);
+  });
 });
