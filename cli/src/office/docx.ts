@@ -8,13 +8,13 @@ import type { PdfChrome } from './word/pdf-chrome.js';
 import { dataTable, groupTable } from './word/tables.js';
 import { wordContents } from './word/toc.js';
 import { mm, paragraph, twips, type RenderBlocks, type WordBlock } from './word/text.js';
-import { packageEmbeddedPdfs, pdfObject, pdfOle, type EmbeddedPdf } from './word/embedded-pdf.js';
+import { packageEmbeddedPdfs, pdfObject } from './word/embedded-pdf.js';
+import { preparePdfMedia, type PdfMedia } from './word/pdf-media.js';
 import { logVisual } from './logging.js';
 
-function renderer(options: { document: OfficeDocument; pdfs: EmbeddedPdf[]; logger?: Pick<Logger, 'debug'> }): RenderBlocks {
-  const { document, pdfs, logger } = options;
+function renderer(options: { document: OfficeDocument; media: PdfMedia; logger?: Pick<Logger, 'debug'> }): RenderBlocks {
+  const { document, media, logger } = options;
   const contents = wordContents(document);
-  let diagrams = 0;
   const render: RenderBlocks = (blocks, width) => blocks.flatMap((block): WordBlock[] => {
     if (block.kind === 'break') return [new D.Paragraph({ children: [new D.PageBreak()] })];
     if (block.kind === 'paragraph') return [paragraph(block, { prefix: contents.prefix(block), anchor: contents.anchor, runPrefix: contents.prefix })];
@@ -26,19 +26,17 @@ function renderer(options: { document: OfficeDocument; pdfs: EmbeddedPdf[]; logg
       if (!block.data) throw new Error(`Missing Office image data: ${block.source}`);
       const scale = Math.min(1, width / block.box.width);
       if (block.format === 'pdf') {
-        const index = ++diagrams;
-        const part = { id: `facetDiagram${index}`, path: `word/embeddings/facetDiagram${index}.bin`, data: pdfOle(block.data) };
-        pdfs.push(part);
+        const part = media.get(block);
         const paragraph = new D.Paragraph({ spacing: { before: twips(block.style.before), after: twips(block.style.after) }, children: [
-          pdfObject({ part, width: block.box.width * scale, height: block.box.height * scale, shapeId: `facetDiagramShape${index}` }),
+          pdfObject({ part, width: block.box.width * scale, height: block.box.height * scale, alt: block.alt }),
         ] });
-        logVisual({ logger, format: 'docx', action: 'inserted', block, startedAt, location: part.path });
+        logVisual({ logger, format: 'docx', action: 'inserted', block, mediaFormat: 'PDF-in-EMF', elapsedMs: performance.now() - startedAt, location: part.path });
         return [...anchors, paragraph];
       }
       const paragraph = new D.Paragraph({ spacing: { before: 0, after: 0 }, children: [new D.ImageRun({ type: 'png', data: block.data,
         transformation: { width: Math.round(block.box.width * scale), height: Math.round(block.box.height * scale) },
         altText: { title: block.alt, description: block.alt, name: block.mediaId } })] });
-      logVisual({ logger, format: 'docx', action: 'inserted', block, startedAt });
+      logVisual({ logger, format: 'docx', action: 'inserted', block, elapsedMs: performance.now() - startedAt });
       return [...anchors, paragraph];
     }
     return [...anchors, dataTable({ block, width, render })];
@@ -70,7 +68,7 @@ function section(options: { page: OfficePage; render: RenderBlocks; assets: Read
   };
 }
 
-export async function writeDOCX(options: { document: OfficeDocument; assets: ReadonlyMap<Chrome, PdfChrome>; logger?: Pick<Logger, 'debug'> }): Promise<Buffer> {
+export async function writeDOCX(options: { document: OfficeDocument; assets: ReadonlyMap<Chrome, PdfChrome>; logger?: Pick<Logger, 'debug'>; consumerRoot?: string }): Promise<Buffer> {
   const { document, assets } = options;
   const lists = new Map<string, NonNullable<Paragraph['list']>>();
   const collect = (blocks: Block[]): void => blocks.forEach((block) => {
@@ -82,9 +80,9 @@ export async function writeDOCX(options: { document: OfficeDocument; assets: Rea
     if (block.kind === 'table') block.rows.forEach((row) => row.cells.forEach((cell) => collect(cell.blocks)));
   });
   document.pages.forEach((page) => collect(page.blocks));
-  const pdfs: EmbeddedPdf[] = [];
-  const render = renderer({ document, pdfs, logger: options.logger });
-  const chrome = wordChrome({ assets, pdfs });
+  const media = await preparePdfMedia({ document, assets, logger: options.logger, consumerRoot: options.consumerRoot });
+  const render = renderer({ document, media, logger: options.logger });
+  const chrome = wordChrome({ assets, media, logger: options.logger });
   const buffer = await D.Packer.toBuffer(new D.Document({ title: document.title, creator: 'Facet',
     features: { updateFields: true },
     numbering: { config: [...lists.values()].map((list) => ({ reference: list.id, levels: Array.from({ length: 9 }, (_, level) => ({
@@ -94,5 +92,5 @@ export async function writeDOCX(options: { document: OfficeDocument; assets: Rea
     })) })) },
     sections: document.pages.map((page) => section({ page, render, assets, chrome: chrome.render })),
   }));
-  return packageEmbeddedPdfs({ document: buffer, pdfs });
+  return packageEmbeddedPdfs({ document: buffer, pdfs: media.parts });
 }

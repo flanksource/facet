@@ -88,7 +88,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [html, pdf, png]
+            enum: [html, pdf, png, docx, pptx]
           description: Output format (gzip mode only).
         - name: pngWidth
           in: query
@@ -170,7 +170,7 @@ paths:
       responses:
         "200":
           description: |
-            Rendered output. For HTML format, returns raw HTML. For PDF and PNG formats,
+            Rendered output. For HTML format, returns raw HTML. For PDF, PNG, DOCX and PPTX formats,
             returns JSON with a `url` field pointing to `/results/{id}` where the
             cached binary result can be fetched. When `output: "s3"`, returns S3 upload details.
           headers:
@@ -269,6 +269,14 @@ paths:
               schema:
                 type: string
                 format: binary
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.presentationml.presentation:
+              schema:
+                type: string
+                format: binary
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -322,8 +330,12 @@ components:
           default: {}
         format:
           type: string
-          enum: [html, pdf, png]
+          enum: [html, pdf, png, docx, pptx]
           default: pdf
+          description: >-
+            DOCX emits editable flowing Word content. PPTX reflows content into editable
+            16:9 slides and continues overflowing content across slides. Complex visuals
+            are embedded images. PDF/PNG-specific options cannot be used with Office formats.
         output:
           type: string
           enum: [direct, s3]
@@ -365,7 +377,7 @@ components:
           exclusiveMinimum: 0
           maximum: 1000
           description: >-
-            Base font size in points, applied to html, png and pdf alike. Scales
+            Base font size in points, applied to every format (PPTX defaults to 18pt). Scales
             the whole type scale proportionally rather than setting body text
             alone. Rejected outside this range rather than silently ignored.
         pdfOptions:

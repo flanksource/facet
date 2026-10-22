@@ -2,14 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from 'puppeteer-core';
 import { PDFDocument, PDFName } from 'pdf-lib';
 import JSZip from 'jszip';
-import * as CFB from 'cfb';
+import sharp from 'sharp';
+import { readEmfPdf } from '../emf/decode.js';
 import { launchBrowser } from '../../utils/pdf-generator.js';
 import { renderElementPdf } from '../../utils/pdf-overlay.js';
 import { readOfficeDOM } from '../dom.js';
 import { writeDOCX } from '../docx.js';
 import { renderWordChrome } from './pdf-chrome.js';
 
-describe('PDF-only Word header/footer objects', () => {
+describe('PDF-in-EMF Word header/footer artwork', () => {
   let browser: Browser;
   beforeAll(async () => { browser = await launchBrowser(); });
   afterAll(async () => { await browser?.close(); });
@@ -32,11 +33,7 @@ describe('PDF-only Word header/footer objects', () => {
       expect(assets.get(document.pages[0].header!)).toBe(assets.get(document.pages[1].header!));
       expect(assets.has(document.pages[3].footer!)).toBe(false);
       const zip = await JSZip.loadAsync(await writeDOCX({ document, assets }));
-      const embedded = await Promise.all(Object.values(zip.files).filter((file) => /embeddings\/.+\.bin$/.test(file.name)).map(async (file) => {
-        const ole = CFB.read(await file.async('uint8array'), { type: 'buffer' });
-        expect(ole.FileIndex[0].clsid).toBe('65ca01b8fca1d01185ad444553540000');
-        return Buffer.from(CFB.find(ole, 'CONTENTS')!.content);
-      }));
+      const embedded = await Promise.all(Object.values(zip.files).filter((file) => /media\/.+\.emf$/.test(file.name)).map(async (file) => Buffer.from(readEmfPdf(await file.async('uint8array'))!)));
       const unique = [...new Set(assets.values())];
       expect(embedded).toHaveLength(unique.length);
       expect(embedded.map((bytes) => Buffer.from(bytes))).toEqual(unique.map((asset) => Buffer.from(asset.data)));
@@ -45,14 +42,14 @@ describe('PDF-only Word header/footer objects', () => {
         expect(dimensions[index].width).toBeCloseTo(expected[0] * 72 / 25.4, 0);
         expect(dimensions[index].height).toBeCloseTo(expected[1] * 72 / 25.4, 0);
       }
-      for (const index of [1, 2]) expect(await zip.file(`word/_rels/header${index}.xml.rels`)!.async('string')).toContain('embeddings/facetChrome1.bin');
+      for (const index of [1, 2]) expect(await zip.file(`word/_rels/header${index}.xml.rels`)!.async('string')).toContain('media/facetPdf1.emf');
       const xml = await zip.file('word/document.xml')!.async('string');
       expect(xml).toContain('w:top="850"');
       expect(await context.pages()).toHaveLength(1);
     } finally { await context.close(); }
   });
 
-  it('removes counter glyphs from the PDF while preserving styled, aligned native fields', async () => {
+  it('removes counter glyphs from both captures while preserving styled, aligned native fields', async () => {
     const context = await browser.createBrowserContext();
     try {
       const html = `<html><head><style>body {margin:0;font:10pt Arial} @media print {footer {color:rgb(18,52,86)}}</style></head><body>
@@ -69,6 +66,7 @@ describe('PDF-only Word header/footer objects', () => {
       expect(asset.counters[0].style).toMatchObject({ bold: true, color: '123456', align: 'right' });
       const pdf = await PDFDocument.load(asset.data);
       expect(pdf.getPage(0).node.Resources()?.get(PDFName.of('Font'))).toBeUndefined();
+      expect((await sharp(asset.png).ensureAlpha().stats()).channels[3].max).toBe(0);
       const zip = await JSZip.loadAsync(await writeDOCX({ document, assets }));
       const footer = await zip.file('word/footer1.xml')!.async('string');
       expect(footer).toContain('PAGE');
@@ -76,7 +74,8 @@ describe('PDF-only Word header/footer objects', () => {
       expect(footer).toContain('w:color w:val="123456"');
       expect(footer).toContain('<w:jc w:val="right"');
       expect(footer).toContain('w:hAnchor="page"');
-      expect(footer).not.toMatch(/_PG_|_TL_|v:imagedata|w:drawing/);
+      expect(footer).not.toMatch(/_PG_|_TL_|v:imagedata|OLEObject/);
+      expect(footer).toContain('<wp:anchor');
     } finally { await context.close(); }
   });
 
@@ -92,9 +91,9 @@ describe('PDF-only Word header/footer objects', () => {
       const document = await page.evaluate(readOfficeDOM);
       const assets = await renderWordChrome({ context, html, document });
       const zip = await JSZip.loadAsync(await writeDOCX({ document, assets }));
-      expect(Object.keys(zip.files).filter((path) => /embeddings\/.+\.bin$/.test(path))).toHaveLength(1);
-      expect(await zip.file('word/header1.xml')!.async('string')).toContain('<o:OLEObject');
-      for (const index of [2, 3]) expect(await zip.file(`word/header${index}.xml`)!.async('string')).not.toContain('<o:OLEObject');
+      expect(Object.keys(zip.files).filter((path) => /media\/.+\.emf$/.test(path))).toHaveLength(1);
+      expect(await zip.file('word/header1.xml')!.async('string')).toContain('<w:drawing');
+      for (const index of [2, 3]) expect(await zip.file(`word/header${index}.xml`)!.async('string')).not.toContain('<w:drawing');
     } finally { await context.close(); }
   });
 

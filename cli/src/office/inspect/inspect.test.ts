@@ -2,8 +2,33 @@ import { describe, expect, it } from 'vitest';
 import { inspectDOCX } from './index.js';
 import { fixture, oleFixture, pdfFixture, PNG, relations } from './fixtures.test-utils.js';
 import { PDFDocument, PDFName } from 'pdf-lib';
+import sharp from 'sharp';
+import { encodePdfEmf } from '../emf/encode.js';
 
 describe('read-only DOCX inspection', () => {
+  it('finds the original PDF and its fonts inside EMF image media', async () => {
+    const pdf = await pdfFixture();
+    const png = await sharp({ create: { width: 192, height: 96, channels: 4, background: '#123456' } }).png().toBuffer();
+    const zip = fixture('<w:p><w:r><w:drawing><wp:extent cx="1828800" cy="914400"/><a:blip r:embed="diagram"/></w:drawing></w:r></w:p>');
+    zip.file('word/media/diagram.emf', await encodePdfEmf({ pdf, png, width: 192, height: 96 }));
+    zip.file('word/_rels/document.xml.rels', relations([{ id: 'diagram', type: 'image', target: 'media/diagram.emf' }]));
+    const result = await inspectDOCX(await zip.generateAsync({ type: 'uint8array' }));
+    expect(result.assets[0]).toMatchObject({ path: 'word/media/diagram.emf', format: 'PDF', payloadBytes: pdf.length,
+      pdf: { pages: [{ widthMm: 50.8, heightMm: 25.4 }] },
+      uses: [{ role: 'body', kind: 'image', dimensions: { widthMm: 50.8, heightMm: 25.4 } }] });
+    expect(result.fonts.pdf.map((font) => [font.asset, font.name, font.embedded])).toEqual([
+      ['word/media/diagram.emf', 'ABCDEF+DiagramFace', true], ['word/media/diagram.emf', 'Helvetica', false],
+    ]);
+  });
+
+  it('reports the affected part when EMF record bounds are invalid', async () => {
+    const bytes = Buffer.alloc(88);
+    bytes.writeUInt32LE(0x464d4520, 40);
+    const zip = fixture('<w:p/>');
+    zip.file('word/media/broken.emf', bytes);
+    await expect(inspectDOCX(await zip.generateAsync({ type: 'uint8array' }))).rejects.toThrow(/word\/media\/broken.emf.*EMF/);
+  });
+
   it('reports section settings in millimetres without inventing a physical page count', async () => {
     const zip = fixture(`<w:p><w:pPr><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="720" w:bottom="1440" w:left="720" w:header="360" w:footer="360" w:gutter="0"/></w:sectPr></w:pPr></w:p>
       <w:sectPr><w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/><w:pgMar w:left="1440"/></w:sectPr>`);

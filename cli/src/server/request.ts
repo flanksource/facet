@@ -5,6 +5,7 @@ import { parseRemoteRef } from '../utils/remote-resolver.js';
 import type { BufferPDFOptions, PDFMargins } from '../utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from '../utils/pdf-security.js';
 import type { PNGOptions, PNGViewport, RenderFormat } from '../types.js';
+import { isRenderFormat } from './render-format.js';
 import type { RedactPolicy } from '../builders/remark-config.js';
 import {
   normalizePNGOptions,
@@ -290,8 +291,8 @@ async function parseGzipRequest(
 
 function parseRenderFormat(raw: unknown): RenderFormat {
   if (raw === undefined) return 'pdf';
-  if (raw === 'html' || raw === 'pdf' || raw === 'png') return raw;
-  throw new RenderError('INVALID_REQUEST', 'format must be one of: html, pdf, png', 400);
+  if (isRenderFormat(raw)) return raw;
+  throw new RenderError('INVALID_REQUEST', 'format must be one of: html, pdf, png, docx, pptx', 400);
 }
 
 function parsePNGOptions(raw: unknown, format: RenderFormat): NormalizedPNGOptions | undefined {
@@ -421,12 +422,12 @@ function validateFormatOptions(
     signature?: PDFSignatureOptions;
   },
 ): void {
-  if (format !== 'png') return;
+  if (format !== 'png' && format !== 'docx' && format !== 'pptx') return;
   if (options.hasPDFOptions) {
-    throw new RenderError('INVALID_REQUEST', 'pdfOptions cannot be used with PNG renders', 400);
+    throw new RenderError('INVALID_REQUEST', `pdfOptions cannot be used with ${format.toUpperCase()} renders`, 400);
   }
   if (options.encryption || options.signature) {
-    throw new RenderError('INVALID_REQUEST', 'PDF security options cannot be used with PNG renders', 400);
+    throw new RenderError('INVALID_REQUEST', `PDF security options cannot be used with ${format.toUpperCase()} renders`, 400);
   }
 }
 

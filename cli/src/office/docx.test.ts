@@ -3,7 +3,7 @@ import type { Browser } from 'puppeteer-core';
 import JSZip from 'jszip';
 import { XMLParser } from 'fast-xml-parser';
 import { PDFDocument } from 'pdf-lib';
-import * as CFB from 'cfb';
+import { readEmfPdf } from './emf/decode.js';
 import { launchBrowser } from '../utils/pdf-generator.js';
 import { generateOfficeBuffer } from './index.js';
 import { officeText } from '../../test/office-xml.js';
@@ -20,7 +20,7 @@ describe('Word document layout and fields', () => {
       </style></head><body>${body}</body></html>` }));
   }
 
-  it('embeds full-width header/footer PDFs without previews and retains live page fields', async () => {
+  it('embeds full-width header/footer PDFs in EMF drawings and retains live page fields', async () => {
     const zip = await render(`
       <header data-header-type="default" data-header-height="24" style="height:24mm;background:#2456ab;color:white;display:flex;align-items:center;justify-content:space-between;padding:4px 20px">
         <svg width="80" height="30"><rect width="80" height="30" fill="white"/></svg><div><p>Acme review</p><p>Annual results</p></div>
@@ -31,32 +31,31 @@ describe('Word document layout and fields', () => {
       <main data-page-size="a4" data-margin-left="12" data-margin-right="12"><p>Body text</p></main>`);
     const header = await zip.file('word/header1.xml')!.async('string');
     const footer = await zip.file('word/footer1.xml')!.async('string');
-    expect(header).toContain('<o:OLEObject');
-    expect(header).toContain('DrawAspect="Content"');
-    expect(header).toContain('mso-position-horizontal-relative:page');
-    expect(header).toContain('margin-left:0pt');
+    expect(header).toContain('<wp:anchor');
+    expect(header).toContain('behindDoc="1"');
+    expect(header).toContain('relativeFrom="page"');
+    expect(header).toContain('<wp:posOffset>0</wp:posOffset>');
     expect(officeText(header)).toBe('');
-    expect(footer).toContain('<o:OLEObject');
+    expect(footer).toContain('<wp:anchor');
     expect(footer).toContain('PAGE');
     expect(footer).toContain('NUMPAGES');
     expect(footer).toContain('<w:framePr');
-    expect(header + footer).not.toMatch(/v:imagedata|w:drawing|w:tbl/);
-    expect(Object.keys(zip.files).filter((path) => /^word\/media\/.+/.test(path))).toHaveLength(0);
-    const pdfs = Object.keys(zip.files).filter((path) => /^word\/embeddings\/.+\.bin$/.test(path));
+    expect(header + footer).not.toMatch(/v:imagedata|OLEObject|w:tbl/);
+    expect(Object.keys(zip.files).filter((path) => /^word\/embeddings\/.+/.test(path))).toHaveLength(0);
+    const pdfs = Object.keys(zip.files).filter((path) => /^word\/media\/.+\.emf$/.test(path));
     expect(pdfs).toHaveLength(2);
     for (const [index, path] of pdfs.entries()) {
-      const ole = CFB.read(await zip.file(path)!.async('nodebuffer'), { type: 'buffer' });
-      const bytes = Buffer.from(CFB.find(ole, 'CONTENTS')!.content);
+      const bytes = Buffer.from(readEmfPdf(await zip.file(path)!.async('nodebuffer'))!);
       expect(bytes.subarray(0, 5).toString()).toBe('%PDF-');
       const pdf = await PDFDocument.load(bytes);
       expect(pdf.getPageCount()).toBe(1);
       expect(pdf.getPage(0).getWidth()).toBeCloseTo(210 * 72 / 25.4, 0);
       expect(pdf.getPage(0).getHeight()).toBeCloseTo([24, 12][index] * 72 / 25.4, 0);
     }
-    expect(await zip.file('[Content_Types].xml')!.async('string')).toContain('ContentType="application/vnd.openxmlformats-officedocument.oleObject"');
+    expect(await zip.file('[Content_Types].xml')!.async('string')).toContain('ContentType="image/x-emf"');
     const rels = await zip.file('word/_rels/header1.xml.rels')!.async('string');
-    expect(rels).toContain('relationships/oleObject');
-    expect(rels).toContain('embeddings/');
+    expect(rels).toContain('relationships/image');
+    expect(rels).toContain('media/facetPdf');
     expect(officeText(await zip.file('word/document.xml')!.async('string'))).toBe('Body text');
   });
 

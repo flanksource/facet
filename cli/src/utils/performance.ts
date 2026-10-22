@@ -9,6 +9,8 @@ const RENDER_PHASES = [
   { name: 'header-generation', description: 'Header generation' },
   { name: 'pdf-generation', description: 'PDF generation' },
   { name: 'png-generation', description: 'PNG generation' },
+  { name: 'docx-generation', description: 'DOCX generation' },
+  { name: 'pptx-generation', description: 'PPTX generation' },
   { name: 'post-processing', description: 'Post-processing' },
   { name: 'timestamping', description: 'Timestamping' },
 ] as const;

@@ -25,6 +25,10 @@ describe('Office diagram logging', () => {
     const messages = output.mock.calls.map((args) => args.join(' ')).filter((message) => /visual (generated|inserted):/.test(message));
     expect(messages).toEqual(verbose ? [
       expect.stringMatching(new RegExp(`${format.toUpperCase()} visual generated: .*office-media-\\d+.*Architecture figure\\..*\\b${media}\\b.*\\d+\\.\\dms`)),
+      ...(format === 'docx' ? [
+        expect.stringMatching(/DOCX visual generated: .*office-media-\d+.*Architecture figure\..*\bPNG\b.*\d+\.\dms/),
+        expect.stringMatching(/DOCX visual generated: .*office-media-\d+.*Architecture figure\..*PDF-in-EMF.*\d+\.\dms.*word\/media\/facetPdf\d+\.emf/),
+      ] : []),
       expect.stringMatching(new RegExp(`${format.toUpperCase()} visual inserted: .*office-media-\\d+.*Architecture figure\\..*\\b${media}\\b.*\\d+\\.\\dms`)),
     ] : []);
   });

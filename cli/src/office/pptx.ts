@@ -45,7 +45,7 @@ function draw(options: {
     if (block.format !== 'png') throw new Error(`PowerPoint requires a PNG visual: ${block.source}`);
     if (!block.data) throw new Error(`Missing Office image data: ${block.source}`);
     slide.addImage({ ...bounds, data: `image/png;base64,${Buffer.from(block.data).toString('base64')}`, altText: block.alt });
-    logVisual({ logger: options.logger, format: 'pptx', action: 'inserted', block, startedAt, location: `slide ${page}` });
+    logVisual({ logger: options.logger, format: 'pptx', action: 'inserted', block, elapsedMs: performance.now() - startedAt, location: `slide ${page}` });
   } else if (block.kind === 'table') {
     const widthSum = block.columns.reduce((sum, value) => sum + value, 0);
     slide.addTable(tableRows(block, page, total), { ...bounds,

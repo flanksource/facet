@@ -14,6 +14,7 @@ import { parseRedactAllow } from './builders/remark-config.js';
 import type { GenerateOptions, PNGViewport, RenderFormat } from './types.js';
 import { parsePNGViewport } from './utils/png-generator.js';
 import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
+import { registerOfficeCommands } from './commands/office.js';
 import { registerInspectCommand } from './commands/inspect.js';
 
 function numericOption(minimum: number): (value: string) => number {
@@ -63,7 +64,7 @@ function renderRequirements(command: RenderFormat, options: any): string[] {
     return ids;
   }
   const ids = options.skipModules ? [] : ['pnpm'];
-  if (command === 'pdf' || command === 'png' || options.live) ids.push('chromium');
+  if (command === 'pdf' || command === 'png' || command === 'docx' || command === 'pptx' || options.live) ids.push('chromium');
   if (options.autocrop) ids.push('sharp');
   if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
   return ids;
@@ -149,15 +150,16 @@ const versionStr = formatVersion({
 
 program
   .name('facet')
-  .description('Build beautiful HTML, PDF, and PNG output from React templates')
+  .description('Build HTML, PDF, PNG, editable DOCX and widescreen PPTX output from React templates')
   .version(versionStr)
   .option('--skip-modules', 'Use the shared Facet-only module install and ignore package.json dependencies')
-  .option('--facet-url <url>', 'Submit HTML, PDF, and PNG renders to a Facet server (or FACET_URL)')
+  .option('--facet-url <url>', 'Submit template renders to a Facet server (or FACET_URL)')
   .hook('preAction', (_command, actionCommand) => {
     if (actionCommand.name() === 'inspect' && actionCommand.opts().json) return;
     console.log(chalk.gray(`facet ${versionStr}`));
   });
 
+registerOfficeCommands({ program, addSharedOptions, ensureRenderReady, parseDataLoaderArgs });
 registerInspectCommand(program);
 
 // html command

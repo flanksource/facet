@@ -37,7 +37,7 @@ export function registerOfficeCommands(options: {
       .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
       .option('--no-validate', 'Skip data validation'))
       .addHelpText('after', format === 'docx'
-        ? '\nWord exports use Page/Header/Footer template props. Headers, footers, figures and diagrams are embedded as PDF objects without previews; display depends on viewer support. Page numbers stay native. Ordinary images and logos remain images.\n'
+        ? '\nWord exports use Page/Header/Footer template props. Headers, footers, figures and diagrams are captured as PDF and PNG, then embedded as EMF pictures containing both representations. Page numbers stay native. PDF export rendering depends on the viewer. Ordinary images and logos remain images.\n'
         : '\nOffice exports use Page/Header/Footer template props. Complex visuals are embedded images. PPTX uses 16:9 slides and an 18pt default body size.\n')
       .action(async (templates: string[], _flags: OfficeFlags, command: Command) => {
         const flags = command.optsWithGlobals<OfficeFlags>();

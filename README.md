@@ -109,6 +109,10 @@ This creates:
 facet pdf MyDatasheet.tsx
 ```
 
+### Word artwork
+
+DOCX preserves editable headings, paragraphs, rich text, links, lists, code, and tables. `<Page>` provides section sizes and margins, while Word flows content across physical pages. Headers, footers, figures, and diagram components are captured as paired PDF and PNG assets in the browser. Word receives EMF pictures containing the original PDF bytes and a bitmap display representation, matching Word's PDF insertion format. Figures include their captions and legends, and page numbers remain native Word fields. Vector rendering and selectable diagram text in exported PDFs depend on the viewer's support for the embedded PDF representation. Flex and grid columns use native layout tables; data tables retain cell padding, borders, merges and vertical alignment.
+
 ### Inspect a Word document
 
 ```bash
@@ -116,7 +120,7 @@ facet inspect output/report.docx
 facet inspect output/report.docx --json
 ```
 
-`inspect` reads a local DOCX without changing it or creating files. It reports section sizes and margins in millimetres, embedded assets and their body/header/footer references, Word font references and embedded variants, and fonts inside embedded PDFs. PDF assets include their payload sizes and page dimensions; OLE objects include their types and stream names. Section settings describe the document's layout configuration, rather than its rendered page count. Font references describe declared names and theme mappings, rather than the fonts Word ultimately selects. Chrome, Word, Microsoft 365, and dependency installation are not required. `--json` emits only structured JSON for scripting.
+`inspect` reads a local DOCX without changing it or creating files. It reports section sizes and margins in millimetres, embedded assets and their body/header/footer references, Word font references and embedded variants, and fonts inside embedded PDFs. PDFs inside EMF pictures, OLE objects, and raw PDF parts include their payload sizes and page dimensions; OLE objects also include their types and stream names. Section settings describe the document's layout configuration, rather than its rendered page count. Font references describe declared names and theme mappings, rather than the fonts Word ultimately selects. Chrome, Word, Microsoft 365, and dependency installation are not required. `--json` emits only structured JSON for scripting.
 
 ## Performance benchmarks
 

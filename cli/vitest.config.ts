@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     globals: true,
+    server: { deps: { external: ['pptxgenjs-plus'] } },
     include: ['test/**/*.test.ts', 'src/**/*.test.ts', 'scripts/**/*.test.ts'],
     exclude: ['node_modules/**', 'dist/**'],
     // Integration suites share examples/.facet install state and browser

@@ -37,7 +37,7 @@ export async function loadSharp(consumerRoot = process.cwd()): Promise<SharpModu
   } catch (error) {
     if (!isModuleNotFound(error)) throw error;
     throw new Error(
-      `sharp is required for PNG autocrop but is not resolvable from this build or from ${facetPackage}. `
+      `sharp is required for image processing but is not resolvable from this build or from ${facetPackage}. `
       + 'Run any render once to populate .facet/, then retry; `facet doctor` reports the resolved path.',
     );
   }

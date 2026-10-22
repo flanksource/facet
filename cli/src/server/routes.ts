@@ -3,14 +3,12 @@ import { createReadStream } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { Readable } from 'node:stream';
 
-import { generatePDFBuffer } from '../utils/pdf-generator.js';
 import { injectFontScale } from '../utils/font-size.js';
-import { generatePNGBuffer } from '../utils/png-generator.js';
+import { officeLayout } from '../office/layout.js';
+import { renderBinary } from './render-binary.js';
 import { hasMermaidCodeBlocks, renderBrowserHTML } from '../utils/browser-html.js';
 import { Logger } from '../utils/logger.js';
 import { RenderTimings } from '../utils/performance.js';
-import { applyPDFSecurity } from '../utils/pdf-security.js';
-import { waitForAbortable } from '../utils/abort-lock.js';
 import type { ServerConfig } from './config.js';
 import { RenderError, errorResponse } from './errors.js';
 import {
@@ -350,6 +348,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       signal,
       redact: parsed.redact,
       pngOptions: parsed.pngOptions,
+      layout: parsed.format === 'docx' || parsed.format === 'pptx' ? officeLayout(parsed.format, parsed.fontSize) : undefined,
     });
     signal?.throwIfAborted();
     html = await injectHeaderFooter({
@@ -387,22 +386,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
     if (signal?.aborted) abort();
     let workerHealthy = true;
     try {
-      let output: Buffer;
-      if (parsed.format === 'png') {
-        output = await timings.measure('png-generation', () =>
-          generatePNGBuffer(worker.browser, html, parsed.pngOptions));
-      } else {
-        output = await timings.measure('pdf-generation', () =>
-          generatePDFBuffer(worker.browser, html, parsed.pdfOptions));
-        if (parsed.encryption || parsed.signature) {
-          output = await applyPDFSecurity(output, {
-            encryption: parsed.encryption,
-            signature: parsed.signature,
-            timings,
-          }, logger);
-        }
-      }
-      signal?.throwIfAborted();
+      const output = await renderBinary({ browser: worker.browser, html, parsed, timings, logger, consumerRoot: resolved.consumerRoot });
       const storageKey = cacheable ? cacheKey : freshResultKey();
       cache.set(storageKey, metadata.contentType, output);
       if (parsed.output === 's3') {
@@ -463,6 +447,7 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
       skipModules: config.skipModules,
       redact: parsed.redact,
       pngOptions: parsed.pngOptions,
+      layout: parsed.format === 'docx' || parsed.format === 'pptx' ? officeLayout(parsed.format, parsed.fontSize) : undefined,
     });
     html = await injectHeaderFooter({
       html,
@@ -486,29 +471,12 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
     }
 
     const metadata = renderFormatMetadata(parsed.format);
-    const stage = parsed.format === 'png' ? 'rendering-png' : 'rendering-pdf';
+    const stage = `rendering-${parsed.format}` as const;
     progress.emit(stage, 'Acquiring browser worker...');
     const worker = await pool.acquire();
     let workerHealthy = true;
     try {
-      let output: Buffer;
-      if (parsed.format === 'png') {
-        progress.emit(stage, 'Generating PNG with Puppeteer...');
-        output = await timings.measure('png-generation', () =>
-          generatePNGBuffer(worker.browser, html, parsed.pngOptions));
-      } else {
-        progress.emit(stage, 'Generating PDF with Puppeteer...');
-        output = await timings.measure('pdf-generation', () =>
-          generatePDFBuffer(worker.browser, html, parsed.pdfOptions));
-        if (parsed.encryption || parsed.signature) {
-          progress.emit('securing', 'Applying PDF security...');
-          output = await applyPDFSecurity(output, {
-            encryption: parsed.encryption,
-            signature: parsed.signature,
-            timings,
-          }, logger);
-        }
-      }
+      const output = await renderBinary({ browser: worker.browser, html, parsed, timings, logger, progress, consumerRoot: resolved.consumerRoot });
       if (parsed.output === 's3' && s3) progress.emit('uploading', 'Uploading to S3...');
       return { content: output, metadata };
     } catch (error) {

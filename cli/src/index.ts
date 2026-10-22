@@ -2,6 +2,7 @@
 export { generatePDF } from './generators/pdf.js';
 export { generatePNG } from './generators/png.js';
 export { generateHTML } from './generators/html.js';
+export { generateDOCX, generatePPTX } from './generators/office.js';
 export { generateWebComponent } from './generators/webcomponent.js';
 export { generateFilledPdf } from './generators/fill-pdf.js';
 export { startServer } from './server/preview.js';

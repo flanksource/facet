@@ -19,6 +19,7 @@ export async function generateOfficeBuffer(options: {
   format: 'docx' | 'pptx';
   fontSize?: number;
   verbose?: boolean | number;
+  consumerRoot?: string;
 }): Promise<Buffer> {
   const logger = new Logger(options.verbose);
   const layout = officeLayout(options.format, parseFontSize(options.fontSize));
@@ -39,11 +40,17 @@ export async function generateOfficeBuffer(options: {
           if (block.box.width <= 0 || block.box.height <= 0) throw new Error(`Office visual has no measurable size: ${block.source}`);
           const element = await page.$(`[data-facet-office-media="${block.mediaId}"]`);
           if (!element) throw new Error(`Office visual disappeared: ${block.source}`);
-          block.data = block.format === 'pdf'
-            ? await renderWordDiagram({ context, html: snapshot, block, viewport: layout.viewport })
-            : await element.screenshot({ type: 'png', omitBackground: true });
+          if (block.format === 'pdf') {
+            const result = await renderWordDiagram({ context, html: snapshot, block, viewport: layout.viewport });
+            block.data = result.pdf;
+            block.preview = result.png;
+            logVisual({ logger, format: options.format, action: 'generated', block, elapsedMs: result.timings.pdf });
+            logVisual({ logger, format: options.format, action: 'generated', block: { ...block, format: 'png' }, elapsedMs: result.timings.png });
+          } else {
+            block.data = await element.screenshot({ type: 'png', omitBackground: true });
+            logVisual({ logger, format: options.format, action: 'generated', block, elapsedMs: performance.now() - startedAt });
+          }
           await element.dispose();
-          logVisual({ logger, format: options.format, action: 'generated', block, startedAt });
         }
         if (block.kind === 'group') await hydrate(block.blocks);
         if (block.kind === 'table') for (const row of block.rows) for (const cell of row.cells) await hydrate(cell.blocks);
@@ -56,7 +63,7 @@ export async function generateOfficeBuffer(options: {
     }
     if (!officeDocument.pages.some((spec) => spec.blocks.length)) throw new Error('Office export contains no visible content');
     return options.format === 'docx'
-      ? await writeDOCX({ document: officeDocument, assets: await renderWordChrome({ context, html, document: officeDocument }), logger })
+      ? await writeDOCX({ document: officeDocument, assets: await renderWordChrome({ context, html, document: officeDocument, logger }), logger, consumerRoot: options.consumerRoot })
       : await writePPTX({ document: officeDocument, logger });
   } finally {
     await context.close();

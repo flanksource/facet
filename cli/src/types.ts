@@ -15,7 +15,7 @@ export interface ResolvedTemplate {
   resolvedSha?: string;
 }
 
-export type RenderFormat = 'html' | 'pdf' | 'png';
+export type RenderFormat = 'html' | 'pdf' | 'png' | 'docx' | 'pptx';
 
 export interface PNGViewport {
   width: number;
