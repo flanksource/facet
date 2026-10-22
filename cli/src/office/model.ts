@@ -33,7 +33,7 @@ export interface Paragraph extends BlockBase {
   heading?: number;
   list?: { ordered: boolean; level: number; start: number; ordinal: number; id: string };
 }
-export interface Image extends BlockBase { kind: 'image'; format: 'png' | 'pdf'; mediaId: string; data?: Uint8Array; alt: string }
+export interface Image extends BlockBase { kind: 'image'; format: 'png' | 'pdf'; mediaId: string; data?: Uint8Array; preview?: Uint8Array; alt: string }
 export interface Cell { blocks: Block[]; colSpan: number; rowSpan: number; box: Box; style: TextStyle }
 export interface Row { cells: Cell[]; header: boolean; height: number }
 export interface Table extends BlockBase { kind: 'table'; rows: Row[]; columns: number[]; layout?: 'auto' | 'fixed' }

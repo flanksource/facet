@@ -317,7 +317,7 @@ async function renderLegacyElementPdf(
   heightMm: number,
   widthMm: number = 210,
 ): Promise<{ buffer: Buffer; hasPlaceholders: boolean } | null> {
-  const { renderElementPdf } = await import('./pdf-multipass.js');
+  const { renderElementPdf } = await import('./pdf-overlay.js');
   const page = await browser.newPage();
   let fragment = '';
   try {
@@ -330,7 +330,7 @@ async function renderLegacyElementPdf(
     return null;
   }
   return {
-    buffer: await renderElementPdf(browser, html, selector, heightMm, widthMm),
+    buffer: (await renderElementPdf({ browser, html, selector, heightMm, widthMm })).pdf,
     hasPlaceholders: fragment.includes(PAGE_MARKER) || fragment.includes(TOTAL_MARKER),
   };
 }

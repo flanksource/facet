@@ -14,6 +14,7 @@ export function fixture(document: string): JSZip {
   zip.file('[Content_Types].xml', `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
     <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
     <Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/>
+    <Default Extension="emf" ContentType="image/x-emf"/>
     <Default Extension="bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
     <Default Extension="pdf" ContentType="application/pdf"/><Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>
     <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>

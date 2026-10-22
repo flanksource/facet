@@ -14,10 +14,10 @@ async function generateOffice(options: GenerateOptions, format: 'docx' | 'pptx')
   }
   const logger = new Logger(options.verbose);
   const timings = options.timings ?? new RenderTimings();
-  const { html, outputName } = await renderTemplateHTML({ options: { ...options, timings }, layout: officeLayout(format, options.fontSize) });
+  const { html, outputName, consumerRoot } = await renderTemplateHTML({ options: { ...options, timings }, layout: officeLayout(format, options.fontSize) });
   const browser = await launchBrowser();
   try {
-    const buffer = await timings.measure(`${format}-generation`, () => generateOfficeBuffer({ browser, html, format, fontSize: options.fontSize, verbose: options.verbose }));
+    const buffer = await timings.measure(`${format}-generation`, () => generateOfficeBuffer({ browser, html, format, fontSize: options.fontSize, verbose: options.verbose, consumerRoot }));
     const outputDir = resolve(options.outputDir);
     await mkdir(outputDir, { recursive: true });
     const outputPath = join(outputDir, `${outputName}.${format}`);

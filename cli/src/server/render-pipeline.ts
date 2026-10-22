@@ -16,6 +16,7 @@ import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
 import { runTailwindCached } from '../utils/tailwind.js';
 import type { ServerConfig } from './config.js';
 import type { PNGOptions } from '../types.js';
+import type { BrowserLayout } from '../utils/render-layout.js';
 import { extractArchive } from './archive.js';
 import { RenderError } from './errors.js';
 import type { ParsedRenderRequest } from './request.js';
@@ -113,6 +114,7 @@ interface RenderHTMLOptions {
   skipModules?: boolean;
   redact?: RedactPolicy;
   pngOptions?: PNGOptions;
+  layout?: BrowserLayout;
 }
 
 export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
@@ -128,7 +130,7 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
       skipModules: options.skipModules,
     });
     try {
-      return await snapshotHTML(server.url, logger, options.pngOptions);
+      return await snapshotHTML(server.url, logger, { png: options.pngOptions, layout: options.layout });
     } finally {
       await server.close();
     }
@@ -179,7 +181,7 @@ export async function renderHTMLStreamed(options: StreamedHTMLOptions): Promise<
       skipModules: options.skipModules,
     });
     try {
-      return await snapshotHTML(server.url, logger, options.pngOptions);
+      return await snapshotHTML(server.url, logger, { png: options.pngOptions, layout: options.layout });
     } finally {
       await server.close();
     }

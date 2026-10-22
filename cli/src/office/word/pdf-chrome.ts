@@ -3,9 +3,12 @@ import { PDFDocument } from 'pdf-lib';
 import { areaScale, resolvePageSize, scaledHeight } from '../../utils/pdf-multipass.js';
 import { renderElementPdf } from '../../utils/pdf-overlay.js';
 import type { Chrome, OfficeDocument, Paragraph, TextStyle } from '../model.js';
+import type { Logger } from '../../utils/logger.js';
+import { logVisual } from '../logging.js';
 
 export interface PdfChrome {
   data: Uint8Array;
+  png: Uint8Array;
   width: number;
   height: number;
   counters: Paragraph[];
@@ -53,6 +56,7 @@ export async function renderWordChrome(options: {
   context: BrowserContext;
   html: string;
   document: OfficeDocument;
+  logger?: Pick<Logger, 'debug'>;
 }): Promise<Map<Chrome, PdfChrome>> {
   const result = new Map<Chrome, PdfChrome>();
   const cache = new Map<string, PdfChrome>();
@@ -66,12 +70,15 @@ export async function renderWordChrome(options: {
         const heightMm = scaledHeight(chrome.height * 25.4 / 96, areaScale(size));
         let counters: Paragraph[] = [];
         try {
-          const data = await renderElementPdf({ browser: options.context, html: options.html, selector: chrome.selector,
-            widthMm: size.width, heightMm,
+          const result = await renderElementPdf({ browser: options.context, html: options.html, selector: chrome.selector,
+            widthMm: size.width, heightMm, capturePng: true,
             preparePage: async (page) => { counters = await page.evaluate(readOverlayCounters); } });
-          const pdf = await PDFDocument.load(data);
+          const pdf = await PDFDocument.load(result.pdf);
           if (pdf.getPageCount() !== 1) throw new Error(`Expected one PDF page, received ${pdf.getPageCount()}`);
-          asset = { data, width: size.width * 96 / 25.4, height: heightMm * 96 / 25.4, counters };
+          if (!result.png || result.timings.png === undefined) throw new Error('Missing header/footer PNG capture');
+          asset = { data: result.pdf, png: result.png, width: size.width * 96 / 25.4, height: heightMm * 96 / 25.4, counters };
+          for (const format of ['pdf', 'png'] as const) logVisual({ logger: options.logger, format: 'docx', action: 'generated',
+            block: { mediaId: key, source: chrome.selector, alt: '', format }, elapsedMs: format === 'pdf' ? result.timings.pdf : result.timings.png });
         } catch (cause) {
           throw new Error(`Failed to render Word ${chrome.selector} at ${page.size}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
         }

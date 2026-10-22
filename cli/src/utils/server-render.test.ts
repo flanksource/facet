@@ -64,6 +64,24 @@ describe('resolveFacetURL', () => {
 });
 
 describe('renderWithServer', () => {
+  it.each(['docx', 'pptx'] as const)('uploads %s requests and writes the binary result without PDF options', async (format) => {
+    const bytes = Buffer.from(`PK-${format}-result`);
+    let received = '';
+    const facetURL = await listen(async (request, response) => {
+      if (request.url === '/render') {
+        received = (await body(request)).toString('latin1');
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ url: '/results/office-result' }));
+      } else { response.writeHead(200); response.end(bytes); }
+    });
+    const { options } = await fixture();
+    options.fontSize = 20;
+    await renderWithServer({ facetURL, format, options });
+    expect(received).toContain(`"format":"${format}"`);
+    expect(received).toContain('"fontSize":20');
+    expect(received).not.toContain('"pdfOptions"');
+    await expect(readFile(join(options.outputDir, `report.${format}`))).resolves.toEqual(bytes);
+  });
   it('uploads the project and writes returned HTML to the requested output', async () => {
     const received: { method?: string; contentType?: string; body?: string } = {};
     const facetURL = await listen(async (request, response) => {

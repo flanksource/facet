@@ -16,6 +16,7 @@ import {
   resolvePNGTarget,
 } from '../utils/png-generator.js';
 import type { PNGOptions } from '../types.js';
+import { applyBrowserLayout, type BrowserLayout } from '../utils/render-layout.js';
 import { DIAGRAM_SELECTOR, diagramReadiness, type DiagramState } from './diagram-readiness.js';
 
 /** Max time to wait for every diagram to set `data-facet-ready` or `data-facet-error`. */
@@ -60,14 +61,15 @@ async function loadLivePage(
   browser: Browser,
   url: string,
   logger: Logger,
-  pngOptions?: PNGOptions,
+  options: { png?: PNGOptions; layout?: BrowserLayout } = {},
 ): Promise<Page> {
   const page = await browser.newPage();
-  const normalizedPNG = pngOptions ? normalizePNGOptions(pngOptions) : undefined;
+  const normalizedPNG = options.png ? normalizePNGOptions(options.png) : undefined;
   await page.setViewport({
-    ...(normalizedPNG?.viewport ?? DEFAULT_PNG_VIEWPORT),
+    ...(options.layout?.viewport ?? normalizedPNG?.viewport ?? DEFAULT_PNG_VIEWPORT),
     deviceScaleFactor: 1,
   });
+  if (options.layout) await page.evaluateOnNewDocument(applyBrowserLayout, options.layout);
 
   // Surface browser-side failures loudly: a Vite transform/resolve error renders
   // as a `vite-error-overlay` element rather than the template, and would
@@ -144,11 +146,11 @@ function makeSelfContained(html: string): string {
 export async function snapshotHTML(
   url: string,
   logger: Logger,
-  pngOptions?: PNGOptions,
+  options: { png?: PNGOptions; layout?: BrowserLayout } = {},
 ): Promise<string> {
   const browser = await launchBrowser();
   try {
-    const page = await loadLivePage(browser, url, logger, pngOptions);
+    const page = await loadLivePage(browser, url, logger, options);
     const content = await page.content();
     return makeSelfContained(content);
   } finally {

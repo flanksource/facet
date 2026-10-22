@@ -38,7 +38,7 @@ describe('editable Office exports', () => {
     expect(relationships).toContain('https://example.com');
     const allXml = await Promise.all(Object.values(zip.files).filter((file) => file.name.endsWith('.xml')).map((file) => file.async('string')));
     if (format === 'docx') {
-      expect(Object.keys(zip.files).filter((path) => /word\/embeddings\/.+\.bin$/.test(path))).toHaveLength(2);
+      expect(Object.keys(zip.files).filter((path) => /word\/media\/.+\.emf$/.test(path))).toHaveLength(2);
       expect(xml).toContain('<w:b/>');
       expect(xml).toContain('<w:ilvl');
       expect(allXml.join('')).toContain('PAGE');

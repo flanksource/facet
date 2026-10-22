@@ -3,6 +3,19 @@ import { parseRenderRequest, validateRequestModuleMode } from './request.js';
 
 const MAX_UPLOAD = 1024 * 1024;
 
+describe('Office render requests', () => {
+  it.each(['docx', 'pptx'])('accepts %s in JSON, multipart and gzip requests', async (format) => {
+    for (const request of [jsonRequest({ code: 'export default null', format }), multipartRequest({ format }), gzipRequest(`?format=${format}`)]) {
+      expect((await parseRenderRequest(request, MAX_UPLOAD)).format).toBe(format);
+    }
+  });
+  it.each(['docx', 'pptx'])('rejects incompatible %s render options', async (format) => {
+    for (const options of [{ pdfOptions: {} }, { pngOptions: {} }, { encryption: { ownerPassword: 'example-password' } }, { signature: { selfSigned: true } }]) {
+      await expect(parseRenderRequest(jsonRequest({ code: 'export default null', format, ...options }), MAX_UPLOAD)).rejects.toThrow(/options|Options/);
+    }
+  });
+});
+
 function jsonRequest(body: Record<string, unknown>): Request {
   return new Request('http://localhost/render', {
     method: 'POST',
