@@ -1,6 +1,6 @@
 ---
 name: facet-documents
-description: Author Facet templates — React `.tsx`, Markdown `.md`, or MDX `.mdx` — that render to print-quality PDF, HTML and PNG, covering the Document/Page/Header/Footer structure, page sizes and margins, page numbers, the 60+ component library, the pt-based type scale, and Theme tokens. Use whenever writing or reviewing a facet template, report, datasheet or one-pager; picking a facet component; fixing page/header/footer/margin layout; or converting a Markdown document into a printable PDF.
+description: Author Facet templates — React `.tsx`, Markdown `.md`, or MDX `.mdx` — that render to print-quality PDF, HTML, PNG, editable DOCX and PPTX, covering the Document/Page/Header/Footer structure, page sizes and margins, page numbers, the 60+ component library, the pt-based type scale, and Theme tokens. Use whenever writing or reviewing a facet template, report, datasheet or one-pager; picking a facet component; fixing page/header/footer/margin layout; or converting a Markdown document into a printable PDF.
 argument-hint: "[what the document should contain]"
 user-invocable: true
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
@@ -9,6 +9,8 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
 # Facet Documents
 
 Facet compiles a **default-exported React component** (or a `.md`/`.mdx` file) into HTML, then prints it through headless Chromium into a PDF. You write layout in Tailwind and content in facet components; there is no config file — everything is props.
+
+The same templates support `facet docx` and `facet pptx`. Word preserves editable document flow and section settings; PowerPoint reflows into editable 16:9 or 4:3 slides selected through the PowerPoint page-size presets and continues long text/tables across slides. Headers, footers and page numbers are retained. Complex diagrams/charts are embedded images; ordinary text and tables stay native. DOCX uses native tables for flex/grid columns and preserves data-table padding, borders, merges and alignment. `TableOfContents` exports native Word fields for automatic targets; update the table after pagination, while explicit page labels remain literal. PPTX keeps column groups together and rejects oversized groups. See `examples/office/` for runnable commands and the facet-cli skill for flags.
 
 The one structural fact that trips up every newcomer: **`Header` and `Footer` are siblings of `Page` inside `Document`, not props of `Page`.** They are declared once per page `type` and composited onto every physical page by a multi-pass pipeline. (`README.md` was wrong about this for a long time; trust `examples/kitchen-sink/HeaderSolid.tsx`.)
 
