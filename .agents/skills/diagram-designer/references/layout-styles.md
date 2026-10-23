@@ -118,6 +118,14 @@ For multi-tier flows with distinct stages:
 
 Arrows run `startAnchor="bottom"` → `endAnchor="top"` between tiers.
 
+## Topology Overview
+
+Use `examples/topology-overview.tsx` for a component hierarchy with related operational systems. Keep Teams and Health Checks on the left, a dashed containment group of named `BoxNode`s in the center, and Lookups and Configuration on the right. A separate Components header box leaves a clear vertical gutter for the Sub Components → Components relationship. Nested boxes remain independently named arrow endpoints; use `NodePill` for selector/property/check/config snippets and solid arrows for structural relationships.
+
+## Layered Architecture
+
+Use `examples/architecture.tsx` for AI clients → MCP → platform services, with integration groups alongside the platform. Stack Playbooks, Health Checks, Real-Time RAG, and Unified Catalog as named `BoxNode`s; keep Postgres and K8s CRDs together beneath them. Group integrations by their connector direction so outbound actions and inbound cloud/telemetry data have separate, readable arrows. Render with `--viewport 1500x900`; `--width` changes raster scale, not layout width.
+
 ## Hub & Spoke (product overview)
 
 Personas and systems arranged around a central platform box — the "how it works" style. Runnable example: `examples/hub-and-spoke.tsx`.

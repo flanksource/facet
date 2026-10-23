@@ -51,7 +51,7 @@ Auth: `X-API-Key` header or a bearer token, when `--api-key` is set.
   "template": "Report.tsx",     // …a path under --templates-dir
   "ext":      "tsx",            // tsx | jsx | ts | js | md | mdx
   "data":     { },              // passed to the template as the `data` prop
-  "format":   "pdf",            // html | pdf | png
+  "format":   "pdf",            // html | pdf | png | docx | pptx
   "output":   "direct"          // direct | s3
 }
 ```

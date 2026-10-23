@@ -52,6 +52,10 @@ Recommend 1–2 layout styles matched to the Phase 1 brief and the Phase 2 eleme
 | **Fan-in/Fan-out** | Many sources → central hub → many outputs | `examples/fan-in-fan-out.tsx` |
 | **Entity Model** | ER tables with PK/FK badges and relationship arrows | `examples/entity-model.tsx` |
 | **Hub & Spoke** | Product overview: personas + systems around a central platform | `examples/hub-and-spoke.tsx` |
+| **Topology Overview** | Component hierarchy with selectors, properties, health checks, configuration, and lookups | `examples/topology-overview.tsx` |
+| **Layered Architecture** | AI/MCP access, stacked platform services, storage, and integration groups | `examples/architecture.tsx` |
+
+For recreations of an existing topology or architecture, preserve its named groups and connector directions. Nested `BoxNode`s represent the containment hierarchy; the 7–8 box guideline applies to peer groups, rather than the detail boxes inside a group. These two examples use `--viewport 1500x900` for their wide layouts.
 
 Layout mechanics (rows, columns, spacers, gaps): **`references/layout-styles.md`**.
 
@@ -70,6 +74,14 @@ Now write code, and iterate: render → look at the PNG → fix → repeat. Neve
    ```
 
    The prompt reports alignment, spacing, text-overlap, and arrow-rendering defects as structured findings. Treat those findings as evidence, not as a substitute for looking at the render yourself.
+
+   Then lint the same render, or several renders, PNG, SVG or HTML, for diagram smells through gavel:
+
+   ```bash
+   gavel lint prompt ~/.agents/skills/diagram-designer/prompts/diagram-smells.prompt -V "files=dist/diagram.png dist/other.svg"
+   ```
+
+   `prompts/diagram-smells.prompt` returns gavel lint violations, one per occurrence, with a stable `rule.method` such as `diagram-smells/label-overflow`, `diagram-smells/stub-arrow` or `diagram-smells/png-transparent`. The rules cover text and labels, arrows, boxes and containers, and export. Each id matches its card on the Diagram smells tab of the facet-diagrams playground where one exists. Separate paths with spaces, not commas: `-V` splits on commas. Silence a rule with `--exclude diagram-smells/<rule>`, and use `--summary` to group findings by rule.
 4. **Read `dist/diagram.png`** and review it against the checklist:
    - [ ] No arrow crosses through or routes behind a box
    - [ ] ≤ 4 arrow crossings total; no overlapping arrow bundles at one anchor
@@ -84,7 +96,7 @@ Now write code, and iterate: render → look at the PNG → fix → repeat. Neve
    - [ ] Labels and narrative text wrap naturally to the available width; no manual newline artifacts, avoidable one-word lines, orphaned headings, or isolated continuation fragments
    - [ ] Every icon is legible: `*White` variants only on colored headers, colored variants on light bodies
    - [ ] Only `COLORS.*` tokens (hub-and-spoke may use the semantic Tailwind palette); no text below `text-[8px]`
-5. Fix every visible checklist failure and every actionable Captain finding, then re-render and repeat both reviews. Common symptom → fix:
+5. Fix every visible checklist failure, every actionable Captain finding and every `diagram-smells` violation, then re-render and repeat the reviews. Common symptom → fix:
 
 | Symptom | Fix |
 | --- | --- |
@@ -100,7 +112,7 @@ Now write code, and iterate: render → look at the PNG → fix → repeat. Neve
 | Diagram feels crowded | Cut elements back toward the Phase 2 minimal set, or split into another `<Section>` |
 
    Deep dives: **`references/arrows-and-flows.md`**, **`references/anti-patterns.md`**.
-6. When the checklist passes and Captain returns `pass: true`, show the user the final PNG, then produce the deliverable the Phase 1 brief calls for: `facet html diagram.tsx -o dist` for embedding, `facet pdf` for print, or the PNG itself.
+6. When the checklist passes, Captain returns `pass: true` and `diagram-smells` reports no errors, show the user the final PNG, then produce the deliverable the Phase 1 brief calls for: `facet html diagram.tsx -o dist` for embedding, `facet pdf` for print, or the PNG itself.
 
 ## Core primitives
 
@@ -163,13 +175,14 @@ Animated dashed = active data movement (scraping, streaming, API calls). Static 
 - Use margin/padding to lengthen arrows — insert a spacer div.
 - Give box bodies dark fills — only headers carry color.
 - Put a `*White` icon variant on a light background — it disappears; use the colored variant.
+- Nest a bordered box in a container of the same tint and outline — list members as borderless rows, or give a real nested component its own fill.
 - Ship a render you haven't visually reviewed in the loop.
 
 Full list with rationale: **`references/anti-patterns.md`**.
 
 ## See also
 
-- **`examples/README.md`** — render commands and prerequisites for all six examples; each `examples/*.png` is the rendered preview of its `.tsx`
+- **`examples/README.md`** — render commands and prerequisites for all eight examples; each `examples/*.png` is the rendered preview of its `.tsx`
 - **`references/layout-styles.md`**, **`references/box-styles-and-content.md`**, **`references/arrows-and-flows.md`**, **`references/colors-and-typography.md`**, **`references/anti-patterns.md`**
 - **facet-documents** skill (`../facet-documents/SKILL.md`) — embedding a diagram in a report: `Document`/`Page`/`Section`, components, theming
 - **facet-cli** skill (`../facet-cli/SKILL.md`) — render flags, `--live`, `--viewport`, troubleshooting

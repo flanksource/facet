@@ -1,6 +1,6 @@
 ---
 name: facet-cli
-description: Drive the `facet` CLI — render `.tsx`/`.md`/`.mdx` templates to PDF, HTML and PNG, load and validate data, fill PDF forms, run the render server, lint templates, and diagnose environment problems with `facet doctor`. Use whenever running or scripting facet, choosing render flags, wiring facet into CI or a Makefile, debugging a failed or blank render, or setting up the facet render API.
+description: Drive the `facet` CLI — render `.tsx`/`.md`/`.mdx` templates to PDF, HTML, PNG, editable DOCX and PPTX, load and validate data, fill PDF forms, run the render server, lint templates, and diagnose environment problems with `facet doctor`. Use whenever running or scripting facet, choosing render flags, wiring facet into CI or a Makefile, debugging a failed or blank render, or setting up the facet render API.
 argument-hint: "[what to render or diagnose]"
 user-invocable: true
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
@@ -8,7 +8,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
 
 # Facet CLI
 
-`facet` renders React and Markdown templates into HTML, PDF and PNG. One binary, seven commands, and a handful of flags that account for nearly every real failure.
+`facet` renders React and Markdown templates into HTML, PDF, PNG, editable DOCX and widescreen PPTX.
 
 **There is no `facet generate`, `facet init`, or `facet build`.** If you see those in older docs or a `package.json` script, they are wrong — the verbs are the output formats.
 
@@ -20,7 +20,7 @@ facet doctor                              # always the first move on a broken en
 facet doctor --fix                         # remediate what it can
 ```
 
-Requires Node ≥ 20.19, `pnpm` on `PATH` (facet uses it to reconcile the template's module cache), and a system Chrome/Chromium for PDF/PNG. `facet doctor` checks all of it plus native bindings, sharp, tsx, tar and npmrc leakage; `--json` makes it scriptable.
+Requires Node ≥ 24, `pnpm` on `PATH` (facet uses it to reconcile the template's module cache), and a system Chrome/Chromium for PDF/PNG/DOCX/PPTX. `facet doctor` checks all of it plus native bindings, sharp, tsx, tar and npmrc leakage; `--json` makes it scriptable.
 
 Also available as standalone binaries (GitHub Releases), a container (`ghcr.io/flanksource/facet`, see `DOCKER.md`) and a Helm chart (`chart/`).
 
@@ -31,12 +31,16 @@ Also available as standalone binaries (GitHub Releases), a container (`ghcr.io/f
 | `facet html <templates...>` | Self-contained HTML with CSS inlined |
 | `facet pdf <templates...>` | Print-quality PDF (also writes a sibling `.html`) |
 | `facet png <templates...>` | Raster capture — diagrams, previews, social images |
+| `facet docx <templates...>` | Editable Word content with template page settings and native chrome |
+| `facet pptx <templates...>` | Editable 16:9 or 4:3 slides with automatic continuation and repeated table headers |
 | `facet fill-pdf <template>` | Fill an existing PDF's form fields from data |
 | `facet serve` | Render API + playground on `:3010` |
 | `facet lint [paths...]` | Static checks on templates (defaults to `.`) |
 | `facet doctor` | Environment diagnosis |
 
-`html`, `pdf` and `png` all accept **multiple templates** in one invocation.
+`html`, `pdf`, `png`, `docx` and `pptx` all accept **multiple templates** in one invocation.
+
+Office commands accept shared render/data/schema flags and remote rendering. Configure Word page sizes, margins and chrome using template props. PPTX uses `powerpoint-wide` (16:9) or `powerpoint-standard` (4:3) from template pageSize props, defaults to widescreen for other templates, and has an 18pt default body size (`--font-size` overrides it). Text and tables stay native; complex visuals are images. Column groups must fit one slide. PDF security and PNG capture options are rejected for Office exports. The library exports `generateDOCX` and `generatePPTX` from `@flanksource/facet/cli`. See `examples/office/`.
 
 ## Shared render flags
 

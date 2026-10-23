@@ -8,6 +8,7 @@ facet pptx examples/office/Report.tsx -d examples/office/data.json -o output/rep
 facet pptx examples/office/LiveDiagram.tsx -o output/diagram.pptx
 facet docx examples/office/LiveDiagram.tsx -o output/diagram.docx
 facet docx examples/office/Contents.tsx -o output/contents.docx
+facet pptx examples/office/Contents.tsx -o output/contents.pptx
 ```
 
 `Report.tsx` uses the same components for both formats. `data.json` supplies the report title, region and revenue. `-o` selects the output file; without an explicit filename, the data's `name` field provides the basename.
@@ -23,6 +24,8 @@ Word retains editable content and flows the ledger over physical pages. PowerPoi
 `Contents.tsx` demonstrates a solid header, horizontal footer with native page fields, adjacent editable tables, and a long table with repeating headers. Word preserves cell padding, per-side borders, merged cells and vertical alignment. Tables with automatic CSS layout can adjust their columns to the installed font; `table-layout: fixed` preserves fixed widths.
 
 `TableOfContents` becomes a native Word TOC scoped to its automatic entries. Each `target` must identify exactly one `Page` or element inside a Page. Titles and levels are retained through hidden TC fields at the targets, with native bookmarks and page references. Word refreshes the fields after pagination; accept its update prompt or use **References → Update Table**. Explicit labels such as `page: 'A-1'` remain ordinary text outside the generated field and survive updates. The installed fonts affect Word's final wrapping and page numbers.
+
+In PowerPoint, contents entries show the destination slide number and link to it after text and tables have been paginated. Explicit labels such as `A-1` remain unchanged. Targets can identify a page, heading, inline span, figure, or table cell. External links remain clickable. Missing internal targets fail the export with the target name. Headers and footers retain editable text, backgrounds and individual borders within their declared heights. Native tables preserve padding, vertical alignment, solid/dashed borders on each side, and merged cells; merged row groups stay together when the table continues onto another slide.
 
 The commands also accept Markdown and MDX files, `-l` data loaders, `-s` JSON Schema, `--allow` classification policies, remote template references, and `--facet-url`. No Office application or LibreOffice is required to generate files.
 

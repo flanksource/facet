@@ -2,13 +2,13 @@
 
 Build beautiful, print-ready datasheets and PDFs from React templates.
 
-**@flanksource/facet** is a framework for creating professional datasheets, reports, and documentation using React components. It provides a rich component library optimized for print and browser rendering, along with a powerful CLI for building HTML, PDF, and PNG outputs.
+**@flanksource/facet** is a framework for creating professional datasheets, reports, and documentation using React components. It provides a rich component library optimized for print and browser rendering, along with a CLI for building HTML, PDF, PNG, editable Word documents (DOCX), and PowerPoint presentations (PPTX).
 
 ## Features
 
 - 📄 **Print-optimized components** - 47+ components designed for professional datasheets
 - 🎨 **React & TypeScript** - Full type safety and modern React patterns
-- 🔧 **Zero-config CLI** - Build HTML, PDF, and PNG with a single command
+- 🔧 **Zero-config CLI** - Build HTML, PDF, PNG, DOCX, and PPTX with a single command
 - 🔗 **Component imports** - `import { StatCard } from '@flanksource/facet'`
 - ⚡ **Fast builds** - Powered by Vite with smart caching
 - 📦 **Isolated builds** - `.facet/` build directory (like `.next` in Next.js)
@@ -23,7 +23,7 @@ npm install -g @flanksource/facet-cli
 # or: pnpm add -g @flanksource/facet-cli
 ```
 
-This installs the `facet` command, which runs on your Node.js (>=20.19). Rendering
+This installs the `facet` command, which runs on your Node.js (>=24). Rendering
 uses `pnpm` to populate the shared module cache and reconcile project-specific
 dependencies. PDF output also needs a system Chrome/Chromium. Run `facet doctor`
 to check the environment. For a Node-free environment, use the standalone binary
@@ -109,9 +109,24 @@ This creates:
 facet pdf MyDatasheet.tsx
 ```
 
-### Word artwork
+### 4. Export editable Word documents and PowerPoint slides
+
+```bash
+facet docx examples/office/Report.tsx -d examples/office/data.json -o output/report.docx
+facet pptx examples/office/Report.tsx -d examples/office/data.json -o output/report.pptx
+facet docx report.md -o output/
+facet pptx report.mdx --font-size 20 -o output/
+```
+
+Both commands accept the shared render flags, data loaders, JSON Schema validation, classification policies, remote templates, and `--facet-url`. They require Chrome/Chromium locally; a remote Facet server supplies the browser when `FACET_URL` is set. `generateDOCX(options)` and `generatePPTX(options)` are also exported from `@flanksource/facet/cli`. The render API accepts `format: "docx"` or `format: "pptx"` and returns the usual result URL.
 
 DOCX preserves editable headings, paragraphs, rich text, links, lists, code, and tables. `<Page>` provides section sizes and margins, while Word flows content across physical pages. Headers, footers, figures, and diagram components are captured as paired PDF and PNG assets in the browser. Word receives EMF pictures containing the original PDF bytes and a bitmap display representation, matching Word's PDF insertion format. Figures include their captions and legends, and page numbers remain native Word fields. Vector rendering and selectable diagram text in exported PDFs depend on the viewer's support for the embedded PDF representation. Flex and grid columns use native layout tables; data tables retain cell padding, borders, merges and vertical alignment.
+
+`TableOfContents` exports native Word TOC and page-reference fields for its automatic targets. Accept Word's field-update prompt or use **References → Update Table** after pagination. Explicit page labels remain literal text. See [the Office examples](examples/office/README.md) for a runnable TOC, headers, footers and tables.
+
+PPTX reflows content into 16:9 slides by default, or 4:3 when the template selects `pageSize="powerpoint-standard"`. `powerpoint-wide` explicitly selects 16:9. Use one PowerPoint size per deck. The default body size is 18pt. Each `<Page>` starts a slide; long text and tables continue across slides without shrinking text. Table column headers repeat, merged row groups stay together, and cells retain padding, vertical alignment, and per-side solid/dashed borders. Contents entries show their destination slide numbers and link to them after pagination. Headers and footers retain editable text, backgrounds, borders and page numbers. Headings stay with following content, and column groups stay together. An indivisible group that cannot fit produces an actionable error. Use `--font-size` to change the type scale.
+
+PPTX embeds complex visuals as images. DOCX embeds figures and diagram components as PDF-in-EMF pictures; ordinary images, SVG logos, and canvas captures remain images. Office layout can differ from PDF and browser output. Interactive controls and unsupported content fail explicitly. Configure sizes and chrome in the template; PDF encryption/signing and PNG capture options do not apply. The playground provides Office downloads alongside a labeled HTML source preview. See [the runnable Office example](examples/office/README.md).
 
 ### Render PNG/PDF in multiple sizes
 
