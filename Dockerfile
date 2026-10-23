@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for facet CLI with Chromium browser
 # Supports multi-arch builds (amd64, arm64)
 
-FROM node:22-bookworm-slim AS builder
+FROM node:24-bookworm-slim AS builder
 
 ARG GIT_COMMIT=unknown
 
@@ -44,7 +44,7 @@ RUN cd /app && npm pack --pack-destination /app/ \
 RUN cd cli && pnpm run build
 
 # Final stage with Chromium browser
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 
 ARG VERSION=dev
 
