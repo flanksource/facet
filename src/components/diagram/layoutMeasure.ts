@@ -1,4 +1,4 @@
-import type { ArrowMeasure, LabelMeasure, Rect } from './layoutCheck';
+import type { ArrowMeasure, BoxMeasure, LabelMeasure, LayoutMeasure, Rect, TextMeasure } from './layoutCheck';
 
 const ARROW_SAMPLE_PX = 2;
 
@@ -37,10 +37,61 @@ function measureArrow(container: HTMLElement, group: number): ArrowMeasure[] {
   return [{ name, group, points }];
 }
 
-export function measureLayout(root: HTMLElement): { labels: LabelMeasure[]; arrows: ArrowMeasure[] } {
+const NAME_CHARS = 40;
+const SIDES = ['Top', 'Right', 'Bottom', 'Left'] as const;
+
+const elementName = (element: Element) => (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, NAME_CHARS) || `<${element.tagName.toLowerCase()}>`;
+
+function measureTexts(root: HTMLElement): TextMeasure[] {
+  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const seen = new Set<Element>();
+  const texts: TextMeasure[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const element = node.parentElement;
+    const text = (node.textContent ?? '').trim();
+    if (!element || !text || seen.has(element)) continue;
+    seen.add(element);
+    const fontSize = getComputedStyle(element).fontSize;
+    // Environments without style resolution (jsdom) report no font size to check.
+    if (!fontSize) continue;
+    texts.push({ name: text.slice(0, NAME_CHARS), fontPx: parseFloat(fontSize) });
+  }
+  return texts;
+}
+
+function isBordered(style: CSSStyleDeclaration): boolean {
+  return SIDES.every((side) => parseFloat(style.getPropertyValue(`border-${side.toLowerCase()}-width`)) > 0
+    && !['none', 'hidden', ''].includes(style.getPropertyValue(`border-${side.toLowerCase()}-style`)));
+}
+
+function measureBoxes(root: HTMLElement): BoxMeasure[] {
+  const index = new Map<Element, number>();
+  const boxes: BoxMeasure[] = [];
+  for (const element of root.querySelectorAll('*')) {
+    const style = getComputedStyle(element);
+    if (!isBordered(style)) continue;
+    let ancestor = element.parentElement;
+    while (ancestor && ancestor !== root && !index.has(ancestor)) ancestor = ancestor.parentElement;
+    const parent = ancestor ? index.get(ancestor) : undefined;
+    index.set(element, boxes.length);
+    boxes.push({
+      name: elementName(element),
+      fill: style.backgroundColor,
+      border: style.borderTopColor,
+      borderStyle: style.borderTopStyle,
+      ...(parent === undefined ? {} : { parent }),
+    });
+  }
+  return boxes;
+}
+
+export function measureLayout(root: HTMLElement): LayoutMeasure {
   const arrowContainers = [...root.querySelectorAll<HTMLElement>('[data-facet-arrow]')];
   return {
+    bounds: toRect(root.getBoundingClientRect()),
     labels: measureLabels(root, arrowContainers),
     arrows: arrowContainers.flatMap((container, group) => measureArrow(container, group)),
+    texts: measureTexts(root),
+    boxes: measureBoxes(root),
   };
 }

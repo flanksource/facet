@@ -18,8 +18,33 @@ export interface ArrowMeasure {
   points: { x: number; y: number }[];
 }
 
+export interface TextMeasure {
+  name: string;
+  fontPx: number;
+}
+
+export interface BoxMeasure {
+  name: string;
+  fill: string;
+  border: string;
+  borderStyle: string;
+  /** Index of the nearest bordered ancestor box. */
+  parent?: number;
+}
+
+export interface LayoutMeasure {
+  bounds: Rect;
+  labels: LabelMeasure[];
+  arrows: ArrowMeasure[];
+  texts: TextMeasure[];
+  boxes: BoxMeasure[];
+}
+
 const TOLERANCE_PX = 0.5;
 const ARROW_INSET_PX = 1;
+const EDGE_TOLERANCE_PX = 1;
+const MIN_ARROW_PX = 12;
+const MIN_FONT_PX = 8;
 
 function toMm(px: number): number {
   return Math.round((px * 25.4) / 96 * 10) / 10;
@@ -55,6 +80,47 @@ function crossingErrors(labels: LabelMeasure[], arrows: ArrowMeasure[]): string[
     .map((label) => `arrow ${arrow.name} crosses label ${label.name}`));
 }
 
-export function layoutErrors({ labels, arrows }: { labels: LabelMeasure[]; arrows: ArrowMeasure[] }): string[] {
-  return [...overflowErrors(labels), ...overlapErrors(labels), ...crossingErrors(labels, arrows)];
+function arrowLength(points: ArrowMeasure['points']): number {
+  return points.slice(1).reduce((sum, point, index) => sum + Math.hypot(point.x - points[index]!.x, point.y - points[index]!.y), 0);
+}
+
+function stubErrors(arrows: ArrowMeasure[]): string[] {
+  return arrows
+    .filter(({ points }) => arrowLength(points) < MIN_ARROW_PX)
+    .map(({ name, points }) => `arrow ${name} is a stub, ${toMm(arrowLength(points))}mm long; leave at least ${toMm(MIN_ARROW_PX)}mm between connected nodes`);
+}
+
+function outsideErrors(bounds: Rect, arrows: ArrowMeasure[]): string[] {
+  const outside = ({ x, y }: { x: number; y: number }) => x < bounds.left - EDGE_TOLERANCE_PX || x > bounds.right + EDGE_TOLERANCE_PX
+    || y < bounds.top - EDGE_TOLERANCE_PX || y > bounds.bottom + EDGE_TOLERANCE_PX;
+  return arrows.flatMap(({ name, points }) => {
+    const end = [points[0], points[points.length - 1]].find((point) => point && outside(point));
+    return end ? [`arrow ${name} ends outside the diagram at (${Math.round(end.x)}, ${Math.round(end.y)}); check that both endpoint ids exist`] : [];
+  });
+}
+
+function tinyTextErrors(texts: TextMeasure[]): string[] {
+  return texts
+    .filter(({ fontPx }) => fontPx < MIN_FONT_PX)
+    .map(({ name, fontPx }) => `text "${name}" is ${Math.round(fontPx * 10) / 10}px; diagram text must be at least ${MIN_FONT_PX}px`);
+}
+
+function nestedBoxErrors(boxes: BoxMeasure[]): string[] {
+  return boxes.flatMap((inner) => {
+    const outer = inner.parent === undefined ? undefined : boxes[inner.parent];
+    if (!outer || outer.fill !== inner.fill || outer.border !== inner.border || outer.borderStyle !== inner.borderStyle) return [];
+    return [`box "${inner.name}" repeats the fill and border of its container "${outer.name}"; list it as a borderless row or give it its own fill`];
+  });
+}
+
+export function layoutErrors({ bounds, labels, arrows, texts, boxes }: LayoutMeasure): string[] {
+  return [
+    ...overflowErrors(labels),
+    ...overlapErrors(labels),
+    ...crossingErrors(labels, arrows),
+    ...stubErrors(arrows),
+    ...outsideErrors(bounds, arrows),
+    ...tinyTextErrors(texts),
+    ...nestedBoxErrors(boxes),
+  ];
 }
