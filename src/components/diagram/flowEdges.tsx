@@ -77,7 +77,7 @@ export function flowEdgeArrowProps(input: FlowEdgeArrowInput): FlowEdgeArrowProp
   const shared = {
     color,
     strokeWidth: 1,
-    headSize: 3,
+    headSize: 5,
     ...(edge.label == null ? {} : { labels: { middle: <FlowEdgeLabel edge={edge} color={color} textColor={textColor}>{edge.label}</FlowEdgeLabel> } }),
   };
   if (variant === 'return' && sourceLaneIndex !== targetLaneIndex) {
@@ -106,9 +106,9 @@ export function flowEdgeArrowProps(input: FlowEdgeArrowInput): FlowEdgeArrowProp
   if (variant === 'alternate') {
     return {
       path: 'grid',
-      gridBreak: edge.gridBreak ?? '50%',
+      gridBreak: edge.gridBreak ?? '100%',
       startAnchor: flowAnchor('right', edge.startOffset),
-      endAnchor: flowAnchor('left', edge.endOffset),
+      endAnchor: flowAnchor(flowEdgeEndAnchor(sourceLaneIndex, targetLaneIndex), edge.endOffset),
       dashness: FLOW_STATIC_DASH,
       ...shared,
     };
@@ -135,7 +135,8 @@ export function flowStepLabelPosition<LaneKey extends string>({
   laneIndex: ReadonlyMap<string, number>;
 }): 'top' | 'bottom' {
   const stepLaneIndex = laneIndex.get(step.lane)!;
-  const incoming = edges.find((edge) => edge.to === step.key && (edge.variant ?? 'primary') === 'primary');
+  const incoming = edges.find((edge) => edge.to === step.key && (edge.variant ?? 'primary') === 'primary')
+    ?? edges.find((edge) => edge.to === step.key && edge.variant === 'alternate');
   const sourceLaneIndex = incoming ? laneIndex.get(stepByKey.get(incoming.from)!.lane)! : stepLaneIndex;
   if (sourceLaneIndex > stepLaneIndex) return 'top';
   const returnEdges = edges.filter((edge) => edge.variant === 'return' && (edge.from === step.key || edge.to === step.key));
@@ -164,7 +165,7 @@ export function FlowArrows<LaneKey extends string>({
       key={`${edge.from}-${edge.to}-${edge.variant ?? 'primary'}`}
       variant="primary"
       from={id(edge.from)}
-      to={id(edge.to)}
+      to={id(stepByKey.get(edge.to)!.fullColor ? `${edge.to}-body` : edge.to)}
       {...flowEdgeArrowProps({ edge, source: stepByKey.get(edge.from)!, target: stepByKey.get(edge.to)!, laneIndex, ...options })}
     />
   ));

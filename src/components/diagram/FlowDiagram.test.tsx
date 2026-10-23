@@ -38,6 +38,20 @@ describe('FlowDiagram', () => {
     expect(markup).toContain('data-facet-arrow');
   });
 
+  it('lands connectors on the filled step boundary and preserves its badge as the outgoing port', () => {
+    const dom = renderDom(
+      <FlowDiagram lanes={[...lanes]} steps={[steps[0], { ...steps[1], fullColor: true }]}
+        edges={[{ from: 'submit', to: 'approve' }, { from: 'approve', to: 'submit', variant: 'return' }]} columns={2} />,
+    );
+    const step = dom.querySelector('[data-flow-step="approve"]')!;
+    const [incoming, outgoing] = dom.querySelectorAll('[data-facet-arrow]');
+    const badge = step.querySelector('[data-flow-step-badge-slot] [id]')!;
+    expect(incoming.getAttribute('data-facet-to')).toBe(step.id);
+    expect(step.id).not.toBe('');
+    expect(outgoing.getAttribute('data-facet-from')).toBe(badge.id);
+    expect(badge.id).not.toBe(step.id);
+  });
+
   it('clips lane backgrounds to the framed border radius', () => {
     const markup = renderToStaticMarkup(
       <FlowDiagram
@@ -195,7 +209,7 @@ describe('FlowDiagram edges', () => {
       color: arrowColor,
       dashness: false,
       strokeWidth: 1,
-      headSize: 3,
+      headSize: 5,
     });
   });
 
@@ -216,16 +230,16 @@ describe('FlowDiagram edges', () => {
     expect(dom.querySelector('[data-flow-edge-label]')?.textContent).toBe('Valid evidence');
   });
 
-  it('renders alternate edges as muted static dashes that split from forward edges halfway and land on the target left edge', () => {
+  it('renders cross-lane alternate edges as muted dashes with one bend into the facing target edge', () => {
     expect(edgeProps({ from: 'submit', to: 'approve', variant: 'alternate' })).toEqual({
       path: 'grid',
-      gridBreak: '50%',
+      gridBreak: '100%',
       startAnchor: 'right',
-      endAnchor: 'left',
+      endAnchor: 'top',
       color: mutedColor,
       dashness: staticDash,
       strokeWidth: 1,
-      headSize: 3,
+      headSize: 5,
     });
   });
 
@@ -242,7 +256,7 @@ describe('FlowDiagram edges', () => {
       color: arrowColor,
       dashness: staticDash,
       strokeWidth: 1,
-      headSize: 3,
+      headSize: 5,
     });
   });
 
@@ -258,7 +272,7 @@ describe('FlowDiagram edges', () => {
       color: arrowColor,
       dashness: staticDash,
       strokeWidth: 1,
-      headSize: 3,
+      headSize: 5,
     });
   });
 
@@ -389,7 +403,7 @@ describe('FlowDiagram steps and lanes', () => {
     expect([labelOf('submit'), labelOf('approve')]).toEqual([label, 'bottom']);
   });
 
-  it('keeps the label below the badge when only an alternate edge arrives from below, since it lands on the left edge', () => {
+  it('keeps the label above the badge when an alternate edge arrives from a lower lane', () => {
     const dom = renderDom(
       <FlowDiagram
         lanes={[...lanes]}
@@ -399,7 +413,7 @@ describe('FlowDiagram steps and lanes', () => {
       />,
     );
 
-    expect(dom.querySelector('[data-flow-step="submit"]')?.children[1].getAttribute('data-flow-step-label')).toBe('bottom');
+    expect(dom.querySelector('[data-flow-step="submit"]')?.children[0].getAttribute('data-flow-step-label')).toBe('top');
   });
 
   it('uses an explicit label side and minimum width for a step annotation', () => {

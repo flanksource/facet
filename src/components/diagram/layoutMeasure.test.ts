@@ -75,4 +75,50 @@ describe('measureLayout', () => {
 
     expect(() => measureLayout(root)).toThrow('Diagram: arrow a -> b has no screen transform');
   });
+
+  it('measures the diagram bounds from the root', () => {
+    const root = document.createElement('div');
+    root.getBoundingClientRect = () => domRect(5, 10, 300, 200);
+
+    expect(measureLayout(root).bounds).toEqual({ left: 5, top: 10, right: 305, bottom: 210 });
+  });
+
+  it('records the computed font size of each element holding text, once per element', () => {
+    const root = document.createElement('div');
+    const title = document.createElement('div');
+    title.style.fontSize = '7.5px';
+    title.append('Run history', document.createElement('br'), 'Sessions');
+    const blank = document.createElement('span');
+    blank.style.fontSize = '4px';
+    blank.textContent = '  ';
+    root.append(title, blank);
+    document.body.append(root);
+
+    expect(measureLayout(root).texts).toEqual([{ name: 'Run history', fontPx: 7.5 }]);
+    root.remove();
+  });
+
+  it('records bordered boxes with their fill, border and nearest bordered ancestor', () => {
+    const root = document.createElement('div');
+    const zone = document.createElement('section');
+    zone.style.cssText = 'border: 1px solid rgb(147, 197, 253); background-color: rgb(239, 246, 255)';
+    zone.append('Control plane');
+    const wrapper = document.createElement('div');
+    const member = document.createElement('div');
+    member.style.cssText = 'border: 1px dashed rgb(147, 197, 253); background-color: rgb(255, 255, 255)';
+    member.textContent = 'Run API';
+    const divider = document.createElement('div');
+    divider.style.cssText = 'border-bottom: 1px solid rgb(226, 232, 240)';
+    divider.textContent = 'Engine';
+    wrapper.append(member, divider);
+    zone.append(wrapper);
+    root.append(zone);
+    document.body.append(root);
+
+    expect(measureLayout(root).boxes).toEqual([
+      { name: 'Control planeRun APIEngine', fill: 'rgb(239, 246, 255)', border: 'rgb(147, 197, 253)', borderStyle: 'solid' },
+      { name: 'Run API', fill: 'rgb(255, 255, 255)', border: 'rgb(147, 197, 253)', borderStyle: 'dashed', parent: 0 },
+    ]);
+    root.remove();
+  });
 });

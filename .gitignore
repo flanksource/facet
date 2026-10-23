@@ -206,3 +206,4 @@ cli/npm-dist/
 # Rendered *.html is regenerable and deliberately not shipped.
 !.agents/skills/*/examples/*.png
 examples/quickstart/node_modules
+/output/

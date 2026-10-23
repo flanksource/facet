@@ -50,6 +50,8 @@ export interface BoxNodeProps {
   minWidth?: string;
   /** Compact padding (p-2 header/body instead of px-3 py-2 / p-3). */
   compact?: boolean;
+  /** Dashed instead of solid border, for an open slot the reader fills with their own content. */
+  dashed?: boolean;
   /**
    * Tailwind shadow class for the box, e.g. "shadow-2xl" for a hub. Pass
    * "shadow-none" for print: a shadow makes Chromium emit a PDF soft mask, and
@@ -227,6 +229,7 @@ export default function BoxNode({
   borderColor,
   minWidth,
   compact,
+  dashed,
   shadow = 'shadow-lg',
   ports,
   className,
@@ -251,7 +254,8 @@ export default function BoxNode({
     <div
       id={id}
       className={[
-        'rounded-xl overflow-hidden border-2 border-solid',
+        'rounded-xl overflow-hidden border-2',
+        dashed ? 'border-dashed' : 'border-solid',
         shadow,
         derivedBorderClass,
         // The box is the grid's centre cell; ports occupy the surrounding slots.
