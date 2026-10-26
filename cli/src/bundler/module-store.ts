@@ -273,15 +273,22 @@ export async function prepareProjectModules(options: PrepareProjectModulesOption
 
   const manifest = readFileSync(join(options.facetRoot, 'package.json'), 'utf-8');
   const projectIdentity = digest(`${manifest}\0${options.seed.identity}`);
-  const staleReason = projectModulesStaleReason(options.facetRoot, projectIdentity);
-  if (!staleReason) {
+  if (!projectModulesStaleReason(options.facetRoot, projectIdentity)) {
     options.logger.debug('Project modules match the generated manifest; skipping pnpm install');
     return;
   }
 
+  // Renders of one project share .facet/node_modules. Without the lock, each
+  // concurrent render installs and swaps it, under another render's Vite.
+  const release = await acquireLock(join(options.facetRoot, 'node_modules.lock'));
   const staging = join(options.consumerRoot, `.facet-install-${process.pid}-${randomUUID()}`);
-  mkdirSync(staging, { recursive: true });
   try {
+    const staleReason = projectModulesStaleReason(options.facetRoot, projectIdentity);
+    if (!staleReason) {
+      options.logger.debug('Another render reconciled the project modules while this one waited');
+      return;
+    }
+    mkdirSync(staging, { recursive: true });
     await seedProjectInstall({ ...options, staging });
     writeFileSync(join(staging, 'package.json'), manifest);
     const npmrc = readFileSync(join(options.facetRoot, '.npmrc'), 'utf-8');
@@ -299,6 +306,7 @@ export async function prepareProjectModules(options: PrepareProjectModulesOption
     options.logger.success(`Project modules reconciled in ${((performance.now() - installStartedAt) / 1000).toFixed(1)}s`);
   } finally {
     removePath(staging);
+    release();
   }
 }
 

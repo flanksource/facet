@@ -268,6 +268,49 @@ describe('project module preparation', () => {
     expect(readFileSync(join(facetRoot, 'node_modules/custom-module/package.json'), 'utf-8')).toContain('2.0.0');
   });
 
+  it('installs once when two renders prepare the same project concurrently', async () => {
+    const root = scratch();
+    const consumerRoot = join(root, 'consumer');
+    const facetRoot = join(consumerRoot, '.facet');
+    mkdirSync(facetRoot, { recursive: true });
+    writeFileSync(join(facetRoot, 'package.json'), JSON.stringify({
+      name: '.facet-build',
+      private: true,
+      dependencies: { '@flanksource/facet': facetVersion },
+    }));
+    writeFileSync(join(facetRoot, '.npmrc'), 'node-linker=hoisted\n');
+    const seed = await ensureGlobalModuleStore({
+      cacheRoot: join(root, 'cache'),
+      facetVersion,
+      facetPackage: embeddedPackage(),
+      logger: new Logger(false),
+      install: async (installRoot) => {
+        populateSentinels(installRoot);
+        return '9.15.9';
+      },
+    });
+    let installs = 0;
+    const prepare = () => prepareProjectModules({
+      consumerRoot,
+      facetRoot,
+      seed,
+      logger: new Logger(false),
+      platform: 'linux',
+      install: async (installRoot) => {
+        installs++;
+        // Long enough for the other render to reach its own install.
+        await new Promise((resolveWait) => setTimeout(resolveWait, 200));
+        populateSentinels(installRoot);
+        return '9.15.9';
+      },
+    });
+
+    await Promise.all([prepare(), prepare()]);
+
+    expect(installs).toBe(1);
+    expect(existsSync(join(facetRoot, 'node_modules/react/package.json'))).toBe(true);
+  });
+
   it('links skip mode directly to the global install without reconciling project modules', async () => {
     const root = scratch();
     const consumerRoot = join(root, 'consumer');
