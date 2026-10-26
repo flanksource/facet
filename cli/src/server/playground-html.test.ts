@@ -28,6 +28,7 @@ describe('playgroundHtml', () => {
       handlesResultLoadFailure: html.includes('function onPreviewLoadError(url)'),
       // The base64/Blob path was unreachable: emitResult always sends a url.
       hasDeadBlobBranch: html.includes('URL.createObjectURL'),
+      hasFacetFavicon: html.includes('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg'),
     }).toEqual({
       hasEditor: true,
       hasExamples: true,
@@ -50,6 +51,7 @@ describe('playgroundHtml', () => {
       showsTimingsInBanner: true,
       handlesResultLoadFailure: true,
       hasDeadBlobBranch: false,
+      hasFacetFavicon: true,
     });
   });
 });

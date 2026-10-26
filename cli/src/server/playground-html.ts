@@ -2,12 +2,16 @@ import { PLAYGROUND_CONTROLS_SCRIPT } from './playground-controls-script.js';
 import { PLAYGROUND_EXAMPLES_SCRIPT } from './playground-examples-script.js';
 import { pageSizeOptions } from './page-size-options.js';
 
+// assets/brand/web/favicon.svg, inlined so `facet serve` needs no icon route.
+const FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><g transform="translate(-43.01 -43.01) scale(1.336)"><path fill="#131f3b" d="M88 36H144V72H124V100H140V132H124V220H88V132H60V100H88Z"/><path fill="#3578e5" d="M160 36L196 72V116H160Z"/></g></svg>';
+
 const HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Facet Playground</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(FAVICON_SVG)}">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #1e1e1e; color: #ccc; }

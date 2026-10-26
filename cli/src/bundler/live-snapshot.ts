@@ -93,6 +93,16 @@ async function loadLivePage(
   if (pageErrors.length > 0) {
     throw new Error(`Live render failed — browser errors:\n${pageErrors.join('\n')}`);
   }
+  // The template can mount after the network goes idle — later still on a busy
+  // machine — so whether it has diagrams is only known once it has mounted.
+  try {
+    await page.waitForFunction(
+      () => (document.getElementById('facet-root')?.childElementCount ?? 0) > 0,
+      { timeout: READY_TIMEOUT_MS },
+    );
+  } catch {
+    throw new Error(`Live render produced an empty #facet-root — the template did not mount within ${READY_TIMEOUT_MS}ms`);
+  }
   if (normalizedPNG) await resolvePNGTarget(page, normalizedPNG);
 
   // A <Diagram> flips its root's data-facet-ready to "true" after react-xarrows
@@ -103,14 +113,6 @@ async function loadLivePage(
     await waitForDiagrams(page, logger);
   } else {
     await new Promise((r) => setTimeout(r, FALLBACK_SETTLE_MS));
-  }
-
-  const rendered = await page.evaluate(() => {
-    const root = document.getElementById('facet-root');
-    return (root?.childElementCount ?? 0) > 0;
-  });
-  if (!rendered) {
-    throw new Error('Live render produced an empty #facet-root — the template did not mount');
   }
   return page;
 }

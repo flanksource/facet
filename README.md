@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flanksource/facet/main/assets/brand/source/facet-horizontal-reversed.svg">
+    <img src="https://raw.githubusercontent.com/flanksource/facet/main/assets/brand/source/facet-horizontal.svg" alt="facet" width="300">
+  </picture>
+</p>
+
 # @flanksource/facet
 
 Build beautiful, print-ready datasheets and PDFs from React templates.
