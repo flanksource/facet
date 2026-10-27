@@ -10,6 +10,7 @@ import { hasMermaidCodeBlocks, renderBrowserHTML } from '../utils/browser-html.j
 import { Logger } from '../utils/logger.js';
 import { RenderTimings } from '../utils/performance.js';
 import { applyPDFSecurity } from '../utils/pdf-security.js';
+import { waitForAbortable } from '../utils/abort-lock.js';
 import type { ServerConfig } from './config.js';
 import { RenderError, errorResponse } from './errors.js';
 import {
@@ -110,14 +111,12 @@ export async function handleRender(
   }
 
   const renderTimeout = parsed.timeoutMs ?? config.renderTimeout;
-  const renderPromise = doRender({ parsed, config, pool, templates, cache, s3, logger, timings });
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new RenderError('RENDER_TIMEOUT', `Render timed out after ${renderTimeout}ms`, 504)), renderTimeout);
-  });
+  const timeout = new AbortController();
+  const signal = AbortSignal.any([request.signal, timeout.signal]);
+  const timer = setTimeout(() => timeout.abort(new RenderError('RENDER_TIMEOUT', `Render timed out after ${renderTimeout}ms`, 504)), renderTimeout);
 
   try {
-    return addServerTiming(await Promise.race([renderPromise, timeoutPromise]), timings);
+    return addServerTiming(await waitForAbortable(doRender({ parsed, config, pool, templates, cache, s3, logger, timings, signal }), signal), timings);
   } catch (error) {
     return addServerTiming(errorResponse(error), timings);
   } finally {
@@ -279,29 +278,38 @@ interface RenderOptions {
   s3?: S3Uploader;
   logger: Logger;
   timings: RenderTimings;
+  signal?: AbortSignal;
 }
 
 interface DirectRenderOptions extends RenderOptions {
   cache: RenderCache;
 }
 
-async function materializeBrowserHTML(html: string, pool: WorkerPool): Promise<string> {
+async function materializeBrowserHTML(html: string, pool: WorkerPool, logger: Logger, signal?: AbortSignal): Promise<string> {
+  signal?.throwIfAborted();
   if (!hasMermaidCodeBlocks(html)) return html;
 
-  const worker = await pool.acquire();
+  const worker = await pool.acquire(signal);
+  const abort = () => { void worker.browser.close().catch((error: unknown) => logger.warn(`Failed to stop browser: ${String(error)}`)); };
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) abort();
   let healthy = true;
   try {
-    return await renderBrowserHTML({ html, browser: worker.browser });
+    const result = await renderBrowserHTML({ html, browser: worker.browser });
+    signal?.throwIfAborted();
+    return result;
   } catch (error) {
     healthy = worker.browser.connected;
     throw error;
   } finally {
-    await pool.release(worker, healthy);
+    signal?.removeEventListener('abort', abort);
+    await pool.release(worker, healthy && !signal?.aborted);
   }
 }
 
 async function doRender(options: DirectRenderOptions): Promise<Response> {
-  const { parsed, config, pool, templates, cache, s3, logger, timings } = options;
+  const { parsed, config, pool, templates, cache, s3, logger, timings, signal } = options;
+  signal?.throwIfAborted();
   const cacheKey = cacheKeyForRequest(parsed, config);
   const cacheable = isCacheable(parsed);
   const cached = cacheable ? cache.lookup(cacheKey) : undefined;
@@ -326,6 +334,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
     const resolved = await resolveTemplateSource(parsed, templates, config);
     tempDir = resolved.tempDir;
     archiveCleanup = resolved.archiveCleanup;
+    signal?.throwIfAborted();
 
     let html = await renderHTML({
       consumerRoot: resolved.consumerRoot,
@@ -338,9 +347,11 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       live: parsed.live,
       postProcessCss: parsed.postProcessCss,
       skipModules: config.skipModules,
+      signal,
       redact: parsed.redact,
       pngOptions: parsed.pngOptions,
     });
+    signal?.throwIfAborted();
     html = await injectHeaderFooter({
       html,
       parsed,
@@ -349,12 +360,14 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       persistentLoader: config.persistentSsr,
       timings,
       skipModules: config.skipModules,
+      signal,
     });
+    signal?.throwIfAborted();
     // Once, ahead of the format branch, so html, png and pdf all carry it.
     html = injectFontScale(html, parsed.fontSize);
 
     if (parsed.format === 'html') {
-      html = await materializeBrowserHTML(html, pool);
+      html = await materializeBrowserHTML(html, pool, logger, signal);
       cache.set(cacheKey, 'text/html', Buffer.from(html));
       return respondWithOutput({
         content: html,
@@ -368,7 +381,10 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
     }
 
     const metadata = renderFormatMetadata(parsed.format);
-    const worker = await pool.acquire();
+    const worker = await pool.acquire(signal);
+    const abort = () => { void worker.browser.close().catch((error: unknown) => logger.warn(`Failed to stop browser: ${String(error)}`)); };
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
     let workerHealthy = true;
     try {
       let output: Buffer;
@@ -386,6 +402,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
           }, logger);
         }
       }
+      signal?.throwIfAborted();
       const storageKey = cacheable ? cacheKey : freshResultKey();
       cache.set(storageKey, metadata.contentType, output);
       if (parsed.output === 's3') {
@@ -404,7 +421,8 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       workerHealthy = worker.browser.connected;
       throw error;
     } finally {
-      await pool.release(worker, workerHealthy);
+      signal?.removeEventListener('abort', abort);
+      await pool.release(worker, workerHealthy && !signal?.aborted);
     }
   } finally {
     archiveCleanup?.();
@@ -459,7 +477,7 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
     // Once, ahead of the format branch, so html, png and pdf all carry it.
     html = injectFontScale(html, parsed.fontSize);
     if (parsed.format === 'html') {
-      html = await materializeBrowserHTML(html, pool);
+      html = await materializeBrowserHTML(html, pool, logger);
       progress.emit('done', 'HTML render complete');
       return {
         content: html,

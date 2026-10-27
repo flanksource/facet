@@ -144,14 +144,26 @@ function makeSelfContained(html: string): string {
 export async function snapshotHTML(
   url: string,
   logger: Logger,
-  pngOptions?: PNGOptions,
+  options: { png?: PNGOptions; signal?: AbortSignal } = {},
 ): Promise<string> {
+  options.signal?.throwIfAborted();
   const browser = await launchBrowser();
+  let closing: Promise<void> | undefined;
+  const close = () => closing ??= browser.close();
+  const abort = () => { void close().catch(() => undefined); };
+  options.signal?.addEventListener('abort', abort, { once: true });
+  if (options.signal?.aborted) abort();
   try {
-    const page = await loadLivePage(browser, url, logger, pngOptions);
+    options.signal?.throwIfAborted();
+    const page = await loadLivePage(browser, url, logger, options.png);
     const content = await page.content();
+    options.signal?.throwIfAborted();
     return makeSelfContained(content);
+  } catch (error) {
+    options.signal?.throwIfAborted();
+    throw error;
   } finally {
-    await browser.close();
+    options.signal?.removeEventListener('abort', abort);
+    await close();
   }
 }

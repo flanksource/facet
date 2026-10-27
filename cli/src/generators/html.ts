@@ -67,7 +67,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
       skipModules: options.skipModules,
     });
     try {
-      const snapshot = await snapshotHTML(server.url, logger, options.pngOptions);
+      const snapshot = await snapshotHTML(server.url, logger, { png: options.pngOptions });
       const scoped = options.cssScope ? scopeHTML(snapshot, { scopeClass: options.cssScope }) : snapshot;
       // The file is standalone, so the scale has to be in the emitted bytes.
       const html = injectFontScale(scoped, options.fontSize);

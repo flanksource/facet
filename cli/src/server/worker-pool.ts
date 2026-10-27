@@ -82,7 +82,8 @@ export class WorkerPool {
     this.logger.info(`Worker pool ready (${this.total} browsers)`);
   }
 
-  async acquire(): Promise<Worker> {
+  async acquire(signal?: AbortSignal): Promise<Worker> {
+    signal?.throwIfAborted();
     if (this.shuttingDown) {
       throw new RenderError('RENDER_FAILED', 'Server is shutting down', 503);
     }
@@ -99,14 +100,24 @@ export class WorkerPool {
 
     return new Promise<Worker>((resolve, reject) => {
       let timer: ReturnType<typeof setTimeout>;
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', abort);
+      };
+      const abort = () => {
+        const index = this.waiting.indexOf(waiter);
+        if (index >= 0) this.waiting.splice(index, 1);
+        cleanup();
+        reject(signal?.reason);
+      };
       const waiter = {
         resolve: (worker: Worker) => {
-          clearTimeout(timer);
+          cleanup();
           this.active.add(worker);
           resolve(worker);
         },
         reject: (error: Error) => {
-          clearTimeout(timer);
+          cleanup();
           reject(error);
         },
       };
@@ -114,8 +125,10 @@ export class WorkerPool {
       timer = setTimeout(() => {
         const index = this.waiting.indexOf(waiter);
         if (index >= 0) this.waiting.splice(index, 1);
-        reject(new RenderError('RENDER_FAILED', 'Timed out waiting for a browser worker', 503));
+        waiter.reject(new RenderError('RENDER_FAILED', 'Timed out waiting for a browser worker', 503));
       }, this.limits.acquireTimeoutMs);
+      signal?.addEventListener('abort', abort, { once: true });
+      if (signal?.aborted) abort();
     });
   }
 
