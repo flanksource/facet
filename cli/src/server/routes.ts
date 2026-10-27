@@ -10,6 +10,7 @@ import { renderBinary } from './render-binary.js';
 import { hasMermaidCodeBlocks, renderBrowserHTML } from '../utils/browser-html.js';
 import { Logger } from '../utils/logger.js';
 import { RenderTimings } from '../utils/performance.js';
+import { waitForAbortable } from '../utils/abort-lock.js';
 import type { ServerConfig } from './config.js';
 import { RenderError, errorResponse } from './errors.js';
 import {
@@ -389,6 +390,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
     let workerHealthy = true;
     try {
       const output = await renderBinary({ browser: worker.browser, html, parsed, timings, logger, consumerRoot: resolved.consumerRoot });
+      signal?.throwIfAborted();
       const storageKey = cacheable ? cacheKey : freshResultKey();
       cache.set(storageKey, metadata.contentType, output);
       if (parsed.output === 's3') {

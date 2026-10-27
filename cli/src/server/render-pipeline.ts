@@ -115,6 +115,7 @@ interface RenderHTMLOptions {
   redact?: RedactPolicy;
   pngOptions?: PNGOptions;
   layout?: BrowserLayout;
+  signal?: AbortSignal;
 }
 
 export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
@@ -131,7 +132,7 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
       signal: options.signal,
     });
     try {
-      return await snapshotHTML(server.url, logger, { png: options.pngOptions, layout: options.layout });
+      return await snapshotHTML(server.url, logger, { png: options.pngOptions, layout: options.layout, signal: options.signal });
     } finally {
       await server.close();
     }

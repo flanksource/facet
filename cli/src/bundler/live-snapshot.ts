@@ -148,7 +148,7 @@ function makeSelfContained(html: string): string {
 export async function snapshotHTML(
   url: string,
   logger: Logger,
-  options: { png?: PNGOptions; layout?: BrowserLayout } = {},
+  options: { png?: PNGOptions; layout?: BrowserLayout; signal?: AbortSignal } = {},
 ): Promise<string> {
   options.signal?.throwIfAborted();
   const browser = await launchBrowser();
@@ -158,6 +158,7 @@ export async function snapshotHTML(
   options.signal?.addEventListener('abort', abort, { once: true });
   if (options.signal?.aborted) abort();
   try {
+    options.signal?.throwIfAborted();
     const page = await loadLivePage(browser, url, logger, options);
     const content = await page.content();
     options.signal?.throwIfAborted();
