@@ -1,32 +1,32 @@
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import Ajv, { type ValidateFunction } from 'ajv';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { Logger } from './logger.js';
 
 export class DataValidator {
-  private draft7: Ajv;
-  private draft2020: Ajv2020;
-
-  constructor(private logger: Logger) {
-    // Schemas are authored for their whole toolchain, not just this validator:
-    // they also carry annotations telling an editor how to label or draw a
-    // field. Those keywords constrain nothing, so strict schema checking would
-    // reject a document that is perfectly valid. Every real constraint —
-    // types, enums, required, formats — is still enforced.
-    const options = { allErrors: true, verbose: true, strictSchema: false };
-    this.draft7 = new Ajv(options);
-    this.draft2020 = new Ajv2020(options);
-  }
+  constructor(private logger: Logger) {}
 
   async validate(data: Record<string, unknown>, schemaPath: string): Promise<void> {
     this.logger.debug(`Validating data against schema: ${schemaPath}`);
 
-    const schema = await this.loadSchema(schemaPath);
+    const absolutePath = resolve(process.cwd(), schemaPath);
+    const schema = await this.loadSchema(absolutePath);
+    const options = {
+      allErrors: true,
+      verbose: true,
+      strictSchema: false,
+      loadSchema: async (uri: string) => {
+        const url = new URL(uri);
+        if (url.protocol !== 'file:') throw new Error(`Only local file schema references are supported: ${uri}`);
+        return this.loadSchema(fileURLToPath(url));
+      },
+    };
     const ajv = schema.$schema === 'https://json-schema.org/draft/2020-12/schema'
-      ? this.draft2020
-      : this.draft7;
-    const validate: ValidateFunction = ajv.compile(schema);
+      ? new Ajv2020(options)
+      : new Ajv(options);
+    const validate: ValidateFunction = await ajv.compileAsync(schema);
 
     const valid = validate(data);
 
@@ -46,7 +46,16 @@ export class DataValidator {
     try {
       const absolutePath = resolve(process.cwd(), filePath);
       const content = await readFile(absolutePath, 'utf-8');
-      return JSON.parse(content);
+      const parsed: unknown = JSON.parse(content);
+      const documentUri = pathToFileURL(absolutePath).href;
+      if (typeof parsed === 'boolean') return { $id: documentUri, allOf: [parsed] };
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(`Schema must be an object or boolean: ${absolutePath}`);
+      }
+      const schema = parsed as Record<string, unknown>;
+      if (schema.$id === undefined) schema.$id = documentUri;
+      else if (typeof schema.$id === 'string') schema.$id = new URL(schema.$id, documentUri).href;
+      return schema;
     } catch (error) {
       throw new Error(`Failed to load schema file: ${error instanceof Error ? error.message : String(error)}`);
     }
