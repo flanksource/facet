@@ -28,6 +28,7 @@ export interface ViteServerOptions {
   timings?: RenderTimings;
   redact?: RedactPolicy;
   skipModules?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface ViteServer {
@@ -44,6 +45,7 @@ const STARTUP_TIMEOUT_MS = 60_000;
  * Start a Vite dev server serving the template. Caller MUST await `close()`.
  */
 export async function startViteServer(options: ViteServerOptions): Promise<ViteServer> {
+  options.signal?.throwIfAborted();
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
   const timings = options.timings ?? new RenderTimings();
 
@@ -65,6 +67,7 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
   facetDir.generateClientScaffold(data);
 
   await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules));
+  options.signal?.throwIfAborted();
 
   const facetRoot = realpathSync(facetDir.getFacetRoot());
 
@@ -80,7 +83,7 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
         stdio: ['ignore', 'pipe', 'inherit'],
       },
     });
-    return { proc, url: await readHandshake(proc) };
+    return { proc, url: await readHandshake(proc, options.signal) };
   });
   logger.debug(`Vite dev server ready at ${url}`);
 
@@ -106,7 +109,7 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
 }
 
 /** Read the dev server's stdout until the FACET_DEV_URL handshake line appears. */
-function readHandshake(proc: ChildProcess): Promise<string> {
+function readHandshake(proc: ChildProcess, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     let buffer = '';
     let settled = false;
@@ -114,7 +117,16 @@ function readHandshake(proc: ChildProcess): Promise<string> {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
       fn();
+    };
+
+    const abort = () => {
+      try {
+        if (!proc.kill('SIGKILL')) finish(() => reject(new Error('Could not stop Vite dev server on cancellation')));
+      } catch (error) {
+        finish(() => reject(error));
+      }
     };
 
     const timer = setTimeout(() => {
@@ -131,8 +143,10 @@ function readHandshake(proc: ChildProcess): Promise<string> {
       if (line) finish(() => resolve(line.slice(HANDSHAKE_PREFIX.length).trim()));
     });
     proc.once('exit', () => {
-      finish(() => reject(new Error('Vite dev server exited before emitting FACET_DEV_URL handshake')));
+      finish(() => reject(signal?.aborted ? signal.reason : new Error('Vite dev server exited before emitting FACET_DEV_URL handshake')));
     });
     proc.once('error', (err) => finish(() => reject(err)));
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
   });
 }

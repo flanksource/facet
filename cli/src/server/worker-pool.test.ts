@@ -3,6 +3,15 @@ import { WorkerPool } from './worker-pool.js';
 
 // Queue policy tests do not start Chromium; an unstarted pool has no available workers.
 describe('WorkerPool queue policy', () => {
+  it('removes an aborted acquisition from the waiting queue', async () => {
+    const pool = new WorkerPool(1, false, { acquireTimeoutMs: 5_000 });
+    const controller = new AbortController();
+    const pending = pool.acquire(controller.signal);
+    expect(pool.stats().waiting).toBe(1);
+    controller.abort(new Error('request cancelled'));
+    await expect(pending).rejects.toThrow('request cancelled');
+    expect(pool.stats().waiting).toBe(0);
+  });
   it('times out browser acquisition', async () => {
     const pool = new WorkerPool(1, false, { acquireTimeoutMs: 10 });
     await expect(pool.acquire()).rejects.toThrow('Timed out waiting for a browser worker');

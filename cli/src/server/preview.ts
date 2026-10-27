@@ -25,6 +25,7 @@ import { readFileSync } from 'fs';
 import { assetPath } from '../utils/assets.js';
 import { ensureGlobalModuleStore } from '../bundler/module-store.js';
 import { resolveFacetPackageOverride } from '../builders/facet-directory.js';
+import { requestAbortSignal } from './request-abort.js';
 
 const facetVersion: string = JSON.parse(readFileSync(assetPath('package.json'), 'utf-8')).version;
 const openapiSpec: string = readFileSync(assetPath('openapi.yaml'), 'utf-8');
@@ -136,8 +137,9 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   }
 
   const httpServer = createHttpServer((req, res) => {
+    const signal = requestAbortSignal(req, res);
     Promise.resolve()
-      .then(() => nodeToWebRequest(req))
+      .then(() => nodeToWebRequest(req, signal))
       .then((request) => withPersistentSsrLoaderOwner(ssrLoaderOwner, () => handleRequest(request)))
       .then((response) => writeWebResponse(res, response))
       .catch((err) => {
@@ -174,7 +176,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
 }
 
 /** Adapt a node:http request into a Web Fetch Request the route handlers expect. */
-function nodeToWebRequest(req: IncomingMessage): Request {
+function nodeToWebRequest(req: IncomingMessage, signal: AbortSignal): Request {
   const host = req.headers.host ?? 'localhost';
   const url = `http://${host}${req.url ?? '/'}`;
 
@@ -191,6 +193,7 @@ function nodeToWebRequest(req: IncomingMessage): Request {
   return new Request(url, {
     method,
     headers,
+    signal,
     body: hasBody ? (Readable.toWeb(req) as ReadableStream<Uint8Array>) : undefined,
     // Required by undici when a streaming body is provided.
     ...(hasBody ? { duplex: 'half' } : {}),

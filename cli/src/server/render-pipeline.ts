@@ -113,6 +113,7 @@ interface RenderHTMLOptions {
   skipModules?: boolean;
   redact?: RedactPolicy;
   pngOptions?: PNGOptions;
+  signal?: AbortSignal;
 }
 
 export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
@@ -126,9 +127,10 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
       timings,
       redact: options.redact,
       skipModules: options.skipModules,
+      signal: options.signal,
     });
     try {
-      return await snapshotHTML(server.url, logger, options.pngOptions);
+      return await snapshotHTML(server.url, logger, { png: options.pngOptions, signal: options.signal });
     } finally {
       await server.close();
     }
@@ -144,6 +146,7 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
     timings,
     redact: options.redact,
     skipModules: options.skipModules,
+    signal: options.signal,
   });
   try {
     return await applyTailwind({
@@ -179,7 +182,7 @@ export async function renderHTMLStreamed(options: StreamedHTMLOptions): Promise<
       skipModules: options.skipModules,
     });
     try {
-      return await snapshotHTML(server.url, logger, options.pngOptions);
+      return await snapshotHTML(server.url, logger, { png: options.pngOptions });
     } finally {
       await server.close();
     }
@@ -237,6 +240,7 @@ async function buildFragment(options: {
   timings: RenderTimings;
   persistentLoader: boolean;
   skipModules?: boolean;
+  signal?: AbortSignal;
 }): Promise<string> {
   const { consumerRoot, filename, code, data, logger, timings, persistentLoader } = options;
   const fragmentDir = join(consumerRoot, '.facet-fragments');
@@ -255,6 +259,7 @@ async function buildFragment(options: {
     timings,
     timingPhase: 'header-generation',
     skipModules: options.skipModules,
+    signal: options.signal,
   });
   try {
     return result.html;
@@ -283,6 +288,7 @@ export async function injectHeaderFooter(options: {
   progress?: RenderProgress;
   persistentLoader?: boolean;
   skipModules?: boolean;
+  signal?: AbortSignal;
 }): Promise<string> {
   const { parsed, consumerRoot, logger, timings, progress, persistentLoader = true } = options;
   let { html } = options;
@@ -297,6 +303,7 @@ export async function injectHeaderFooter(options: {
       timings,
       persistentLoader,
       skipModules: options.skipModules,
+      signal: options.signal,
     });
     html = insertBeforeBodyClose(html, extractBodyContent(headerHtml));
   }
@@ -311,6 +318,7 @@ export async function injectHeaderFooter(options: {
       timings,
       persistentLoader,
       skipModules: options.skipModules,
+      signal: options.signal,
     });
     html = insertBeforeBodyClose(html, extractBodyContent(footerHtml));
   }
