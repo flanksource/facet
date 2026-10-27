@@ -29,6 +29,8 @@ export { default as CoverPage } from './CoverPage';
 export type { CoverPageProps } from './CoverPage';
 export { default as DatasheetTemplate } from './DatasheetTemplate';
 export { Diagram, DiagreDiagram, BoxNode, Arrow, variantProps, FlowDiagram, FlowStepBadge, NodePill, NodeSection, SectionDivider, COLORS, COLORS as DIAGRAM_COLORS } from './diagram';
+export { ContainerNode, BrandBox, BrandContainer, BrandMark, loadBrand, BOX_STYLES, CONTAINER_STYLES, DEFAULT_NODE_PALETTE } from './diagram';
+export type { ContainerNodeProps, BrandBoxProps, BrandContainerProps, BrandMarkProps, BrandDefinition, BrandArtwork, LoadBrandOptions, BoxStyle, ContainerStyle, NodePalette, NodeFonts } from './diagram';
 export type { DiagramProps, DiagreDiagramProps, DiagramDirection, DiagramGap, IdFn, BoxNodeProps, BoxNodePort, PortPosition, ArrowProps, ArrowVariant, ArrowLabelPosition, FlowDiagramProps, FlowEdge, FlowEdgeVariant, FlowIcon, FlowLane, FlowLaneKind, FlowLegendKey, FlowLegendLabels, FlowOffset, FlowStep, FlowStepBadgeProps, FlowStepTag, DiagramColors } from './diagram';
 export { default as Document, useDocumentDefaults } from './Document';
 export type { DocumentProps, DocumentDefaults } from './Document';

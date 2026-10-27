@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { UiClock, UiGlobe, UiKey, UiShieldCheck } from '@flanksource/clicky-ui/icons';
-import { BoxNode, COLORS, NodeSection } from '../../components/diagram';
+import { BOX_STYLES, BoxNode, COLORS, NodeSection } from '../../components/diagram';
 import type { PortPosition } from '../../components/diagram';
 
 const meta = {
@@ -11,6 +11,7 @@ const meta = {
   },
   tags: ['autodocs'],
   argTypes: {
+    variant: { control: 'select', options: BOX_STYLES, description: 'Shape from the diagram vocabulary' },
     title: { control: 'text', description: 'Header content (string or node)' },
     headerColor: { control: 'color', description: 'Header background; white text renders on top' },
     bodyColor: { control: 'color', description: 'Body background — always a light tint' },
@@ -24,6 +25,16 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+export const Vocabulary: Story = {
+  args: { title: 'Run API', headerColor: COLORS.primary, bodyColor: COLORS.background },
+  render: (args) => <div className="grid grid-cols-3 gap-8">
+    {BOX_STYLES.map(variant => <div key={variant}>
+      <p className="mb-2 text-xs">box/{variant}</p>
+      <BoxNode {...args} variant={variant} description="Validates requests" minWidth="160px" />
+    </div>)}
+  </div>,
+};
 
 const palette = {
   headerColor: COLORS.primary,
