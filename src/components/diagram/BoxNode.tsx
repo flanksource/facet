@@ -1,5 +1,6 @@
 import React from 'react';
 import { COLORS } from './colors';
+import { BOX_CLASSES, DEFAULT_NODE_PALETTE, type BoxStyle, type NodeFonts, type NodePalette } from './nodeStyles';
 
 /** Which edge a port docks to, and where along that edge it sits. */
 export type PortPosition =
@@ -34,6 +35,12 @@ export interface BoxNodePort {
 }
 
 export interface BoxNodeProps {
+  variant?: BoxStyle;
+  palette?: NodePalette;
+  fonts?: NodeFonts;
+  icon?: React.ReactNode;
+  description?: React.ReactNode;
+  footer?: React.ReactNode;
   /** Arrow-endpoint id. Arrows target this outer container, never inner sections. */
   id?: string;
   /** Header content. May be a string or a node (e.g. icon + label). */
@@ -221,6 +228,12 @@ function Port({ port, defaultColor }: { port: BoxNodePort; defaultColor: string 
  * `bodyClassName` props are a fallback that auto-derives the border.
  */
 export default function BoxNode({
+  variant = 'header',
+  palette,
+  fonts,
+  icon,
+  description,
+  footer,
   id,
   title,
   children,
@@ -230,18 +243,33 @@ export default function BoxNode({
   minWidth,
   compact,
   dashed,
-  shadow = 'shadow-lg',
+  shadow,
   ports,
   className,
   bodyClassName,
 }: BoxNodeProps) {
+  if (!Object.prototype.hasOwnProperty.call(BOX_CLASSES, variant)) throw new Error(`Unknown box style: ${variant}`);
+  const p = palette ?? DEFAULT_NODE_PALETTE;
+  const header = variant === 'header';
+  const dark = variant === 'chip-dark';
+  headerColor ??= palette?.accent ?? (className ? undefined : p.accent);
+  bodyColor ??= palette?.tint ?? (bodyClassName ? undefined : p.tint);
+  borderColor ??= palette?.border;
   const usesInlineColors = headerColor != null || bodyColor != null || borderColor != null;
   const resolvedBorder = borderColor ?? (usesInlineColors ? COLORS.primary : undefined);
   const derivedBorderClass = resolvedBorder ? undefined : deriveBorderClass(className);
   const docked = ports?.length ? ports : undefined;
 
-  const containerStyle: React.CSSProperties = { minWidth };
-  if (resolvedBorder) containerStyle.borderColor = resolvedBorder;
+  const containerStyle: React.CSSProperties = {
+    minWidth, fontFamily: fonts?.body,
+    ...(!header ? {
+      borderColor: variant === 'card' || variant === 'ghost' ? p.panelBorder : borderColor ?? p.border,
+      backgroundColor: dark ? p.dark : variant === 'ghost' || variant === 'borderless' ? 'transparent' : variant === 'tinted' || variant === 'tile' ? bodyColor ?? p.tint : p.surface,
+      color: dark ? p.onDark : p.text,
+      ...(variant === 'accent' ? { borderLeftColor: headerColor ?? p.accent } : {}),
+    } : palette ? { color: p.text } : {}),
+  };
+  if (resolvedBorder && header) containerStyle.borderColor = resolvedBorder;
 
   const headerStyle: React.CSSProperties | undefined = headerColor
     ? { backgroundColor: headerColor }
@@ -254,9 +282,10 @@ export default function BoxNode({
     <div
       id={id}
       className={[
-        'rounded-xl overflow-hidden border-2',
-        dashed ? 'border-dashed' : 'border-solid',
-        shadow,
+        BOX_CLASSES[variant],
+        dashed || variant === 'dashed' || variant === 'ghost' ? 'border-dashed' : 'border-solid',
+        shadow ?? (header ? 'shadow-lg' : variant === 'card' ? 'shadow-sm' : ''),
+        !header && className,
         derivedBorderClass,
         // The box is the grid's centre cell; ports occupy the surrounding slots.
         docked && 'col-start-2 row-start-2',
@@ -264,29 +293,34 @@ export default function BoxNode({
         .filter(Boolean)
         .join(' ')}
       style={containerStyle}
+      data-box-style={variant}
     >
+      {variant === 'stacked' && <span aria-hidden="true" data-node-stack className="absolute inset-0 -z-10 translate-x-1 translate-y-1 rounded-md" style={{ backgroundColor: p.surface, boxShadow: `0 0 0 1px ${p.border}` }} />}
       <div
         className={[
           compact ? 'p-2' : 'px-3 py-2',
-          'text-center text-white text-xs font-bold',
-          headerStyle ? '' : className,
+          'text-xs font-bold',
+          header ? 'text-center text-white' : '',
+          header && !headerStyle ? className : '',
         ]
           .filter(Boolean)
           .join(' ')}
-        style={headerStyle}
+        style={{ ...(header ? headerStyle : {}), fontFamily: fonts?.heading, ...(header && palette ? { color: p.onAccent } : {}) }}
       >
-        {title}
+        {icon != null ? <span className={variant === 'tile' ? 'flex flex-col items-center gap-2' : 'flex items-center justify-center gap-2'}>{icon}{title}</span> : title}
       </div>
-      {children != null && (
+      {(description != null || children != null) && (
         <div
           className={[compact ? 'p-2' : 'p-3', bodyStyle ? '' : bodyClassName]
             .filter(Boolean)
             .join(' ')}
-          style={bodyStyle}
+          style={header ? bodyStyle : undefined}
         >
+          {description != null && <div className="text-[10px] leading-snug" style={{ color: dark ? p.onDark : p.muted }}>{description}</div>}
           {children}
         </div>
       )}
+      {footer != null && <div className="mx-2 border-t py-1 text-[9px]" style={{ borderColor: p.border, fontFamily: fonts?.mono }}>{footer}</div>}
     </div>
   );
 
