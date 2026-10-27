@@ -21,6 +21,7 @@ import { runPersistentSsrLoader } from './ssr-pool.js';
 import { assetPath } from '../utils/assets.js';
 import { ensureGlobalModuleStore, prepareProjectModules } from './module-store.js';
 import { spawnLowPriority } from '../utils/subprocess-priority.js';
+import { AbortLock } from '../utils/abort-lock.js';
 
 export interface BuildResult {
   html: string;
@@ -41,6 +42,7 @@ export interface BuildOptions {
   timingPhase?: 'vite' | 'header-generation';
   redact?: RedactPolicy;
   skipModules?: boolean;
+  signal?: AbortSignal;
 }
 
 interface LoaderResult {
@@ -217,26 +219,11 @@ async function runLoaderWithRetry(
   }
 }
 
-const buildLocks = new Map<string, Promise<void>>();
-
-async function withBuildLock<T>(key: string, action: () => Promise<T>): Promise<T> {
-  const previous = buildLocks.get(key) ?? Promise.resolve();
-  let release!: () => void;
-  const current = new Promise<void>((resolve) => { release = resolve; });
-  const tail = previous.catch(() => undefined).then(() => current);
-  buildLocks.set(key, tail);
-  await previous.catch(() => undefined);
-  try {
-    return await action();
-  } finally {
-    release();
-    if (buildLocks.get(key) === tail) buildLocks.delete(key);
-  }
-}
+const buildLocks = new AbortLock();
 
 export function buildTemplate(options: BuildOptions): Promise<BuildResult> {
   const consumerRoot = options.consumerRoot ?? process.cwd();
-  return withBuildLock(join(consumerRoot, '.facet'), () => buildTemplateUnlocked(options));
+  return buildLocks.run(join(consumerRoot, '.facet'), options.signal, () => buildTemplateUnlocked(options));
 }
 
 async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult> {
