@@ -28,6 +28,7 @@ function readDiagramStates(page: Page): Promise<DiagramState[]> {
     diagrams.map((diagram) => ({
       ready: diagram.getAttribute('data-facet-ready'),
       error: diagram.getAttribute('data-facet-error'),
+      warning: diagram.getAttribute('data-facet-warning'),
     })),
   );
 }
@@ -52,7 +53,8 @@ async function waitForDiagrams(page: Page, logger: Logger): Promise<void> {
     );
   }
   const states = await readDiagramStates(page);
-  const { errors } = diagramReadiness(states);
+  const { errors, warnings } = diagramReadiness(states);
+  warnings.forEach((warning) => logger.warn(warning));
   if (errors.length > 0) throw new Error(errors.join('\n'));
   logger.debug(`${states.length} diagram(s) settled`);
 }
