@@ -199,6 +199,7 @@ cli/npm-dist/
 !.agents/skills/facet-documents/
 !.agents/skills/facet-cli/
 !.agents/skills/diagram-designer/
+!.agents/skills/diagram-designer-schema/
 .agents/skills/*/examples/.facet/
 .agents/skills/*/examples/node_modules/
 .agents/skills/*/examples/dist/
@@ -207,3 +208,5 @@ cli/npm-dist/
 !.agents/skills/*/examples/*.png
 examples/quickstart/node_modules
 /output/
+# The logo kit's presentation and favicon head snippet are hand-made, not render output.
+!assets/brand/**/*.html
