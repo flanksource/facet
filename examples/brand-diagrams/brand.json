@@ -1,0 +1,46 @@
+{
+  "id": "acme",
+  "name": "Acme",
+  "defaultScheme": "primary",
+  "fonts": {
+    "heading": "ui-sans-serif, system-ui, sans-serif",
+    "body": "ui-sans-serif, system-ui, sans-serif",
+    "mono": "ui-monospace, monospace"
+  },
+  "schemes": {
+    "primary": {
+      "containerTint": "#fafbfe",
+      "accent": "#1d4ed8",
+      "tint": "#eff6ff",
+      "border": "#1d4ed8",
+      "surface": "#ffffff",
+      "panel": "#f1f5f9",
+      "panelBorder": "#cbd5e1",
+      "text": "#172554",
+      "muted": "#64748b",
+      "onAccent": "#ffffff",
+      "dark": "#172554",
+      "onDark": "#ffffff"
+    },
+    "neutral": {
+      "containerTint": "#f8fafc",
+      "accent": "#172554",
+      "tint": "#eff6ff",
+      "border": "#172554",
+      "surface": "#ffffff",
+      "panel": "#f1f5f9",
+      "panelBorder": "#cbd5e1",
+      "text": "#172554",
+      "muted": "#64748b",
+      "onAccent": "#ffffff",
+      "dark": "#172554",
+      "onDark": "#ffffff"
+    }
+  },
+  "marks": {
+    "symbol": {
+      "light": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%2212%22%20fill%3D%22%231d4ed8%22%2F%3E%3C%2Fsvg%3E",
+      "dark": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%2212%22%20fill%3D%22%23ffffff%22%2F%3E%3C%2Fsvg%3E"
+    }
+  }
+}
