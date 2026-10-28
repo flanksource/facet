@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createServer } from 'node:http';
 import { snapshotHTML } from './live-snapshot.js';
 import { Logger } from '../utils/logger.js';
@@ -24,6 +24,25 @@ window.addEventListener('load', () => setTimeout(() => {
 }
 
 describe('live snapshot', () => {
+  it('returns HTML and logs diagram layout warnings', async () => {
+    const server = createServer((_request, response) => {
+      response.setHeader('content-type', 'text/html');
+      response.end('<html><body><div id="facet-root"><div data-facet-diagram data-facet-ready="true" data-facet-warning="small text"></div></div></body></html>');
+    });
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Expected a local TCP address');
+      const logger = new Logger(false);
+      const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      const html = await snapshotHTML(`http://127.0.0.1:${address.port}`, logger);
+      expect(html).toContain('data-facet-ready="true"');
+      expect(warn).toHaveBeenCalledWith('Diagram 1: small text');
+    } finally {
+      await new Promise<void>((done, reject) => server.close((error) => error ? reject(error) : done()));
+    }
+  }, 30_000);
+
   it.each([
     // Mounted inside the old no-diagram settle delay: snapshotted without arrows.
     ['inside the fallback settle delay', 1500],
