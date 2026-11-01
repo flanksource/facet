@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { PDFDocument } from 'pdf-lib';
 import { injectDebugAnnotations, injectTypographyAnnotations, extractTypographyInfo, type FontCombo } from './debug-annotations.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from '../version-generated.js';
-import puppeteer, { type Browser, type BrowserContext, type Page, type PuppeteerLaunchOptions } from 'puppeteer-core';
+import puppeteer, { type Browser, type BrowserContext, type Page, type LaunchOptions } from 'puppeteer-core';
 
 type PageProvider = Browser | BrowserContext;
 import { Logger } from './logger.js';
@@ -92,11 +92,11 @@ export function resolveChromePath(): string | undefined {
   return (SYSTEM_CHROME_PATHS[process.platform] ?? []).find(existsSync);
 }
 
-export function buildBrowserLaunchOptions(options: {
+export async function buildBrowserLaunchOptions(options: {
   chromePath: string;
   platform?: NodeJS.Platform;
-}): PuppeteerLaunchOptions {
-  const chromeArgs = puppeteer.defaultArgs({
+}): Promise<LaunchOptions> {
+  const chromeArgs = await puppeteer.defaultArgs({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
@@ -622,7 +622,7 @@ export async function launchBrowser(): Promise<Browser> {
   if (!chromePath) {
     throw new Error('Chrome/Chromium executable not found; set PUPPETEER_EXECUTABLE_PATH or CHROME_PATH');
   }
-  const browser = await puppeteer.launch(buildBrowserLaunchOptions({ chromePath }));
+  const browser = await puppeteer.launch(await buildBrowserLaunchOptions({ chromePath }));
   const process = browser.process();
   if (process?.pid !== undefined) {
     applySpawnedProcessPriority({ pid: process.pid, kill: () => process.kill() });
