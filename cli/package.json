@@ -56,7 +56,7 @@
     "@aws-sdk/s3-request-presigner": "^3.600.0",
     "@napi-rs/canvas": "1.0.10",
     "@pdfsmaller/pdf-encrypt": "^1.0.2",
-    "@signpdf/placeholder-plain": "^3.3.0",
+    "@signpdf/placeholder-plain": "^3.4.0",
     "@signpdf/signer-p12": "^3.3.0",
     "@signpdf/signpdf": "^3.3.0",
     "@signpdf/utils": "^3.3.0",
@@ -66,7 +66,7 @@
     "commander": "^12.0.0",
     "docx": "^9.12.0",
     "fast-xml-parser": "^5.11.2",
-    "js-yaml": "^5.1.0",
+    "js-yaml": "^5.5.0",
     "jszip": "^3.10.2",
     "lightningcss": "^1.30.2",
     "ora": "^5.4.1",
@@ -74,11 +74,11 @@
     "pdf-rfc3161": "^0.1.4",
     "pdfjs-dist": "6.4.299",
     "pptxgenjs-plus": "^4.3.4",
-    "puppeteer-core": "^22.0.0",
+    "puppeteer-core": "^25.16.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "semver": "^7.6.0",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.5",
     "tsx": "^4.7.0"
   },
   "devDependencies": {
@@ -95,6 +95,6 @@
     "tsdown": "^0.16.0",
     "typescript": "^5.6.3",
     "unified": "^11.0.5",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.12"
   }
 }
