@@ -24,6 +24,23 @@ window.addEventListener('load', () => setTimeout(() => {
 }
 
 describe('live snapshot', () => {
+  it.each(["new Error('template failed')", "'template failed'"])(
+    'reports a browser exception thrown as %s', async (exception) => {
+      const server = createServer((_request, response) => {
+        response.setHeader('content-type', 'text/html');
+        response.end(`<html><body><div id="facet-root">Report</div><script>throw ${exception}</script></body></html>`);
+      });
+      await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+      try {
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected a local TCP address');
+        await expect(snapshotHTML(`http://127.0.0.1:${address.port}`, new Logger(false)))
+          .rejects.toThrow(/Live render failed.*browser errors:[\s\S]*template failed/);
+      } finally {
+        await new Promise<void>((done, reject) => server.close((error) => error ? reject(error) : done()));
+      }
+    }, 30_000,
+  );
   it('returns HTML and logs diagram layout warnings', async () => {
     const server = createServer((_request, response) => {
       response.setHeader('content-type', 'text/html');

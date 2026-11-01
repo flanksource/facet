@@ -77,7 +77,7 @@ async function loadLivePage(
   // as a `vite-error-overlay` element rather than the template, and would
   // otherwise be captured as a near-empty "successful" page.
   const pageErrors: string[] = [];
-  page.on('pageerror', (err) => pageErrors.push(err.stack ?? err.message));
+  page.on('pageerror', (err) => pageErrors.push(err instanceof Error ? err.stack ?? err.message : String(err)));
 
   await page.goto(url, { waitUntil: 'networkidle0', timeout: 60_000 });
   await renderMermaidInPage(page);
