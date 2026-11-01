@@ -34,6 +34,13 @@ var _ = Describe("Facet", Ordered, FlakeAttempts(3), func() {
 			Expect(settings).To(HaveKey("enableWeakerNestedSandbox"))
 			Expect(settings).To(HaveKey("network"))
 			Expect(settings).To(HaveKey("filesystem"))
+
+			// sandbox-runtime rejects settings missing any of these lists.
+			Expect(settings["network"]).To(HaveKey("allowedDomains"))
+			Expect(settings["network"]).To(HaveKey("deniedDomains"))
+			Expect(settings["filesystem"]).To(HaveKey("denyRead"))
+			Expect(settings["filesystem"]).To(HaveKey("allowWrite"))
+			Expect(settings["filesystem"]).To(HaveKey("denyWrite"))
 		})
 	})
 
