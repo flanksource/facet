@@ -1,19 +1,19 @@
 # Multi-stage Dockerfile for facet CLI with Chromium browser
 # Supports multi-arch builds (amd64, arm64)
 
-FROM node:24-bookworm-slim AS builder
+ARG NODE_IMAGE=node:24-alpine@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85
+FROM ${NODE_IMAGE} AS builder
 
 ARG GIT_COMMIT=unknown
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
+    bash \
+    build-base \
     python3 \
-    make \
-    g++ \
     git \
     curl \
-    unzip \
-    && rm -rf /var/lib/apt/lists/*
+    unzip
 
 # Install the package-manager version pinned by package.json
 RUN npm install -g pnpm@11.22.0
@@ -23,7 +23,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY cli/package.json cli/pnpm-lock.yaml ./cli/
+COPY cli/package.json cli/pnpm-lock.yaml cli/pnpm-workspace.yaml ./cli/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -44,51 +44,38 @@ RUN cd /app && npm pack --pack-destination /app/ \
 RUN cd cli && pnpm run build
 
 # Final stage with Chromium browser
-FROM node:24-bookworm-slim
+FROM ${NODE_IMAGE}
 
 ARG VERSION=dev
 
-# Install Chromium browser and dependencies for Puppeteer
-# Using Chromium from Debian repos for better multi-arch support
-#
-# Chromium is pinned to 149.0.7827.196: the 150.0.7871.46 security update
-# crashes on startup (https://bugs.debian.org/1141488), and current mirrors
-# only carry 150, so 149 comes from snapshot.debian.org. Remove the snapshot
-# source and the pin once a fixed chromium reaches bookworm-security.
-# ca-certificates is installed first: the snapshot source is https and the
-# base image ships no system certificates.
-RUN apt-get update && apt-get install -y ca-certificates \
-    && echo "deb [check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20260626T014759Z bookworm-security main" \
-        > /etc/apt/sources.list.d/chromium-snapshot.list \
-    && printf 'Package: chromium chromium-common chromium-sandbox\nPin: version 149.0.7827.196-1~deb12u1\nPin-Priority: 1001\n' \
-        > /etc/apt/preferences.d/chromium \
-    && apt-get update && apt-get install -y \
+# Install Chromium and fonts from the same Alpine release on amd64 and arm64.
+RUN apk add --no-cache \
+    bash \
     chromium \
-    chromium-sandbox \
-    fonts-liberation \
-    fonts-noto-color-emoji \
-    fonts-ipafont-gothic \
-    fonts-wqy-zenhei \
-    fonts-thai-tlwg \
-    fonts-kacst \
-    fonts-freefont-ttf \
+    coreutils \
+    font-freefont \
+    font-liberation \
+    font-noto \
+    font-noto-arabic \
+    font-noto-cjk \
+    font-noto-emoji \
+    font-noto-thai \
     ca-certificates \
     curl \
     unzip \
     imagemagick \
+    imagemagick-pdf \
+    ghostscript \
     bubblewrap \
     socat \
     ripgrep \
-    && rm -rf /var/lib/apt/lists/*
+    tar
 
 # Install pnpm (used by facet at runtime to install template dependencies)
 RUN npm install -g pnpm@11.22.0
 
 # Install sandbox-runtime for template execution isolation
 RUN npm install -g @anthropic-ai/sandbox-runtime
-
-# Allow ImageMagick to read/write PDFs (blocked by default policy)
-RUN sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
 
 # Set Chromium executable path for Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
@@ -138,7 +125,8 @@ LABEL org.opencontainers.image.title="Facet" \
 WORKDIR /app/examples
 RUN mkdir -p /app/.tmp
 RUN FACET_PACKAGE_PATH=/app/facet.tgz facet --skip-modules html FacetReport.tsx --data simple-data.json --output /app/.tmp/warmup.html
-RUN rm -f /app/.tmp/warmup.html
+RUN FACET_PACKAGE_PATH=/app/facet.tgz facet --skip-modules pdf FacetReport.tsx --data simple-data.json --output /app/.tmp/warmup.pdf
+RUN rm -f /app/.tmp/warmup.html /app/.tmp/warmup.pdf
 WORKDIR /app
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \

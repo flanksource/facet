@@ -115,12 +115,14 @@ The container sets the following environment variables:
 
 The Dockerfile uses a multi-stage build:
 
-1. **Builder stage**: Installs build dependencies, copies source, and builds the CLI library
-2. **Runtime stage**: Minimal image with only runtime dependencies, Chromium, and compiled artifacts
+Both stages use the same digest-pinned `node:24-alpine` image so the standalone binary and native modules use musl consistently on amd64 and arm64.
+
+1. **Builder stage**: Installs build dependencies, copies source, and builds the CLI library and standalone binary
+2. **Runtime stage**: Installs Alpine's Chromium, international fonts, and ImageMagick with PDF support, then verifies HTML and PDF rendering during the image build
 
 ### Installed Components
 
-- **Node.js 20**: JavaScript runtime
+- **Node.js 24 on Alpine Linux**: JavaScript runtime
 - **Chromium**: Headless browser for PDF generation
 - **Fonts**: Liberation, Noto Color Emoji, and various international fonts
 - **Facet CLI**: Built library and source files
