@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Security architecture",
+  "description": "Identities, assets, trust boundaries, flows and security controls.",
+  "type": "object",
+  "allOf": [
+    {"$ref":"common.schema.json#/$defs/architectureBase"},
+    {"properties":{
+      "view":{"const":"security"},
+      "elements":{"type":"array","items":{"$ref":"#/$defs/securityElement"}},
+      "relationships":{"type":"array","items":{"$ref":"#/$defs/securityRelationship"}}
+    }}
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "credential": {
+      "type": "object",
+      "description": "The kind of credential used, never its secret value.",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"enum":["access_token","id_token","session_cookie","client_certificate","api_key","service_account_token","other"]},
+        "detail": {"type":"string","minLength":1,"description":"Specific credential type when type is other."},
+        "format": {"type":"string","minLength":1,"description":"Representation such as JWT or X.509."}
+      },
+      "allOf": [{"if":{"properties":{"type":{"const":"other"}},"required":["type"]},"then":{"required":["detail"]}}]
+    },
+    "controlMechanism": {
+      "type": "object",
+      "description": "An implementation mechanism used by a security control.",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"enum":["openid_connect","oauth2","oauth2_token_exchange","saml","mtls","jwt_validation","api_key","session","rbac","abac","rebac","acl","row_level_security","policy_engine","other"]},
+        "detail": {"type":"string","minLength":1,"description":"Specific mechanism when type is other."}
+      },
+      "allOf": [{"if":{"properties":{"type":{"const":"other"}},"required":["type"]},"then":{"required":["detail"]}}]
+    },
+    "roleBinding": {
+      "type": "object",
+      "description": "A role assignment and the actions it permits in the depicted scope.",
+      "required": ["role"],
+      "additionalProperties": false,
+      "properties": {
+        "role": {"type":"string","minLength":1},
+        "principalIds": {"type":"array","uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"}},
+        "resourceIds": {"type":"array","uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"}},
+        "actions": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}}
+      }
+    },
+    "authorizationAttribute": {
+      "type": "object",
+      "description": "An attribute or context input to an authorization decision.",
+      "required": ["category","name"],
+      "additionalProperties": false,
+      "properties": {
+        "category": {"enum":["subject","resource","action","environment","other"]},
+        "categoryDetail": {"type":"string","minLength":1,"description":"Specific category when category is other."},
+        "name": {"type":"string","minLength":1},
+        "sourceIds": {"type":"array","uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"},"description":"Elements providing or authoritatively assigning the attribute."},
+        "description": {"type":"string"}
+      },
+      "allOf": [{"if":{"properties":{"category":{"const":"other"}},"required":["category"]},"then":{"required":["categoryDetail"]}}]
+    },
+    "delegation": {
+      "type": "object",
+      "description": "One described on-behalf-of delegation; record identities and constraints, never credential values.",
+      "required": ["subjectId","actorId"],
+      "additionalProperties": false,
+      "properties": {
+        "subjectId": {"$ref":"common.schema.json#/$defs/id","description":"Principal on whose behalf the actor operates."},
+        "actorId": {"$ref":"common.schema.json#/$defs/id","description":"Distinct acting principal or workload."},
+        "grantorId": {"$ref":"common.schema.json#/$defs/id","description":"Principal that grants this delegation, when known."},
+        "issuerId": {"$ref":"common.schema.json#/$defs/id","description":"Element that issues the delegated credential, when known."},
+        "resourceIds": {"type":"array","uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"}},
+        "actions": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},
+        "audiences": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},
+        "scopes": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},
+        "expiresIn": {"type":"string","minLength":1,"description":"Described validity period, such as 5 minutes."},
+        "revocation": {"type":"string","minLength":1,"description":"How revocation or invalidation is handled, when known."}
+      }
+    },
+    "controlImplementation": {
+      "type": "object",
+      "description": "How a control is implemented and enforced, using IDs from the architecture.",
+      "required": ["mechanisms","enforcedBy"],
+      "additionalProperties": false,
+      "properties": {
+        "mechanisms": {"type":"array","minItems":1,"items":{"$ref":"#/$defs/controlMechanism"}},
+        "implementedBy": {"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"},"description":"Elements containing the implementation or configuration."},
+        "enforcedBy": {"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"},"description":"Elements that enforce the control on the relevant requests or flows."},
+        "identityProvider": {"$ref":"common.schema.json#/$defs/id","description":"Identity provider responsible for authentication, when applicable."},
+        "identityProviders": {"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"},"description":"Identity providers authenticating represented principals; use instead of identityProvider. Credential issuer and trust checks are described separately."},
+        "decisionPoint": {"$ref":"common.schema.json#/$defs/id","description":"Element that evaluates the authorization policy, when distinct from enforcement."},
+        "decisionPoints": {"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"},"description":"Multiple elements that evaluate the policy; use instead of decisionPoint."},
+        "decisionTopology": {"enum":["centralized","distributed","mixed","other"],"description":"Where decisions are evaluated, independently of policy administration."},
+        "decisionTopologyDetail": {"type":"string","minLength":1,"description":"Specific topology when decisionTopology is other."},
+        "policyAdministration": {"enum":["centralized","federated","decentralized","mixed","other"],"description":"How policy authority is organized, independently of decision placement."},
+        "policyAdministrationDetail": {"type":"string","minLength":1,"description":"Specific administration model when policyAdministration is other."},
+        "policyAuthorityIds": {"type":"array","uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"},"description":"Elements authorized to define or administer relevant policy."},
+        "roleBindings": {"type":"array","items":{"$ref":"#/$defs/roleBinding"},"description":"Role assignments and permissions relevant to this control."},
+        "attributes": {"type":"array","items":{"$ref":"#/$defs/authorizationAttribute"},"description":"Subject, resource, action and environment inputs relevant to a decision."},
+        "delegations": {"type":"array","items":{"$ref":"#/$defs/delegation"},"description":"Explicitly described delegated access grants or hops."},
+        "principalIds": {"type":"array","uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"},"description":"Actors or workloads subject to the control."},
+        "resourceIds": {"type":"array","uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"},"description":"Elements or resources protected by the control."},
+        "credentials": {"type":"array","items":{"$ref":"#/$defs/credential"},"description":"Credential types accepted or checked by the control."},
+        "claims": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1},"description":"Claim names used in authentication or authorization."},
+        "actions": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1},"description":"Operations governed by the authorization policy."},
+        "policy": {"type":"string","minLength":1,"description":"Plain-language decision rule and relevant conditions."}
+      },
+      "allOf": [
+        {"not":{"required":["identityProvider","identityProviders"]}},
+        {"not":{"required":["decisionPoint","decisionPoints"]}},
+        {"if":{"properties":{"decisionTopology":{"const":"other"}},"required":["decisionTopology"]},"then":{"required":["decisionTopologyDetail"]}},
+        {"if":{"properties":{"policyAdministration":{"const":"other"}},"required":["policyAdministration"]},"then":{"required":["policyAdministrationDetail"]}}
+      ]
+    },
+    "securityElement": {
+      "type": "object",
+      "allOf": [
+        {"$ref":"common.schema.json#/$defs/elementBase"},
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {"enum":["actor","workload","system","external_system","component","interface","data_store","data","trust_zone","trust_boundary","identity_provider","security_control","secret","other"],"description":"Role of the element in the security view."},
+            "controlType": {"enum":["authentication","authorization","encryption","key_management","secret_management","network_segmentation","logging","monitoring","approval","input_validation","other"],"description":"Function of a security control."},
+            "controlTypeDetail": {"type":"string","minLength":1,"description":"Specific function when controlType is other."},
+            "controlIds": {"type":"array","uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"},"description":"IDs of controls applying to this element."},
+            "implementation": {"$ref":"#/$defs/controlImplementation"},
+            "children": {"type":"array","items":{"allOf":[{"$ref":"#/$defs/securityElement"},{"not":{"type":"object","required":["parent"]}}]}}
+          },
+          "allOf": [
+            {"if":{"properties":{"kind":{"const":"other"}},"required":["kind"]},"then":{"required":["kindDetail"]}},
+            {"if":{"properties":{"kind":{"const":"security_control"}},"required":["kind"]},"then":{"required":["controlType"]}},
+            {"if":{"properties":{"controlType":{"const":"other"}},"required":["controlType"]},"then":{"required":["controlTypeDetail"]}},
+            {"if":{"properties":{"implementation":{}},"required":["implementation"]},"then":{"properties":{"kind":{"const":"security_control"}},"required":["kind"]}}
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "securityRelationship": {
+      "type": "object",
+      "allOf": [
+        {"$ref":"common.schema.json#/$defs/relationshipBase"},
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {"enum":["accesses","authenticates","authorizes","flows","contains","protects","observes","issues","trusts","other"],"description":"Meaning of the relationship."},
+            "protocol": {"$ref":"common.schema.json#/$defs/protocol"},
+            "dataClassification": {"enum":["public","internal","confidential","restricted","other"],"description":"Classification of the data carried by the relationship."},
+            "classificationDetail": {"type":"string","minLength":1,"description":"Specific classification when dataClassification is other."},
+            "credential": {"$ref":"#/$defs/credential"},
+            "controlIds": {"type":"array","uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"},"description":"IDs of controls applying to this relationship or flow."}
+          },
+          "allOf": [
+            {"if":{"properties":{"kind":{"const":"other"}},"required":["kind"]},"then":{"required":["kindDetail"]}},
+            {"if":{"properties":{"dataClassification":{"const":"other"}},"required":["dataClassification"]},"then":{"required":["classificationDetail"]}}
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

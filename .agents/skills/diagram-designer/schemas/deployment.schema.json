@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Deployment architecture",
+  "description": "Infrastructure, deployment locations, ownership and connections between deployed workloads.",
+  "type": "object",
+  "allOf": [
+    {"$ref":"common.schema.json#/$defs/architectureBase"},
+    {"properties":{
+      "view":{"const":"deployment"},
+      "deploymentModel":{"enum":["provider_hosted","customer_hosted","hybrid","other"],"description":"Who hosts the depicted installation, when relevant."},
+      "deploymentModelDetail":{"type":"string","minLength":1,"description":"Specific hosting model when deploymentModel is other."},
+      "elements":{"type":"array","items":{"$ref":"#/$defs/deploymentElement"}},
+      "relationships":{"type":"array","items":{"$ref":"#/$defs/deploymentRelationship"}}
+    }},
+    {"if":{"properties":{"deploymentModel":{"const":"other"}},"required":["deploymentModel"]},"then":{"required":["deploymentModelDetail"]}}
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "deploymentElement": {
+      "type": "object",
+      "allOf": [
+        {"$ref":"common.schema.json#/$defs/elementBase"},
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {"enum":["actor","external_system","environment","cloud_account","region","availability_zone","network","subnet","cluster","namespace","node_pool","node","workload","service","gateway","load_balancer","database","storage","queue","dns","artifact_registry","secret_store","boundary","other"],"description":"Deployment role of this element."},
+            "ownership": {"enum":["provider","customer","shared","third_party","other"],"description":"Party that operates or owns this element."},
+            "ownershipDetail": {"type":"string","minLength":1,"description":"Specific owner when ownership is other."},
+            "provider": {"enum":["aws","azure","gcp","cloudflare","on_premises","other"],"description":"Infrastructure provider or location when known."},
+            "providerDetail": {"type":"string","minLength":1,"description":"Specific provider when provider is other."},
+            "environment": {"enum":["production","staging","test","development","other"],"description":"Deployment environment when relevant."},
+            "environmentDetail": {"type":"string","minLength":1,"description":"Specific environment when environment is other."},
+            "runtime": {"enum":["kubernetes","container","virtual_machine","serverless","managed_service","bare_metal","other"],"description":"Runtime or infrastructure form when relevant."},
+            "runtimeDetail": {"type":"string","minLength":1,"description":"Specific runtime when runtime is other."},
+            "replicas": {"type":"integer","minimum":0,"description":"Depicted number of replicas, when known."},
+            "version": {"type":"string","minLength":1,"description":"Deployed artifact or component version, when relevant."},
+            "children": {"type":"array","items":{"allOf":[{"$ref":"#/$defs/deploymentElement"},{"not":{"type":"object","required":["parent"]}}]}}
+          },
+          "allOf": [
+            {"if":{"properties":{"kind":{"const":"other"}},"required":["kind"]},"then":{"required":["kindDetail"]}},
+            {"if":{"properties":{"ownership":{"const":"other"}},"required":["ownership"]},"then":{"required":["ownershipDetail"]}},
+            {"if":{"properties":{"provider":{"const":"other"}},"required":["provider"]},"then":{"required":["providerDetail"]}},
+            {"if":{"properties":{"environment":{"const":"other"}},"required":["environment"]},"then":{"required":["environmentDetail"]}},
+            {"if":{"properties":{"runtime":{"const":"other"}},"required":["runtime"]},"then":{"required":["runtimeDetail"]}}
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "deploymentRelationship": {
+      "type": "object",
+      "allOf": [
+        {"$ref":"common.schema.json#/$defs/relationshipBase"},
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {"enum":["contains","runs_on","deploys","routes","connects","publishes","subscribes","stores","replicates","manages","depends_on","other"],"description":"Deployment or connectivity relationship."},
+            "protocol": {"$ref":"common.schema.json#/$defs/protocol"}
+          },
+          "allOf": [{"if":{"properties":{"kind":{"const":"other"}},"required":["kind"]},"then":{"required":["kindDetail"]}}]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Diagram presentation styles",
+  "description": "Reusable presentation preferences for a diagram, its elements and its relationships. Catalog patterns are design hints; a template must implement them.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "diagram": {"$ref":"#/$defs/diagramPresentation"},
+    "element": {"$ref":"#/$defs/elementPresentation"},
+    "relationship": {"$ref":"#/$defs/relationshipPresentation"}
+  },
+  "$defs": {
+    "boxStyle": {"enum":["outlined","header","tinted","card","dashed","stacked","chip-dark","pill","tile","accent","borderless","ghost"],"description":"Facet BoxNode variant."},
+    "containerStyle": {"enum":["zone","boundary","binding","region","header","panel","frame","exception","lane","column","card-group"],"description":"Facet ContainerNode variant."},
+    "color": {
+      "type": "object",
+      "description": "A Facet COLORS token, a catalog theme token, or a literal CSS color.",
+      "additionalProperties": false,
+      "properties": {
+        "token": {"enum":["primary","background","accent","muted","outputBorder","fk","pk"]},
+        "themeToken": {"enum":["night/canvas","night/card","night/edge","night/text","night/muted","night/rail","night/rail-end","night/green","night/purple","night/orange"],"description":"A named catalog color; resolve it using the vocabulary, not Facet COLORS."},
+        "css": {"type":"string","minLength":1,"description":"CSS color such as a hex value or CSS variable."}
+      },
+      "oneOf": [{"required":["token"]},{"required":["themeToken"]},{"required":["css"]}]
+    },
+    "palette": {
+      "type": "object",
+      "description": "Partial Facet NodePalette overrides; merge with the default palette before rendering.",
+      "additionalProperties": false,
+      "properties": {
+        "accent": {"$ref":"#/$defs/color"},
+        "tint": {"$ref":"#/$defs/color"},
+        "containerTint": {"$ref":"#/$defs/color"},
+        "border": {"$ref":"#/$defs/color"},
+        "surface": {"$ref":"#/$defs/color"},
+        "panel": {"$ref":"#/$defs/color"},
+        "panelBorder": {"$ref":"#/$defs/color"},
+        "text": {"$ref":"#/$defs/color"},
+        "muted": {"$ref":"#/$defs/color"},
+        "onAccent": {"$ref":"#/$defs/color"},
+        "dark": {"$ref":"#/$defs/color"},
+        "onDark": {"$ref":"#/$defs/color"}
+      }
+    },
+    "fonts": {
+      "type": "object",
+      "description": "Partial Facet NodeFonts overrides; merge with the template's fonts before rendering.",
+      "additionalProperties": false,
+      "properties": {
+        "heading": {"type":"string","minLength":1},
+        "body": {"type":"string","minLength":1},
+        "mono": {"type":"string","minLength":1}
+      }
+    },
+    "icon": {
+      "type": "object",
+      "description": "An offline icon component or data import; this is not a runtime Iconify name.",
+      "required": ["source","name"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {"enum":["clicky_ui","flanksource_icons","iconify","custom","other"]},
+        "sourceDetail": {"type":"string","minLength":1,"description":"Icon source when source is other."},
+        "name": {"type":"string","minLength":1,"description":"Exported component, offline icon name, or custom registry key."},
+        "collection": {"type":"string","minLength":1,"description":"Iconify collection used for an offline icon-data import."},
+        "color": {"$ref":"#/$defs/color","description":"Optional icon color override."}
+      },
+      "allOf": [
+        {"if":{"properties":{"source":{"const":"iconify"}},"required":["source"]},"then":{"required":["collection"]}},
+        {"if":{"properties":{"source":{"const":"other"}},"required":["source"]},"then":{"required":["sourceDetail"]}}
+      ]
+    },
+    "visualRole": {"enum":["new","existing","external","security","store","action","cloud","muted"],"description":"Catalog color role; its meaning must be stated in the diagram legend."},
+    "cornerStyle": {"enum":["round","square"],"description":"Composed corner treatment, not a BoxNode variant."},
+    "boxDensity": {"enum":["glyph","label","label-detail","tagged","listed","detailed"],"description":"Box content composition."},
+    "tagPlacement": {"enum":["chips","inline","corner","logo","footer","header","edge","icons"],"description":"Composed placement of box tags or technology labels."},
+    "containerDensity": {"enum":["unlabelled","tag","titled","members","footer"],"description":"Container content composition."},
+    "actorStyle": {"enum":["figure","avatar","stacked","pill","cursor","agent","group","identity"],"description":"Composed actor presentation, not a BoxNode variant."},
+    "actorRole": {"enum":["human","approver","agent","service","external","untrusted"],"description":"Visual actor role; not an authorization role or grant."},
+    "actorDensity": {"enum":["icon","name","role","identity","permissions"],"description":"Actor information density."},
+    "lineStyle": {"enum":["solid","dashed","dotted","thick","both","plain","orthogonal","curved","bus"],"description":"Catalog connection pattern; it is not a Facet Arrow variant."},
+    "headStyle": {"enum":["arrow","open","dot","diamond","none"],"description":"Catalog arrowhead pattern; custom shapes may require composition."},
+    "flowRole": {"enum":["data","control","policy","async","context","error"],"description":"Catalog flow color role; explain its meaning in the legend."},
+    "labelStyle": {"enum":["plain","pill","box","step","verb"],"description":"Composed connector label style."},
+    "labelDensity": {"enum":["bare","verb","protocol","step","condition","payload"],"description":"Information shown on a connector label."},
+    "canvasStyle": {"enum":["plain","paper","dots","grid","tint","wash","night","transparent"],"description":"Catalog canvas background pattern."},
+    "frameStyle": {"enum":["none","card","figure","titled","crop","footer"],"description":"Catalog figure frame composition."},
+    "railStyle": {"enum":["vertical","gradient","progress","dashed","horizontal","chevron","timeline","lettered"],"description":"Catalog sequence rail composition."},
+    "calloutStyle": {"enum":["marker","leader","exploded","edge-tag","bubble"],"description":"Catalog diagram callout composition."},
+    "stepCalloutStyle": {"enum":["badge","banner","note"],"description":"Catalog step callout composition."},
+    "railElementStyle": {"enum":["step","frame","band","tile","tile-brand","card","chevrons","window"],"description":"Catalog element used in a numbered-rail scene."},
+    "layout": {
+      "enum":["pipeline","data_flow","swimlane","fan_in_fan_out","entity_model","hub_and_spoke","layered","freeform","other","layer-stack","planes","durable-loop","request-lanes","iso-stack","iso-stack-animated","arc-platform","fan-out","app-boundary","numbered-rail","night-layer-stack","wire-figures","reference-architecture","stage-columns","signal-lanes","blueprint","layered-platform","protocol-bands","titled-canvas","build-columns","hub","containment","node-graph","cycle","timeline"],
+      "description":"Diagram composition pattern; catalog keys describe layouts to compose, not Facet component props."
+    },
+    "elementPresentation": {
+      "type": "object",
+      "description": "A box, container or actor presentation selected by its kind.",
+      "oneOf": [
+        {"$ref":"#/$defs/boxPresentation"},
+        {"$ref":"#/$defs/containerPresentation"},
+        {"$ref":"#/$defs/actorPresentation"}
+      ]
+    },
+    "elementPresentationBase": {
+      "type": "object",
+      "properties": {
+        "visualRole": {"$ref":"#/$defs/visualRole"},
+        "cornerStyle": {"$ref":"#/$defs/cornerStyle"},
+        "icon": {"$ref":"#/$defs/icon"},
+        "palette": {"$ref":"#/$defs/palette"},
+        "fonts": {"$ref":"#/$defs/fonts"},
+        "minWidth": {"type":"string","minLength":1,"description":"Preferred CSS minimum width."}
+      }
+    },
+    "boxPresentation": {
+      "type": "object",
+      "description": "Facet BoxNode presentation and box composition hints.",
+      "allOf": [
+        {"$ref":"#/$defs/elementPresentationBase"},
+        {"type":"object","required":["kind"],"properties":{"kind":{"const":"box"},"style":{"$ref":"#/$defs/boxStyle"},"density":{"$ref":"#/$defs/boxDensity"},"tagPlacement":{"$ref":"#/$defs/tagPlacement"}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "containerPresentation": {
+      "type": "object",
+      "description": "Facet ContainerNode presentation and container composition hints.",
+      "allOf": [
+        {"$ref":"#/$defs/elementPresentationBase"},
+        {"type":"object","required":["kind"],"properties":{"kind":{"const":"container"},"style":{"$ref":"#/$defs/containerStyle"},"density":{"$ref":"#/$defs/containerDensity"}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "actorPresentation": {
+      "type": "object",
+      "description": "Composed actor presentation.",
+      "allOf": [
+        {"$ref":"#/$defs/elementPresentationBase"},
+        {"type":"object","required":["kind"],"properties":{"kind":{"const":"actor"},"style":{"$ref":"#/$defs/actorStyle"},"density":{"$ref":"#/$defs/actorDensity"},"role":{"$ref":"#/$defs/actorRole"}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "relationshipPresentation": {
+      "type": "object",
+      "description": "Optional Arrow preferences and catalog composition hints for a relationship.",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"const":"arrow","description":"Facet Arrow relationship presentation."},
+        "style": {"enum":["primary","secondary","er","bidirectional"],"description":"Facet Arrow preset."},
+        "color": {"$ref":"#/$defs/color"},
+        "path": {"enum":["smooth","grid","straight"],"description":"Facet Arrow path."},
+        "strokeWidth": {"type":"number","exclusiveMinimum":0},
+        "dashness": {"type":"boolean"},
+        "labelPosition": {"enum":["center","top","bottom"]},
+        "lineStyle": {"$ref":"#/$defs/lineStyle"},
+        "headStyle": {"$ref":"#/$defs/headStyle"},
+        "flowRole": {"$ref":"#/$defs/flowRole"},
+        "labelStyle": {"$ref":"#/$defs/labelStyle"},
+        "labelDensity": {"$ref":"#/$defs/labelDensity"}
+      }
+    },
+    "diagramPresentation": {
+      "type": "object",
+      "description": "Optional rendering preferences shared by the diagram.",
+      "additionalProperties": false,
+      "properties": {
+        "layout": {"$ref":"#/$defs/layout"},
+        "layoutDetail": {"type":"string","minLength":1,"description":"Specific layout when layout is other."},
+        "direction": {"enum":["left_to_right","right_to_left","top_to_bottom","bottom_to_top"]},
+        "defaultBoxStyle": {"$ref":"#/$defs/boxStyle"},
+        "defaultContainerStyle": {"$ref":"#/$defs/containerStyle"},
+        "canvasStyle": {"$ref":"#/$defs/canvasStyle"},
+        "frameStyle": {"$ref":"#/$defs/frameStyle"},
+        "railStyle": {"$ref":"#/$defs/railStyle"},
+        "calloutStyle": {"$ref":"#/$defs/calloutStyle"},
+        "stepCalloutStyle": {"$ref":"#/$defs/stepCalloutStyle"},
+        "railElements": {"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/railElementStyle"}},
+        "theme": {"enum":["standard","night","custom"],"description":"Overall theme; use palette and fonts for explicit overrides."},
+        "background": {"$ref":"#/$defs/color"},
+        "palette": {"$ref":"#/$defs/palette"},
+        "fonts": {"$ref":"#/$defs/fonts"}
+      },
+      "allOf": [{"if":{"properties":{"layout":{"const":"other"}},"required":["layout"]},"then":{"required":["layoutDetail"]}}]
+    }
+  }
+}
