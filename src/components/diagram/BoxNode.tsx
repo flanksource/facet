@@ -1,6 +1,7 @@
 import React from 'react';
 import { COLORS } from './colors';
 import { BOX_CLASSES, DEFAULT_NODE_PALETTE, type BoxStyle, type NodeFonts, type NodePalette } from './nodeStyles';
+import { DENSITY_TOKENS, useDiagramStyle, type Density } from './style';
 
 /** Which edge a port docks to, and where along that edge it sits. */
 export type PortPosition =
@@ -55,8 +56,10 @@ export interface BoxNodeProps {
   borderColor?: string;
   /** Minimum box width, e.g. "200px". */
   minWidth?: string;
-  /** Compact padding (p-2 header/body instead of px-3 py-2 / p-3). */
+  /** Shorthand for `density="compact"`; `density` wins when both are set. */
   compact?: boolean;
+  /** Padding and type scale. Defaults to the DiagramStyleProvider density, else comfortable. */
+  density?: Density;
   /** Dashed instead of solid border, for an open slot the reader fills with their own content. */
   dashed?: boolean;
   /**
@@ -228,9 +231,9 @@ function Port({ port, defaultColor }: { port: BoxNodePort; defaultColor: string 
  * `bodyClassName` props are a fallback that auto-derives the border.
  */
 export default function BoxNode({
-  variant = 'header',
-  palette,
-  fonts,
+  variant: variantProp,
+  palette: paletteProp,
+  fonts: fontsProp,
   icon,
   description,
   footer,
@@ -242,12 +245,18 @@ export default function BoxNode({
   borderColor,
   minWidth,
   compact,
+  density: densityProp,
   dashed,
   shadow,
   ports,
   className,
   bodyClassName,
 }: BoxNodeProps) {
+  const style = useDiagramStyle();
+  const variant = variantProp ?? style.shape?.box ?? 'header';
+  const palette = paletteProp ?? style.palette;
+  const fonts = fontsProp ?? style.fonts;
+  const tokens = DENSITY_TOKENS[densityProp ?? (compact ? 'compact' : style.density)];
   if (!Object.prototype.hasOwnProperty.call(BOX_CLASSES, variant)) throw new Error(`Unknown box style: ${variant}`);
   const p = palette ?? DEFAULT_NODE_PALETTE;
   const header = variant === 'header';
@@ -298,25 +307,22 @@ export default function BoxNode({
       {variant === 'stacked' && <span aria-hidden="true" data-node-stack className="absolute inset-0 -z-10 translate-x-1 translate-y-1 rounded-md" style={{ backgroundColor: p.surface, boxShadow: `0 0 0 1px ${p.border}` }} />}
       <div
         className={[
-          compact ? 'p-2' : 'px-3 py-2',
-          'text-xs font-bold',
+          'font-bold',
           header ? 'text-center text-white' : '',
           header && !headerStyle ? className : '',
         ]
           .filter(Boolean)
           .join(' ')}
-        style={{ ...(header ? headerStyle : {}), fontFamily: fonts?.heading, ...(header && palette ? { color: p.onAccent } : {}) }}
+        style={{ padding: tokens.header, fontSize: tokens.title, ...(header ? headerStyle : {}), fontFamily: fonts?.heading, ...(header && palette ? { color: p.onAccent } : {}) }}
       >
         {icon != null ? <span className={variant === 'tile' ? 'flex flex-col items-center gap-2' : 'flex items-center justify-center gap-2'}>{icon}{title}</span> : title}
       </div>
       {(description != null || children != null) && (
         <div
-          className={[compact ? 'p-2' : 'p-3', bodyStyle ? '' : bodyClassName]
-            .filter(Boolean)
-            .join(' ')}
-          style={header ? bodyStyle : undefined}
+          className={bodyStyle ? undefined : bodyClassName}
+          style={{ padding: tokens.body, ...(header ? bodyStyle : {}) }}
         >
-          {description != null && <div className="text-[10px] leading-snug" style={{ color: dark ? p.onDark : p.muted }}>{description}</div>}
+          {description != null && <div className="leading-snug" style={{ fontSize: tokens.detail, color: dark ? p.onDark : p.muted }}>{description}</div>}
           {children}
         </div>
       )}
