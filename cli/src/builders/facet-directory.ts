@@ -83,12 +83,15 @@ function shouldSkipConsumerItem(item: string): boolean {
   return SKIP_ITEMS.has(item) || item.startsWith('.');
 }
 
-function resolveFileProtocol(version: string, pkgDir: string, _facetRoot: string): string {
-  if (!version.startsWith('file:')) return version;
-  // Emit an absolute path. pnpm realpath-resolves the install dir (e.g. /var → /private/var
-  // on macOS), which breaks relative file: deps that point outside the tempdir root.
-  // An absolute path sidesteps the realpath rewrite.
-  return 'file:' + resolve(pkgDir, version.slice(5));
+// pnpm/npm protocols whose value is a path relative to the declaring package.json.
+const LOCAL_PATH_PROTOCOLS = ['file:', 'link:', 'portal:'] as const;
+
+// Emit an absolute path for a local-path dependency. .facet/package.json lives one level below the consumer, so a
+// relative link:/portal: path would resolve against the wrong directory, and pnpm realpath-resolves the install dir
+// (e.g. /var → /private/var on macOS), which breaks relative file: deps that point outside the tempdir root.
+function resolveFileProtocol(version: string, pkgDir: string): string {
+  const proto = LOCAL_PATH_PROTOCOLS.find((candidate) => version.startsWith(candidate));
+  return proto ? proto + resolve(pkgDir, version.slice(proto.length)) : version;
 }
 
 export interface FacetPackageOverride {
@@ -320,12 +323,7 @@ function resolveLocalProtocol(version: string, pkgDir: string): string {
       `Use a concrete version, or a file:/link:/portal: path that points at the workspace package.`
     );
   }
-  for (const proto of ['file:', 'link:', 'portal:']) {
-    if (version.startsWith(proto)) {
-      return proto + resolve(pkgDir, version.slice(proto.length));
-    }
-  }
-  return version;
+  return resolveFileProtocol(version, pkgDir);
 }
 
 /**
@@ -925,7 +923,7 @@ export default defineConfig(async () => {
         const raw = { ...consumerPackage.dependencies, ...consumerPackage.devDependencies } as Record<string, string>;
 
         for (const [name, ver] of Object.entries(raw)) {
-          dependencies[name] = resolveFileProtocol(ver, this.consumerRoot, this.facetRoot);
+          dependencies[name] = resolveFileProtocol(ver, this.consumerRoot);
         }
 
         // pnpm 11 keeps overrides in pnpm-workspace.yaml; pnpm 10 kept them in
@@ -1047,7 +1045,7 @@ export default defineConfig(async () => {
       if (existsSync(pkgPath) && searchDir !== this.consumerRoot) {
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
         for (const [name, ver] of Object.entries({ ...pkg.dependencies, ...pkg.devDependencies } as Record<string, string>)) {
-          dependencies[name] = resolveFileProtocol(ver, searchDir, this.facetRoot);
+          dependencies[name] = resolveFileProtocol(ver, searchDir);
         }
         this.logger.debug(`Merged deps from ${pkgPath}`);
         break;
@@ -1551,7 +1549,7 @@ export default {
     }
     const declared = { ...consumerPackage.dependencies, ...consumerPackage.devDependencies };
     return Object.entries(declared)
-      .filter(([, version]) => ['file:', 'link:', 'portal:'].some((proto) => version.startsWith(proto)))
+      .filter(([, version]) => LOCAL_PATH_PROTOCOLS.some((proto) => version.startsWith(proto)))
       .flatMap(([name]) => [`node_modules/${name}/**/*.{html,js,jsx,ts,tsx,md,mdx}`, `!node_modules/${name}/node_modules/**`]);
   }
 

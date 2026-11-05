@@ -2,6 +2,7 @@ import React from 'react';
 import { COLORS } from './colors';
 import { BOX_CLASSES, DEFAULT_NODE_PALETTE, type BoxStyle, type NodeFonts, type NodePalette } from './nodeStyles';
 import { DENSITY_TOKENS, useDiagramStyle, type Density } from './style';
+import { EditableText, editableText, type DataAttributes } from './editable';
 
 /** Which edge a port docks to, and where along that edge it sits. */
 export type PortPosition =
@@ -35,7 +36,7 @@ export interface BoxNodePort {
   node?: React.ReactNode;
 }
 
-export interface BoxNodeProps {
+export interface BoxNodeProps extends DataAttributes {
   variant?: BoxStyle;
   palette?: NodePalette;
   fonts?: NodeFonts;
@@ -251,6 +252,7 @@ export default function BoxNode({
   ports,
   className,
   bodyClassName,
+  ...dataAttributes
 }: BoxNodeProps) {
   const style = useDiagramStyle();
   const variant = variantProp ?? style.shape?.box ?? 'header';
@@ -289,7 +291,9 @@ export default function BoxNode({
 
   const box = (
     <div
+      {...dataAttributes}
       id={id}
+      data-editable-box="variant"
       className={[
         BOX_CLASSES[variant],
         dashed || variant === 'dashed' || variant === 'ghost' ? 'border-dashed' : 'border-solid',
@@ -315,18 +319,18 @@ export default function BoxNode({
           .join(' ')}
         style={{ padding: tokens.header, fontSize: tokens.title, ...(header ? headerStyle : {}), fontFamily: fonts?.heading, ...(header && palette ? { color: p.onAccent } : {}) }}
       >
-        {icon != null ? <span className={variant === 'tile' ? 'flex flex-col items-center gap-2' : 'flex items-center justify-center gap-2'}>{icon}{title}</span> : title}
+        {icon != null ? <span className={variant === 'tile' ? 'flex flex-col items-center gap-2' : 'flex items-center justify-center gap-2'}>{icon}<EditableText prop="title">{title}</EditableText></span> : <EditableText prop="title">{title}</EditableText>}
       </div>
       {(description != null || children != null) && (
         <div
           className={bodyStyle ? undefined : bodyClassName}
           style={{ padding: tokens.body, ...(header ? bodyStyle : {}) }}
         >
-          {description != null && <div className="leading-snug" style={{ fontSize: tokens.detail, color: dark ? p.onDark : p.muted }}>{description}</div>}
+          {description != null && <div {...editableText('description', description)} className="leading-snug" style={{ fontSize: tokens.detail, color: dark ? p.onDark : p.muted }}>{description}</div>}
           {children}
         </div>
       )}
-      {footer != null && <div className="mx-2 border-t py-1 text-[9px]" style={{ borderColor: p.border, fontFamily: fonts?.mono }}>{footer}</div>}
+      {footer != null && <div {...editableText('footer', footer)} className="mx-2 border-t py-1 text-[9px]" style={{ borderColor: p.border, fontFamily: fonts?.mono }}>{footer}</div>}
     </div>
   );
 

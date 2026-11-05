@@ -15,6 +15,8 @@ export { default as ContainerNode } from './ContainerNode';
 export type { ContainerNodeProps } from './ContainerNode';
 export { BrandBox, BrandContainer, BrandMark } from './BrandNodes';
 export type { BrandBoxProps, BrandContainerProps, BrandMarkProps } from './BrandNodes';
+export { DIAGRAM_ROLES, Marker, ROLE_TONES, Tile, Zone } from './RoleNodes';
+export type { DiagramRole, RoleTone, TileProps, ZoneProps } from './RoleNodes';
 export { loadBrand } from './brand';
 export type { BrandDefinition, BrandArtwork, LoadBrandOptions } from './brand';
 export { BOX_STYLES, CONTAINER_STYLES, DEFAULT_NODE_PALETTE } from './nodeStyles';

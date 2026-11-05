@@ -49,7 +49,14 @@ export async function generateOfficeBuffer(options: {
             logVisual({ logger, format: options.format, action: 'generated', block, elapsedMs: result.timings.pdf });
             logVisual({ logger, format: options.format, action: 'generated', block: { ...block, format: 'png' }, elapsedMs: result.timings.png });
           } else {
-            block.data = await element.screenshot({ type: 'png', omitBackground: true });
+            const selector = `[data-facet-office-media="${block.mediaId}"]`;
+            const isolation = await page.addStyleTag({ content: `body *:not(${selector}):not(${selector} *):not(:has(${selector})) { visibility: hidden !important; }` });
+            try {
+              block.data = await element.screenshot({ type: 'png', omitBackground: true });
+            } finally {
+              await isolation.evaluate((style) => style.remove());
+              await isolation.dispose();
+            }
             logVisual({ logger, format: options.format, action: 'generated', block, elapsedMs: performance.now() - startedAt });
           }
           await element.dispose();

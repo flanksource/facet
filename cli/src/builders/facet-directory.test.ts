@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'fs/promises';
 import { existsSync, symlinkSync, utimesSync, lstatSync, readlinkSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
 import { VERSION } from '../version-generated.js';
@@ -452,6 +452,30 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     facetDir.copyStylesCss();
 
     expect(facetDir.generatedConfigDigest()).not.toBe(before);
+  });
+
+  it('anchors every local-path consumer dependency at the consumer root in .facet/package.json', async () => {
+    // .facet/package.json sits one level below the consumer, so a relative link:
+    // left as written resolves one directory too high and the import fails.
+    await writeFile(join(consumerRoot, 'package.json'), JSON.stringify({
+      dependencies: { '@acme/kit': 'file:../kit', '@acme/linked': 'link:../../packages/linked', 'left-pad': '^1.3.0' },
+      devDependencies: { '@acme/portal': 'portal:./portal' },
+    }));
+
+    await newFacetDir().generatePackageJson();
+
+    const generated = JSON.parse(await readFile(join(facetRoot, 'package.json'), 'utf-8'));
+    expect({
+      kit: generated.dependencies['@acme/kit'],
+      linked: generated.dependencies['@acme/linked'],
+      portal: generated.dependencies['@acme/portal'],
+      registry: generated.dependencies['left-pad'],
+    }).toEqual({
+      kit: `file:${resolve(consumerRoot, '../kit')}`,
+      linked: `link:${resolve(consumerRoot, '../../packages/linked')}`,
+      portal: `portal:${resolve(consumerRoot, 'portal')}`,
+      registry: '^1.3.0',
+    });
   });
 
   it('uses local package metadata and writes a build fingerprint into .facet/package.json', async () => {

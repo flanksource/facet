@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from 'puppeteer-core';
 import JSZip from 'jszip';
+import sharp from 'sharp';
 import { launchBrowser } from '../utils/pdf-generator.js';
 import { generateOfficeBuffer } from './index.js';
 import { officeText } from '../../test/office-xml.js';
@@ -105,6 +106,17 @@ describe('editable Office exports', () => {
     const xml = await zip.file('ppt/slides/slide1.xml')!.async('string');
     expect(xml).toContain('val="123456"');
     expect(officeText(xml)).toContain('Visible header');
+  });
+
+  it('captures slide artwork without baking overlapping editable text into its picture', async () => {
+    const svg = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><rect width="80" height="40" fill="blue"/></svg>');
+    const html = `<html><body><main data-page-size="powerpoint-wide"><div style="display:grid;width:80px;height:40px"><img style="grid-area:1/1;width:80px;height:40px" src="data:image/svg+xml,${svg}"/><p style="grid-area:1/1;margin:0;color:white;font-size:16px">Editable</p></div></main></body></html>`;
+    const zip = await JSZip.loadAsync(await generateOfficeBuffer({ browser, html, format: 'pptx' }));
+    const media = Object.values(zip.files).filter((file) => /^ppt\/media\/.+\.png$/.test(file.name));
+    expect(media).toHaveLength(1);
+    const stats = await sharp(await media[0].async('nodebuffer')).stats();
+    expect(stats.channels.slice(0, 3).map(({ min, max }) => [min, max])).toEqual([[0, 0], [0, 0], [255, 255]]);
+    expect(officeText(await zip.file('ppt/slides/slide1.xml')!.async('string'))).toBe('Editable');
   });
 
   it('resolves automatic PowerPoint contents labels after pagination and retains literal labels', async () => {
