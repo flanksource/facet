@@ -2,9 +2,11 @@ import chalk from 'chalk';
 import type { LintIssue } from './types.js';
 import { compactReportValue, formatLocation, issueLocations } from './locations.js';
 
-export function formatIssues(issues: LintIssue[], verbose: boolean): string {
+export function formatIssues({ issues, verbose, details = true, summary = true }: {
+  issues: LintIssue[]; verbose: boolean; details?: boolean; summary?: boolean;
+}): string {
   if (issues.length === 0) {
-    return verbose ? chalk.green('No issues found') : '';
+    return verbose && summary ? chalk.green('No issues found') : '';
   }
 
   const byFile = new Map<string, LintIssue[]>();
@@ -17,7 +19,7 @@ export function formatIssues(issues: LintIssue[], verbose: boolean): string {
   const lines: string[] = [];
 
   const fileEntries = [...byFile.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
-  for (const [file, fileIssues] of fileEntries) {
+  for (const [file, fileIssues] of details ? fileEntries : []) {
     lines.push('');
     lines.push(chalk.white.bold(file));
 
@@ -41,8 +43,10 @@ export function formatIssues(issues: LintIssue[], verbose: boolean): string {
   const errors = issues.filter((i) => i.severity === 'error').length;
   const warnings = issues.filter((i) => i.severity === 'warning').length;
   const infos = issues.filter((i) => i.severity === 'info').length;
-  lines.push('');
-  lines.push(`${chalk.red(`${errors} error${errors !== 1 ? 's' : ''}`)}, ${chalk.yellow(`${warnings} warning${warnings !== 1 ? 's' : ''}`)}${infos ? `, ${chalk.blue(`${infos} info`)}` : ''}`);
+  if (summary) {
+    lines.push('');
+    lines.push(`${chalk.red(`${errors} error${errors !== 1 ? 's' : ''}`)}, ${chalk.yellow(`${warnings} warning${warnings !== 1 ? 's' : ''}`)}${infos ? `, ${chalk.blue(`${infos} info`)}` : ''}`);
+  }
 
   return lines.join('\n');
 }

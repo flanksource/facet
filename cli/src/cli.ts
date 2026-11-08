@@ -52,6 +52,13 @@ function booleanOption(value: string): boolean {
   throw new InvalidArgumentError('Expected true or false');
 }
 
+const LINT_OPTION_HELP = 'Lint the templates first and print the report; warnings do not stop the render, lint errors do';
+
+async function lintTemplatesBeforeRender(templates: string[], logger: Logger, verbose: boolean): Promise<void> {
+  const { lintBeforeRender } = await import('./lint/render-gate.js');
+  await lintBeforeRender({ templates, verbose, logger });
+}
+
 function parseDataLoaderArgs(): string[] {
   const dashIndex = process.argv.indexOf('--');
   return dashIndex !== -1 ? process.argv.slice(dashIndex + 1) : [];
@@ -172,11 +179,13 @@ addSharedOptions(
     .option('--css-scope <prefix>', 'CSS scope prefix for scoped HTML generation')
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
+    .option('--lint', LINT_OPTION_HELP)
 ).action(async (templates: string[], options: any, command: Command) => {
   options = { ...options, ...command.optsWithGlobals() };
   const logger = new Logger(options.verbose);
   try {
     const facetURL = resolveFacetURL(options.facetUrl);
+    if (options.lint) await lintTemplatesBeforeRender(templates, logger, options.verbose);
     await ensureRenderReady('html', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating HTML from template: ${template}`);
@@ -235,6 +244,7 @@ addSharedOptions(
     .option('--viewport <WxH>', 'Browser viewport the page is laid out against (default: 1280x800)', viewportOption)
     .option('--autocrop', 'Trim the uniform background border off the capture before scaling')
     .option('--autocrop-padding <pixels>', 'Background margin left around autocropped content (default: 0)', numericOption(0))
+    .option('--lint', LINT_OPTION_HELP)
 ).action(async (templates: string[], options: any, command: Command) => {
   options = { ...options, ...command.optsWithGlobals() };
   const logger = new Logger(options.verbose);
@@ -242,6 +252,7 @@ addSharedOptions(
     const facetURL = resolveFacetURL(options.facetUrl);
     const sizes = expandRenderSizes(options.sizes);
     if (sizes.length && options.viewport) throw new Error('--sizes cannot be combined with --viewport');
+    if (options.lint) await lintTemplatesBeforeRender(templates, logger, options.verbose);
     await ensureRenderReady('png', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating PNG from template: ${template}`);
@@ -323,6 +334,7 @@ addSharedOptions(
     .option('--sign-reason <reason>', 'Signature reason text')
     .option('--sign-name <name>', 'Signer name')
     .option('--timestamp-url <url>', 'RFC 3161 Timestamp Authority URL')
+    .option('--lint', LINT_OPTION_HELP)
 ).action(async (templates: string[], options: any, command: Command) => {
   options = { ...options, ...command.optsWithGlobals() };
   const logger = new Logger(options.verbose);
@@ -330,6 +342,7 @@ addSharedOptions(
     const facetURL = resolveFacetURL(options.facetUrl);
     const sizes = expandRenderSizes(options.sizes);
     if (sizes.length && command.getOptionValueSource('pageSize') === 'cli') throw new Error('--sizes cannot be combined with --page-size');
+    if (options.lint) await lintTemplatesBeforeRender(templates, logger, options.verbose);
     await ensureRenderReady('pdf', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating PDF from template: ${template}`);
