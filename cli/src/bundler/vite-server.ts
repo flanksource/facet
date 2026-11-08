@@ -63,7 +63,6 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
   facetDir.copyStylesCss();
   facetDir.generateEntryWrapper();
   facetDir.generateTsConfig();
-  facetDir.generateTailwindConfig();
   facetDir.generateClientScaffold(data);
 
   await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules));

@@ -1,13 +1,27 @@
-import tailwindcss from 'tailwindcss';
+import postcss from 'postcss';
+import tailwindcss from '@tailwindcss/postcss';
 import autoprefixer from 'autoprefixer';
 import facetFontScale from './postcss/facet-font-scale.mjs';
+import { theme } from './src/page-styles/type-scale.mjs';
+import { flattenStylesheetLayers } from './src/page-styles/stylesheet.mjs';
 
-// Array form rather than the object map: the map's keys are resolved as package
-// names, and facetFontScale is a repo-local file.
-//
-// Order is load-bearing. facetFontScale runs last so it rewrites the utilities
-// Tailwind has just generated — including the arbitrary `text-[8pt]` classes
-// the components use, which is most of the document's type.
 export default {
-  plugins: [tailwindcss(), autoprefixer(), facetFontScale()],
+  plugins: [
+    {
+      postcssPlugin: 'facet-theme',
+      Once(root) {
+        root.walkAtRules('facet-theme', (rule) => rule.replaceWith(theme));
+      },
+    },
+    tailwindcss(),
+    autoprefixer(),
+    facetFontScale(),
+    {
+      postcssPlugin: 'facet-layers',
+      OnceExit(root) {
+        const flattened = postcss.parse(flattenStylesheetLayers(root.toString()));
+        root.removeAll().append(flattened.nodes);
+      },
+    },
+  ],
 };

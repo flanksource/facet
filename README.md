@@ -814,25 +814,13 @@ import { StatCard } from '@flanksource/facet';
 
 ## Styling
 
-Components use Tailwind CSS for styling. Include Tailwind in your project:
+Components use Tailwind CSS for styling. Facet supports **Tailwind CSS v4 only** (with `@tailwindcss/vite`); an installed `tailwindcss` of any other major fails the build with an error naming the version found. Include Tailwind in your project:
 
 ```bash
-pnpm add -D tailwindcss autoprefixer postcss
+pnpm add -D tailwindcss@^4 @tailwindcss/vite@^4
 ```
 
-**tailwind.config.js:**
-```js
-module.exports = {
-  content: [
-    './MyDatasheet.tsx',
-    './node_modules/@facet/core/src/components/**/*.tsx'
-  ],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-}
-```
+No `tailwind.config.js` or `postcss.config.js` is needed: Facet generates its own Tailwind v4 configuration (the print type scale, `@source` entries for your template, and the rendered-class pass) in `.facet/`.
 
 ## Markdown & MDX
 

@@ -247,10 +247,6 @@ export async function runSsrDaemon(): Promise<void> {
     try {
       request = JSON.parse(line) as DaemonRequest;
       if (request.kind === 'css') {
-        // The generated postcss.config.js reads FACET_POST_PROCESS at first
-        // import and is module-cached, so in-daemon CSS builds see the render
-        // config. Safe: with Tailwind v3 the config choice only changes inert
-        // content globs (facet.css ships pre-expanded), and v4 ignores the env.
         const { buildPostProcessCss } = await import('./css.js');
         const css = await buildPostProcessCss(base.facetRoot, { content: request.content });
         process.stdout.write(`${JSON.stringify({ id: request.id, result: { html: '', css } })}\n`);

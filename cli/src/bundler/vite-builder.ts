@@ -252,7 +252,6 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
     facetDir.generateTsConfig();
     facetDir.generateViteConfig();
     facetDir.generatePostCSSConfig();
-    facetDir.generateTailwindConfig();
   });
 
   // Keyed after scaffolding so the generated config participates: a config

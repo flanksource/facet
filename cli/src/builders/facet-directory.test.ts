@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'fs/promises';
-import { existsSync, symlinkSync, utimesSync, lstatSync, readlinkSync } from 'fs';
+import { existsSync, symlinkSync, utimesSync, lstatSync, readdirSync, readlinkSync } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
@@ -70,13 +70,14 @@ async function writeLocalFacetPackage(options: { scripts?: Record<string, string
   await mkdir(join(root, 'src/components'), { recursive: true });
   await mkdir(join(root, 'cli'), { recursive: true });
   await mkdir(join(root, 'dist/components'), { recursive: true });
+  await mkdir(join(root, 'dist/page-styles'), { recursive: true });
   await writeFile(join(root, 'package.json'), JSON.stringify({
     name: '@flanksource/facet',
     version: '9.9.9-local',
     dependencies: {
       react: '^18.2.0',
       vite: '^9.9.9',
-      tailwindcss: '^3.4.0',
+      tailwindcss: '^4.1.17',
     },
     devDependencies: {
       '@vitejs/plugin-react': '^9.9.9',
@@ -89,6 +90,7 @@ async function writeLocalFacetPackage(options: { scripts?: Record<string, string
   await writeFile(join(root, 'src/styles.css'), '/* local facet styles */\n.local-only { color: red; }\n');
   await writeFile(join(root, 'src/components/index.tsx'), 'export const Marker = "source";\n');
   await writeFile(join(root, 'dist/styles.css'), '/* built local css */\n');
+  await writeFile(join(root, 'dist/page-styles/index.mjs'), 'export const pageStyles = {};\n');
   await writeFile(join(root, 'dist/components/index.js'), 'export const Marker = "built";\n');
 
   const oldTime = new Date(Date.now() - 60_000);
@@ -96,7 +98,7 @@ async function writeLocalFacetPackage(options: { scripts?: Record<string, string
   for (const rel of ['package.json', 'src/styles.css', 'src/components/index.tsx']) {
     utimesSync(join(root, rel), oldTime, oldTime);
   }
-  for (const rel of ['dist/styles.css', 'dist/components/index.js']) {
+  for (const rel of ['dist/styles.css', 'dist/components/index.js', 'dist/page-styles/index.mjs']) {
     utimesSync(join(root, rel), newTime, newTime);
   }
   return root;
@@ -197,7 +199,7 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
       );
   });
 
-  it('feeds the point type scale to the Tailwind theme on both major versions', async () => {
+  it('feeds the point type scale to the Tailwind v4 theme', async () => {
     // Without this the `text-*` utilities resolve from Tailwind's rem defaults
     // against an unset root, and outrank anything the stylesheet declares — so
     // text-xs printed 9pt where the scale says 7pt.
@@ -206,20 +208,15 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
     dir.create();
     dir.symlinkConsumerFiles();
     dir.copyStylesCss();
-    dir.generateTailwindConfig();
     dir.generateEntryWrapper();
 
     const v4 = await readFile(join(facetRoot, 'post-process-v4.css'), 'utf-8');
     expect(v4).toContain('--text-xs: 7pt;');
     expect(v4).toContain('--text-2xl: 24pt;');
-    // Leading travels with the size on both majors. Emitting size alone left
-    // text-2xl drawing 24pt glyphs on whatever leading the element had.
+    // Leading travels with the size. Emitting size alone left text-2xl drawing
+    // 24pt glyphs on whatever leading the element had.
     expect(v4).toContain('--text-xs--line-height: 9pt;');
     expect(v4).toContain('--text-2xl--line-height: 28pt;');
-
-    const v3 = await readFile(join(facetRoot, 'tailwind.postprocess.config.js'), 'utf-8');
-    expect(v3).toContain('fontSize:');
-    expect(v3).toMatch(/"xs":\s*\[\s*"7pt",\s*\{\s*"lineHeight":\s*"9pt"\s*\}\s*\]/);
   });
 
   it('bundles icon data packages rather than externalising them', async () => {
@@ -280,7 +277,8 @@ describe('FacetDirectory Tailwind integration', () => {
     expect(templateImport).toBeGreaterThan(facetImport);
 
     const facetCss = await readFile(join(facetRoot, 'facet.css'), 'utf-8');
-    expect(facetCss).toMatch(/^@import ['"]https:\/\/fonts\.googleapis\.com\//);
+    expect(facetCss).toMatch(/@import ['"]https:\/\/fonts\.googleapis\.com\//);
+    expect(facetCss.indexOf('@import')).toBeLessThan(facetCss.indexOf('@layer theme'));
     // facet sits between base and utilities: above Tailwind preflight, so the
     // stylesheet's element defaults survive, and below utilities, so a
     // `text-lg` on the element still wins.
@@ -288,21 +286,20 @@ describe('FacetDirectory Tailwind integration', () => {
     expect(facetCss).toContain('@layer facet {');
     expect(facetCss).not.toContain('layer(facet)');
 
-    const postProcessCss = await readFile(join(facetRoot, 'post-process.css'), 'utf-8');
-    expect(postProcessCss.indexOf("@import './facet.css';"))
-      .toBeLessThan(postProcessCss.indexOf("@import './src/src/styles/report.css';"));
-    expect(postProcessCss).not.toContain('@source');
-    // Without this the v3 pass emits no utilities of its own, runTailwindCached
-    // sees no directives and reuses the SSR CSS, and a consumer's own classes
-    // are never generated — they simply do nothing in the rendered document.
-    expect(postProcessCss).toContain('@tailwind utilities;');
-    expect(postProcessCss.indexOf("@import './facet.css';"))
-      .toBeLessThan(postProcessCss.indexOf('@tailwind utilities;'));
+    expect(readdirSync(facetRoot).filter((name) => name.startsWith('tailwind.') || /^post-process(\.css|\.entry\.ts)$/.test(name))).toEqual([]);
 
     const postProcessV4Css = await readFile(join(facetRoot, 'post-process-v4.css'), 'utf-8');
     expect(postProcessV4Css).toContain('@import "tailwindcss/theme.css" layer(theme);');
     expect(postProcessV4Css).toContain('@import "tailwindcss/utilities.css" layer(utilities) source(none);');
     expect(postProcessV4Css).not.toContain('preflight.css');
+    // The recipe entry carries only compiler inputs, so the facet stylesheet and
+    // consumer CSS are imported ahead of it and the preset comes from the entry.
+    expect(postProcessV4Css.indexOf("@import './facet.css';"))
+      .toBeLessThan(postProcessV4Css.indexOf("@import './src/src/styles/report.css';"));
+    expect(postProcessV4Css.indexOf("@import './src/src/styles/report.css';"))
+      .toBeLessThan(postProcessV4Css.indexOf('@import "tailwindcss/theme.css" layer(theme);'));
+    expect(postProcessV4Css).toContain('@config "@flanksource/facet/tailwind-preset";');
+    expect(postProcessV4Css).toContain('@plugin "@tailwindcss/typography";');
     expect(postProcessV4Css).toContain('@source "./src/template.tsx";');
     expect(postProcessV4Css).toContain('@source "./rendered-content.html";');
   });
@@ -319,38 +316,21 @@ describe('FacetDirectory Tailwind integration', () => {
     expect(clientEntry).toContain("import './live-tailwind.css';");
   });
 
-  it('generates Vite configs that select the installed Tailwind major', async () => {
+  it('generates Vite configs that require Tailwind v4 and drops the v3 PostCSS plugin', async () => {
     const dir = newFacetDir();
     dir.generateViteConfig();
     dir.generateClientScaffold({});
+    dir.generatePostCSSConfig();
 
-    expect(await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8'))
-      .toContain("await import('@tailwindcss/vite')");
-    expect(await readFile(join(facetRoot, 'vite.client.config.ts'), 'utf-8'))
-      .toContain("await import('@tailwindcss/vite')");
-    expect(await readFile(join(facetRoot, 'postcss.config.js'), 'utf-8'))
-      .toContain("tailwindMajor === 3");
-  });
-
-  it('scans local-path dependencies for utilities in the default Tailwind config', async () => {
-    // A component kit declared as `file:../kit` is installed as a copy under
-    // .facet/node_modules, outside the `src/**` glob, so the live pass generated
-    // none of the kit's classes and the browser measured an unstyled page.
-    await writeFile(join(consumerRoot, 'package.json'), JSON.stringify({
-      dependencies: { '@acme/kit': 'file:../kit', 'left-pad': '^1.3.0' },
-      devDependencies: { 'acme-linked': 'link:../linked' },
-    }));
-    const dir = newFacetDir();
-    dir.create();
-    dir.generateTailwindConfig();
-
-    const config = await readFile(join(facetRoot, 'tailwind.config.js'), 'utf-8');
-    expect(config).toContain('"src/**/*.{html,js,jsx,ts,tsx,md,mdx}"');
-    expect(config).toContain('"!src/**/node_modules/**"');
-    expect(config).toContain('"node_modules/@acme/kit/**/*.{html,js,jsx,ts,tsx,md,mdx}"');
-    expect(config).toContain('"!node_modules/@acme/kit/node_modules/**"');
-    expect(config).toContain('"node_modules/acme-linked/**/*.{html,js,jsx,ts,tsx,md,mdx}"');
-    expect(config).not.toContain('left-pad');
+    for (const name of ['vite.config.ts', 'vite.client.config.ts']) {
+      const config = await readFile(join(facetRoot, name), 'utf-8');
+      expect(config).toContain("await import('@tailwindcss/vite')");
+      expect(config).toContain('facet requires Tailwind CSS v4 (with @tailwindcss/vite)');
+      expect(config).not.toContain('tailwindMajor');
+    }
+    const postcss = await readFile(join(facetRoot, 'postcss.config.js'), 'utf-8');
+    expect(postcss).not.toMatch(/tailwindMajor|tailwind\.postprocess|tailwind\.config|import\('tailwindcss'\)/);
+    expect(postcss).toContain('plugins: [autoprefixer(), facetFontScale()]');
   });
 
   it('scans the template top-level source directory', async () => {
@@ -541,6 +521,25 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     expect(needsLocalFacetCssBuild(localRoot)).toBe(false);
 
     await rm(join(localRoot, 'dist/styles.css'), { force: true });
+    expect(needsLocalFacetCssBuild(localRoot)).toBe(true);
+  });
+
+  it.each(['type-scale.mjs', 'font-scale.mjs', 'recipe.mjs', 'preset.mjs', 'stylesheet.mjs'])('rebuilds CSS when page-styles/%s changes', async (name) => {
+    const localRoot = await writeLocalFacetPackage();
+    await mkdir(join(localRoot, 'src/page-styles'), { recursive: true });
+    const source = join(localRoot, 'src/page-styles', name);
+    await writeFile(source, 'export const changed = true;\n');
+    utimesSync(source, new Date(Date.now() + 120_000), new Date(Date.now() + 120_000));
+    expect(needsLocalFacetCssBuild(localRoot)).toBe(true);
+  });
+
+  it('rebuilds a missing recipe and fingerprints changes in its built modules', async () => {
+    const localRoot = await writeLocalFacetPackage();
+    const recipe = join(localRoot, 'dist/page-styles/index.mjs');
+    const before = localFacetBuildFingerprint(localRoot);
+    await writeFile(recipe, 'export const pageStyles = { changed: true };\n');
+    expect(localFacetBuildFingerprint(localRoot)).not.toBe(before);
+    await rm(recipe);
     expect(needsLocalFacetCssBuild(localRoot)).toBe(true);
   });
 

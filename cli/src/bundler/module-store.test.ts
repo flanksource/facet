@@ -70,7 +70,7 @@ function embeddedPackage(): Record<string, unknown> {
       '@tailwindcss/typography': '^0.5.19',
       '@tailwindcss/postcss': '^4.1.17',
       '@tailwindcss/vite': '^4.1.17',
-      tailwindcss: '^3.4.3',
+      tailwindcss: '^4.1.17',
       autoprefixer: '^10.4.16',
       postcss: '^8.5.0',
     },

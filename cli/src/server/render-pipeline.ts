@@ -153,7 +153,6 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
   try {
     return await applyTailwind({
       html: buildResult.html,
-      ssrCss: buildResult.css,
       facetRoot: buildResult.facetRoot,
       buildCacheKey: buildResult.buildCacheKey,
       logger,
@@ -205,7 +204,6 @@ export async function renderHTMLStreamed(options: StreamedHTMLOptions): Promise<
     progress.emit('tailwind', 'Processing Tailwind CSS...');
     return await applyTailwind({
       html: buildResult.html,
-      ssrCss: buildResult.css,
       facetRoot: buildResult.facetRoot,
       buildCacheKey: buildResult.buildCacheKey,
       logger,
@@ -330,7 +328,6 @@ export async function injectHeaderFooter(options: {
 
 async function applyTailwind(options: {
   html: string;
-  ssrCss: string;
   facetRoot: string;
   buildCacheKey: string;
   logger: Logger;
@@ -338,13 +335,12 @@ async function applyTailwind(options: {
   timings: RenderTimings;
   persistentLoader: boolean;
 }): Promise<string> {
-  const { html, ssrCss, facetRoot, buildCacheKey, logger, enabled, timings, persistentLoader } = options;
+  const { html, facetRoot, buildCacheKey, logger, enabled, timings, persistentLoader } = options;
   const css = await timings.measure('tailwind', () => runTailwindCached({
     facetRoot,
     html: enabled ? html : '',
     buildCacheKey,
     logger,
-    ssrCss,
     persistentLoader,
   }));
   logger.debug(enabled

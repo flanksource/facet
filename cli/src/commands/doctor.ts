@@ -666,16 +666,24 @@ function checkTailwindBin(consumerRoot: string): CheckResult {
   }
   const version = JSON.parse(readFileSync(packagePath, 'utf-8')).version as string;
   const major = Number(version.split('.')[0]);
-  if (major === 3) return { id: 'tailwindcss', name: 'tailwindcss', status: 'pass', message: version };
+  if (major !== 4) {
+    return {
+      id: 'tailwindcss',
+      name: 'tailwindcss',
+      status: 'fail',
+      message: `unsupported v${version}`,
+      hint: 'facet requires Tailwind CSS v4 with @tailwindcss/vite.',
+    };
+  }
   const vitePlugin = join(facetRoot, 'node_modules', '@tailwindcss', 'vite', 'package.json');
-  if (major === 4 && existsSync(vitePlugin)) {
+  if (existsSync(vitePlugin)) {
     return { id: 'tailwindcss', name: 'tailwindcss + @tailwindcss/vite', status: 'pass', message: version };
   }
   return {
     id: 'tailwindcss',
     name: 'tailwindcss',
     status: 'fail',
-    message: major === 4 ? `v${version} without @tailwindcss/vite` : `unsupported v${version}`,
-    hint: major === 4 ? 'Install @tailwindcss/vite at the same version as tailwindcss.' : 'Use Tailwind CSS v3 or v4.',
+    message: `v${version} without @tailwindcss/vite`,
+    hint: 'Install @tailwindcss/vite at the same version as tailwindcss.',
   };
 }

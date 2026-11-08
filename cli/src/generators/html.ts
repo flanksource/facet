@@ -108,7 +108,6 @@ export async function renderTemplateHTML({ options, layout }: { options: Generat
       html: postProcessCss ? htmlWithoutCSS : '',
       buildCacheKey: buildResult.buildCacheKey,
       logger,
-      ssrCss: buildResult.css,
     }));
     logger.debug(postProcessCss
       ? 'CSS generated from source and rendered class names'
