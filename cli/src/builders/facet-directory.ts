@@ -36,6 +36,7 @@ import { SHARP_VERSION } from '../utils/sharp.js';
 import { PDFJS_VERSION, PDFJS_CANVAS_VERSION } from '../utils/pdfjs.js';
 import { pageStyles, wrapFacetStylesInLayer } from '../../../dist/page-styles/index.mjs';
 export { wrapFacetStylesInLayer } from '../../../dist/page-styles/index.mjs';
+import { resolveConsumerDependencies } from './consumer-dependencies.js';
 
 const rootPackageJson = assetPath('package.json');
 
@@ -882,9 +883,7 @@ export default defineConfig(async () => {
         const consumerPackage = JSON.parse(consumerPackageText);
         const raw = { ...consumerPackage.dependencies, ...consumerPackage.devDependencies } as Record<string, string>;
 
-        for (const [name, ver] of Object.entries(raw)) {
-          dependencies[name] = resolveFileProtocol(ver, this.consumerRoot);
-        }
+        dependencies = await resolveConsumerDependencies({ dependencies: raw, packageDir: this.consumerRoot });
 
         // pnpm 11 keeps overrides in pnpm-workspace.yaml; pnpm 10 kept them in
         // package.json. Merge both, with package.json winning on a key present
@@ -912,7 +911,7 @@ export default defineConfig(async () => {
         this.logger.debug(`Loaded ${Object.keys(dependencies).length} dependencies from consumer package.json`);
       }
     } catch (error) {
-      this.logger.warn(`Failed to read consumer package.json: ${error}`);
+      throw new Error(`Failed to load consumer dependencies from ${join(this.consumerRoot, 'package.json')}: ${error}`, { cause: error });
     }
 
     // Read package metadata from the local override when FACET_PACKAGE_PATH is a
@@ -1004,9 +1003,10 @@ export default defineConfig(async () => {
       const pkgPath = join(searchDir, 'package.json');
       if (existsSync(pkgPath) && searchDir !== this.consumerRoot) {
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-        for (const [name, ver] of Object.entries({ ...pkg.dependencies, ...pkg.devDependencies } as Record<string, string>)) {
-          dependencies[name] = resolveFileProtocol(ver, searchDir);
-        }
+        Object.assign(dependencies, await resolveConsumerDependencies({
+          dependencies: { ...pkg.dependencies, ...pkg.devDependencies },
+          packageDir: searchDir,
+        }));
         this.logger.debug(`Merged deps from ${pkgPath}`);
         break;
       }

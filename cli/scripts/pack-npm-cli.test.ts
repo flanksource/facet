@@ -20,6 +20,7 @@ describe('buildPackage', () => {
     mkdirSync(join(repoRoot, 'node_modules', 'mermaid', 'dist'), { recursive: true });
     mkdirSync(join(repoRoot, 'postcss'), { recursive: true });
     mkdirSync(join(repoRoot, 'remark'), { recursive: true });
+    mkdirSync(join(repoRoot, 'oxlint-plugins'), { recursive: true });
     mkdirSync(templateDir, { recursive: true });
     writeFileSync(join(repoRoot, 'package.json'), JSON.stringify({ name: '@flanksource/facet', version: '1.0.0' }));
     writeFileSync(join(repoRoot, 'dist', 'styles.css'), '.compiled{}');
@@ -27,6 +28,7 @@ describe('buildPackage', () => {
     writeFileSync(join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'), 'window.mermaid={}');
     writeFileSync(join(repoRoot, 'postcss', 'facet-font-scale.mjs'), 'export default () => ({});');
     writeFileSync(join(repoRoot, 'remark', 'facet-redact.mjs'), 'export default () => (tree) => tree;');
+    writeFileSync(join(repoRoot, 'oxlint-plugins', 'facet-diagrams.js'), 'export default { meta: { name: "facet" }, rules: {} };');
     const bundlePath = join(root, 'cli.cjs');
     writeFileSync(bundlePath, '#!/usr/bin/env node\nconsole.log(1)');
     writeFileSync(join(templateDir, 'package.json'), JSON.stringify({ name: '@flanksource/facet-cli', version: '0.0.0', bin: { facet: 'facet.cjs' } }));
@@ -44,6 +46,7 @@ describe('buildPackage', () => {
     // every consumer document rather than degrading.
     expect(existsSync(join(outDir, 'assets', 'facet-font-scale.mjs'))).toBe(true);
     expect(existsSync(join(outDir, 'assets', 'facet-redact.mjs'))).toBe(true);
+    expect(readFileSync(join(outDir, 'assets', 'facet-diagrams.oxlint.mjs'), 'utf8')).toContain('"facet"');
     expect(existsSync(join(outDir, 'assets', 'review-diagram.prompt'))).toBe(true);
     expect(readFileSync(join(outDir, 'assets', 'review-diagram.prompt'), 'utf8')).toContain('arrow-rendering');
     expect(existsSync(join(outDir, 'README.md'))).toBe(true);

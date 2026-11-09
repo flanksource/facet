@@ -13,6 +13,7 @@ function copyRuntimeAssets({ repoRoot, outDir }) {
     'mermaid.min.js': 'node_modules/mermaid/dist/mermaid.min.js',
     'facet-font-scale.mjs': 'postcss/facet-font-scale.mjs',
     'facet-redact.mjs': 'remark/facet-redact.mjs',
+    'facet-diagrams.oxlint.mjs': 'oxlint-plugins/facet-diagrams.js',
   };
   for (const [name, source] of Object.entries(sources)) {
     fs.copyFileSync(path.join(repoRoot, source), path.join(outDir, name));

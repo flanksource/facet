@@ -47,6 +47,7 @@ const seaConfig = {
     'mermaid.min.js': join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'),
     'facet-font-scale.mjs': join(repoRoot, 'postcss', 'facet-font-scale.mjs'),
     'facet-redact.mjs': join(repoRoot, 'remark', 'facet-redact.mjs'),
+    'facet-diagrams.oxlint.mjs': join(repoRoot, 'oxlint-plugins', 'facet-diagrams.js'),
     'review-diagram.prompt': join(cliRoot, 'assets', 'review-diagram.prompt'),
   },
 };

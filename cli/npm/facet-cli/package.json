@@ -25,7 +25,8 @@
   "homepage": "https://github.com/flanksource/facet#readme",
   "dependencies": {
     "pdfjs-dist": "6.4.299",
-    "@napi-rs/canvas": "1.0.10"
+    "@napi-rs/canvas": "1.0.10",
+    "oxlint": "^1.60.0"
   },
   "engines": {
     "node": ">=24"
