@@ -453,6 +453,7 @@ Facet ships box-and-arrow diagram primitives for data-flow and architecture diag
 | `Diagram` | Render-prop container. Yields an `id(name)` helper for stable, per-instance element ids and defers arrows until after mount. |
 | `DiagreDiagram` | Auto-layout container with the same `id(name)` helper. Infers nodes and edges from direct `BoxNode` and `Arrow` children, then lays them out left-to-right or top-to-bottom. |
 | `BoxNode` | Pure-CSS box with optional header/body, plus `ports` — chips docked on its border. Connected to other boxes via its `id`, or a port's. |
+| `Tile` / `Zone` | Role-toned component box and containment boundary. `role` is one of `DIAGRAM_ROLES` (`existing`, `new`, `future`, `neutral`); `ROLE_TONES` holds each tone and `Marker` renders a numbered badge. |
 | `Arrow` | Connector between two box ids (`from` / `to`), with `primary` / `secondary` presets. |
 | `NodeSection` | Labeled vertical column of boxes (e.g. "Sources", "Outputs"). |
 | `COLORS` | Shared 5-color diagram palette. |
@@ -492,6 +493,19 @@ import { Arrow, BoxNode, DiagreDiagram } from '@flanksource/facet';
   </>}
 </DiagreDiagram>
 ```
+
+### Editable markers
+
+Nodes tag their rendered DOM so visual editors can map an element back to the prop that produced it. Markers are stable `data-editable-*` attributes; they add no styling.
+
+| Component | Root marker | Current value read from | Text markers (`data-editable-text`) |
+|-----------|-------------|-------------------------|-------------------------------------|
+| `BoxNode`, `BrandBox` | `data-editable-box="variant"` | `data-box-style` | `title`, `description`, `footer` |
+| `ContainerNode`, `BrandContainer` | `data-editable-container="variant"` | `data-container-style` | `tag`, `title`, `description`, `footer` |
+| `Tile` | `data-editable-box="role"` | `data-role` | `title`, `detail` |
+| `Zone` | `data-editable-container="role"` | `data-role` | `label` |
+
+`data-editable-text="<prop>"` sits on the element whose text is exactly that prop's value, and only when the value is a string or number. A `ReactNode` value is left unmarked. When an icon shares the title's element, the title is wrapped in its own `<span>`. All six components also forward any `data-*` prop to their root element (for a `BoxNode` with `ports`, the box itself, not the ports grid).
 
 ### `// @live` — hydrate and bake
 
@@ -600,6 +614,7 @@ Options:
   --css-scope <prefix>         CSS scope prefix for scoped HTML generation
   -s, --schema <file>          Path to JSON Schema file for data validation
   --no-validate                Skip data validation
+  --lint                       Lint the template first; warnings print, errors skip the render
   -d, --data <file>            Path to JSON or YAML data file
   -l, --data-loader <file>     Path to data loader module (.ts or .js)
   -o, --output <path>          Output file path or directory (default: "dist")
@@ -625,6 +640,7 @@ facet pdf [options] <template>
 Options:
   -s, --schema <file>          Path to JSON Schema file for data validation
   --no-validate                Skip data validation
+  --lint                       Lint the template first; warnings print, errors skip the render
   -d, --data <file>            Path to JSON or YAML data file
   -l, --data-loader <file>     Path to data loader module (.ts or .js)
   -o, --output <path>          Output file path or directory (default: "dist")
@@ -657,6 +673,7 @@ Options:
   --viewport <WxH>             Browser viewport used for layout (default: 1280x800)
   --autocrop                   Trim the uniform background border off the capture
   --autocrop-padding <pixels>  Background margin left around autocropped content (default: 0)
+  --lint                       Lint the template first; warnings print, errors skip the render
   -s, --schema <file>          Path to JSON Schema file for data validation
   --no-validate                Skip data validation
   -d, --data <file>            Path to JSON or YAML data file
@@ -707,6 +724,32 @@ facet lint --diagrams --diagrams-ai docs/
 # Select Claude explicitly through Captain
 facet lint --diagrams --diagrams-ai --llm-model api:claude-sonnet-4-6 docs/
 ```
+
+#### `no-data-driven-diagram`
+
+Every `.tsx` file is also checked by the `facet/no-data-driven-diagram` [oxlint](https://oxc.rs/docs/guide/usage/linter/js-plugins.html) rule, run through the `oxlint` that ships with the CLI (not the one on `PATH`). In components rendering Facet `Diagram`, `FlowDiagram`, or `DiagreDiagram`, it warns once per `.map()`/`.flatMap()` call producing JSX, including HTML, SVG, fragments, custom components, legends beside the diagram, and same-file render helpers. Renamed and namespace imports and same-file callback references are supported. Shared palette/layout constants and maps producing ordinary data remain valid. Imported helper implementations are not traversed.
+
+For example, `TIERS.map(tier => <div>{tier.title}</div>)`, `CONTROLS.map(renderControl)`, and `Object.keys(KINDS).map(kind => <span>{kind}</span>)` are reported inside diagram components. Write each rendered element explicitly as JSX. Static styling such as `style={{ color: PAPER.ink }}` remains valid. Ordinary list components unrelated to a diagram are unaffected.
+
+Outside diagram components, the existing check still warns when a recognized diagram shape in a callback reads the callback parameter, directly or through a derived value:
+
+```tsx
+// warns: `<rect>` is drawn from data (`zones.map`); write each diagram shape as JSX so it can be edited in place.
+{zones.map((zone) => <rect key={zone.id} x={zone.x} y={zone.y} width={zone.w} height={zone.h} />)}
+```
+
+Shapes are facet `BoxNode`, `ContainerNode`, `BrandBox`, `BrandContainer`, `Tile`, `Zone` and `Arrow` (imported from `@flanksource/facet` or a subpath, renamed or namespace imports included) and the intrinsic SVG `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`, `text` and `g`. Outside diagram components, a shape in a map that reads none of the callback's parameters is fine, and `key` is ignored. Inside diagram components, repeated static JSX is also reported because its instances share one source element. `--rule no-data-driven-diagram` runs only this rule, `--severity error` hides it (it is a warning), and `// facet-lint-disable-next-line` suppresses one finding at the iterator call site. `--diagrams` prints source findings before live rendering and retains them if rendering fails. `oxlint` is a dependency of the CLI package; the standalone SEA binary cannot resolve it, so `facet lint` fails loudly on `.tsx` files there. Use the npm distribution.
+
+To run the rule from `gavel lint` or plain oxlint, enable the plugin in `.oxlintrc.json` (it needs oxlint 1.50 or newer and `@flanksource/facet` installed):
+
+```json
+{
+  "jsPlugins": ["@flanksource/facet/oxlint"],
+  "rules": { "facet/no-data-driven-diagram": "warn" }
+}
+```
+
+`facet html`, `facet png` and `facet pdf` accept `--lint` to run the same lint over their templates first: the report is printed, warnings do not stop the render, and any lint error exits non-zero before rendering.
 
 ### `facet serve`
 
@@ -1019,7 +1062,7 @@ See `examples/` for complete working examples:
 
 ## Claude Code plugin
 
-This repo doubles as a Claude Code plugin marketplace. Installing it gives agents three skills covering the whole surface: authoring templates, driving the CLI, and designing diagrams.
+This repo doubles as a Claude Code plugin marketplace. Installing it gives agents skills for authoring templates, driving the CLI, and designing diagrams.
 
 ```
 /plugin marketplace add flanksource/facet
@@ -1030,7 +1073,8 @@ This repo doubles as a Claude Code plugin marketplace. Installing it gives agent
 | --- | --- |
 | `facet-documents` | `Document`/`Page`/`Header`/`Footer`, page sizes and margins, the component library, the pt type scale, `Theme`, Markdown/MDX |
 | `facet-cli` | `html`/`pdf`/`png`/`fill-pdf`/`serve`/`lint`/`doctor`, data loading, remote templates, troubleshooting |
-| `diagram-designer` | Node-and-arrow architecture and ER diagrams, with five runnable layout examples |
+| `diagram-designer` | Node-and-arrow architecture and ER diagrams, with runnable layout examples |
+| `diagram-designer-schema` | Create and update schema-backed conceptual, logical, security and deployment diagrams |
 
 Source and layout: [`.agents/skills/`](.agents/skills/README.md).
 
