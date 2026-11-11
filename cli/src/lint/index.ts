@@ -5,6 +5,7 @@ import { cwdRelativePath } from './external-paths.js';
 import { defaultDiagramRenderer, createDiagramTempDir, type DiagramRenderer } from './diagram-renderer.js';
 import { hasDirectDiagramCandidate } from './diagram-candidates.js';
 import { runExternalTool, type ExternalToolRunner } from './external-runner.js';
+import { OXLINT_RULE, runOxlint } from './oxlint.js';
 import { allRules } from './rules/index.js';
 import { formatIssues } from './reporter.js';
 import type { LintContext, LintFileType, LintIssue, Severity } from './types.js';
@@ -15,6 +16,8 @@ export interface LintLogger { error(message: string): void; info(message: string
 export interface LintOptions {
   paths: string[]; verbose: boolean; rule?: string; severity: string; vale?: boolean; diagrams?: boolean; diagramsAi?: boolean;
   llmModel?: string;
+  /** Lowest severity that makes runLint return 1; reported issues below it are printed but pass. Default "warning". */
+  failOnSeverity?: Severity;
   logger: LintLogger; cwd?: string; runner?: ExternalToolRunner; diagramRenderer?: DiagramRenderer;
 }
 const SKIP_DIRS = new Set(['node_modules', '.facet', 'dist', '.git', 'storybook-static']);
@@ -57,13 +60,37 @@ function logMetadata(logger: LintLogger, file: string, metadata: VisualMetadata)
   logger.info(`Diagram AI review: file=${file} provider=${metadata.provider} model=${metadata.model} inputTokens=${metadata.inputTokens ?? 0} outputTokens=${metadata.outputTokens ?? 0} duration=${metadata.duration ?? 'unknown'} costUSD=${metadata.costUSD ?? 0}`);
 }
 
+async function lintFile(options: { filePath: string; rule?: string; embeddedImages: boolean }): Promise<LintIssue[]> {
+  const { filePath, rule, embeddedImages } = options;
+  const file = relative(process.cwd(), filePath);
+  const extension = extname(filePath).toLowerCase();
+  const rules = allRules.filter(candidate => !rule || candidate.name === rule);
+  try {
+    if (extension === '.png') return !rule || pngRules.some(candidate => candidate.name === rule) ? await lintPng(readFileSync(filePath), file) : [];
+    if (extension === '.pdf' || extension === '.docx') {
+      return !rule || documentRules.some(candidate => candidate.name === rule)
+        ? await lintDocument({ data: readFileSync(filePath), file, format: extension === '.pdf' ? 'pdf' : 'docx', embeddedImages }) : [];
+    }
+    if (!rules.length) return [];
+    const content = readFileSync(filePath, 'utf-8');
+    const lines = content.split('\n');
+    const ctx: LintContext = { filePath: file, lines, content };
+    return rules.flatMap(candidate => candidate.check(ctx)).filter(issue => {
+      if (issue.line === undefined || issue.line < 1 || issue.line > lines.length) throw new Error(`Invalid source location for rule ${issue.rule}`);
+      return !isDisabled(lines, issue.line - 1);
+    });
+  } catch (cause) {
+    throw new Error(`Cannot lint ${extension.slice(1).toUpperCase()} ${file}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+  }
+}
+
 export async function runLint(options: LintOptions): Promise<number> {
   const { logger } = options;
   const cwd = resolve(options.cwd ?? process.cwd());
   const minimum = parseSeverity(options.severity);
   if (options.diagramsAi && !options.diagrams) { logger.error('--diagrams-ai requires --diagrams'); return 1; }
   const rules = options.rule ? allRules.filter((rule) => rule.name === options.rule) : allRules;
-  if (options.rule && !rules.length) { logger.error(`Unknown rule: ${options.rule}`); logger.log(`Available rules: ${allRules.map((rule) => rule.name).join(', ')}`); return 1; }
+  if (options.rule && !rules.length && options.rule !== OXLINT_RULE) { logger.error(`Unknown rule: ${options.rule}`); logger.log(`Available rules: ${[...allRules.map((rule) => rule.name), OXLINT_RULE].join(', ')}`); return 1; }
   const files = discoverFiles(options.paths, cwd);
   if (!files.length) { logger.warn('No supported files found (.tsx, .mdx, .md)'); return 0; }
   if (options.verbose) logger.info(`Scanning ${files.length} file${files.length === 1 ? '' : 's'}...`);
@@ -78,27 +105,48 @@ export async function runLint(options: LintOptions): Promise<number> {
   }
   const relativeFiles = files.map((file) => cwdRelativePath(cwd, file));
   const runner = options.runner ?? runExternalTool;
-  if (options.vale) issues.push(...await runVale(relativeFiles.filter((file) => file.endsWith('.md') || file.endsWith('.mdx')), cwd, runner));
-  if (options.diagrams) {
-    const candidates = findDiagramCandidates(files, cwd);
-    const renderer = options.diagramRenderer ?? defaultDiagramRenderer;
-    const llmModel = options.llmModel ?? process.env.FACET_LLM_MODEL;
-    if (candidates.length > 0) {
-      const temp = await createDiagramTempDir();
-      try {
-        for (const candidate of candidates) {
-          const pngPath = await renderer.render(candidate, cwd, temp);
-          if (options.diagramsAi) {
-            const review = await runVisualReview(candidate, pngPath, cwd, runner, llmModel);
-            issues.push(...review.issues);
-            logMetadata(logger, cwdRelativePath(cwd, candidate), review.metadata);
-          }
-        }
-      } finally { await rm(temp, { recursive: true, force: true }); }
+  if (!options.rule || options.rule === OXLINT_RULE) {
+    const oxlintIssues = await runOxlint({ files: relativeFiles.filter((file) => file.endsWith('.tsx')), cwd, runner });
+    const sources = new Map<string, string[]>();
+    for (const found of oxlintIssues) {
+      if (!sources.has(found.file)) sources.set(found.file, readFileSync(resolve(cwd, found.file), 'utf8').split('\n'));
+      if (!disabled(sources.get(found.file)!, found.line! - 1)) issues.push(found);
     }
   }
-  const filtered = issues.filter((issue) => minimum === 'warning' || issue.severity === 'error').sort(compare);
-  const output = formatIssues(filtered, options.verbose);
-  if (output) logger.log(output);
-  return filtered.length ? 1 : 0;
+  if (options.vale) issues.push(...await runVale(relativeFiles.filter((file) => file.endsWith('.md') || file.endsWith('.mdx')), cwd, runner));
+  const visible = (items: LintIssue[]) => items.filter(issue => minimum === 'warning' || issue.severity === 'error').sort(compare);
+  const report = (items: LintIssue[]) => {
+    const output = formatIssues({ issues: visible(items), verbose: false, summary: false });
+    if (output) logger.log(output);
+  };
+  report(issues);
+  const sourceCount = issues.length;
+  let completed = false;
+  try {
+    if (options.diagrams) {
+      const candidates = findDiagramCandidates(files, cwd);
+      const renderer = options.diagramRenderer ?? defaultDiagramRenderer;
+      const llmModel = options.llmModel ?? process.env.FACET_LLM_MODEL;
+      if (candidates.length > 0) {
+        const temp = await createDiagramTempDir();
+        try {
+          for (const candidate of candidates) {
+            const pngPath = await renderer.render(candidate, cwd, temp);
+            if (options.diagramsAi) {
+              const review = await runVisualReview(candidate, pngPath, cwd, runner, llmModel);
+              issues.push(...review.issues);
+              logMetadata(logger, cwdRelativePath(cwd, candidate), review.metadata);
+            }
+          }
+        } finally { await rm(temp, { recursive: true, force: true }); }
+      }
+    }
+    completed = true;
+  } finally {
+    report(issues.slice(sourceCount));
+    const output = formatIssues({ issues: visible(issues), verbose: options.verbose && completed, details: false });
+    if (output) logger.log(output);
+  }
+  const filtered = visible(issues);
+  return filtered.some((issue) => (options.failOnSeverity ?? 'warning') === 'warning' || issue.severity === 'error') ? 1 : 0;
 }

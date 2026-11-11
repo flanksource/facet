@@ -162,10 +162,11 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   const keepOnSuccess = cacheKey != null || process.env.FACET_KEEP_BUNDLE === '1';
   try {
     const files = readdirSync(outDir);
-    const cjsFile = files.find(f => f.endsWith('.cjs'));
-    if (!cjsFile) {
-      throw new Error('No .cjs bundle found in build output');
+    const cjsFiles = files.filter(f => f.endsWith('.cjs'));
+    if (cjsFiles.length !== 1) {
+      throw new Error(`Expected one .cjs bundle in ${outDir}, found ${cjsFiles.length}: ${cjsFiles.join(', ') || 'none'}`);
     }
+    const cjsFile = cjsFiles[0]!;
 
     // Load the bundle with a .facet-rooted require so its externalized
     // react/react-dom (and react/jsx-dev-runtime) resolve from .facet, not the CLI.
@@ -246,10 +247,6 @@ export async function runSsrDaemon(): Promise<void> {
     try {
       request = JSON.parse(line) as DaemonRequest;
       if (request.kind === 'css') {
-        // The generated postcss.config.js reads FACET_POST_PROCESS at first
-        // import and is module-cached, so in-daemon CSS builds see the render
-        // config. Safe: with Tailwind v3 the config choice only changes inert
-        // content globs (facet.css ships pre-expanded), and v4 ignores the env.
         const { buildPostProcessCss } = await import('./css.js');
         const css = await buildPostProcessCss(base.facetRoot, { content: request.content });
         process.stdout.write(`${JSON.stringify({ id: request.id, result: { html: '', css } })}\n`);

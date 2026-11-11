@@ -3,11 +3,13 @@ export type LintFileType = 'tsx' | 'mdx' | 'md';
 
 export interface LintIssue {
   file: string;
-  line: number;
+  line?: number;
   column?: number;
   rule: string;
   severity: Severity;
   message: string;
+  locations?: LintLocation[];
+  data?: Record<string, unknown>;
 }
 
 export interface LintContext {

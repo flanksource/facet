@@ -3,6 +3,46 @@ import { parseRenderRequest, validateRequestModuleMode } from './request.js';
 
 const MAX_UPLOAD = 1024 * 1024;
 
+describe('page size override requests', () => {
+  it.each(['png', 'pdf'])('accepts concrete %s sizes in all request forms', async (format) => {
+    for (const request of [
+      jsonRequest({ code: 'export default null', format, pageSizeOverride: 'GOOGLE-ADS-300X250' }),
+      multipartRequest({ format, pageSizeOverride: 'GOOGLE-ADS-300X250' }),
+      gzipRequest(`?format=${format}&pageSizeOverride=GOOGLE-ADS-300X250`),
+    ]) {
+      expect((await parseRenderRequest(request, MAX_UPLOAD)).pageSizeOverride).toBe('google-ads-300x250');
+    }
+  });
+
+  it.each(['facebook-*', '', null, 12, '0x200', 'unknown'])('rejects invalid concrete size %j', async (pageSizeOverride) => {
+    await expect(parseRenderRequest(jsonRequest({ code: 'export default null', format: 'png', pageSizeOverride }), MAX_UPLOAD))
+      .rejects.toThrow('pageSizeOverride');
+  });
+
+  it.each(['html', 'docx', 'pptx'])('rejects size overrides for %s', async (format) => {
+    await expect(parseRenderRequest(jsonRequest({ code: 'export default null', format, pageSizeOverride: 'a4' }), MAX_UPLOAD))
+      .rejects.toThrow('pageSizeOverride requires PNG or PDF');
+  });
+
+  it('rejects a competing PNG viewport', async () => {
+    await expect(parseRenderRequest(jsonRequest({ code: 'export default null', format: 'png', pageSizeOverride: 'a4', pngOptions: { viewport: { width: 800, height: 600 } } }), MAX_UPLOAD))
+      .rejects.toThrow('pageSizeOverride cannot be combined');
+  });
+});
+
+describe('Office render requests', () => {
+  it.each(['docx', 'pptx'])('accepts %s in JSON, multipart and gzip requests', async (format) => {
+    for (const request of [jsonRequest({ code: 'export default null', format }), multipartRequest({ format }), gzipRequest(`?format=${format}`)]) {
+      expect((await parseRenderRequest(request, MAX_UPLOAD)).format).toBe(format);
+    }
+  });
+  it.each(['docx', 'pptx'])('rejects incompatible %s render options', async (format) => {
+    for (const options of [{ pdfOptions: {} }, { pngOptions: {} }, { encryption: { ownerPassword: 'example-password' } }, { signature: { selfSigned: true } }]) {
+      await expect(parseRenderRequest(jsonRequest({ code: 'export default null', format, ...options }), MAX_UPLOAD)).rejects.toThrow(/options|Options/);
+    }
+  });
+});
+
 function jsonRequest(body: Record<string, unknown>): Request {
   return new Request('http://localhost/render', {
     method: 'POST',

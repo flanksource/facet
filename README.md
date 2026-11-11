@@ -1,14 +1,21 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flanksource/facet/main/assets/brand/source/facet-horizontal-reversed.svg">
+    <img src="https://raw.githubusercontent.com/flanksource/facet/main/assets/brand/source/facet-horizontal.svg" alt="facet" width="300">
+  </picture>
+</p>
+
 # @flanksource/facet
 
 Build beautiful, print-ready datasheets and PDFs from React templates.
 
-**@flanksource/facet** is a framework for creating professional datasheets, reports, and documentation using React components. It provides a rich component library optimized for print and browser rendering, along with a powerful CLI for building HTML, PDF, and PNG outputs.
+**@flanksource/facet** is a framework for creating professional datasheets, reports, and documentation using React components. It provides a rich component library optimized for print and browser rendering, along with a CLI for building HTML, PDF, PNG, editable Word documents (DOCX), and PowerPoint presentations (PPTX).
 
 ## Features
 
 - 📄 **Print-optimized components** - 47+ components designed for professional datasheets
 - 🎨 **React & TypeScript** - Full type safety and modern React patterns
-- 🔧 **Zero-config CLI** - Build HTML, PDF, and PNG with a single command
+- 🔧 **Zero-config CLI** - Build HTML, PDF, PNG, DOCX, and PPTX with a single command
 - 🔗 **Component imports** - `import { StatCard } from '@flanksource/facet'`
 - ⚡ **Fast builds** - Powered by Vite with smart caching
 - 📦 **Isolated builds** - `.facet/` build directory (like `.next` in Next.js)
@@ -23,7 +30,7 @@ npm install -g @flanksource/facet-cli
 # or: pnpm add -g @flanksource/facet-cli
 ```
 
-This installs the `facet` command, which runs on your Node.js (>=20.19). Rendering
+This installs the `facet` command, which runs on your Node.js (>=24). Rendering
 uses `pnpm` to populate the shared module cache and reconcile project-specific
 dependencies. PDF output also needs a system Chrome/Chromium. Run `facet doctor`
 to check the environment. For a Node-free environment, use the standalone binary
@@ -108,6 +115,49 @@ This creates:
 ```bash
 facet pdf MyDatasheet.tsx
 ```
+
+### 4. Export editable Word documents and PowerPoint slides
+
+```bash
+facet docx examples/office/Report.tsx -d examples/office/data.json -o output/report.docx
+facet pptx examples/office/Report.tsx -d examples/office/data.json -o output/report.pptx
+facet docx report.md -o output/
+facet pptx report.mdx --font-size 20 -o output/
+```
+
+Both commands accept the shared render flags, data loaders, JSON Schema validation, classification policies, remote templates, and `--facet-url`. They require Chrome/Chromium locally; a remote Facet server supplies the browser when `FACET_URL` is set. `generateDOCX(options)` and `generatePPTX(options)` are also exported from `@flanksource/facet/cli`. The render API accepts `format: "docx"` or `format: "pptx"` and returns the usual result URL.
+
+DOCX preserves editable headings, paragraphs, rich text, links, lists, code, and tables. `<Page>` provides section sizes and margins, while Word flows content across physical pages. Headers, footers, figures, and diagram components are captured as paired PDF and PNG assets in the browser. Word receives EMF pictures containing the original PDF bytes and a bitmap display representation, matching Word's PDF insertion format. Figures include their captions and legends, and page numbers remain native Word fields. Vector rendering and selectable diagram text in exported PDFs depend on the viewer's support for the embedded PDF representation. Flex and grid columns use native layout tables; data tables retain cell padding, borders, merges and vertical alignment.
+
+`TableOfContents` exports native Word TOC and page-reference fields for its automatic targets. Accept Word's field-update prompt or use **References → Update Table** after pagination. Explicit page labels remain literal text. See [the Office examples](examples/office/README.md) for a runnable TOC, headers, footers and tables.
+
+PPTX reflows content into 16:9 slides by default, or 4:3 when the template selects `pageSize="powerpoint-standard"`. `powerpoint-wide` explicitly selects 16:9. Use one PowerPoint size per deck. The default body size is 18pt. Each `<Page>` starts a slide; long text and tables continue across slides without shrinking text. Table column headers repeat, merged row groups stay together, and cells retain padding, vertical alignment, and per-side solid/dashed borders. Contents entries show their destination slide numbers and link to them after pagination. Headers and footers retain editable text, backgrounds, borders and page numbers. Headings stay with following content, and column groups stay together. An indivisible group that cannot fit produces an actionable error. Use `--font-size` to change the type scale.
+
+PPTX embeds complex visuals as images. DOCX embeds figures and diagram components as PDF-in-EMF pictures; ordinary images, SVG logos, and canvas captures remain images. Office layout can differ from PDF and browser output. Interactive controls and unsupported content fail explicitly. Configure sizes and chrome in the template; PDF encryption/signing and PNG capture options do not apply. The playground provides Office downloads alongside a labeled HTML source preview. See [the runnable Office example](examples/office/README.md).
+
+### Render PNG/PDF in multiple sizes
+
+Use repeatable `--sizes` with exact presets or quoted globs. Facet lays out every variant at its selected size and appends the size to the filename:
+
+```bash
+facet png examples/page-sizes/Canvas.tsx --sizes 'facebook-*' --sizes 'linkedin-*' -o out/campaign.png
+facet pdf examples/page-sizes/Canvas.tsx --sizes 'google-ads-*' -o out/campaign.pdf
+```
+
+Outputs include `campaign-facebook-square.png` and `campaign-google-ads-300x250.pdf`. Selections override template page sizes and work with remote rendering. See [multi-size rendering](docs/page-sizes.md#render-multiple-sizes) for custom dimensions, naming, capture options, and API usage.
+
+### Inspect PDF, PNG and Word documents
+
+```bash
+facet inspect output/report.docx
+facet inspect output/report.docx output/report.pdf output/diagram.png --json
+facet inspect output/report.docx --fonts=true --font-position=false --colors=true --color-positions=false
+facet inspect output/report.docx --embedded-images --json
+```
+
+`inspect` reads native font and color inventories without modifying inputs or extracting files. Fonts and colors are enabled by default; their positions are disabled. PNG font metadata is explicitly unavailable, and its colors use an approximate palette of up to 32 RGBA groups. PDF and DOCX font references describe declared names and resources. Section settings describe Word layout configuration rather than rendered pagination. See [inspection options and output](docs/inspection.md).
+
+`--embedded-images` opts into image information and payload inspection. DOCX image entries include format, byte sizes, display dimensions, body/header/footer references, and preview relationships. PDFs inside EMF pictures, OLE objects, and raw PDF parts include their page and font information. Standalone PDFs report image resources with page and object references. Shared assets retain every reference. Document/package structure and references are always validated; embedded payload inspection runs only with the flag. PDF/DOCX inspection reports metadata; PNG visual checks apply to standalone PNG files.
 
 ## Performance benchmarks
 
@@ -309,7 +359,7 @@ physical page by the multi-pass pipeline described below.
 | `titleClassName` | `string` | — | Extra CSS class applied to the title bar |
 | `product` | `string` | — | Sub-label shown in the title bar |
 | `margins` | `PageMargins` | inherited | Content margins `{ top, right, bottom, left }` in mm; merged field-by-field over `<Document>` defaults |
-| `pageSize` | `PageSize` | `'a4'` | Page size — `a4`, `a3`, `letter`, `legal`, `fhd`, `qhd`, `wqhd`, `4k`, `5k`, `16k`, any `-landscape` variant, or custom `WxH` in mm |
+| `pageSize` | `PageSize` | `'a4'` | Paper/screen presets, `powerpoint-wide`, `powerpoint-standard`, `facebook-*`, `linkedin-*`, `reddit-*`, `google-ads-*`, or custom `WxH` in mm. See the [page-size catalog](docs/page-sizes.md). |
 | `type` | `PageType` | `'default'` | `'first' \| 'default' \| 'last'` — selects which `Header`/`Footer` this page gets |
 | `watermark` | `string` | — | Diagonal watermark text (e.g. `"DRAFT"`, `"CONFIDENTIAL"`) |
 | `className` | `string` | — | Extra CSS class applied to the `<main>` element |
@@ -324,6 +374,8 @@ physical page by the multi-pass pipeline described below.
 ### Cover page and table of contents
 
 `CoverPage` is an opinionated traditional first page. Compose `DocumentFields` into its lower section for ordered metadata; both labels and values remain on one line without truncation. `TableOfContents` accepts either a `target` matching a `Page id` or an element `id` inside a Page for automatic physical PDF numbering, or an explicit `page` label.
+
+Automatic entries are clickable internal PDF links, including links between pages with different header types, sizes or margins. Targets resolve to their actual printed page when content flows across sheets. Explicit `page` labels are plain text. In multi-pass PDFs, internal fragment links require a unique target inside a Page; missing or duplicate targets fail PDF generation.
 
 ```tsx
 <CoverPage title="Annual report" subtitle="Year ended 2026" id="cover">
@@ -401,6 +453,7 @@ Facet ships box-and-arrow diagram primitives for data-flow and architecture diag
 | `Diagram` | Render-prop container. Yields an `id(name)` helper for stable, per-instance element ids and defers arrows until after mount. |
 | `DiagreDiagram` | Auto-layout container with the same `id(name)` helper. Infers nodes and edges from direct `BoxNode` and `Arrow` children, then lays them out left-to-right or top-to-bottom. |
 | `BoxNode` | Pure-CSS box with optional header/body, plus `ports` — chips docked on its border. Connected to other boxes via its `id`, or a port's. |
+| `Tile` / `Zone` | Role-toned component box and containment boundary. `role` is one of `DIAGRAM_ROLES` (`existing`, `new`, `future`, `neutral`); `ROLE_TONES` holds each tone and `Marker` renders a numbered badge. |
 | `Arrow` | Connector between two box ids (`from` / `to`), with `primary` / `secondary` presets. |
 | `NodeSection` | Labeled vertical column of boxes (e.g. "Sources", "Outputs"). |
 | `COLORS` | Shared 5-color diagram palette. |
@@ -441,6 +494,19 @@ import { Arrow, BoxNode, DiagreDiagram } from '@flanksource/facet';
 </DiagreDiagram>
 ```
 
+### Editable markers
+
+Nodes tag their rendered DOM so visual editors can map an element back to the prop that produced it. Markers are stable `data-editable-*` attributes; they add no styling.
+
+| Component | Root marker | Current value read from | Text markers (`data-editable-text`) |
+|-----------|-------------|-------------------------|-------------------------------------|
+| `BoxNode`, `BrandBox` | `data-editable-box="variant"` | `data-box-style` | `title`, `description`, `footer` |
+| `ContainerNode`, `BrandContainer` | `data-editable-container="variant"` | `data-container-style` | `tag`, `title`, `description`, `footer` |
+| `Tile` | `data-editable-box="role"` | `data-role` | `title`, `detail` |
+| `Zone` | `data-editable-container="role"` | `data-role` | `label` |
+
+`data-editable-text="<prop>"` sits on the element whose text is exactly that prop's value, and only when the value is a string or number. A `ReactNode` value is left unmarked. When an icon shares the title's element, the title is wrapped in its own `<span>`. All six components also forward any `data-*` prop to their root element (for a `BoxNode` with `ports`, the box itself, not the ports grid).
+
 ### `// @live` — hydrate and bake
 
 Because arrows are measured from the DOM, they can't be produced by server-side
@@ -465,6 +531,39 @@ playground). In the playground, pick **Live Diagram** from the **Example**
 dropdown to try it.
 
 ## CLI Commands
+
+### Lint templates, images and documents
+
+```bash
+facet lint Report.tsx diagram.png
+facet lint diagrams/ --rule png-line-crossing
+facet lint diagram.png --severity error
+facet lint Report.tsx diagram.png --json > lint-results.json
+facet lint report.docx report.pdf --embedded-images --json
+```
+
+Lint scans directories recursively for TSX, PNG, PDF and DOCX files. PNG checks run locally using image pixels, without a browser or AI service. `--severity info` is the default; `--severity warning` hides informational entries and `--severity error` reports only errors. Info-only reports exit 0. Warnings and errors return exit 1. Missing paths, invalid configuration, and unreadable or corrupt documents fail with the filename or option context.
+
+`--json` writes a two-space-indented [ESLint JSON report](https://eslint.org/docs/latest/use/formatters/#json) to stdout. Results use absolute `filePath`, `messages`, numeric severities, and error/warning/fixable counts. Each message also carries its native `level`, `locations`, and available inspection `data`. Info entries use ESLint severity 1 and contribute to `warningCount`; a separate `infoCount` identifies them. They do not make lint fail. Errors use severity 2. Clean files and empty optional metadata are omitted; zero counts, zero coordinates and `false` values are retained. No reported findings produces `[]`. Banners and progress messages are suppressed even with `--verbose`. Operational failures go to stderr with exit code 2.
+
+Source findings retain one-based ESLint `line`/`column` fields. Binary findings use native locations instead of synthetic source lines:
+
+| Location type | Native fields |
+| --- | --- |
+| `source` | Line and optional column |
+| `png` | Zero-based top-left pixel coordinates, image dimensions, measured bounds where available; units `px` |
+| `pdf` | One-based page, indirect object reference and resource path where available; page data uses `pt` |
+| `docx` | Package part, indexed local-name element path, relationship ID, role and asset path where available; embedded PDFs retain a nested `pdf` location |
+
+Document info rules are `docx-section`, `docx-embedded-image`, `pdf-page` and `pdf-embedded-image`. Font inventories belong to `facet inspect` and are not collected by linters, including inside embedded PDFs. Image entries and information inside DOCX embedded PDFs require `--embedded-images`; `--rule` filters the resulting entries.
+
+| PNG rule | Severity | Detects |
+| --- | --- | --- |
+| `png-empty` | Error | Completely transparent or uniform-colour images |
+| `png-line-crossing` | Warning | Possible overlapping horizontal and vertical lines, reported at zero-based pixel coordinates |
+| `png-edge-content` | Warning | Content at the capture boundary that may be clipped |
+
+Line detection targets diagram strokes 1–6 pixels thick and at least 24 pixels long, with at least 90% continuity and contrast against their immediate surroundings. It allows corners and T junctions. Crossings and edge content need review because intentional junctions, full-bleed artwork, borders and grids can trigger warnings. This pixel heuristic does not detect text overlap, curved or diagonal connectors, or fully obscured coincident lines. A clean result is not a complete visual layout review.
 
 ### Remote rendering
 
@@ -515,6 +614,7 @@ Options:
   --css-scope <prefix>         CSS scope prefix for scoped HTML generation
   -s, --schema <file>          Path to JSON Schema file for data validation
   --no-validate                Skip data validation
+  --lint                       Lint the template first; warnings print, errors skip the render
   -d, --data <file>            Path to JSON or YAML data file
   -l, --data-loader <file>     Path to data loader module (.ts or .js)
   -o, --output <path>          Output file path or directory (default: "dist")
@@ -540,6 +640,7 @@ facet pdf [options] <template>
 Options:
   -s, --schema <file>          Path to JSON Schema file for data validation
   --no-validate                Skip data validation
+  --lint                       Lint the template first; warnings print, errors skip the render
   -d, --data <file>            Path to JSON or YAML data file
   -l, --data-loader <file>     Path to data loader module (.ts or .js)
   -o, --output <path>          Output file path or directory (default: "dist")
@@ -572,6 +673,7 @@ Options:
   --viewport <WxH>             Browser viewport used for layout (default: 1280x800)
   --autocrop                   Trim the uniform background border off the capture
   --autocrop-padding <pixels>  Background margin left around autocropped content (default: 0)
+  --lint                       Lint the template first; warnings print, errors skip the render
   -s, --schema <file>          Path to JSON Schema file for data validation
   --no-validate                Skip data validation
   -d, --data <file>            Path to JSON or YAML data file
@@ -622,6 +724,32 @@ facet lint --diagrams --diagrams-ai docs/
 # Select Claude explicitly through Captain
 facet lint --diagrams --diagrams-ai --llm-model api:claude-sonnet-4-6 docs/
 ```
+
+#### `no-data-driven-diagram`
+
+Every `.tsx` file is also checked by the `facet/no-data-driven-diagram` [oxlint](https://oxc.rs/docs/guide/usage/linter/js-plugins.html) rule, run through the `oxlint` that ships with the CLI (not the one on `PATH`). In components rendering Facet `Diagram`, `FlowDiagram`, or `DiagreDiagram`, it warns once per `.map()`/`.flatMap()` call producing JSX, including HTML, SVG, fragments, custom components, legends beside the diagram, and same-file render helpers. Renamed and namespace imports and same-file callback references are supported. Shared palette/layout constants and maps producing ordinary data remain valid. Imported helper implementations are not traversed.
+
+For example, `TIERS.map(tier => <div>{tier.title}</div>)`, `CONTROLS.map(renderControl)`, and `Object.keys(KINDS).map(kind => <span>{kind}</span>)` are reported inside diagram components. Write each rendered element explicitly as JSX. Static styling such as `style={{ color: PAPER.ink }}` remains valid. Ordinary list components unrelated to a diagram are unaffected.
+
+Outside diagram components, the existing check still warns when a recognized diagram shape in a callback reads the callback parameter, directly or through a derived value:
+
+```tsx
+// warns: `<rect>` is drawn from data (`zones.map`); write each diagram shape as JSX so it can be edited in place.
+{zones.map((zone) => <rect key={zone.id} x={zone.x} y={zone.y} width={zone.w} height={zone.h} />)}
+```
+
+Shapes are facet `BoxNode`, `ContainerNode`, `BrandBox`, `BrandContainer`, `Tile`, `Zone` and `Arrow` (imported from `@flanksource/facet` or a subpath, renamed or namespace imports included) and the intrinsic SVG `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`, `text` and `g`. Outside diagram components, a shape in a map that reads none of the callback's parameters is fine, and `key` is ignored. Inside diagram components, repeated static JSX is also reported because its instances share one source element. `--rule no-data-driven-diagram` runs only this rule, `--severity error` hides it (it is a warning), and `// facet-lint-disable-next-line` suppresses one finding at the iterator call site. `--diagrams` prints source findings before live rendering and retains them if rendering fails. `oxlint` is a dependency of the CLI package; the standalone SEA binary cannot resolve it, so `facet lint` fails loudly on `.tsx` files there. Use the npm distribution.
+
+To run the rule from `gavel lint` or plain oxlint, enable the plugin in `.oxlintrc.json` (it needs oxlint 1.50 or newer and `@flanksource/facet` installed):
+
+```json
+{
+  "jsPlugins": ["@flanksource/facet/oxlint"],
+  "rules": { "facet/no-data-driven-diagram": "warn" }
+}
+```
+
+`facet html`, `facet png` and `facet pdf` accept `--lint` to run the same lint over their templates first: the report is printed, warnings do not stop the render, and any lint error exits non-zero before rendering.
 
 ### `facet serve`
 
@@ -729,25 +857,13 @@ import { StatCard } from '@flanksource/facet';
 
 ## Styling
 
-Components use Tailwind CSS for styling. Include Tailwind in your project:
+Components use Tailwind CSS for styling. Facet supports **Tailwind CSS v4 only** (with `@tailwindcss/vite`); an installed `tailwindcss` of any other major fails the build with an error naming the version found. Include Tailwind in your project:
 
 ```bash
-pnpm add -D tailwindcss autoprefixer postcss
+pnpm add -D tailwindcss@^4 @tailwindcss/vite@^4
 ```
 
-**tailwind.config.js:**
-```js
-module.exports = {
-  content: [
-    './MyDatasheet.tsx',
-    './node_modules/@facet/core/src/components/**/*.tsx'
-  ],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-}
-```
+No `tailwind.config.js` or `postcss.config.js` is needed: Facet generates its own Tailwind v4 configuration (the print type scale, `@source` entries for your template, and the rendered-class pass) in `.facet/`.
 
 ## Markdown & MDX
 
@@ -946,7 +1062,7 @@ See `examples/` for complete working examples:
 
 ## Claude Code plugin
 
-This repo doubles as a Claude Code plugin marketplace. Installing it gives agents three skills covering the whole surface: authoring templates, driving the CLI, and designing diagrams.
+This repo doubles as a Claude Code plugin marketplace. Installing it gives agents skills for authoring templates, driving the CLI, and designing diagrams.
 
 ```
 /plugin marketplace add flanksource/facet
@@ -957,7 +1073,8 @@ This repo doubles as a Claude Code plugin marketplace. Installing it gives agent
 | --- | --- |
 | `facet-documents` | `Document`/`Page`/`Header`/`Footer`, page sizes and margins, the component library, the pt type scale, `Theme`, Markdown/MDX |
 | `facet-cli` | `html`/`pdf`/`png`/`fill-pdf`/`serve`/`lint`/`doctor`, data loading, remote templates, troubleshooting |
-| `diagram-designer` | Node-and-arrow architecture and ER diagrams, with five runnable layout examples |
+| `diagram-designer` | Node-and-arrow architecture and ER diagrams, with runnable layout examples |
+| `diagram-designer-schema` | Create and update schema-backed conceptual, logical, security and deployment diagrams |
 
 Source and layout: [`.agents/skills/`](.agents/skills/README.md).
 

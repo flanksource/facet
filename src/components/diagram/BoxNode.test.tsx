@@ -36,6 +36,24 @@ describe('shadow', () => {
   });
 });
 
+// A dashed outline marks an open slot — a placeholder the reader fills with
+// their own content — so it must replace the solid border, not sit beside it.
+describe('dashed', () => {
+  it('draws a solid border by default', () => {
+    const markup = renderToStaticMarkup(<BoxNode title="Node" />);
+
+    expect(markup).toContain('border-solid');
+    expect(markup).not.toContain('border-dashed');
+  });
+
+  it('replaces the solid border with a dashed one', () => {
+    const markup = renderToStaticMarkup(<BoxNode title="Node" dashed />);
+
+    expect(markup).toContain('border-dashed');
+    expect(markup).not.toContain('border-solid');
+  });
+});
+
 // A port is a chip docked onto the box border — an endpoint an arrow can
 // terminate on. It cannot live inside the box: BoxNode's root is
 // overflow-hidden so rounded-xl clips the header's square corners, and anything

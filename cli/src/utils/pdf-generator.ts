@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { PDFDocument } from 'pdf-lib';
 import { injectDebugAnnotations, injectTypographyAnnotations, extractTypographyInfo, type FontCombo } from './debug-annotations.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from '../version-generated.js';
-import puppeteer, { type Browser, type BrowserContext, type Page, type PuppeteerLaunchOptions } from 'puppeteer-core';
+import puppeteer, { type Browser, type BrowserContext, type Page, type LaunchOptions } from 'puppeteer-core';
 
 type PageProvider = Browser | BrowserContext;
 import { Logger } from './logger.js';
@@ -21,6 +21,7 @@ import { injectFontScale } from './font-size.js';
 import { ELEMENT_SCALE } from './type-scale.js';
 import { applySpawnedProcessPriority, buildLowPriorityCommand } from './subprocess-priority.js';
 import { resolveAutomaticTableOfContents, type TocPageRenderSpec } from './toc-pagination.js';
+import { prepareInternalLinks, restoreInternalLinks } from './pdf-internal-links.js';
 
 function readVersion(): string {
   try {
@@ -91,11 +92,11 @@ export function resolveChromePath(): string | undefined {
   return (SYSTEM_CHROME_PATHS[process.platform] ?? []).find(existsSync);
 }
 
-export function buildBrowserLaunchOptions(options: {
+export async function buildBrowserLaunchOptions(options: {
   chromePath: string;
   platform?: NodeJS.Platform;
-}): PuppeteerLaunchOptions {
-  const chromeArgs = puppeteer.defaultArgs({
+}): Promise<LaunchOptions> {
+  const chromeArgs = await puppeteer.defaultArgs({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
@@ -249,6 +250,7 @@ async function renderMultiPass(
   // group. Previously every group parsed and laid out the entire report before
   // deleting unrelated pages, which scaled poorly for large mixed documents.
   const sourcePage = await loadAndPrepare(browser, html);
+  const internalLinkTargets = await prepareInternalLinks(sourcePage);
   const groupHtml = async (indices: number[]): Promise<string> => sourcePage.evaluate((visibleIndices) => {
     const clone = document.documentElement.cloneNode(true) as HTMLElement;
     const visible = new Set(visibleIndices);
@@ -299,7 +301,8 @@ async function renderMultiPass(
   }
 
   const { buffer, pageMap, pageSizeMap, pageMarginMap } = await assembleGroups(results, log, typeInfo);
-  const composited = await compositeHeaderFooter(Buffer.from(buffer), overlays, pageMap, typeInfo, pageSizeMap, browser, html, FACET_CREATOR);
+  const linkedBuffer = await restoreInternalLinks(buffer, internalLinkTargets);
+  const composited = await compositeHeaderFooter(Buffer.from(linkedBuffer), overlays, pageMap, typeInfo, pageSizeMap, browser, html, FACET_CREATOR);
   if (debug) {
     const debugBuffer = await drawDebugOverlay(composited, pageMap, pageSizeMap, typeInfo, pageMarginMap, buildDebugInfo());
     return Buffer.from(debugBuffer);
@@ -314,7 +317,7 @@ async function renderLegacyElementPdf(
   heightMm: number,
   widthMm: number = 210,
 ): Promise<{ buffer: Buffer; hasPlaceholders: boolean } | null> {
-  const { renderElementPdf } = await import('./pdf-multipass.js');
+  const { renderElementPdf } = await import('./pdf-overlay.js');
   const page = await browser.newPage();
   let fragment = '';
   try {
@@ -327,7 +330,7 @@ async function renderLegacyElementPdf(
     return null;
   }
   return {
-    buffer: await renderElementPdf(browser, html, selector, heightMm, widthMm),
+    buffer: (await renderElementPdf({ browser, html, selector, heightMm, widthMm })).pdf,
     hasPlaceholders: fragment.includes(PAGE_MARKER) || fragment.includes(TOTAL_MARKER),
   };
 }
@@ -404,7 +407,7 @@ async function renderSinglePass(
     })),
   });
 
-  await page.addStyleTag({ content: printableHeightCss(pdfHeight, marginTop, marginBottom) });
+  await page.addStyleTag({ content: printableHeightCss(dims.height, marginTop, marginBottom) });
 
   if (marginTop === 0 && marginBottom === 0 && marginLeft === 0 && marginRight === 0) {
     const pdf = await page.pdf({
@@ -619,7 +622,7 @@ export async function launchBrowser(): Promise<Browser> {
   if (!chromePath) {
     throw new Error('Chrome/Chromium executable not found; set PUPPETEER_EXECUTABLE_PATH or CHROME_PATH');
   }
-  const browser = await puppeteer.launch(buildBrowserLaunchOptions({ chromePath }));
+  const browser = await puppeteer.launch(await buildBrowserLaunchOptions({ chromePath }));
   const process = browser.process();
   if (process?.pid !== undefined) {
     applySpawnedProcessPriority({ pid: process.pid, kill: () => process.kill() });

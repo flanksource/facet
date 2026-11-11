@@ -10,6 +10,10 @@ describe('playgroundHtml', () => {
       hasExamples: html.includes('const EXAMPLES ='),
       hasRender: html.includes('async function doRender()'),
       hasPngFormat: html.includes("setFormat('png')"),
+      hasDocxFormat: html.includes("setFormat('docx')"),
+      hasPptxFormat: html.includes("setFormat('pptx')"),
+      hasOfficeDownload: html.includes('Download editable '),
+      hasSourcePreviewLabel: html.includes('HTML source preview'),
       hasPngOptions: html.includes('id="pngSelector"'),
       hasPngPreview: html.includes("payload.contentType === 'image/png'"),
       hasTimingRenderer: html.includes('function showTimings(timings)'),
@@ -24,11 +28,16 @@ describe('playgroundHtml', () => {
       handlesResultLoadFailure: html.includes('function onPreviewLoadError(url)'),
       // The base64/Blob path was unreachable: emitResult always sends a url.
       hasDeadBlobBranch: html.includes('URL.createObjectURL'),
+      hasFacetFavicon: html.includes('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg'),
     }).toEqual({
       hasEditor: true,
       hasExamples: true,
       hasRender: true,
       hasPngFormat: true,
+      hasDocxFormat: true,
+      hasPptxFormat: true,
+      hasOfficeDownload: true,
+      hasSourcePreviewLabel: true,
       hasPngOptions: true,
       hasPngPreview: true,
       hasTimingRenderer: true,
@@ -42,6 +51,7 @@ describe('playgroundHtml', () => {
       showsTimingsInBanner: true,
       handlesResultLoadFailure: true,
       hasDeadBlobBranch: false,
+      hasFacetFavicon: true,
     });
   });
 });

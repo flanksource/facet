@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [
     react(),
     dts({
+      entryRoot: 'src',
       include: ['src/components/**', 'src/utils/**', 'src/types/**'],
       outDir: 'dist',
       tsconfigPath: './tsconfig.lib.json',
@@ -34,8 +35,10 @@ export default defineConfig({
         '@iconify/react',
         'clsx',
         'dayjs',
+        /^dayjs\//,
         'd3-scale',
         'd3-shape',
+        'marked',
         'shiki',
         '@xyflow/react',
         'dagre',

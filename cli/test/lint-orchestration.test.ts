@@ -10,6 +10,9 @@ const logger = { error: () => undefined, info: () => undefined, log: () => undef
 function root() { const path = mkdtempSync(join(tmpdir(), 'facet-lint-test-')); roots.push(path); return path; }
 afterEach(() => { for (const path of roots.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
+// Every runLint over a .tsx file also asks oxlint (run through node) for the diagram rule; these tests only script the other tools.
+const withOxlint = (runner: ExternalToolRunner): ExternalToolRunner => async (command, args, options) => command === process.execPath ? { stdout: JSON.stringify({ diagnostics: [] }), stderr: '' } : runner(command, args, options);
+
 function renderer() {
   return { render: async (_file: string, _cwd: string, outputDir: string) => { const png = join(outputDir, 'body.png'); writeFileSync(png, 'png'); return png; } };
 }
@@ -35,7 +38,7 @@ describe('lint orchestration', () => {
     const cwd = root(); writeFileSync(join(cwd, 'guide.md'), 'Hello'); writeFileSync(join(cwd, 'diagram.tsx'), '<Diagram />');
     const calls: string[][] = [];
     const runner: ExternalToolRunner = async (command, args) => { calls.push([command, ...args]); return { stdout: JSON.stringify({ 'guide.md': [{ Check: 'Style.Spacing', Severity: 'warning', Message: 'space', Line: 1, Span: [1, 2] }] }), stderr: '' }; };
-    expect(await runLint({ paths: ['.'], cwd, severity: 'warning', verbose: false, vale: true, diagrams: true, runner, diagramRenderer: renderer(), logger })).toBe(1);
+    expect(await runLint({ paths: ['.'], cwd, severity: 'warning', verbose: false, vale: true, diagrams: true, runner: withOxlint(runner), diagramRenderer: renderer(), logger })).toBe(1);
     expect(calls).toEqual([['vale', '--output=JSON', '--no-exit', '--', 'guide.md']]);
   });
 
@@ -44,7 +47,7 @@ describe('lint orchestration', () => {
     let renderedPath = '';
     const runner: ExternalToolRunner = async () => { throw new Error('unexpected external request'); };
     const diagramRenderer = { render: async (_file: string, _cwd: string, outputDir: string) => { renderedPath = outputDir; const png = join(outputDir, 'body.png'); writeFileSync(png, 'png'); return png; } };
-    expect(await runLint({ paths: ['.'], cwd, severity: 'warning', verbose: false, diagrams: true, runner, diagramRenderer, logger })).toBe(0);
+    expect(await runLint({ paths: ['.'], cwd, severity: 'warning', verbose: false, diagrams: true, runner: withOxlint(runner), diagramRenderer, logger })).toBe(0);
     expect(renderedPath).not.toBe(''); expect(existsSync(renderedPath)).toBe(false);
   });
 
@@ -53,7 +56,7 @@ describe('lint orchestration', () => {
     const calls: string[][] = []; const logs: string[] = [];
     const runner: ExternalToolRunner = async (command, args) => { calls.push([command, ...args]); return { stdout: captainResult(false), stderr: '' }; };
     const capture = { error: () => undefined, info: (message: string) => logs.push(message), log: () => undefined, warn: () => undefined };
-    expect(await runLint({ paths: ['.'], cwd, severity: 'warning', verbose: false, diagrams: true, diagramsAi: true, llmModel: 'api:claude-sonnet-4-6', runner, diagramRenderer: renderer(), logger: capture })).toBe(1);
+    expect(await runLint({ paths: ['.'], cwd, severity: 'warning', verbose: false, diagrams: true, diagramsAi: true, llmModel: 'api:claude-sonnet-4-6', runner: withOxlint(runner), diagramRenderer: renderer(), logger: capture })).toBe(1);
     expect(calls).toHaveLength(1);
     expect(calls[0][0]).toBe('captain');
     expect(calls[0]).toContain('prompt');

@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=styles.json.schema
+diagram:
+  layout: reference-architecture
+  direction: left_to_right
+  defaultBoxStyle: header
+  defaultContainerStyle: boundary
+  canvasStyle: dots
+  frameStyle: titled
+  railStyle: vertical
+  calloutStyle: leader
+  stepCalloutStyle: badge
+  railElements:
+    - step
+    - frame
+  theme: standard
+  background:
+    css: "#ffffff"
+  palette:
+    accent:
+      token: primary
+    dark:
+      themeToken: night/canvas
+  fonts:
+    heading: Inter, sans-serif
+    body: Inter, sans-serif
+    mono: monospace
+element:
+  kind: box
+  style: tinted
+  visualRole: security
+  cornerStyle: round
+  density: label-detail
+  tagPlacement: chips
+  icon:
+    source: clicky_ui
+    name: UiShieldCheck
+  palette:
+    border:
+      css: "#be123c"
+relationship:
+  kind: arrow
+  style: secondary
+  path: straight
+  dashness: true
+  lineStyle: dashed
+  headStyle: arrow
+  flowRole: policy
+  labelStyle: box
+  labelDensity: protocol

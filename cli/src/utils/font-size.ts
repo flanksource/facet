@@ -41,9 +41,9 @@ export function parseFontSize(value: unknown): number | undefined {
  *
  * The `1` fallback multiplies out exactly, so an unset flag is a true no-op.
  */
-export function fontScaleCss(fontSize: number): string {
+export function fontScaleCss(fontSize: number, priority: 'normal' | 'important' = 'normal'): string {
   const scale = Number((fontSize / BASE_FONT_SIZE_PT).toFixed(6));
-  return `:root { --facet-font-scale: ${scale}; }`;
+  return `:root { --facet-font-scale: ${scale}${priority === 'important' ? ' !important' : ''}; }`;
 }
 
 /**

@@ -52,6 +52,10 @@ Recommend 1–2 layout styles matched to the Phase 1 brief and the Phase 2 eleme
 | **Fan-in/Fan-out** | Many sources → central hub → many outputs | `examples/fan-in-fan-out.tsx` |
 | **Entity Model** | ER tables with PK/FK badges and relationship arrows | `examples/entity-model.tsx` |
 | **Hub & Spoke** | Product overview: personas + systems around a central platform | `examples/hub-and-spoke.tsx` |
+| **Topology Overview** | Component hierarchy with selectors, properties, health checks, configuration, and lookups | `examples/topology-overview.tsx` |
+| **Layered Architecture** | AI/MCP access, stacked platform services, storage, and integration groups | `examples/architecture.tsx` |
+
+For recreations of an existing topology or architecture, preserve its named groups and connector directions. Nested `BoxNode`s represent the containment hierarchy; the 7–8 box guideline applies to peer groups, rather than the detail boxes inside a group. These two examples use `--viewport 1500x900` for their wide layouts.
 
 Layout mechanics (rows, columns, spacers, gaps): **`references/layout-styles.md`**.
 
@@ -157,13 +161,14 @@ Animated dashed = active data movement (scraping, streaming, API calls). Static 
 - Use margin/padding to lengthen arrows — insert a spacer div.
 - Give box bodies dark fills — only headers carry color.
 - Put a `*White` icon variant on a light background — it disappears; use the colored variant.
+- Nest a bordered box in a container of the same tint and outline — list members as borderless rows, or give a real nested component its own fill.
 - Ship a render you haven't visually reviewed in the loop.
 
 Full list with rationale: **`references/anti-patterns.md`**.
 
 ## See also
 
-- **`examples/README.md`** — render commands and prerequisites for all six examples; each `examples/*.png` is the rendered preview of its `.tsx`
+- **`examples/README.md`** — render commands and prerequisites for all eight examples; each `examples/*.png` is the rendered preview of its `.tsx`
 - **`references/layout-styles.md`**, **`references/box-styles-and-content.md`**, **`references/arrows-and-flows.md`**, **`references/colors-and-typography.md`**, **`references/anti-patterns.md`**
 - **facet-documents** skill (`../facet-documents/SKILL.md`) — embedding a diagram in a report: `Document`/`Page`/`Section`, components, theming
 - **facet-cli** skill (`../facet-cli/SKILL.md`) — render flags, `--live`, `--viewport`, troubleshooting

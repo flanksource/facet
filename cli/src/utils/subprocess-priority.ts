@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams, type SpawnOptions } from 'node:child_process';
+import { accessSync, constants } from 'node:fs';
 import { setPriority as nodeSetPriority } from 'node:os';
+import { delimiter, join } from 'node:path';
 
 export const CHILD_PROCESS_NICE = 10;
 
@@ -58,6 +60,27 @@ export function lowPriorityDisabled(): boolean {
   return process.env['FACET_LOW_PRIORITY'] === '0';
 }
 
+/**
+ * The absolute path of the nice PATH finds. Puppeteer launches its executable
+ * by path, and nice is /usr/bin/nice on macOS and Debian but /bin/nice on Alpine.
+ */
+function resolveNice(): string {
+  const path = process.env['PATH'] ?? '';
+  for (const directory of path.split(delimiter)) {
+    if (!directory) continue;
+    const candidate = join(directory, 'nice');
+    try {
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {
+      // Not in this PATH entry; try the next one.
+    }
+  }
+  throw new Error(
+    `nice was not found on PATH (${path}); install it, or set FACET_LOW_PRIORITY=0 to run subprocesses at normal priority`,
+  );
+}
+
 export function buildLowPriorityCommand(options: LowPriorityCommandOptions): LowPriorityCommand {
   const args = options.args ?? [];
   if (lowPriorityDisabled()) return { command: options.command, args: [...args] };
@@ -67,12 +90,12 @@ export function buildLowPriorityCommand(options: LowPriorityCommandOptions): Low
       // (efficiency cores + throttled I/O), which stretched a measured 70s SSR
       // build past 7 minutes under load. CPU-derating is the intent; keep it.
       return {
-        command: '/usr/bin/nice',
+        command: resolveNice(),
         args: ['-n', String(CHILD_PROCESS_NICE), options.command, ...args],
       };
     case 'linux':
       return {
-        command: '/usr/bin/nice',
+        command: resolveNice(),
         args: ['-n', String(CHILD_PROCESS_NICE), options.command, ...args],
       };
     case 'win32':

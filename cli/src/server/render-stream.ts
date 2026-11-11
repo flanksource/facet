@@ -15,6 +15,8 @@ export type RenderStage =
   | 'rendering-html'
   | 'rendering-pdf'
   | 'rendering-png'
+  | 'rendering-docx'
+  | 'rendering-pptx'
   | 'uploading'
   | 'securing'
   | 'done'

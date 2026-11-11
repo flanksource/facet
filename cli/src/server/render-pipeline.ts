@@ -16,6 +16,7 @@ import { parseRemoteRef, resolveRemoteRef } from '../utils/remote-resolver.js';
 import { runTailwindCached } from '../utils/tailwind.js';
 import type { ServerConfig } from './config.js';
 import type { PNGOptions } from '../types.js';
+import type { BrowserLayout } from '../utils/render-layout.js';
 import { extractArchive } from './archive.js';
 import { RenderError } from './errors.js';
 import type { ParsedRenderRequest } from './request.js';
@@ -113,6 +114,7 @@ interface RenderHTMLOptions {
   skipModules?: boolean;
   redact?: RedactPolicy;
   pngOptions?: PNGOptions;
+  layout?: BrowserLayout;
   signal?: AbortSignal;
 }
 
@@ -130,7 +132,7 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
       signal: options.signal,
     });
     try {
-      return await snapshotHTML(server.url, logger, { png: options.pngOptions, signal: options.signal });
+      return await snapshotHTML(server.url, logger, { png: options.pngOptions, layout: options.layout, signal: options.signal });
     } finally {
       await server.close();
     }
@@ -151,7 +153,6 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
   try {
     return await applyTailwind({
       html: buildResult.html,
-      ssrCss: buildResult.css,
       facetRoot: buildResult.facetRoot,
       buildCacheKey: buildResult.buildCacheKey,
       logger,
@@ -182,7 +183,7 @@ export async function renderHTMLStreamed(options: StreamedHTMLOptions): Promise<
       skipModules: options.skipModules,
     });
     try {
-      return await snapshotHTML(server.url, logger, { png: options.pngOptions });
+      return await snapshotHTML(server.url, logger, { png: options.pngOptions, layout: options.layout });
     } finally {
       await server.close();
     }
@@ -197,12 +198,12 @@ export async function renderHTMLStreamed(options: StreamedHTMLOptions): Promise<
     persistentLoader,
     timings,
     skipModules: options.skipModules,
+    redact: options.redact,
   });
   try {
     progress.emit('tailwind', 'Processing Tailwind CSS...');
     return await applyTailwind({
       html: buildResult.html,
-      ssrCss: buildResult.css,
       facetRoot: buildResult.facetRoot,
       buildCacheKey: buildResult.buildCacheKey,
       logger,
@@ -327,7 +328,6 @@ export async function injectHeaderFooter(options: {
 
 async function applyTailwind(options: {
   html: string;
-  ssrCss: string;
   facetRoot: string;
   buildCacheKey: string;
   logger: Logger;
@@ -335,13 +335,12 @@ async function applyTailwind(options: {
   timings: RenderTimings;
   persistentLoader: boolean;
 }): Promise<string> {
-  const { html, ssrCss, facetRoot, buildCacheKey, logger, enabled, timings, persistentLoader } = options;
+  const { html, facetRoot, buildCacheKey, logger, enabled, timings, persistentLoader } = options;
   const css = await timings.measure('tailwind', () => runTailwindCached({
     facetRoot,
     html: enabled ? html : '',
     buildCacheKey,
     logger,
-    ssrCss,
     persistentLoader,
   }));
   logger.debug(enabled

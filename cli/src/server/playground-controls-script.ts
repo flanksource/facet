@@ -1,4 +1,33 @@
 export const PLAYGROUND_CONTROLS_SCRIPT = `
+    async function showOfficeResult(preview, url, body, format) {
+      preview.innerHTML = '';
+      const panel = document.createElement('div');
+      panel.style.cssText = 'display:flex;flex-direction:column;height:100%;gap:12px;padding:12px;box-sizing:border-box;color:#1f2937';
+      const download = document.createElement('a');
+      download.href = url;
+      download.download = 'document.' + format;
+      download.style.color = '#1d4ed8';
+      download.textContent = 'Download editable ' + format.toUpperCase();
+      panel.appendChild(download);
+      const label = document.createElement('p');
+      label.textContent = 'HTML source preview — Office layout may differ';
+      panel.appendChild(label);
+      preview.appendChild(panel);
+      const response = await fetch('/render', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({}, body, { format: 'html' })),
+      });
+      if (!response.ok) {
+        label.textContent = 'HTML source preview failed (HTTP ' + response.status + '). The Office download is ready.';
+        return;
+      }
+      const frame = document.createElement('iframe');
+      frame.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+      frame.style.cssText = 'flex:1;min-height:0;width:100%;border:0';
+      frame.srcdoc = await response.text();
+      panel.appendChild(frame);
+    }
+
     /* Render format menu */
     function setFormat(fmt) {
       currentFormat = fmt;
@@ -6,6 +35,8 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       document.getElementById('checkHtml').innerHTML = fmt === 'html' ? '&#10003;' : '&nbsp;';
       document.getElementById('checkPdf').innerHTML = fmt === 'pdf' ? '&#10003;' : '&nbsp;';
       document.getElementById('checkPng').innerHTML = fmt === 'png' ? '&#10003;' : '&nbsp;';
+      document.getElementById('checkDocx').innerHTML = fmt === 'docx' ? '&#10003;' : '&nbsp;';
+      document.getElementById('checkPptx').innerHTML = fmt === 'pptx' ? '&#10003;' : '&nbsp;';
       document.getElementById('pdfOptions').style.display = fmt === 'pdf' ? 'flex' : 'none';
       document.getElementById('pngOptions').style.display = fmt === 'png' ? 'flex' : 'none';
       closeRenderMenu();
@@ -83,7 +114,7 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       const example = p.get('example');
       if (example && EXAMPLES[example]) document.getElementById('example').value = example;
       const pageSize = p.get('pageSize');
-      if (pageSize) document.getElementById('pageSize').value = pageSize;
+      if (pageSize) document.getElementById('pageSize').value = pageSize.toLowerCase();
       document.getElementById('landscape').checked = p.get('landscape') === '1';
       document.getElementById('debug').checked = p.get('debug') === '1';
       for (const key in MARGIN_PARAMS) {
@@ -96,7 +127,7 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
         toggleTimestamp();
       }
       const format = p.get('format');
-      if (format === 'pdf' || format === 'png') setFormat(format);
+      if (['pdf', 'png', 'docx', 'pptx'].includes(format)) setFormat(format);
       if (p.has('pngWidth')) document.getElementById('pngWidth').value = p.get('pngWidth');
       if (p.has('pngHeight')) document.getElementById('pngHeight').value = p.get('pngHeight');
       if (p.has('pngSelector')) document.getElementById('pngSelector').value = p.get('pngSelector');

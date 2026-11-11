@@ -16,6 +16,7 @@ import {
   resolvePNGTarget,
 } from '../utils/png-generator.js';
 import type { PNGOptions } from '../types.js';
+import { applyBrowserLayout, type BrowserLayout } from '../utils/render-layout.js';
 import { DIAGRAM_SELECTOR, diagramReadiness, type DiagramState } from './diagram-readiness.js';
 
 /** Max time to wait for every diagram to set `data-facet-ready` or `data-facet-error`. */
@@ -27,6 +28,7 @@ function readDiagramStates(page: Page): Promise<DiagramState[]> {
     diagrams.map((diagram) => ({
       ready: diagram.getAttribute('data-facet-ready'),
       error: diagram.getAttribute('data-facet-error'),
+      warning: diagram.getAttribute('data-facet-warning'),
     })),
   );
 }
@@ -51,7 +53,8 @@ async function waitForDiagrams(page: Page, logger: Logger): Promise<void> {
     );
   }
   const states = await readDiagramStates(page);
-  const { errors } = diagramReadiness(states);
+  const { errors, warnings } = diagramReadiness(states);
+  warnings.forEach((warning) => logger.warn(warning));
   if (errors.length > 0) throw new Error(errors.join('\n'));
   logger.debug(`${states.length} diagram(s) settled`);
 }
@@ -60,20 +63,21 @@ async function loadLivePage(
   browser: Browser,
   url: string,
   logger: Logger,
-  pngOptions?: PNGOptions,
+  options: { png?: PNGOptions; layout?: BrowserLayout } = {},
 ): Promise<Page> {
   const page = await browser.newPage();
-  const normalizedPNG = pngOptions ? normalizePNGOptions(pngOptions) : undefined;
+  const normalizedPNG = options.png ? normalizePNGOptions(options.png) : undefined;
   await page.setViewport({
-    ...(normalizedPNG?.viewport ?? DEFAULT_PNG_VIEWPORT),
+    ...(options.layout?.viewport ?? normalizedPNG?.viewport ?? DEFAULT_PNG_VIEWPORT),
     deviceScaleFactor: 1,
   });
+  if (options.layout) await page.evaluateOnNewDocument(applyBrowserLayout, options.layout);
 
   // Surface browser-side failures loudly: a Vite transform/resolve error renders
   // as a `vite-error-overlay` element rather than the template, and would
   // otherwise be captured as a near-empty "successful" page.
   const pageErrors: string[] = [];
-  page.on('pageerror', (err) => pageErrors.push(err.stack ?? err.message));
+  page.on('pageerror', (err) => pageErrors.push(err instanceof Error ? err.stack ?? err.message : String(err)));
 
   await page.goto(url, { waitUntil: 'networkidle0', timeout: 60_000 });
   await renderMermaidInPage(page);
@@ -91,6 +95,16 @@ async function loadLivePage(
   if (pageErrors.length > 0) {
     throw new Error(`Live render failed — browser errors:\n${pageErrors.join('\n')}`);
   }
+  // The template can mount after the network goes idle — later still on a busy
+  // machine — so whether it has diagrams is only known once it has mounted.
+  try {
+    await page.waitForFunction(
+      () => (document.getElementById('facet-root')?.childElementCount ?? 0) > 0,
+      { timeout: READY_TIMEOUT_MS },
+    );
+  } catch {
+    throw new Error(`Live render produced an empty #facet-root — the template did not mount within ${READY_TIMEOUT_MS}ms`);
+  }
   if (normalizedPNG) await resolvePNGTarget(page, normalizedPNG);
 
   // A <Diagram> flips its root's data-facet-ready to "true" after react-xarrows
@@ -101,14 +115,6 @@ async function loadLivePage(
     await waitForDiagrams(page, logger);
   } else {
     await new Promise((r) => setTimeout(r, FALLBACK_SETTLE_MS));
-  }
-
-  const rendered = await page.evaluate(() => {
-    const root = document.getElementById('facet-root');
-    return (root?.childElementCount ?? 0) > 0;
-  });
-  if (!rendered) {
-    throw new Error('Live render produced an empty #facet-root — the template did not mount');
   }
   return page;
 }
@@ -144,7 +150,7 @@ function makeSelfContained(html: string): string {
 export async function snapshotHTML(
   url: string,
   logger: Logger,
-  options: { png?: PNGOptions; signal?: AbortSignal } = {},
+  options: { png?: PNGOptions; layout?: BrowserLayout; signal?: AbortSignal } = {},
 ): Promise<string> {
   options.signal?.throwIfAborted();
   const browser = await launchBrowser();
@@ -155,7 +161,7 @@ export async function snapshotHTML(
   if (options.signal?.aborted) abort();
   try {
     options.signal?.throwIfAborted();
-    const page = await loadLivePage(browser, url, logger, options.png);
+    const page = await loadLivePage(browser, url, logger, options);
     const content = await page.content();
     options.signal?.throwIfAborted();
     return makeSelfContained(content);

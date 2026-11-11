@@ -15,7 +15,7 @@ export interface ResolvedTemplate {
   resolvedSha?: string;
 }
 
-export type RenderFormat = 'html' | 'pdf' | 'png';
+export type RenderFormat = 'html' | 'pdf' | 'png' | 'docx' | 'pptx';
 
 export interface PNGViewport {
   width: number;
@@ -38,6 +38,7 @@ export interface PNGOptions {
 
 export interface GenerateOptions {
   template: string;
+  loadedData?: LoadedData;
   data?: string;
   dataLoader?: string;
   dataLoaderArgs?: string[];
@@ -71,6 +72,7 @@ export interface GenerateOptions {
   sandbox?: string | boolean;
   debug?: boolean;
   pageSize?: string;
+  pageSizeOverride?: string;
   landscape?: boolean;
   margins?: { top?: number; bottom?: number; left?: number; right?: number };
   header?: string;

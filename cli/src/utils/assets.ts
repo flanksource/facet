@@ -49,6 +49,7 @@ const ASSET_CANDIDATES = {
   'package.json': ['assets/package.json', '../../../package.json'],
   'openapi.yaml': ['assets/openapi.yaml', '../../../openapi.yaml'],
   'styles.css': ['assets/styles.css', '../../../dist/styles.css'],
+  'page-sizes.json': ['assets/page-sizes.json', '../../../src/types/page-sizes.json'],
   // Copied into .facet/ rather than resolved from @flanksource/facet: .facet
   // pins whatever facet version the consumer declared, which may predate this
   // file, and a failed import in postcss.config.js fails the whole CSS build.
@@ -57,6 +58,9 @@ const ASSET_CANDIDATES = {
   // import here would drop the redaction pass, so it is copied in rather than
   // resolved from the consumer's pinned @flanksource/facet.
   'facet-redact.mjs': ['assets/facet-redact.mjs', '../../../remark/facet-redact.mjs'],
+  // The oxlint plugin is the root `@flanksource/facet/oxlint` export; the `.mjs` asset name makes
+  // oxlint load it as ESM when it is materialised outside the package (SEA temp dir, npm assets/).
+  'facet-diagrams.oxlint.mjs': ['assets/facet-diagrams.oxlint.mjs', '../../../oxlint-plugins/facet-diagrams.js'],
   'mermaid.min.js': ['assets/mermaid.min.js', '../../../node_modules/mermaid/dist/mermaid.min.js'],
   'review-diagram.prompt': ['assets/review-diagram.prompt', '../../../.agents/skills/diagram-designer/prompts/review-diagram.prompt'],
 } satisfies Record<string, string[]>;

@@ -11,3 +11,15 @@ export type { FlowDiagramProps, FlowEdge, FlowEdgeVariant, FlowIcon, FlowLane, F
 export { NodePill, NodeSection, SectionDivider } from './content';
 export { COLORS } from './colors';
 export type { DiagramColors } from './colors';
+export { default as ContainerNode } from './ContainerNode';
+export type { ContainerNodeProps } from './ContainerNode';
+export { BrandBox, BrandContainer, BrandMark } from './BrandNodes';
+export type { BrandBoxProps, BrandContainerProps, BrandMarkProps } from './BrandNodes';
+export { DIAGRAM_ROLES, Marker, ROLE_TONES, Tile, Zone } from './RoleNodes';
+export type { DiagramRole, RoleTone, TileProps, ZoneProps } from './RoleNodes';
+export { loadBrand } from './brand';
+export type { BrandDefinition, BrandArtwork, LoadBrandOptions } from './brand';
+export { BOX_STYLES, CONTAINER_STYLES, DEFAULT_NODE_PALETTE } from './nodeStyles';
+export { DENSITIES, DENSITY_TOKENS, DiagramStyleProvider, PLACEMENTS, PLACEMENT_SHAPES, useDiagramStyle } from './style';
+export type { Density, DiagramPlacement, DiagramStyle, Orientation } from './style';
+export type { BoxStyle, ContainerStyle, NodePalette, NodeFonts } from './nodeStyles';

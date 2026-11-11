@@ -3,10 +3,10 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, statSync, utimesSync } f
 import { tmpdir } from 'os';
 import { join } from 'path';
 import {
+  assertTailwindV4,
   cssInputKey,
   renderedClassKey,
   runTailwindCached,
-  tailwindDirectivesPresent,
 } from './tailwind.js';
 
 describe('renderedClassKey', () => {
@@ -23,53 +23,34 @@ describe('renderedClassKey', () => {
   });
 });
 
-describe('tailwindDirectivesPresent', () => {
-  function facetRootWith(files: Record<string, string>): string {
-    const facetRoot = mkdtempSync(join(tmpdir(), 'facet-tw-directives-'));
-    for (const [name, content] of Object.entries(files)) {
-      writeFileSync(join(facetRoot, name), content);
-    }
+describe('assertTailwindV4', () => {
+  function facetRootWithTailwind(version: string): string {
+    const facetRoot = mkdtempSync(join(tmpdir(), 'facet-tw-version-'));
+    mkdirSync(join(facetRoot, 'node_modules', 'tailwindcss'), { recursive: true });
+    writeFileSync(join(facetRoot, 'package.json'), '{"type":"module"}');
+    writeFileSync(
+      join(facetRoot, 'node_modules', 'tailwindcss', 'package.json'),
+      JSON.stringify({ name: 'tailwindcss', version }),
+    );
     return facetRoot;
   }
 
-  it('is false for pre-expanded CSS with only relative and URL imports', () => {
-    const facetRoot = facetRootWith({
-      'post-process.css': "@import './facet.css';\n",
-      'facet.css': '@import url("https://fonts.example/css");\n.page { color: red; }\n',
-    });
+  it.each(['3.4.19', '2.2.19', '5.0.0'])('rejects tailwindcss %s, naming the found version and the v4 requirement', (version) => {
+    const facetRoot = facetRootWithTailwind(version);
     try {
-      expect(tailwindDirectivesPresent(facetRoot)).toBe(false);
+      expect(() => assertTailwindV4(facetRoot))
+        .toThrow(new RegExp(`tailwindcss ${version.replaceAll('.', '\\.')}.*requires Tailwind CSS v4.*@tailwindcss/vite`));
     } finally {
       rmSync(facetRoot, { recursive: true, force: true });
     }
   });
 
-  it('detects @tailwind directives through relative imports', () => {
-    const facetRoot = facetRootWith({
-      'post-process.css': "@import './facet.css';\n@import './custom.css';\n",
-      'facet.css': '.page { color: red; }\n',
-      'custom.css': '@tailwind utilities;\n',
-    });
+  it('accepts tailwindcss v4', () => {
+    const facetRoot = facetRootWithTailwind('4.1.17');
     try {
-      expect(tailwindDirectivesPresent(facetRoot)).toBe(true);
+      expect(() => assertTailwindV4(facetRoot)).not.toThrow();
     } finally {
       rmSync(facetRoot, { recursive: true, force: true });
-    }
-  });
-
-  it('assumes directives when imports cannot be inspected', () => {
-    const packageImport = facetRootWith({
-      'post-process.css': "@import 'some-package/styles.css';\n",
-    });
-    const missingFile = facetRootWith({
-      'post-process.css': "@import './missing.css';\n",
-    });
-    try {
-      expect(tailwindDirectivesPresent(packageImport)).toBe(true);
-      expect(tailwindDirectivesPresent(missingFile)).toBe(true);
-    } finally {
-      rmSync(packageImport, { recursive: true, force: true });
-      rmSync(missingFile, { recursive: true, force: true });
     }
   });
 });

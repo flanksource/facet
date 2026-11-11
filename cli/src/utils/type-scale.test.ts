@@ -1,15 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ELEMENT_SCALE, TEXT_SCALE, tailwindFontSizeTheme, tailwindThemeBlock } from './type-scale.js';
+import { ELEMENT_SCALE, TEXT_SCALE, tailwindThemeBlock } from './type-scale.js';
 
 const themeSource = readFileSync(
   fileURLToPath(new URL('../../../src/utils/theme.ts', import.meta.url)),
-  'utf-8',
-);
-
-const tailwindConfigSource = readFileSync(
-  fileURLToPath(new URL('../../../tailwind.config.js', import.meta.url)),
   'utf-8',
 );
 
@@ -24,18 +19,6 @@ function themePoints(key: string): number | undefined {
 }
 
 describe('type scale', () => {
-  it('renders a Tailwind v3 fontSize theme in points, with leading', () => {
-    // Tuples, not bare sizes: a bare size leaves the utility inheriting the
-    // element's line-height, which is how text-2xl ended up drawing 24pt
-    // glyphs on a paragraph's 12pt leading.
-    expect(tailwindFontSizeTheme()).toMatchObject({
-      xs: ['7pt', { lineHeight: '9pt' }],
-      sm: ['9pt', { lineHeight: '12pt' }],
-      lg: ['15pt', { lineHeight: '19pt' }],
-      '2xl': ['24pt', { lineHeight: '28pt' }],
-    });
-  });
-
   it('renders a Tailwind v4 @theme block in points, with leading', () => {
     const block = tailwindThemeBlock();
 
@@ -76,19 +59,11 @@ describe('type scale', () => {
     expect(themePoints(key)).toBe(expected());
   });
 
-  it('matches the fontSize theme that builds dist/styles.css', () => {
-    // `pnpm run build:css` runs the Tailwind CLI against tailwind.config.js, so
-    // that config — not the post-processed consumer build — decides the
-    // `.text-*` sizes every consumer of the shipped stylesheet gets. It is a
-    // CommonJS file the ESM CLI cannot import, hence the source read.
-    const entries = [...tailwindConfigSource.matchAll(
-      /'?([\w-]+)'?:\s*\['(\d+(?:\.\d+)?)pt',\s*\{\s*lineHeight:\s*'(\d+(?:\.\d+)?)pt'\s*\}\]/g,
-    )];
-    expect(entries.length, 'tailwind.config.js declares no fontSize tuples').toBeGreaterThan(0);
-
-    const declared = Object.fromEntries(entries.map(m => [m[1], { pt: Number(m[2]), leading: Number(m[3]) }]));
-    expect(declared).toEqual(
-      Object.fromEntries(Object.entries(TEXT_SCALE).map(([step, { pt, leading }]) => [step, { pt, leading }])),
-    );
+  it('ships the same scaled point theme in dist/styles.css', () => {
+    const css = readFileSync(new URL('../../../dist/styles.css', import.meta.url), 'utf8');
+    for (const [name, { pt, leading }] of Object.entries(TEXT_SCALE)) {
+      expect(css).toContain(`--text-${name}: calc(${pt}pt * var(--facet-font-scale, 1));`);
+      expect(css).toContain(`--text-${name}--line-height: calc(${leading}pt * var(--facet-font-scale, 1));`);
+    }
   });
 });

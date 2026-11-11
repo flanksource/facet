@@ -53,7 +53,7 @@ Used by `FindingsReport.tsx`, `BleedTest.tsx`, `PageSizeTest.tsx`.
 
 ## Page sizes
 
-`cli/src/utils/pdf-multipass.ts` defines, in mm:
+`src/types/page-sizes.json` defines the shared catalog. `cli/src/utils/pdf-multipass.ts` resolves dimensions to millimetres for PDF. Existing sizes include:
 
 | Name | Size | | Name | Size |
 | --- | --- | --- | --- | --- |
@@ -71,7 +71,7 @@ Each paper size has an explicit `-landscape` twin (`a4-landscape`, `letter-lands
 
 `PageSize` is typed as `string` rather than a union, precisely so custom sizes type-check. Unknown names silently fall back to `a4`.
 
-A single document may mix sizes freely; each `type`×`size` combination becomes its own extraction group.
+A PDF may mix sizes freely; each `type`×`size` combination becomes its own extraction group. Platform presets (`facebook-*`, `linkedin-*`, `reddit-*`, `google-ads-*`) are fixed pixel canvases in HTML/PNG. `powerpoint-wide` (1280×720) and `powerpoint-standard` (960×720) also select the dimensions of a PPTX deck, which must use one PowerPoint size. Other templates retain widescreen PPTX reflow. See `docs/page-sizes.md` for the catalog and examples.
 
 The standard regression idiom sweeps every size (`TableExamples.tsx`, `MultiPageTable.tsx`, `PageSizeTest.tsx`):
 

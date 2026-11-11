@@ -33,7 +33,10 @@ import { createDefaultModulePackageJson, defaultModuleNpmrc } from '../bundler/m
 import { VERSION } from '../version-generated.js';
 import { LowPriorityProcessError, runLowPriority } from '../utils/subprocess-priority.js';
 import { SHARP_VERSION } from '../utils/sharp.js';
-import { tailwindFontSizeTheme, tailwindThemeBlock } from '../utils/type-scale.js';
+import { PDFJS_VERSION, PDFJS_CANVAS_VERSION } from '../utils/pdfjs.js';
+import { pageStyles, wrapFacetStylesInLayer } from '../../../dist/page-styles/index.mjs';
+export { wrapFacetStylesInLayer } from '../../../dist/page-styles/index.mjs';
+import { resolveConsumerDependencies } from './consumer-dependencies.js';
 
 const rootPackageJson = assetPath('package.json');
 
@@ -82,12 +85,23 @@ function shouldSkipConsumerItem(item: string): boolean {
   return SKIP_ITEMS.has(item) || item.startsWith('.');
 }
 
-function resolveFileProtocol(version: string, pkgDir: string, _facetRoot: string): string {
-  if (!version.startsWith('file:')) return version;
-  // Emit an absolute path. pnpm realpath-resolves the install dir (e.g. /var → /private/var
-  // on macOS), which breaks relative file: deps that point outside the tempdir root.
-  // An absolute path sidesteps the realpath rewrite.
-  return 'file:' + resolve(pkgDir, version.slice(5));
+// Embedded in the generated vite configs so an unsupported tailwindcss fails
+// the first build step, before the SSR bundle runs, rather than mid-pipeline.
+const TAILWIND_V4_GUARD = `const facetRequire = createRequire(import.meta.url);
+const tailwindVersion = facetRequire('tailwindcss/package.json').version;
+if (Number(tailwindVersion.split('.')[0]) !== 4) {
+  throw new Error(\`Found tailwindcss \${tailwindVersion}; facet requires Tailwind CSS v4 (with @tailwindcss/vite). Upgrade tailwindcss to ^4 and install @tailwindcss/vite.\`);
+}`;
+
+// pnpm/npm protocols whose value is a path relative to the declaring package.json.
+const LOCAL_PATH_PROTOCOLS = ['file:', 'link:', 'portal:'] as const;
+
+// Emit an absolute path for a local-path dependency. .facet/package.json lives one level below the consumer, so a
+// relative link:/portal: path would resolve against the wrong directory, and pnpm realpath-resolves the install dir
+// (e.g. /var → /private/var on macOS), which breaks relative file: deps that point outside the tempdir root.
+function resolveFileProtocol(version: string, pkgDir: string): string {
+  const proto = LOCAL_PATH_PROTOCOLS.find((candidate) => version.startsWith(candidate));
+  return proto ? proto + resolve(pkgDir, version.slice(proto.length)) : version;
 }
 
 export interface FacetPackageOverride {
@@ -100,13 +114,15 @@ export interface FacetPackageOverride {
 const LOCAL_BUILD_TIMEOUT_MS = 5 * 60 * 1000;
 
 const SOURCE_DIR_SKIP = new Set(['node_modules', 'dist', '.git', '.facet', 'storybook-static']);
-const COMPONENT_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
+const COMPONENT_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.json']);
 const CSS_BUILD_INPUTS = [
   'src/styles.css',
-  'tailwind.config.js',
-  'tailwind.config.cjs',
-  'tailwind.config.mjs',
-  'tailwind.config.ts',
+  'src/page-styles/type-scale.mjs',
+  'src/page-styles/font-scale.mjs',
+  'src/page-styles/recipe.mjs',
+  'src/page-styles/preset.mjs',
+  'src/page-styles/stylesheet.mjs',
+  'postcss/build-styles.mjs',
   'postcss.config.js',
   'postcss.config.cjs',
   'postcss.config.mjs',
@@ -130,54 +146,6 @@ export function resolveFacetPackageOverride(raw = process.env['FACET_PACKAGE_PAT
     }
   }
   return { kind: 'tarball', path: abs };
-}
-
-export function wrapFacetStylesInLayer(css: string): string {
-  const imports: string[] = [];
-  let remaining = css;
-  const importStatement = /^@import\s+(?:"[^"\r\n]*"|'[^'\r\n]*'|url\([^\r\n)]*\))[^;\r\n]*;/;
-  while (remaining.length > 0) {
-    let importStart = 0;
-    while (importStart < remaining.length) {
-      if (/\s/.test(remaining[importStart])) {
-        importStart++;
-        continue;
-      }
-      if (!remaining.startsWith('/*', importStart)) break;
-      const commentEnd = remaining.indexOf('*/', importStart + 2);
-      if (commentEnd < 0) break;
-      importStart = commentEnd + 2;
-    }
-
-    const match = remaining.slice(importStart).match(importStatement);
-    if (!match) break;
-    imports.push(remaining.slice(0, importStart + match[0].length).trim());
-    remaining = remaining.slice(importStart + match[0].length).trimStart();
-  }
-  if (/@import\s/.test(remaining)) {
-    throw new Error('Facet styles contain an @import after style rules; CSS imports must precede all layered rules');
-  }
-
-  return [
-    ...imports,
-    // `facet` sits between `base` and `components` for a reason. Declared
-    // first, as it was, it became the weakest layer: Tailwind's preflight
-    // (`h1..h6{font-size:inherit}`) outranked every heading rule in the
-    // stylesheet, and Tailwind's own `text-*` utilities outranked the pt scale
-    // the stylesheet declared for print — so headings inherited body size and
-    // `text-xs` printed 9pt instead of 7pt, silently.
-    //
-    // Between base and utilities, facet's element defaults beat preflight
-    // while a `text-lg` on the element still wins, which is the precedence
-    // authors expect. It must not move above `utilities`: there an element
-    // rule like `p{font-size:9pt}` would beat `.text-lg` on that same
-    // paragraph, because layer order ignores specificity.
-    '@layer theme, base, facet, components, utilities;',
-    '@layer facet {',
-    remaining.trim(),
-    '}',
-    '',
-  ].join('\n');
 }
 
 function newestMatchingMtime(dir: string, predicate: (path: string) => boolean): number {
@@ -218,6 +186,7 @@ export function needsLocalFacetCssBuild(packageRoot: string): boolean {
   const sourceMtime = newestExistingMtime(CSS_BUILD_INPUTS.map(path => join(packageRoot, path)));
   if (sourceMtime === 0) return false;
   if (!existsSync(output)) return true;
+  if (!existsSync(join(packageRoot, 'dist/page-styles/index.mjs'))) return true;
   return sourceMtime > statSync(output).mtimeMs;
 }
 
@@ -292,6 +261,7 @@ function facetBuildContentFingerprint(packageRoot: string): string {
   addFileContentFingerprint(hash, packageRoot, 'package.json');
   addFileContentFingerprint(hash, packageRoot, 'dist/styles.css');
   addTreeContentFingerprint(hash, packageRoot, 'dist/components');
+  addTreeContentFingerprint(hash, packageRoot, 'dist/page-styles');
   return hash.digest('hex');
 }
 
@@ -301,6 +271,7 @@ export function localFacetBuildFingerprint(packageRoot: string): string {
   addFileFingerprint(hash, packageRoot, 'package.json');
   addFileFingerprint(hash, packageRoot, 'dist/styles.css');
   addTreeFingerprint(hash, packageRoot, 'dist/components');
+  addTreeFingerprint(hash, packageRoot, 'dist/page-styles');
   return hash.digest('hex').slice(0, 20);
 }
 
@@ -319,12 +290,7 @@ function resolveLocalProtocol(version: string, pkgDir: string): string {
       `Use a concrete version, or a file:/link:/portal: path that points at the workspace package.`
     );
   }
-  for (const proto of ['file:', 'link:', 'portal:']) {
-    if (version.startsWith(proto)) {
-      return proto + resolve(pkgDir, version.slice(proto.length));
-    }
-  }
-  return version;
+  return resolveFileProtocol(version, pkgDir);
 }
 
 /**
@@ -623,15 +589,13 @@ import remarkFrontmatter from 'remark-frontmatter';
 import { remarkAlert } from 'remark-github-blockquote-alert';
 import rehypeRaw from 'rehype-raw';
 import { resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { createRequire } from 'module';${imports}
 
-const facetRequire = createRequire(import.meta.url);
-const tailwindMajor = Number(facetRequire('tailwindcss/package.json').version.split('.')[0]);
+${TAILWIND_V4_GUARD}
 
 export default defineConfig(async () => {
-  const tailwindPlugins = tailwindMajor === 4
-    ? [(await import('@tailwindcss/vite')).default()]
-    : [];
+  const tailwindPlugins = [(await import('@tailwindcss/vite')).default()];
   const mdxPlugin = {
     enforce: 'pre',
     ...mdx({
@@ -668,13 +632,13 @@ export default defineConfig(async () => {
     // reachable; dedupe keeps a single React copy across the symlinked packages.
     dedupe: ['react', 'react-dom'],
     preserveSymlinks: ${this.skipModules},
-    alias: {
-      '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@facet/core': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@src': resolve(__dirname, 'src'),
-      'react-icons': resolve(__dirname, 'node_modules/react-icons'),
-    },
+    alias: [
+      { find: new RegExp('^@flanksource/facet(?:/.*)?$'), replacement: '$&', customResolver(source) { return fileURLToPath(import.meta.resolve(source)); } },
+      { find: '@facet/core', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
+      { find: '@facet', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
+      { find: '@src', replacement: resolve(__dirname, 'src') },
+      { find: 'react-icons', replacement: resolve(__dirname, 'node_modules/react-icons') },
+    ],
     conditions: ['import', 'module', 'browser', 'default'],
   },
   ssr: {
@@ -715,6 +679,8 @@ export default defineConfig(async () => {
       external: ['react', 'react-dom'],
       output: {
         exports: 'default',
+        // One bundle: the SSR loader requires a single .cjs and renders synchronously.
+        inlineDynamicImports: true,
       },
     },
     cssCodeSplit: false,
@@ -780,15 +746,13 @@ import remarkFrontmatter from 'remark-frontmatter';
 import { remarkAlert } from 'remark-github-blockquote-alert';
 import rehypeRaw from 'rehype-raw';
 import { resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { createRequire } from 'module';${imports}
 
-const facetRequire = createRequire(import.meta.url);
-const tailwindMajor = Number(facetRequire('tailwindcss/package.json').version.split('.')[0]);
+${TAILWIND_V4_GUARD}
 
 export default defineConfig(async () => {
-  const tailwindPlugins = tailwindMajor === 4
-    ? [(await import('@tailwindcss/vite')).default()]
-    : [];
+  const tailwindPlugins = [(await import('@tailwindcss/vite')).default()];
   const mdxPlugin = {
     enforce: 'pre',
     ...mdx({
@@ -822,13 +786,13 @@ export default defineConfig(async () => {
     // dedupe keeps a single React copy, which preserveSymlinks otherwise guarded.
     dedupe: ['react', 'react-dom'],
     preserveSymlinks: ${this.skipModules},
-    alias: {
-      '@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@facet': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@facet/core': resolve(__dirname, 'node_modules/@flanksource/facet'),
-      '@src': resolve(__dirname, 'src'),
-      'react-icons': resolve(__dirname, 'node_modules/react-icons'),
-    },
+    alias: [
+      { find: new RegExp('^@flanksource/facet(?:/.*)?$'), replacement: '$&', customResolver(source) { return fileURLToPath(import.meta.resolve(source)); } },
+      { find: '@facet/core', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
+      { find: '@facet', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
+      { find: '@src', replacement: resolve(__dirname, 'src') },
+      { find: 'react-icons', replacement: resolve(__dirname, 'node_modules/react-icons') },
+    ],
     conditions: ['import', 'module', 'browser', 'default'],
   },
   };
@@ -919,9 +883,7 @@ export default defineConfig(async () => {
         const consumerPackage = JSON.parse(consumerPackageText);
         const raw = { ...consumerPackage.dependencies, ...consumerPackage.devDependencies } as Record<string, string>;
 
-        for (const [name, ver] of Object.entries(raw)) {
-          dependencies[name] = resolveFileProtocol(ver, this.consumerRoot, this.facetRoot);
-        }
+        dependencies = await resolveConsumerDependencies({ dependencies: raw, packageDir: this.consumerRoot });
 
         // pnpm 11 keeps overrides in pnpm-workspace.yaml; pnpm 10 kept them in
         // package.json. Merge both, with package.json winning on a key present
@@ -949,7 +911,7 @@ export default defineConfig(async () => {
         this.logger.debug(`Loaded ${Object.keys(dependencies).length} dependencies from consumer package.json`);
       }
     } catch (error) {
-      this.logger.warn(`Failed to read consumer package.json: ${error}`);
+      throw new Error(`Failed to load consumer dependencies from ${join(this.consumerRoot, 'package.json')}: ${error}`, { cause: error });
     }
 
     // Read package metadata from the local override when FACET_PACKAGE_PATH is a
@@ -1041,9 +1003,10 @@ export default defineConfig(async () => {
       const pkgPath = join(searchDir, 'package.json');
       if (existsSync(pkgPath) && searchDir !== this.consumerRoot) {
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-        for (const [name, ver] of Object.entries({ ...pkg.dependencies, ...pkg.devDependencies } as Record<string, string>)) {
-          dependencies[name] = resolveFileProtocol(ver, searchDir, this.facetRoot);
-        }
+        Object.assign(dependencies, await resolveConsumerDependencies({
+          dependencies: { ...pkg.dependencies, ...pkg.devDependencies },
+          packageDir: searchDir,
+        }));
         this.logger.debug(`Merged deps from ${pkgPath}`);
         break;
       }
@@ -1060,6 +1023,8 @@ export default defineConfig(async () => {
     if (!dependencies['sharp']) {
       dependencies['sharp'] = SHARP_VERSION;
     }
+    dependencies['pdfjs-dist'] = PDFJS_VERSION;
+    dependencies['@napi-rs/canvas'] = PDFJS_CANVAS_VERSION;
 
     this.logger.debug(`Merged with facet build dependencies, total: ${Object.keys(dependencies).length}`);
 
@@ -1436,112 +1401,21 @@ export default defineConfig(async () => {
    */
   generatePostCSSConfig(): void {
     this.logger.debug('Generating Tailwind-compatible postcss.config.js');
-    // Copied in rather than imported from @flanksource/facet: .facet pins
-    // whatever facet version the consumer declared, which may predate this
-    // file, and a failed import here fails the entire CSS build.
-    copyFileSync(assetPath('facet-font-scale.mjs'), join(this.facetRoot, 'facet-font-scale.mjs'));
+    writeFileSync(join(this.facetRoot, 'facet-font-scale.mjs'),
+      "export { facetFontScale as default } from '@flanksource/facet/page-styles';\n", 'utf-8');
 
     const config = `import autoprefixer from 'autoprefixer';
 import facetFontScale from './facet-font-scale.mjs';
-import { createRequire } from 'module';
 
-const facetRequire = createRequire(import.meta.url);
-const tailwindMajor = Number(facetRequire('tailwindcss/package.json').version.split('.')[0]);
-// facetFontScale runs last so it rewrites the utilities Tailwind has just
-// generated — the arbitrary text-[8pt] classes a template uses — and, on v4,
-// the --text-* theme properties its utilities read through var().
-const plugins = [autoprefixer(), facetFontScale()];
-if (tailwindMajor === 3) {
-  const tailwindcss = (await import('tailwindcss')).default;
-  plugins.unshift(tailwindcss(process.env.FACET_POST_PROCESS === '1'
-    ? './tailwind.postprocess.config.js'
-    : './tailwind.config.js'));
-}
-
-export default { plugins };
+// Tailwind itself runs through @tailwindcss/vite. facetFontScale runs after
+// it, rewriting the utilities it generated — the arbitrary text-[8pt] classes
+// a template uses — and the --text-* theme properties its utilities read
+// through var().
+export default { plugins: [autoprefixer(), facetFontScale()] };
 `;
 
     writeFileSync(join(this.facetRoot, 'postcss.config.js'), config, 'utf-8');
     this.logger.debug('Generated postcss.config.js');
-  }
-
-  /**
-   * Generate default tailwind.config.js if consumer doesn't have one
-   */
-  generateTailwindConfig(): void {
-    const consumerConfigName = ['tailwind.config.js', 'tailwind.config.cjs', 'tailwind.config.mjs', 'tailwind.config.ts']
-      .find((name) => existsSync(join(this.consumerRoot, name)));
-    const content = consumerConfigName ? [] : ['src/**/*.{html,js,jsx,ts,tsx,md,mdx}', ...this.localDependencyContent()];
-    const config = consumerConfigName
-      ? `import consumerConfig from './src/${consumerConfigName}';
-export default consumerConfig;
-`
-      : `import typography from '@tailwindcss/typography';
-export default {
-  content: [
-    ${content.map((glob) => JSON.stringify(glob)).join(',\n    ')}
-  ],
-  theme: {
-    extend: {
-      fontFamily: {
-        sans: ["Open Sans", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
-        mono: ["Fira Code", "Consolas", "Monaco", "Courier New", "monospace"],
-      },
-      colors: {
-        'flanksource-blue': '#2563eb',
-        'flanksource-dark': '#1e293b',
-      },
-      maxWidth: {
-        'a4': '210mm',
-      },
-    },
-  },
-  plugins: [typography],
-};
-`;
-    writeFileSync(join(this.facetRoot, 'tailwind.config.js'), config, 'utf-8');
-    // The type scale is merged in here rather than in the base config because
-    // a consumer's own tailwind.config.js is re-exported verbatim above. This
-    // is the one pass that always runs, so it is the only place the scale can
-    // be guaranteed. A consumer that sets its own fontSize still wins — theirs
-    // is spread last.
-    const postProcessConfig = `import baseConfig from './tailwind.config.js';
-const facetFontSize = ${JSON.stringify(tailwindFontSizeTheme(), null, 2).replace(/\n/g, '\n  ')};
-export default {
-  ...baseConfig,
-  content: [...(baseConfig.content ?? []), './rendered-content.html'],
-  theme: {
-    ...(baseConfig.theme ?? {}),
-    extend: {
-      ...(baseConfig.theme?.extend ?? {}),
-      fontSize: { ...facetFontSize, ...(baseConfig.theme?.extend?.fontSize ?? {}) },
-    },
-  },
-};
-`;
-    writeFileSync(join(this.facetRoot, 'tailwind.postprocess.config.js'), postProcessConfig, 'utf-8');
-    this.logger.debug('Generated tailwind.config.js');
-  }
-
-  /**
-   * Content globs for the consumer's local-path dependencies (file:, link:,
-   * portal:). pnpm installs them under .facet/node_modules, outside `src/**`,
-   * so a component kit shared between templates would otherwise have none of
-   * its classes generated. Their own node_modules are excluded.
-   */
-  private localDependencyContent(): string[] {
-    const consumerPackagePath = join(this.consumerRoot, 'package.json');
-    if (!existsSync(consumerPackagePath)) return [];
-    let consumerPackage: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
-    try {
-      consumerPackage = JSON.parse(readFileSync(consumerPackagePath, 'utf-8'));
-    } catch (error) {
-      throw new Error(`Cannot read Tailwind content dependencies from ${consumerPackagePath}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    const declared = { ...consumerPackage.dependencies, ...consumerPackage.devDependencies };
-    return Object.entries(declared)
-      .filter(([, version]) => ['file:', 'link:', 'portal:'].some((proto) => version.startsWith(proto)))
-      .flatMap(([name]) => [`node_modules/${name}/**/*.{html,js,jsx,ts,tsx,md,mdx}`, `!node_modules/${name}/node_modules/**`]);
   }
 
   /**
@@ -1574,39 +1448,25 @@ export default {
       "@import './facet.css';",
       ...imports.map((specifier) => `@import '${specifier}';`),
     ];
-    // facet.css is pre-compiled and carries only the classes facet's own
-    // components use, so without this directive a Tailwind v3 consumer's own
-    // classes were never generated — `runTailwindCached` saw no directives,
-    // reused the SSR CSS, and every arbitrary utility the template used
-    // (space-y-[2mm], grid-cols-[1fr_36mm], columns-2 …) silently did nothing.
-    // The v4 entry below gets the same coverage from its utilities import.
-    const postProcess = [...postProcessLines, '@tailwind utilities;', ''].join('\n');
     const normalizedTemplateFile = this.templateFile.replaceAll('\\', '/').replace(/^\.\//, '');
     const staticSource = normalizedTemplateFile.includes('/')
       ? normalizedTemplateFile.slice(0, normalizedTemplateFile.indexOf('/'))
       : normalizedTemplateFile;
     const postProcessV4 = [
       ...postProcessLines,
-      '@import "tailwindcss/theme.css" layer(theme);',
-      '@import "tailwindcss/utilities.css" layer(utilities) source(none);',
-      // Point the `text-*` utilities at the document scale. Without this they
-      // resolve from Tailwind's rem defaults against an unset 16px root, so
-      // `text-xs` prints 9pt where the design says 7pt.
-      tailwindThemeBlock(),
+      pageStyles.entry,
       `@source "./src/${staticSource}";`,
       '@source "./rendered-content.html";',
       '',
     ].join('\n');
     // Live-render utilities: facet.css is pre-compiled and only covers classes
     // used by the facet library itself. The dev server must generate the
-    // template's own classes (via tailwind.config.js content: src/**/*) before
+    // template's own classes (via @tailwindcss/vite source detection) before
     // the browser measures layout, or diagrams bake arrows against an unstyled
     // page. Imported by the live client entry only; the SSR path gets template
     // classes from the post-process pass instead.
     writeFileSync(join(this.facetRoot, 'live-tailwind.css'), '@tailwind utilities;\n', 'utf-8');
-    writeFileSync(join(this.facetRoot, 'post-process.css'), postProcess, 'utf-8');
     writeFileSync(join(this.facetRoot, 'post-process-v4.css'), postProcessV4, 'utf-8');
-    writeFileSync(join(this.facetRoot, 'post-process.entry.ts'), "import './post-process.css';\n", 'utf-8');
     writeFileSync(join(this.facetRoot, 'post-process-v4.entry.ts'), "import './post-process-v4.css';\n", 'utf-8');
     this.logger.debug(`Generated Facet CSS entry with ${imports.length} consumer stylesheet import(s)`);
   }
@@ -1620,8 +1480,7 @@ export default {
   generatedConfigDigest(): string {
     const hash = createHash('sha256');
     const generated = [
-      'vite.config.ts', 'postcss.config.js', 'tailwind.config.js',
-      'tailwind.postprocess.config.js', 'post-process.css', 'post-process-v4.css',
+      'vite.config.ts', 'postcss.config.js', 'post-process-v4.css',
       // facet.css is the whole facet stylesheet and the SSR bundle inlines it.
       // Leaving it out meant editing facet's own CSS — or installing a patched
       // build at the same version — reused a bundle carrying the old styles,
