@@ -4,6 +4,7 @@ import { performance } from 'node:perf_hooks';
 import { Readable } from 'node:stream';
 
 import { injectFontScale } from '../utils/font-size.js';
+import { showSlideNotes } from '../utils/slide-notes.js';
 import { officeLayout } from '../office/layout.js';
 import { pageSizeLayout } from '../utils/page-size-layout.js';
 import { renderBinary } from './render-binary.js';
@@ -247,6 +248,8 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
     // Reaches html and png as well as pdf (injectFontScale), so it must key the
     // render even when it did not arrive via pdfOptions.
     fontSize: parsed.fontSize,
+    embedFormat: parsed.embedFormat,
+    embedSize: parsed.embedSize,
     pageSizeOverride: parsed.pageSizeOverride,
   });
 }
@@ -369,7 +372,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
     html = injectFontScale(html, parsed.fontSize);
 
     if (parsed.format === 'html') {
-      html = await materializeBrowserHTML(html, pool, logger, signal);
+      html = showSlideNotes(await materializeBrowserHTML(html, pool, logger, signal));
       cache.set(cacheKey, 'text/html', Buffer.from(html));
       return respondWithOutput({
         content: html,
@@ -466,7 +469,7 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
     // Once, ahead of the format branch, so html, png and pdf all carry it.
     html = injectFontScale(html, parsed.fontSize);
     if (parsed.format === 'html') {
-      html = await materializeBrowserHTML(html, pool, logger);
+      html = showSlideNotes(await materializeBrowserHTML(html, pool, logger));
       progress.emit('done', 'HTML render complete');
       return {
         content: html,

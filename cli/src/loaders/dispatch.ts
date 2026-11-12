@@ -11,6 +11,9 @@ export async function dispatchLoader(): Promise<boolean> {
   } else if (mode === 'css') {
     const { runCssLoader } = await import('./css.js');
     await runCssLoader();
+  } else if (mode === 'data') {
+    const { runDataLoader } = await import('./data.js');
+    await runDataLoader();
   } else {
     throw new Error(`Unknown Facet loader: ${mode}`);
   }

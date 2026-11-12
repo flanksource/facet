@@ -8,6 +8,7 @@
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 
 function parseArgs(): { facetRoot: string } {
   const args = process.argv.slice(2);
@@ -20,6 +21,7 @@ function parseArgs(): { facetRoot: string } {
 
 export async function runDevLoader(): Promise<void> {
   const { facetRoot } = parseArgs();
+  const runtime = JSON.parse(readFileSync(join(facetRoot, 'runtime.json'), 'utf8'));
 
   // Resolve Vite from .facet/node_modules, not the CLI's own deps (ESM import()
   // ignores NODE_PATH, so resolve explicitly relative to .facet).
@@ -36,10 +38,11 @@ export async function runDevLoader(): Promise<void> {
 
   const server = await createServer({
     configFile: join(facetRoot, 'vite.client.config.ts'),
+    configLoader: 'runner',
     root: facetRoot,
     logLevel: 'error',
-    server: { port: 0, strictPort: false, host: '127.0.0.1' },
-    optimizeDeps: { include: ['react', 'react-dom', 'react-dom/client', 'react-xarrows'] },
+    server: { port: 0, strictPort: false, host: '127.0.0.1', fs: { allow: [facetRoot, runtime.root, runtime.compiled.browser.root, runtime.compiledCache] } },
+    optimizeDeps: { noDiscovery: true, include: [] },
   });
 
   await server.listen();

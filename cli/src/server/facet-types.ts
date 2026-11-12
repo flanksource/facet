@@ -1605,6 +1605,36 @@ export const facetTypes = `declare module '@flanksource/facet' {
    */
   export function PageBreak(): JSX.Element;
 
+  export interface SlideNotesProps {
+      children: React.ReactNode;
+      label?: string;
+      /** Classified audience, default "presenter"; renders need --allow audience=... */
+      audience?: string;
+  }
+  /** Speaker notes for the enclosing Page: native notes in pptx, a panel in html, omitted from pdf/png. */
+  export function SlideNotes({ children, label, audience }: SlideNotesProps): JSX.Element;
+
+  export interface RedactPolicy {
+      allow: Record<string, string[]>;
+  }
+  export interface ClassifiedProps {
+      children?: React.ReactNode;
+      [attribute: string]: React.ReactNode | string | undefined;
+  }
+  /** Kept only when --allow permits every attribute; fails the render when an attribute has no policy. */
+  export function Classified(props: ClassifiedProps): JSX.Element | null;
+  export function RedactPolicyProvider({ policy, children }: { policy: RedactPolicy; children: React.ReactNode }): JSX.Element;
+
+  export interface FitFrameProps {
+      children: React.ReactNode;
+      className?: string;
+      layoutWidth?: number;
+      maxHeight?: string;
+      style?: React.CSSProperties;
+  }
+  /** Lays content out at up to layoutWidth px and scales it to fit the frame width and maxHeight. */
+  export function FitFrame({ children, className, layoutWidth, maxHeight, style }: FitFrameProps): JSX.Element;
+
   export const PAGE_PLACEHOLDER = "_PG_";
   export const TOTAL_PLACEHOLDER = "_TL_";
   export interface PageNoProps {

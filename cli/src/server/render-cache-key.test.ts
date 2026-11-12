@@ -34,6 +34,8 @@ const outputAffectingVariants: Array<[string, Partial<ParsedRenderRequest>]> = [
   ['postProcessCss', { postProcessCss: true }],
   ['redact', { redact: { allow: { classification: ['public'] } } }],
   ['fontSize', { fontSize: 14 }],
+  ['embedFormat', { embedFormat: 'png' }],
+  ['embedSize', { embedSize: 3 }],
 ];
 
 describe('cacheKeyForRequest', () => {

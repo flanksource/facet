@@ -1,6 +1,7 @@
 import { RenderError } from './errors.js';
 import { MAX_TIMEOUT_MS } from './config.js';
 import { parseFontSize } from '../utils/font-size.js';
+import { parseEmbedFormat, parseEmbedSize, type EmbedFormat, type EmbedSize } from '../utils/embed.js';
 import { parseRemoteRef } from '../utils/remote-resolver.js';
 import type { BufferPDFOptions, PDFMargins } from '../utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from '../utils/pdf-security.js';
@@ -40,6 +41,9 @@ export interface ParsedRenderRequest {
   postProcessCss?: boolean;
   /** Base font size in pt. Top-level so it reaches html and png, not just pdf. */
   fontSize?: number;
+  /** How pdf, docx and pptx insert figures and diagrams. */
+  embedFormat?: EmbedFormat;
+  embedSize?: EmbedSize;
   pageSizeOverride?: string;
   /** Which classified regions this render may carry. */
   redact?: RedactPolicy;
@@ -151,6 +155,8 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     postProcessCss: parseBoolean(body.postProcessCss, 'postProcessCss'),
     redact: parseRedactPolicy(body.redact, 'redact'),
     fontSize: parseFontSize(body.fontSize ?? (body.pdfOptions as Record<string, unknown> | undefined)?.fontSize),
+    embedFormat: parseEmbedFormat(body.embedFormat),
+    embedSize: parseEmbedSize(body.embedSize),
     pageSizeOverride: parsePageSizeOverride(body.pageSizeOverride, format, (body.pngOptions as PNGOptions | undefined)?.viewport),
   };
 }
@@ -247,6 +253,8 @@ async function parseMultipartRequest(
     postProcessCss: parseBoolean(options.postProcessCss, 'postProcessCss'),
     redact: parseRedactPolicy(options.redact, 'redact'),
     fontSize: parseFontSize(options.fontSize ?? (options.pdfOptions as Record<string, unknown> | undefined)?.fontSize),
+    embedFormat: parseEmbedFormat(options.embedFormat),
+    embedSize: parseEmbedSize(options.embedSize),
     pageSizeOverride: parsePageSizeOverride(options.pageSizeOverride, format, (options.pngOptions as PNGOptions | undefined)?.viewport),
   };
 }
@@ -290,6 +298,8 @@ async function parseGzipRequest(
     pngOptions,
     postProcessCss: parseBooleanQuery(url.searchParams.get('postProcessCss'), 'postProcessCss'),
     fontSize: parseFontSize(url.searchParams.get('fontSize') ?? undefined),
+    embedFormat: parseEmbedFormat(url.searchParams.get('embedFormat') ?? undefined),
+    embedSize: parseEmbedSize(url.searchParams.get('embedSize') ?? undefined),
     pageSizeOverride: parsePageSizeOverride(url.searchParams.get('pageSizeOverride') ?? undefined, format, url.searchParams.get('pngViewport') ?? undefined),
   };
 }
