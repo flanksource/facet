@@ -23,7 +23,7 @@ export function formatIssues({ issues, verbose, details = true, summary = true }
     lines.push('');
     lines.push(chalk.white.bold(file));
 
-    const sorted = fileIssues.sort((a, b) => a.line - b.line
+    const sorted = fileIssues.sort((a, b) => (a.line ?? 0) - (b.line ?? 0)
       || (a.column ?? 0) - (b.column ?? 0)
       || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0)
       || (a.severity < b.severity ? -1 : a.severity > b.severity ? 1 : 0)
