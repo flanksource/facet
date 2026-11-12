@@ -26,6 +26,7 @@ const outputAffectingVariants: Array<[string, Partial<ParsedRenderRequest>]> = [
   ['dependencies', { dependencies: { 'react-icons': '^5.4.0' } }],
   ['headerCode', { headerCode: 'export default () => null;' }],
   ['footerCode', { footerCode: 'export default () => null;' }],
+  ['css', { css: 'h1 { color: rebeccapurple; }' }],
   ['pdfOptions', { pdfOptions: { landscape: true } }],
   ['encryption', { encryption: { ownerPassword: 'secret' } }],
   ['signature', { signature: { selfSigned: true } }],
@@ -34,6 +35,8 @@ const outputAffectingVariants: Array<[string, Partial<ParsedRenderRequest>]> = [
   ['postProcessCss', { postProcessCss: true }],
   ['redact', { redact: { allow: { classification: ['public'] } } }],
   ['fontSize', { fontSize: 14 }],
+  ['embedFormat', { embedFormat: 'png' }],
+  ['embedSize', { embedSize: 3 }],
 ];
 
 describe('cacheKeyForRequest', () => {

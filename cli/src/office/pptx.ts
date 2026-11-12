@@ -2,6 +2,7 @@ import PptxGenJS from 'pptxgenjs-plus';
 import { performance } from 'node:perf_hooks';
 import type { Logger } from '../utils/logger.js';
 import type { Block, OfficeDocument, Run, Table, TextStyle } from './model.js';
+import { encodePdfEmf } from './emf/encode.js';
 import { presentationSize } from './powerpoint/size.js';
 import { paginate } from './paginate.js';
 import { logVisual } from './logging.js';
@@ -47,17 +48,20 @@ function tableRows({ block, page, total, link }: { block: Table; page: number; t
 
 function draw(options: {
   slide: PptxGenJS.PresSlide; block: Block; x: number; y: number; width: number; height: number; page: number; total: number;
-  logger?: Pick<Logger, 'debug'>; link: SlideLinks;
+  logger?: Pick<Logger, 'debug'>; link: SlideLinks; emf: ReadonlyMap<string, Uint8Array>;
 }): void {
   const { slide, block, x, y, width, height, page, total } = options;
   if (block.kind === 'break') return;
   const bounds = { x: x / 96, y: y / 96, w: width / 96, h: height / 96 };
   if (block.kind === 'image') {
     const startedAt = performance.now();
-    if (block.format !== 'png') throw new Error(`PowerPoint requires a PNG visual: ${block.source}`);
     if (!block.data) throw new Error(`Missing Office image data: ${block.source}`);
-    slide.addImage({ ...bounds, data: `image/png;base64,${Buffer.from(block.data).toString('base64')}`, altText: block.alt });
-    logVisual({ logger: options.logger, format: 'pptx', action: 'inserted', block, elapsedMs: performance.now() - startedAt, location: `slide ${page}` });
+    const emf = block.format === 'pdf' ? options.emf.get(block.mediaId) : undefined;
+    if (block.format === 'pdf' && !emf) throw new Error(`Missing PDF-in-EMF artwork: ${block.source}`);
+    // pptxgenjs derives the part extension and content type from this mime; image/x-emf would not parse.
+    const data = emf ? `image/emf;base64,${Buffer.from(emf).toString('base64')}` : `image/png;base64,${Buffer.from(block.data).toString('base64')}`;
+    slide.addImage({ ...bounds, data, altText: block.alt });
+    logVisual({ logger: options.logger, format: 'pptx', action: 'inserted', block, mediaFormat: emf ? 'PDF-in-EMF' : undefined, elapsedMs: performance.now() - startedAt, location: `slide ${page}` });
   } else if (block.kind === 'table') {
     const widthSum = block.columns.reduce((sum, value) => sum + value, 0);
     slide.addTable(tableRows({ block, page, total, link: options.link }), { ...bounds,
@@ -83,8 +87,29 @@ function draw(options: {
   }
 }
 
-export async function writePPTX(options: { document: OfficeDocument; logger?: Pick<Logger, 'debug'> }): Promise<Buffer> {
+async function encodeEmfArtwork(options: { document: OfficeDocument; consumerRoot?: string }): Promise<Map<string, Uint8Array>> {
+  const result = new Map<string, Uint8Array>();
+  const visit = async (blocks: Block[]): Promise<void> => {
+    for (const block of blocks) {
+      if (block.kind === 'image' && block.format === 'pdf') {
+        if (!block.data || !block.preview) throw new Error(`Missing PDF or PNG capture for PowerPoint artwork: ${block.source}`);
+        if (!result.has(block.mediaId)) result.set(block.mediaId, await encodePdfEmf({ pdf: block.data, png: block.preview, width: block.box.width, height: block.box.height, consumerRoot: options.consumerRoot }));
+      }
+      if (block.kind === 'group') await visit(block.blocks);
+      if (block.kind === 'table') for (const row of block.rows) for (const cell of row.cells) await visit(cell.blocks);
+    }
+  };
+  for (const page of options.document.pages) {
+    await visit(page.blocks);
+    if (page.header) await visit(page.header.blocks);
+    if (page.footer) await visit(page.footer.blocks);
+  }
+  return result;
+}
+
+export async function writePPTX(options: { document: OfficeDocument; logger?: Pick<Logger, 'debug'>; consumerRoot?: string }): Promise<Buffer> {
   const { document, logger } = options;
+  const emf = await encodeEmfArtwork({ document, consumerRoot: options.consumerRoot });
   const size = presentationSize(document.pages);
   const presentation = new PptxGenJS();
   presentation.defineLayout({ name: 'FACET', width: size.inchesWidth, height: size.inchesHeight });
@@ -96,7 +121,7 @@ export async function writePPTX(options: { document: OfficeDocument; logger?: Pi
   const link = slideLinks(slides);
   slides.forEach((spec, index) => {
     const slide = presentation.addSlide();
-    const position = { slide, page: index + 1, total: slides.length, logger, link };
+    const position = { slide, page: index + 1, total: slides.length, logger, link, emf };
     const chrome = (blocks: Block[], offset: number): void => blocks.forEach((block) => {
       if (block.kind === 'break') throw new Error('Page breaks are not supported in slide headers or footers');
       draw({ ...position, block, x: block.box.x, y: offset + block.box.y, width: block.box.width, height: block.box.height });
@@ -104,6 +129,8 @@ export async function writePPTX(options: { document: OfficeDocument; logger?: Pi
     if (spec.page.header) chrome(spec.page.header.blocks, 0);
     spec.blocks.forEach((block) => draw({ ...position, ...block }));
     if (spec.page.footer) chrome(spec.page.footer.blocks, size.height - spec.page.footer.height);
+    // Continuation slides of a long page share its source page; the notes belong on the first one.
+    if (spec.page.notes && slides[index - 1]?.page !== spec.page) slide.addNotes(spec.page.notes);
   });
   return await presentation.write({ outputType: 'nodebuffer' }) as Buffer;
 }

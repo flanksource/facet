@@ -37,7 +37,7 @@ describe('lintBeforeRender (--lint on html/png/pdf)', () => {
 });
 
 describe('facet html --lint', () => {
-  const cli = [process.execPath, '--import', 'tsx', resolve('src/cli.ts')];
+  const cli = [process.execPath, '--import', '@oxc-node/core/register', resolve('src/cli.ts')];
   // A dead Facet server makes the render fail right after lint, so no browser or install is needed.
   const render = (file: string) => spawnSync(cli[0], [...cli.slice(1), 'html', file, '--lint', '--facet-url', 'http://127.0.0.1:1'], { encoding: 'utf8' });
 

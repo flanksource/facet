@@ -8,7 +8,7 @@
  */
 
 import { $ } from '../utils/shell.js';
-import { existsSync, readFileSync, readdirSync, statSync, appendFileSync, rmSync } from 'fs';
+import { existsSync, readFileSync, statSync, appendFileSync } from 'fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'path';
 import chalk from 'chalk';
@@ -19,11 +19,11 @@ import { resolveChromePath } from '../utils/pdf-generator.js';
 import { VERSION } from '../version-generated.js';
 import { assetPath } from '../utils/assets.js';
 import { loadSharp } from '../utils/sharp.js';
-import { ensureGlobalModuleStore, inspectGlobalModuleStore } from '../bundler/module-store.js';
+import { checkGlobalModuleStore, fixGlobalModuleStore, checkNativeBindings, checkOxcNode, checkTailwindBin } from './doctor-runtime.js';
 
 type CheckStatus = 'pass' | 'warn' | 'fail';
 
-interface CheckResult {
+export interface CheckResult {
   id: string;
   name: string;
   status: CheckStatus;
@@ -39,13 +39,6 @@ interface DoctorOptions {
   skipModules?: boolean;
 }
 
-const CRITICAL_NATIVE_PACKAGES = [
-  '@rollup/rollup',
-  '@esbuild',
-  'lightningcss',
-  '@swc/core',
-  '@img/sharp',
-];
 
 type CheckFn = (consumerRoot: string) => CheckResult | Promise<CheckResult>;
 
@@ -54,13 +47,13 @@ const CHECK_REGISTRY: ReadonlyArray<readonly [string, CheckFn]> = [
   ['node-version', () => checkNodeVersion()],
   ['architecture', () => checkArchitecture()],
   ['pnpm', (root) => checkPnpm(root)],
-  ['native-bindings', (root) => checkNativeBindings(root)],
+  ['native-bindings', () => checkNativeBindings()],
   ['chromium', () => checkChromium()],
   ['git', () => checkGit()],
   ['tar', () => checkTar()],
-  ['tsx', () => checkTsx()],
-  ['tailwindcss', (root) => checkTailwindBin(root)],
-  ['sharp', (root) => checkSharp(root)],
+  ['oxc-node', () => checkOxcNode()],
+  ['tailwindcss', () => checkTailwindBin()],
+  ['sharp', () => checkSharp()],
   ['facet-package-path', () => checkFacetPackagePath()],
   ['facet-version', (root) => checkFacetVersionAlignment(root)],
   ['npmrc-leakage', (root) => checkNpmrcLeakage(root)],
@@ -129,12 +122,12 @@ export async function preflight(
 export async function runDoctor(options: DoctorOptions): Promise<number> {
   const logger = new Logger(options.verbose);
   let results = await runAllChecks(options.consumerRoot);
-  results.push(checkGlobalModuleStore(options.skipModules));
+  results.push(checkGlobalModuleStore());
 
   if (options.fix) {
     const globalIndex = results.findIndex(result => result.id === 'global-modules');
     if (options.skipModules && globalIndex >= 0 && results[globalIndex].status === 'fail') {
-      results[globalIndex] = await fixGlobalModuleStore(logger, options.skipModules);
+      results[globalIndex] = await fixGlobalModuleStore();
     }
     results = await applyFixes(results, options.consumerRoot, logger);
   }
@@ -148,43 +141,8 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
   return results.some(r => r.status === 'fail') ? 1 : 0;
 }
 
-function embeddedFacetPackage(): Record<string, unknown> {
-  return JSON.parse(readFileSync(assetPath('package.json'), 'utf-8'));
-}
 
-function checkGlobalModuleStore(skipModules = false): CheckResult {
-  try {
-    const store = inspectGlobalModuleStore({ facetVersion: VERSION, facetPackage: embeddedFacetPackage() });
-    return {
-      id: 'global-modules',
-      name: 'Shared Facet modules',
-      status: 'pass',
-      message: `${store.root}${skipModules ? ' (active)' : ''}`,
-    };
-  } catch (error) {
-    return {
-      id: 'global-modules',
-      name: 'Shared Facet modules',
-      status: skipModules ? 'fail' : 'warn',
-      message: error instanceof Error ? error.message : String(error),
-      hint: 'Run `facet doctor --skip-modules --fix` to install the immutable module entry for this Facet and Node version.',
-    };
-  }
-}
 
-async function fixGlobalModuleStore(logger: Logger, skipModules = false): Promise<CheckResult> {
-  try {
-    await ensureGlobalModuleStore({ facetVersion: VERSION, facetPackage: embeddedFacetPackage(), logger });
-    return checkGlobalModuleStore(skipModules);
-  } catch (error) {
-    return {
-      id: 'global-modules',
-      name: 'Shared Facet modules',
-      status: 'fail',
-      message: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
 
 async function applyFixes(results: CheckResult[], consumerRoot: string, logger: Logger): Promise<CheckResult[]> {
   const fixed = [...results];
@@ -214,19 +172,6 @@ async function tryFix(id: string, consumerRoot: string, logger: Logger): Promise
         return undefined;
       }
       return await runCheckById('chromium', consumerRoot);
-    }
-    case 'native-bindings': {
-      const target = join(consumerRoot, '.facet', 'node_modules');
-      const lock = join(consumerRoot, '.facet', 'pnpm-lock.yaml');
-      logger.info(`[fix] removing ${target} and ${lock}`);
-      try {
-        rmSync(target, { recursive: true, force: true });
-        rmSync(lock, { force: true });
-      } catch (err) {
-        logger.warn(`[fix] cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
-        return undefined;
-      }
-      return await runCheckById('native-bindings', consumerRoot);
     }
     case 'npmrc-leakage': {
       const gitignore = join(consumerRoot, '.gitignore');
@@ -357,59 +302,13 @@ async function checkPnpm(consumerRoot: string): Promise<CheckResult> {
     return {
       id: 'pnpm',
       name: 'pnpm',
-      status: 'fail',
+      status: 'warn',
       message: err instanceof Error ? err.message : String(err),
-      hint: 'Install: `npm i -g pnpm` or `corepack enable`.',
+      hint: 'Required only to prepare a new custom dependency set. Install: `npm i -g pnpm` or `corepack enable`.',
     };
   }
 }
 
-function checkNativeBindings(consumerRoot: string): CheckResult {
-  const facetRoot = join(consumerRoot, '.facet');
-  const pnpmDir = join(facetRoot, 'node_modules', '.pnpm');
-  if (!existsSync(pnpmDir)) {
-    return {
-      id: 'native-bindings',
-      name: 'Native bindings',
-      status: 'warn',
-      message: '.facet/node_modules/.pnpm not yet installed — run a render first to populate.',
-    };
-  }
-  let entries: string[];
-  try {
-    entries = readdirSync(pnpmDir);
-  } catch (err) {
-    return {
-      id: 'native-bindings',
-      name: 'Native bindings',
-      status: 'warn',
-      message: `Could not enumerate ${pnpmDir}: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-  const expectedSuffix = `-${process.platform}-${process.arch}`;
-  const missing: string[] = [];
-  for (const prefix of CRITICAL_NATIVE_PACKAGES) {
-    const matches = entries.filter(e => e.startsWith(prefix.replace('/', '+')) || e.startsWith(prefix));
-    if (matches.length === 0) continue;
-    const archMatch = matches.some(m => m.includes(expectedSuffix));
-    if (!archMatch) missing.push(prefix);
-  }
-  if (missing.length === 0) {
-    return {
-      id: 'native-bindings',
-      name: 'Native bindings',
-      status: 'pass',
-      message: `${process.platform}/${process.arch} bindings present for all critical packages`,
-    };
-  }
-  return {
-    id: 'native-bindings',
-    name: 'Native bindings',
-    status: 'fail',
-    message: `Missing ${process.platform}-${process.arch} bindings for: ${missing.join(', ')}`,
-    hint: `rm -rf ${facetRoot}/node_modules && re-run facet. Likely caused by install under Rosetta or a different Node arch.`,
-  };
-}
 
 function checkChromium(): CheckResult {
   const chromePath = resolveChromePath();
@@ -610,31 +509,18 @@ async function checkTar(): Promise<CheckResult> {
     name: 'tar',
     status: 'warn',
     message: 'not on PATH',
-    hint: 'Required for remote rendering and server-mode `.tar.gz` uploads.',
+    hint: 'Required to extract the installed runtime and remote template archives.',
   };
 }
 
-async function checkTsx(): Promise<CheckResult> {
-  const probe = await probeOptionalBin('tsx', ['--version']);
-  if (probe.ok) {
-    return { id: 'tsx', name: 'tsx', status: 'pass', message: probe.output.split('\n')[0] };
-  }
-  return {
-    id: 'tsx',
-    name: 'tsx',
-    status: 'warn',
-    message: 'not on PATH',
-    hint: 'Required only for `.ts` data loaders (`-l file.ts`). Install: `npm i -g tsx`.',
-  };
-}
 
 /**
  * Loads sharp the same way `--autocrop` does, so a resolvable-but-broken native
  * binding is reported here rather than mid-render.
  */
-async function checkSharp(consumerRoot: string): Promise<CheckResult> {
+async function checkSharp(): Promise<CheckResult> {
   try {
-    const sharp = await loadSharp(consumerRoot);
+    const sharp = await loadSharp({ rendering: true });
     return {
       id: 'sharp',
       name: 'sharp',
@@ -647,43 +533,7 @@ async function checkSharp(consumerRoot: string): Promise<CheckResult> {
       name: 'sharp',
       status: 'warn',
       message: error instanceof Error ? error.message.split('\n')[0] : String(error),
-      hint: 'Required only for `facet png --autocrop`. Run a render to populate `.facet/node_modules/`.',
+      hint: 'Reinstall Facet with its matching platform runtime.',
     };
   }
-}
-
-function checkTailwindBin(consumerRoot: string): CheckResult {
-  const facetRoot = join(consumerRoot, '.facet');
-  const packagePath = join(facetRoot, 'node_modules', 'tailwindcss', 'package.json');
-  if (!existsSync(packagePath)) {
-    return {
-      id: 'tailwindcss',
-      name: 'tailwindcss (.facet package)',
-      status: 'warn',
-      message: `not present at ${packagePath}`,
-      hint: 'Run a render to populate `.facet/node_modules/`, or `cd .facet && pnpm install`.',
-    };
-  }
-  const version = JSON.parse(readFileSync(packagePath, 'utf-8')).version as string;
-  const major = Number(version.split('.')[0]);
-  if (major !== 4) {
-    return {
-      id: 'tailwindcss',
-      name: 'tailwindcss',
-      status: 'fail',
-      message: `unsupported v${version}`,
-      hint: 'facet requires Tailwind CSS v4 with @tailwindcss/vite.',
-    };
-  }
-  const vitePlugin = join(facetRoot, 'node_modules', '@tailwindcss', 'vite', 'package.json');
-  if (existsSync(vitePlugin)) {
-    return { id: 'tailwindcss', name: 'tailwindcss + @tailwindcss/vite', status: 'pass', message: version };
-  }
-  return {
-    id: 'tailwindcss',
-    name: 'tailwindcss',
-    status: 'fail',
-    message: `v${version} without @tailwindcss/vite`,
-    hint: 'Install @tailwindcss/vite at the same version as tailwindcss.',
-  };
 }

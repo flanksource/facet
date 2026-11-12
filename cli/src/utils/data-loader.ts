@@ -1,14 +1,12 @@
-import { createRequire } from 'node:module';
 import { readFile } from 'fs/promises';
-import { resolve, extname, join, basename, dirname } from 'path';
+import { resolve, extname, join, basename } from 'path';
 import { pathToFileURL } from 'url';
 import { JSON_SCHEMA, load as loadYAML } from 'js-yaml';
-import { $ } from './shell.js';
+import { runLowPriority } from './subprocess-priority.js';
+import { selfExecBase } from './self-exec.js';
 import { Logger } from './logger.js';
 import { parseRemoteRef, resolveRemoteRef } from './remote-resolver.js';
 import type { LoadedData, GenerateOptions } from '../types.js';
-
-const requireCjs = createRequire(import.meta.url);
 
 export async function loadDataFile(filePath: string): Promise<Record<string, unknown>> {
   const extension = extname(filePath).toLowerCase();
@@ -68,15 +66,14 @@ export class DataLoader {
     const ext = extname(absolutePath);
 
     try {
-      // For TypeScript files, execute with tsx
+      // For TypeScript files, execute with Oxc
       if (ext === '.ts') {
-        this.logger.debug('Executing TypeScript file with tsx');
-        const tsxPackageJson = requireCjs.resolve('tsx/package.json');
-        const tsxBin = join(dirname(tsxPackageJson), 'dist', 'cli.mjs');
-        const result = await $`${process.execPath} ${tsxBin} ${absolutePath} ${args}`.text();
+        this.logger.debug('Executing TypeScript file with Oxc');
+        const [command, ...baseArgs] = selfExecBase();
+        const result = await runLowPriority({ command, args: [...baseArgs, absolutePath, ...args], options: { env: { ...process.env, FACET_LOADER: 'data' } } });
         this.logger.debug(`Executed ${absolutePath} with args: ${args.join(' ')}`);
 
-        const module = { data: JSON.parse(result) };
+        const module = { data: JSON.parse(result.stdout.toString()) };
         return this.extractDataFromModule(module);
       }
 

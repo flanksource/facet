@@ -34,12 +34,18 @@ const bundle = join(distSea, 'cli.cjs');
 const blob = join(distSea, 'sea-prep.blob');
 const ext = process.platform === 'win32' ? '.exe' : '';
 const outBinary = join(repoRoot, 'dist', `facet${ext}`);
+const target = [process.platform, process.arch, process.platform === 'linux' ? (process.report.getReport().header.glibcVersionRuntime ? 'glibc' : 'musl') : undefined].filter(Boolean).join('-');
+const runtime = join(cliRoot, 'assets', 'runtimes', target);
+const fuse = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
+assertSeaCapable(process.execPath, fuse);
 
 const seaConfig = {
   main: bundle,
   output: blob,
   disableExperimentalSEAWarning: true,
   assets: {
+    'default-runtime.json': join(runtime, 'default-runtime.json'),
+    'default-runtime.tgz': join(runtime, 'default-runtime.tgz'),
     'package.json': join(repoRoot, 'package.json'),
     'styles.css': join(repoRoot, 'dist', 'styles.css'),
     'page-sizes.json': join(repoRoot, 'src', 'types', 'page-sizes.json'),
@@ -47,6 +53,7 @@ const seaConfig = {
     'mermaid.min.js': join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'),
     'facet-font-scale.mjs': join(repoRoot, 'postcss', 'facet-font-scale.mjs'),
     'facet-redact.mjs': join(repoRoot, 'remark', 'facet-redact.mjs'),
+    'facet-runtime.mjs': join(cliRoot, 'assets', 'plugins', 'facet-runtime.mjs'),
     'facet-diagrams.oxlint.mjs': join(repoRoot, 'oxlint-plugins', 'facet-diagrams.js'),
     'review-diagram.prompt': join(cliRoot, 'assets', 'review-diagram.prompt'),
   },
@@ -66,7 +73,6 @@ chmodSync(outBinary, 0o755);
 
 console.log('Injecting blob with postject...');
 const postject = require.resolve('postject/dist/cli.js');
-const fuse = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
 assertSeaCapable(outBinary, fuse);
 const args = [postject, outBinary, 'NODE_SEA_BLOB', blob, '--sentinel-fuse', fuse];
 if (process.platform === 'darwin') args.push('--macho-segment-name', 'NODE_SEA');

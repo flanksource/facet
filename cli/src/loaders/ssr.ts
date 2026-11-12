@@ -99,14 +99,11 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
     return now;
   };
 
-  // Resolve React from .facet/node_modules, not the CLI's own deps. ESM
-  // import() resolves via file URLs, so resolve explicitly relative to .facet — using
-  // the CLI's Vite/React would produce a bundle incompatible with .facet's React.
-  // react-dom resolves to a CJS build; under Node the API lands on `.default`
-  // (Bun hoists the named exports), so fall back to it. Vite itself is imported
-  // lazily below — a bundle-cache hit never needs it.
+  // The renderer and template share the compiled runtime's React instance.
   const facetRequire = createRequire(join(facetRoot, 'package.json'));
-  const rdsMod = await import(pathToFileURL(facetRequire.resolve('react-dom/server')).href);
+  const runtime = JSON.parse(readFileSync(join(facetRoot, 'runtime.json'), 'utf8')).compiled.node;
+  const rdsMod = await import(pathToFileURL(join(runtime.root, runtime.imports['react-dom/server'])).href);
+  const react = await import(pathToFileURL(join(runtime.root, runtime.imports.react)).href);
   const renderToString = rdsMod.renderToString ?? rdsMod.default?.renderToString;
   let stageStart = stageMark('import-react', startedAt);
 
@@ -119,7 +116,7 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   // Route Vite's stdout logging to stderr so it can't corrupt the result JSON.
   console = new Console(process.stderr, process.stderr);
 
-  const cachedBundle = cacheKey && existsSync(outDir) && readdirSync(outDir).some((file) => file.endsWith('.cjs'));
+  const cachedBundle = cacheKey && existsSync(join(outDir, 'bundle.mjs'));
   if (!cachedBundle) {
     console.error(`[facet] SSR bundle cache miss for key ${cacheKey ?? '<uncached>'}; running vite build`);
     // The debug package snapshots DEBUG at import time, so -vv must set it
@@ -133,6 +130,7 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
     try {
       await build({
         configFile: viteConfigPath,
+        configLoader: 'runner',
         root: facetRoot,
         logLevel: verbosity >= 1 ? 'info' : 'warn',
         build: { ssr: true, outDir: buildDir, emptyOutDir: true },
@@ -162,22 +160,20 @@ async function load(args: LoaderArgs): Promise<LoaderResult> {
   const keepOnSuccess = cacheKey != null || process.env.FACET_KEEP_BUNDLE === '1';
   try {
     const files = readdirSync(outDir);
-    const cjsFiles = files.filter(f => f.endsWith('.cjs'));
-    if (cjsFiles.length !== 1) {
-      throw new Error(`Expected one .cjs bundle in ${outDir}, found ${cjsFiles.length}: ${cjsFiles.join(', ') || 'none'}`);
+    const moduleFiles = files.filter(f => f.endsWith('.mjs'));
+    if (moduleFiles.length !== 1) {
+      throw new Error(`Expected one .mjs bundle in ${outDir}, found ${moduleFiles.length}: ${moduleFiles.join(', ') || 'none'}`);
     }
-    const cjsFile = cjsFiles[0]!;
+    const moduleFile = moduleFiles[0]!;
 
-    // Load the bundle with a .facet-rooted require so its externalized
-    // react/react-dom (and react/jsx-dev-runtime) resolve from .facet, not the CLI.
-    const module = facetRequire(join(outDir, cjsFile));
-    const Component = module.default || module;
+    const module = await import(pathToFileURL(join(outDir, moduleFile)).href);
+    const Component = module.default;
     if (typeof Component !== 'function') {
       throw new Error('Template must export a React component function');
     }
 
     stageStart = stageMark('require-bundle', stageStart);
-    const html = renderToString(Component({ data }));
+    const html = renderToString(react.createElement(Component, { data }));
     const css = extractCSS(outDir);
     stageMark('react-render', stageStart);
 

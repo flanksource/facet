@@ -105,9 +105,9 @@ function ArrowLabel({
     const element = ref.current;
     if (!element) return;
     const measure = () => {
-      const rect = element.getBoundingClientRect();
-      setSize((current) => current.width === rect.width && current.height === rect.height
-        ? current : { width: rect.width, height: rect.height });
+      const { offsetWidth: width, offsetHeight: height } = element;
+      setSize((current) => current.width === width && current.height === height
+        ? current : { width, height });
     };
     measure();
     const observer = new ResizeObserver(measure);

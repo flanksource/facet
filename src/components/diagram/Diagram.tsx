@@ -73,7 +73,7 @@ function LayoutSettler({
       }
       onFrameRef.current();
       if (stable >= STABLE_FRAMES && !widthFrozen) {
-        root.style.width = `${root.getBoundingClientRect().width}px`;
+        root.style.width = `${root.offsetWidth}px`;
         root.style.marginLeft = 'auto';
         root.style.marginRight = 'auto';
         widthFrozen = true;

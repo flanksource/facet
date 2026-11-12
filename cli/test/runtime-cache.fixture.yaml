@@ -1,0 +1,58 @@
+kind: Fixture
+name: Facet shared runtime cache
+env:
+  FACET_CACHE_DIR: '{{.fixture.dir}}/../../.tmp/runtime-fixture-cache'
+defaults:
+  timeout: 5m
+steps:
+  - id: build-distribution
+    kind: exec
+    cwd: ../..
+    exec: pnpm
+    args: [run, build]
+    cel: exitCode == 0
+  - id: build-cli-bundle
+    kind: exec
+    cwd: ../../cli
+    exec: pnpm
+    args: [exec, tsdown, --config, tsdown.sea.config.ts]
+    cel: exitCode == 0
+  - id: cache-unit-tests
+    kind: exec
+    cwd: ../../cli
+    exec: pnpm
+    args: [exec, vitest, run, src/runtime, src/bundler/build-cache.test.ts, src/bundler/vite-builder.test.ts, src/builders/facet-workspace-dependencies.test.ts, src/builders/facet-directory.test.ts, src/server/template-workspaces.test.ts, src/loaders/css.test.ts, scripts/build-default-runtime.test.ts, scripts/runtime-files.test.ts, scripts/compiled-runtime.test.ts, scripts/pack-npm-cli.test.ts, scripts/toolchain.test.ts, src/lint/diagram-candidates.test.ts, src/lint/rules/page-structure.test.ts, test/jsx-parser.test.ts, src/commands/doctor.test.ts, test/runtime-processes.test.ts]
+    cel: exitCode == 0
+  - id: shared-builder-hook
+    kind: exec
+    cwd: ../..
+    exec: pnpm
+    args: [exec, vitest, run, src/runtime/build-runtime.test.ts]
+    cel: exitCode == 0
+  - id: cross-project-render
+    kind: exec
+    cwd: ../../cli
+    exec: pnpm
+    args: [exec, vitest, run, test/runtime-environment.test.ts, test/runtime-data.test.ts, test/dev-runtime.test.ts, src/server/dev-runtime.test.ts]
+    cel: exitCode == 0
+  - id: installed-runtime-formats
+    kind: exec
+    cwd: ../../cli
+    env:
+      FACET_RUNTIME_TEST_ROOT: '{{.fixture.dir}}/../../../facet-runtime-verification/.tmp'
+    exec: pnpm
+    args: [exec, vitest, run, test/installed-runtime.test.ts, test/cli-tools-package.test.ts, src/office/dom.test.ts, src/office/emf/emf.test.ts]
+    cel: exitCode == 0
+  - id: lint
+    continueOnError: true
+    kind: exec
+    cwd: ../..
+    exec: make
+    args: [lint]
+    cel: exitCode == 0
+  - id: build
+    kind: exec
+    cwd: ../..
+    exec: make
+    args: [build]
+    cel: exitCode == 0

@@ -18,8 +18,8 @@ describe('diagram candidate detection', () => {
     ['<div value={`{/*`} />\n\n<Diagram />', 'mdx'],
     ['<div>{"{/*"}</div>\n\n<Diagram />', 'mdx'],
     ['<div>{`<!-- ${"{/*"}`}</div>\n\n<Diagram />', 'mdx'],
-  ] as const)('detects direct %s candidates in %s', (source, fileType) => {
-    expect(hasDirectDiagramCandidate(source, fileType)).toBe(true);
+  ] as const)('detects direct %s candidates in %s', async (source, fileType) => {
+    expect(await hasDirectDiagramCandidate(source, fileType)).toBe(true);
   });
 
   it.each([
@@ -34,7 +34,7 @@ describe('diagram candidate detection', () => {
     ['- ```tsx\n  <DiagreDiagram />\n  ```', 'mdx'],
     ['<!-- <DiagreDiagram /> -->\n\n{/* <Diagram /> */}', 'mdx'],
     ['A string: "<Diagram />" and text: <NotADiagram />', 'mdx'],
-  ] as const)('ignores non-candidates: %s (%s)', (source, fileType) => {
-    expect(hasDirectDiagramCandidate(source, fileType)).toBe(false);
+  ] as const)('ignores non-candidates: %s (%s)', async (source, fileType) => {
+    expect(await hasDirectDiagramCandidate(source, fileType)).toBe(false);
   });
 });

@@ -38,7 +38,7 @@ describe('runDoctor JSON contract', () => {
       'chromium',
       'git',
       'tar',
-      'tsx',
+      'oxc-node',
       'tailwindcss',
       'sharp',
       'facet-package-path',

@@ -17,7 +17,7 @@ describe('document lint CLI', () => {
     await writeFile(source, await zip.generateAsync({ type: 'uint8array' }));
   });
   afterEach(async () => { await rm(directory, { recursive: true, force: true }); });
-  const cli = (...args: string[]) => spawnSync(process.execPath, ['--import', 'tsx', resolve('src/cli.ts'), ...args], { encoding: 'utf8' });
+  const cli = (...args: string[]) => spawnSync(process.execPath, ['--import', '@oxc-node/core/register', resolve('src/cli.ts'), ...args], { encoding: 'utf8' });
 
   it('emits native info JSON without modifying the document or creating files', async () => {
     const before = await readFile(source);

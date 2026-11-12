@@ -38,6 +38,7 @@ export interface PNGOptions {
 
 export interface GenerateOptions {
   template: string;
+  theme?: string;
   loadedData?: LoadedData;
   data?: string;
   dataLoader?: string;
@@ -79,6 +80,10 @@ export interface GenerateOptions {
   footer?: string;
   debugTypography?: boolean;
   fontSize?: number;
+  /** Final HTML output only: reveal <SlideNotes> as speaker-notes panels. PDF/PNG reuse generateHTML and must not set it. */
+  showSlideNotes?: boolean;
+  embedFormat?: import('./utils/embed.js').EmbedFormat;
+  embedSize?: import('./utils/embed.js').EmbedSize;
   encryption?: import('./utils/pdf-security.js').PDFEncryptionOptions;
   signature?: import('./utils/pdf-security.js').PDFSignatureOptions;
   pngOptions?: PNGOptions;

@@ -17,7 +17,7 @@ async function generateOffice(options: GenerateOptions, format: 'docx' | 'pptx')
   const { html, outputName, consumerRoot } = await renderTemplateHTML({ options: { ...options, timings }, layout: officeLayout(format, options.fontSize) });
   const browser = await launchBrowser();
   try {
-    const buffer = await timings.measure(`${format}-generation`, () => generateOfficeBuffer({ browser, html, format, fontSize: options.fontSize, verbose: options.verbose, consumerRoot }));
+    const buffer = await timings.measure(`${format}-generation`, () => generateOfficeBuffer({ browser, html, format, fontSize: options.fontSize, embedFormat: options.embedFormat, embedSize: options.embedSize, verbose: options.verbose, consumerRoot }));
     const outputDir = resolve(options.outputDir);
     await mkdir(outputDir, { recursive: true });
     const outputPath = join(outputDir, `${outputName}.${format}`);

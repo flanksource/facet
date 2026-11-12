@@ -1,9 +1,12 @@
+import { discoverThemes, themeFingerprint } from '../builders/themes.js';
 import { randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { Readable } from 'node:stream';
 
 import { injectFontScale } from '../utils/font-size.js';
+import { injectCustomCss } from '../utils/custom-css.js';
+import { showSlideNotes } from '../utils/slide-notes.js';
 import { officeLayout } from '../office/layout.js';
 import { pageSizeLayout } from '../utils/page-size-layout.js';
 import { renderBinary } from './render-binary.js';
@@ -105,6 +108,11 @@ export async function handleRender(
   let parsed: ParsedRenderRequest;
   try {
     parsed = await parseRenderRequest(request, config.maxUploadSize);
+    parsed.theme ??= config.theme;
+    if (parsed.source.kind === 'inline' && parsed.theme && parsed.theme !== 'facet') {
+      const selected = discoverThemes(process.cwd()).find(theme => theme.id === parsed.theme);
+      if (selected) parsed.dependencies = { ...parsed.dependencies, [selected.package]: 'file:' + selected.root };
+    }
     validateRequestModuleMode(parsed, config.skipModules);
   } catch (error) {
     return errorResponse(error);
@@ -147,6 +155,11 @@ export function handleRenderStream(
     try {
       progress.emit('parsing', 'Parsing request...');
       parsed = await parseRenderRequest(request, config.maxUploadSize);
+    parsed.theme ??= config.theme;
+    if (parsed.source.kind === 'inline' && parsed.theme && parsed.theme !== 'facet') {
+      const selected = discoverThemes(process.cwd()).find(theme => theme.id === parsed.theme);
+      if (selected) parsed.dependencies = { ...parsed.dependencies, [selected.package]: 'file:' + selected.root };
+    }
       validateRequestModuleMode(parsed, config.skipModules);
     } catch (error) {
       progress.emitError(error instanceof RenderError ? error.message : String(error));
@@ -234,6 +247,9 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
     dependencies: parsed.dependencies,
     headerCode: parsed.headerCode,
     footerCode: parsed.footerCode,
+    css: parsed.css,
+    theme: parsed.theme ?? config.theme,
+    themeFingerprint: themeFingerprint(process.cwd(), parsed.theme ?? config.theme),
     format: parsed.format,
     pdfOptions: parsed.pdfOptions,
     encryption: parsed.encryption,
@@ -247,6 +263,8 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
     // Reaches html and png as well as pdf (injectFontScale), so it must key the
     // render even when it did not arrive via pdfOptions.
     fontSize: parsed.fontSize,
+    embedFormat: parsed.embedFormat,
+    embedSize: parsed.embedSize,
     pageSizeOverride: parsed.pageSizeOverride,
   });
 }
@@ -255,10 +273,11 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
  * A signed PDF embeds the signing time (and, with a TSA, a fresh timestamp
  * token), so its bytes are not a function of its inputs. Caching one replays
  * the original timestamp on every later render, so these bypass the cache.
- * Only the PDF path applies the signature, so other formats stay cacheable.
+ * Only the PDF path applies the signature. Dev requests also bypass reuse so
+ * rebuilding a local library takes effect on the next render.
  */
 function isCacheable(parsed: ParsedRenderRequest): boolean {
-  return !(parsed.signature && parsed.format === 'pdf');
+  return !process.env.FACET_DEV_ROOT && !(parsed.signature && parsed.format === 'pdf');
 }
 
 /**
@@ -341,6 +360,8 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       consumerRoot: resolved.consumerRoot,
       entryFile: resolved.entryFile,
       data: parsed.data,
+      theme: parsed.theme ?? config.theme,
+      themeOverrides: { header: !!parsed.headerCode, footer: !!parsed.footerCode },
       logger,
       sandbox: config.sandbox,
       persistentLoader: config.persistentSsr,
@@ -366,10 +387,10 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
     });
     signal?.throwIfAborted();
     // Once, ahead of the format branch, so html, png and pdf all carry it.
-    html = injectFontScale(html, parsed.fontSize);
+    html = injectCustomCss(injectFontScale(html, parsed.fontSize), parsed.css);
 
     if (parsed.format === 'html') {
-      html = await materializeBrowserHTML(html, pool, logger, signal);
+      html = showSlideNotes(await materializeBrowserHTML(html, pool, logger, signal));
       cache.set(cacheKey, 'text/html', Buffer.from(html));
       return respondWithOutput({
         content: html,
@@ -442,6 +463,8 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
       consumerRoot: resolved.consumerRoot,
       entryFile: resolved.entryFile,
       data: parsed.data,
+      theme: parsed.theme ?? config.theme,
+      themeOverrides: { header: !!parsed.headerCode, footer: !!parsed.footerCode },
       logger,
       progress,
       persistentLoader: config.persistentSsr,
@@ -464,9 +487,9 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
       skipModules: config.skipModules,
     });
     // Once, ahead of the format branch, so html, png and pdf all carry it.
-    html = injectFontScale(html, parsed.fontSize);
+    html = injectCustomCss(injectFontScale(html, parsed.fontSize), parsed.css);
     if (parsed.format === 'html') {
-      html = await materializeBrowserHTML(html, pool, logger);
+      html = showSlideNotes(await materializeBrowserHTML(html, pool, logger));
       progress.emit('done', 'HTML render complete');
       return {
         content: html,

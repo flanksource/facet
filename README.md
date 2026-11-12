@@ -18,7 +18,7 @@ Build beautiful, print-ready datasheets and PDFs from React templates.
 - 🔧 **Zero-config CLI** - Build HTML, PDF, PNG, DOCX, and PPTX with a single command
 - 🔗 **Component imports** - `import { StatCard } from '@flanksource/facet'`
 - ⚡ **Fast builds** - Powered by Vite with smart caching
-- 📦 **Isolated builds** - `.facet/` build directory (like `.next` in Next.js)
+- 📦 **Shared runtimes** - installed toolchain and dependency caches outside your projects
 - 🔀 **Live diagrams** - Box-and-arrow diagrams baked to static SVG via `// @live`
 
 ## Installation
@@ -30,11 +30,7 @@ npm install -g @flanksource/facet-cli
 # or: pnpm add -g @flanksource/facet-cli
 ```
 
-This installs the `facet` command, which runs on your Node.js (>=24). Rendering
-uses `pnpm` to populate the shared module cache and reconcile project-specific
-dependencies. PDF output also needs a system Chrome/Chromium. Run `facet doctor`
-to check the environment. For a Node-free environment, use the standalone binary
-below.
+This installs the `facet` command, which runs on Node.js (>=24), and a matching platform runtime containing precompiled libraries and the rendering toolchain. Default rendering needs no pnpm or registry access after installation. New custom dependency sets require pnpm once, then reuse a shared cache. PDF, PNG, DOCX and PPTX also need system Chrome/Chromium; archive extraction requires `tar`. Run `facet doctor` to check the environment. For a Node-free installation, use the standalone binary below.
 
 ### Option 2: Standalone binary
 
@@ -133,7 +129,33 @@ DOCX preserves editable headings, paragraphs, rich text, links, lists, code, and
 
 PPTX reflows content into 16:9 slides by default, or 4:3 when the template selects `pageSize="powerpoint-standard"`. `powerpoint-wide` explicitly selects 16:9. Use one PowerPoint size per deck. The default body size is 18pt. Each `<Page>` starts a slide; long text and tables continue across slides without shrinking text. Table column headers repeat, merged row groups stay together, and cells retain padding, vertical alignment, and per-side solid/dashed borders. Contents entries show their destination slide numbers and link to them after pagination. Headers and footers retain editable text, backgrounds, borders and page numbers. Headings stay with following content, and column groups stay together. An indivisible group that cannot fit produces an actionable error. Use `--font-size` to change the type scale.
 
-PPTX embeds complex visuals as images. DOCX embeds figures and diagram components as PDF-in-EMF pictures; ordinary images, SVG logos, and canvas captures remain images. Office layout can differ from PDF and browser output. Interactive controls and unsupported content fail explicitly. Configure sizes and chrome in the template; PDF encryption/signing and PNG capture options do not apply. The playground provides Office downloads alongside a labeled HTML source preview. See [the runnable Office example](examples/office/README.md).
+Put speaker notes inside a `<Page>` with `<SlideNotes>`. Notes are a [classified region](#classified-regions) with `audience="presenter"` (override with the `audience` prop): render with `--allow audience=presenter` to carry them, or another audience such as `--allow audience=attendee` to remove them; a render with no `audience` policy fails. When permitted, `facet pptx` writes them to that slide's notes page (the first slide when a long page continues onto more). `facet html` (and the render API's `html` format) shows them as a collapsible "Speaker notes" pill in the page's bottom-right corner that opens into a notes card; themes move it with the `--facet-slide-notes-right` and `--facet-slide-notes-bottom` CSS properties. PDF, PNG and DOCX output omit them. Each paragraph or list item becomes one line of notes:
+
+```tsx
+<Page>
+  <h1>Decisions requested</h1>
+  <SlideNotes>
+    <p>Ask for D1–D3 first.</p>
+    <p>D4 can wait for the next review.</p>
+  </SlideNotes>
+</Page>
+```
+
+PPTX embeds complex visuals as images. DOCX embeds figures and diagram components as PDF-in-EMF pictures; ordinary images, SVG logos, and canvas captures remain images.
+
+Choose how figures and diagrams are inserted with `--embed-format` and `--embed-size` on `facet pdf`, `facet docx` and `facet pptx`:
+
+| Flag | Values | Default |
+| --- | --- | --- |
+| `--embed-format` | `pdf` (vector; PDF-in-EMF for Office) or `png` (raster) | `pdf` for pdf and docx, `png` for pptx |
+| `--embed-size` | `1x`, `2x`, `3x`, `4x` device pixels per CSS pixel for PNG captures, including the EMF fallback bitmap | `2x` |
+
+```bash
+facet pptx deck.mdx --live --embed-format pdf -o output/     # vector diagrams in PowerPoint
+facet pdf report.mdx --live --embed-format png --embed-size 3x -o output/
+```
+
+`facet pdf --embed-format png` rasterizes each outermost figure, `<FitFrame>` and diagram (captions included) and keeps the remaining text vector; `--embed-size` without `--embed-format png` is rejected for PDF because it would have no effect. Office layout can differ from PDF and browser output. Interactive controls and unsupported content fail explicitly. Configure sizes and chrome in the template; PDF encryption/signing and PNG capture options do not apply. The playground provides Office downloads alongside a labeled HTML source preview. See [the runnable Office example](examples/office/README.md).
 
 ### Render PNG/PDF in multiple sizes
 
@@ -452,6 +474,7 @@ Facet ships box-and-arrow diagram primitives for data-flow and architecture diag
 |-----------|-------------|
 | `Diagram` | Render-prop container. Yields an `id(name)` helper for stable, per-instance element ids and defers arrows until after mount. |
 | `DiagreDiagram` | Auto-layout container with the same `id(name)` helper. Infers nodes and edges from direct `BoxNode` and `Arrow` children, then lays them out left-to-right or top-to-bottom. |
+| `FitFrame` | Scales live content (e.g. a `Diagram`) down to its frame with a CSS transform instead of pre-rendering it to an image. Content is laid out at `layoutWidth` px (default 1280) and scaled to the frame width, and to `maxHeight` (a CSS length such as `128mm`) when given. `data-facet-ready` becomes `true` once every nested `data-facet-ready` is `true` and the scale has been computed. |
 | `BoxNode` | Pure-CSS box with optional header/body, plus `ports` — chips docked on its border. Connected to other boxes via its `id`, or a port's. |
 | `Tile` / `Zone` | Role-toned component box and containment boundary. `role` is one of `DIAGRAM_ROLES` (`existing`, `new`, `future`, `neutral`); `ROLE_TONES` holds each tone and `Marker` renders a numbered badge. |
 | `Arrow` | Connector between two box ids (`from` / `to`), with `primary` / `secondary` presets. |
@@ -587,21 +610,13 @@ facet pdf MyDatasheet.tsx --skip-modules -o out.pdf
 facet serve --skip-modules --templates-dir ./templates
 ```
 
-The first use installs a Facet-only module set pinned to the CLI version under
-`${FACET_CACHE_DIR:-~/.facet/cache}/modules/<facet-version>/<platform>-<arch>-node<abi>`.
-Later invocations link `.facet/node_modules` directly to that immutable entry, so
-they do not read consumer or nested `package.json` files, package-manager pins,
-lockfiles, overrides, `.npmrc`, or directory-based `FACET_PACKAGE_PATH` overrides.
-Templates that import additional packages must run without `--skip-modules`.
-Server requests containing `dependencies` receive HTTP 400 while the server uses
-this mode. `facet doctor --skip-modules --fix` verifies or rebuilds the exact
-shared entry selected by the current Facet and Node versions.
+Every install ships the Facet-only runtime pinned to the CLI version. First use verifies and extracts it under `${FACET_CACHE_DIR:-~/.facet/cache}/runtimes/<archive-sha256>` without invoking a package manager. `--skip-modules` always selects it, ignoring consumer and nested manifests, overrides and `FACET_PACKAGE_PATH`. Templates with additional packages must run without `--skip-modules`; server requests containing `dependencies` receive HTTP 400 in this mode.
 
-Without `--skip-modules`, a new `.facet` install is seeded by cloning the shared
-`node_modules` directory on APFS, then reconciled against the generated project
-manifest with `pnpm install`. Facet logs and uses a fresh install when cloning is
-unavailable, including on non-macOS filesystems. `--clear-cache` clears only the
-project `.facet` scaffold; it does not remove the versioned shared module cache.
+Without `--skip-modules`, Facet uses the installed runtime when its exact package versions satisfy the effective dependency manifest. Otherwise it installs that dependency set once under `environments/<dependency-hash>`. Projects with equivalent dependencies share the same environment, including concurrent first renders. The key includes overrides, registry routing, local package dependency metadata and the platform/Node ABI; template source and render data do not trigger installations.
+
+Compilation state lives separately under `compilations/`. Facet creates no project `.facet/node_modules` or consumer `node_modules` links. Linked library edits invalidate compilation while retaining the dependency environment. `--clear-cache` publishes a fresh generation for the selected custom environment and compilation; active readers retain their existing generation. It does not remove the installed default runtime. `--refresh` controls remote source retrieval.
+
+`facet doctor` reports the shipped runtime, native tools and cache location. Missing runtime assets fail with a reinstall instruction; rendering errors never trigger a speculative dependency reinstall. See [runtime packaging and cache behavior](docs/runtimes.md) for build and verification commands.
 
 ### `facet html <template>`
 
@@ -978,7 +993,19 @@ Three properties are deliberate:
   render. Forgetting the flag must never publish the content it was meant to
   govern.
 
-Redaction applies to `.md` and `.mdx`. The policy is part of the build-cache key,
+TSX templates use the same rule through the `<Classified>` component:
+
+```tsx
+import { Classified } from '@flanksource/facet';
+
+<Classified tier="Internal">
+  <p>Review notes that must not reach a customer.</p>
+</Classified>
+```
+
+The CLI compiles the build's policy into the bundle, so `--allow` governs both. The component removes the region from the rendered output (HTML, PDF, PNG, DOCX and PPTX), but for TSX the text still ships in the JavaScript bundle; Markdown regions are removed before bundling. Use `RedactPolicyProvider` to supply a policy outside the CLI, for example in Storybook or tests. `<SlideNotes>` is built on it.
+
+Redaction applies to `.md` and `.mdx`, and to TSX through `<Classified>`. The policy is part of the build-cache key,
 so two audiences of one document never share a cached bundle, and it travels with
 `--facet-url` remote renders.
 

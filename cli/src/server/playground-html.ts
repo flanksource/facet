@@ -1,5 +1,7 @@
 import { PLAYGROUND_CONTROLS_SCRIPT } from './playground-controls-script.js';
 import { PLAYGROUND_EXAMPLES_SCRIPT } from './playground-examples-script.js';
+import { PLAYGROUND_RENDER_SCRIPT } from './playground-render-script.js';
+import { PLAYGROUND_RUNTIME_SCRIPT } from './playground-runtime-script.js';
 import { pageSizeOptions } from './page-size-options.js';
 
 // assets/brand/web/favicon.svg, inlined so `facet serve` needs no icon route.
@@ -21,10 +23,18 @@ const HTML = `<!DOCTYPE html>
     .toolbar button:hover { background: #505050; }
     .toolbar .sep { width: 1px; height: 20px; background: #555; }
     .toolbar .format-options { align-items: center; gap: 8px; }
+    .toolbar input[type="url"] { width: 240px; max-width: 100%; padding: 4px 8px; border: 1px solid #555; border-radius: 4px; background: #3c3c3c; color: #ccc; }
+    .browser-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 8px 12px; color: #555; font-size: 12px; }
+    .browser-actions:empty { display: none; }
+    .browser-actions a { color: #1d4ed8; }
+    .browser-actions button { padding: 5px 10px; border: 0; border-radius: 4px; background: #2563eb; color: white; cursor: pointer; }
     @media (max-width: 700px) {
       .toolbar { flex-wrap: wrap; }
       .toolbar .format-options { flex-wrap: wrap; width: 100%; }
       #pageSize { max-width: calc(100vw - 32px); }
+      .main { flex-direction: column; }
+      .editor-panel { width: 100% !important; height: 45%; border-right: 0 !important; border-bottom: 1px solid #404040; }
+      #runtimeOriginControl { max-width: 100%; }
     }
     .toolbar .spacer { flex: 1; }
     .toolbar .status { font-size: 12px; color: #888; }
@@ -38,12 +48,13 @@ const HTML = `<!DOCTYPE html>
     .margin-group span { color: #666; }
     .main { display: flex; flex: 1; min-height: 0; }
     .editor-panel { display: flex; flex-direction: column; width: 50%; border-right: 1px solid #404040; }
-    .editor-tabs { display: flex; background: #252526; border-bottom: 1px solid #404040; flex-shrink: 0; }
+    .editor-tabs { display: flex; background: #252526; border-bottom: 1px solid #404040; flex-shrink: 0; overflow-x: auto; white-space: nowrap; }
     .editor-tabs button { padding: 6px 16px; font-size: 13px; background: none; border: none; color: #888; cursor: pointer; border-bottom: 2px solid transparent; }
     .editor-tabs button.active { color: #fff; border-bottom-color: #2563eb; }
-    #template-editor, #data-editor, #deps-editor, #header-editor, #footer-editor { flex: 1; min-height: 0; }
+    #template-editor, #data-editor, #deps-editor, #header-editor, #footer-editor, #css-editor { flex: 1; min-height: 0; }
     .preview-panel { flex: 1; display: flex; flex-direction: column; background: #fff; min-height: 0; }
-    .preview-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .preview-body { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
+    .render-menu [hidden] { display: none; }
     .preview-panel iframe { flex: 1; border: none; width: 100%; }
     .preview-panel img { max-width: 100%; max-height: 100%; object-fit: contain; margin: auto; }
     .preview-panel .error { padding: 16px; color: #dc2626; font-family: monospace; font-size: 13px; white-space: pre-wrap; background: #fef2f2; flex: 1; overflow: auto; }
@@ -154,6 +165,17 @@ const HTML = `<!DOCTYPE html>
     </div>
     <div class="render-only" style="display:contents">
     <div class="sep"></div>
+    <label>Theme: <select id="documentTheme" onchange="themeChanged()"><option value="facet">facet</option></select></label>
+    <label>Runtime:
+      <select id="runtime" onchange="setRuntime(this.value)">
+        <option value="server">Server (Node)</option>
+        <option value="browser">Browser (Clicky UI / WASM)</option>
+      </select>
+    </label>
+    <label id="runtimeOriginControl" style="display:none">Runtime origin:
+      <input id="runtimeOrigin" type="url" placeholder="Automatic on localhost" aria-label="Hosted browser runtime origin (optional on localhost)">
+    </label>
+    <span class="status" id="browserHint" style="display:none">Live TSX / MDX · HTML or single-page PDF</span>
     <label>Example:
       <select id="example" onchange="loadExample(this.value)">
         <option value="datasheet">Datasheet</option>
@@ -206,14 +228,14 @@ const HTML = `<!DOCTYPE html>
       Logs <span class="dot" id="logsDot"></span>
     </button>
     <div class="render-group">
-      <button class="render-main" id="renderBtn" onclick="doRender()">Render HTML</button>
-      <button class="render-drop" id="renderDrop" onclick="toggleRenderMenu(event)">&#9660;</button>
+      <button class="render-main" id="renderBtn" onclick="doRender()" disabled>Render HTML</button>
+      <button class="render-drop" id="renderDrop" onclick="toggleRenderMenu(event)" disabled>&#9660;</button>
       <div class="render-menu" id="renderMenu">
         <button onclick="setFormat('html')"><span class="check" id="checkHtml">&#10003;</span>HTML</button>
         <button onclick="setFormat('pdf')"><span class="check" id="checkPdf">&nbsp;</span>PDF</button>
-        <button onclick="setFormat('png')"><span class="check" id="checkPng">&nbsp;</span>PNG</button>
-        <button onclick="setFormat('docx')"><span class="check" id="checkDocx">&nbsp;</span>Word (DOCX)</button>
-        <button onclick="setFormat('pptx')"><span class="check" id="checkPptx">&nbsp;</span>PowerPoint (PPTX)</button>
+        <button data-server-format onclick="setFormat('png')"><span class="check" id="checkPng">&nbsp;</span>PNG</button>
+        <button data-server-format onclick="setFormat('docx')"><span class="check" id="checkDocx">&nbsp;</span>Word (DOCX)</button>
+        <button data-server-format onclick="setFormat('pptx')"><span class="check" id="checkPptx">&nbsp;</span>PowerPoint (PPTX)</button>
       </div>
     </div>
     </div>
@@ -224,12 +246,14 @@ const HTML = `<!DOCTYPE html>
         <button class="active" onclick="switchTab('template', this)">Template</button>
         <button onclick="switchTab('header', this)">Header</button>
         <button onclick="switchTab('footer', this)">Footer</button>
+        <button onclick="switchTab('css', this)">CSS</button>
         <button onclick="switchTab('data', this)">Data</button>
         <button onclick="switchTab('deps', this)">Deps</button>
       </div>
       <div id="template-editor"></div>
       <div id="header-editor" style="display:none"></div>
       <div id="footer-editor" style="display:none"></div>
+      <div id="css-editor" style="display:none"></div>
       <div id="data-editor" style="display:none"></div>
       <div id="deps-editor" style="display:none"></div>
     </div>
@@ -263,218 +287,8 @@ const HTML = `<!DOCTYPE html>
   <script>
 ${PLAYGROUND_EXAMPLES_SCRIPT}
 ${PLAYGROUND_CONTROLS_SCRIPT}
-    async function doRender() {
-      const btn = document.getElementById('renderBtn');
-      const drop = document.getElementById('renderDrop');
-      const preview = document.getElementById('preview');
-
-      btn.disabled = true;
-      drop.disabled = true;
-      clearLogs();
-      openLogs();
-      setLogStatus('Rendering...', true);
-      setPreviewState('rendering', 'Rendering ' + currentFormat.toUpperCase() + '\\u2026');
-
-      const code = templateEditor.getValue();
-      const format = currentFormat;
-      const pageSize = document.getElementById('pageSize').value;
-      const landscape = document.getElementById('landscape').checked;
-      const debug = document.getElementById('debug').checked;
-
-      let data = {};
-      try {
-        data = JSON.parse(dataEditor.getValue());
-      } catch (e) {
-        preview.innerHTML = '<div class="error">Invalid JSON in data editor:\\n' + e.message + '</div>';
-        setPreviewState('error', 'Invalid JSON in data editor');
-        btn.disabled = false;
-        drop.disabled = false;
-        setLogStatus('Failed', false);
-        addLog('error', 'Invalid JSON: ' + e.message);
-        return;
-      }
-
-      let deps = {};
-      try {
-        deps = JSON.parse(depsEditor.getValue());
-      } catch (e) {
-        preview.innerHTML = '<div class="error">Invalid JSON in dependencies editor:\\n' + e.message + '</div>';
-        setPreviewState('error', 'Invalid JSON in dependencies editor');
-        setLogStatus('Failed', false);
-        addLog('error', 'Invalid JSON in dependencies editor: ' + e.message);
-        btn.disabled = false;
-        drop.disabled = false;
-        return;
-      }
-
-      const margins = {};
-      const mt = parseFloat(document.getElementById('marginTop').value);
-      const mb = parseFloat(document.getElementById('marginBottom').value);
-      const ml = parseFloat(document.getElementById('marginLeft').value);
-      const mr = parseFloat(document.getElementById('marginRight').value);
-      if (!isNaN(mt)) margins.top = mt;
-      if (!isNaN(mb)) margins.bottom = mb;
-      if (!isNaN(ml)) margins.left = ml;
-      if (!isNaN(mr)) margins.right = mr;
-
-      const tsEnabled = document.getElementById('timestampEnabled').checked;
-      const timestampUrl = tsEnabled ? document.getElementById('timestampUrl').value.trim() : '';
-
-      const body = { code, format, data, ext: currentExt };
-      if (format === 'pdf') {
-        body.pdfOptions = {};
-        if (pageSize) body.pdfOptions.defaultPageSize = pageSize;
-        if (landscape) body.pdfOptions.landscape = true;
-        if (debug) body.pdfOptions.debug = true;
-        if (Object.keys(margins).length) body.pdfOptions.margins = margins;
-        if (!Object.keys(body.pdfOptions).length) delete body.pdfOptions;
-      }
-      if (format === 'png') {
-        const pngWidth = document.getElementById('pngWidth').value;
-        const pngHeight = document.getElementById('pngHeight').value;
-        const pngViewport = document.getElementById('pngViewport').value.trim();
-        body.pngOptions = { selector: document.getElementById('pngSelector').value };
-        if (pngWidth) body.pngOptions.width = Number(pngWidth);
-        if (pngHeight) body.pngOptions.height = Number(pngHeight);
-        if (pngViewport) {
-          const parts = pngViewport.split('x');
-          body.pngOptions.viewport = { width: Number(parts[0]), height: Number(parts[1]) };
-        }
-        if (document.getElementById('pngAutocrop').checked) {
-          body.pngOptions.autocrop = true;
-          const pngAutocropPadding = document.getElementById('pngAutocropPadding').value;
-          if (pngAutocropPadding) body.pngOptions.autocropPadding = Number(pngAutocropPadding);
-        }
-      }
-      if (Object.keys(deps).length) body.dependencies = deps;
-      if (format === 'pdf' && timestampUrl) body.signature = { timestampUrl };
-
-      const hdr = headerEditor.getValue().trim();
-      const ftr = footerEditor.getValue().trim();
-      if (hdr) body.headerCode = hdr;
-      if (ftr) body.footerCode = ftr;
-
-      const start = Date.now();
-      try {
-        const res = await fetch('/render/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) {
-          const err = await res.text();
-          preview.innerHTML = '<div class="error">Render failed (' + res.status + '):\\n' + err + '</div>';
-          setPreviewState('error', 'Render failed (HTTP ' + res.status + ')');
-          setLogStatus('Failed', false);
-          addLog('error', 'HTTP ' + res.status + ': ' + err);
-          btn.disabled = false;
-          drop.disabled = false;
-          return;
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let gotResult = false;
-        // Must outlive a single read. A frame's "event:" line and its "data:"
-        // line routinely arrive in different chunks once the payload is large
-        // (an inlined HTML document always is), and resetting per chunk
-        // downgraded those results to unhandled progress messages — the render
-        // completed but the preview never updated.
-        let eventType = 'message';
-
-        while (true) {
-          const { done, value } = await reader.read();
-
-          buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
-          const lines = buffer.split('\\n');
-          // Nothing follows the final read, so flush the remainder instead of
-          // holding it back as a partial line.
-          buffer = done ? '' : (lines.pop() || '');
-
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              eventType = line.slice(7).trim();
-              continue;
-            }
-            if (!line.startsWith('data: ')) {
-              if (line === '') eventType = 'message';
-              continue;
-            }
-
-            let payload;
-            try { payload = JSON.parse(line.slice(6)); } catch { continue; }
-
-            if (eventType === 'result') {
-              gotResult = true;
-              const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-              showTimings(payload.timings);
-              let rendered = true;
-              if (payload.contentType === 'text/html') {
-                preview.innerHTML = '<iframe sandbox="allow-same-origin allow-scripts"></iframe>';
-                preview.querySelector('iframe').srcdoc = payload.data;
-              } else if (payload.contentType === 'image/png' && payload.url) {
-                preview.innerHTML = '<img alt="PNG render">';
-                const img = preview.querySelector('img');
-                img.onerror = function () { onPreviewLoadError(payload.url); };
-                img.src = payload.url;
-              } else if ((format === 'docx' || format === 'pptx') && payload.url) {
-                await showOfficeResult(preview, payload.url, body, format);
-              } else if (payload.url) {
-                preview.innerHTML = '<iframe></iframe>';
-                const frame = preview.querySelector('iframe');
-                frame.onload = function () { checkPreviewFrame(frame, payload.url); };
-                frame.src = payload.url;
-              } else {
-                preview.innerHTML = '<div class="error">Render returned empty result</div>';
-                rendered = false;
-              }
-              previewHasRender = rendered;
-              setPreviewState(
-                rendered ? 'done' : 'error',
-                rendered ? 'Rendered in ' + elapsed + 's' : 'Render returned empty result',
-                payload.timings,
-              );
-              setLogStatus('Done (' + elapsed + 's)', false);
-              addLog('done', 'Completed in ' + elapsed + 's');
-              if (!renderHadError) setTimeout(closeLogs, 600);
-            } else if (eventType === 'error') {
-              preview.innerHTML = '<div class="error">' + escapeHtml(payload.message) + '</div>';
-              setPreviewState('error', payload.message);
-              setLogStatus('Failed', false);
-              addLog('error', payload.message);
-            } else if (payload.stage || payload.message) {
-              // A trailing 'done' stage arrives after the result on the success
-              // path; it must not reset the banner or blank the render.
-              if (!gotResult) setPreviewState('rendering', payload.message);
-              setLogStatus(payload.message, true);
-              addLog(payload.stage, payload.message, payload.elapsed, payload.duration);
-            }
-            eventType = 'message';
-          }
-
-          if (done) break;
-        }
-
-        // The stream ended without a result. Reporting "Done" here left the
-        // previous render on screen looking current; it is a failure.
-        if (!gotResult && !renderHadError) {
-          preview.innerHTML = '<div class="error">The render stream ended without returning a result.</div>';
-          setPreviewState('error', 'Render ended without a result');
-          setLogStatus('Failed', false);
-          addLog('error', 'Stream closed before a result was received');
-        }
-      } catch (e) {
-        preview.innerHTML = '<div class="error">Network error:\\n' + e.message + '</div>';
-        setPreviewState('error', 'Network error');
-        setLogStatus('Error', false);
-        addLog('error', 'Network: ' + e.message);
-      } finally {
-        btn.disabled = false;
-        drop.disabled = false;
-      }
-    }
+${PLAYGROUND_RUNTIME_SCRIPT}
+${PLAYGROUND_RENDER_SCRIPT}
   </script>
   <script src="/playground-form.js"></script>
   <script>
@@ -484,8 +298,8 @@ ${PLAYGROUND_CONTROLS_SCRIPT}
       document.body.classList.toggle('mode-fill', fill);
       document.getElementById('modeRender').classList.toggle('active', !fill);
       document.getElementById('modeFill').classList.toggle('active', fill);
-      if (fill && !__fillMounted && window.FacetFillPdf && window.FacetFillPdf.mountFillPdf) {
-        window.FacetFillPdf.mountFillPdf('#fill-pdf-root');
+      if (fill && !__fillMounted && window.FacetPlayground && window.FacetPlayground.mountFillPdf) {
+        window.FacetPlayground.mountFillPdf('#fill-pdf-root');
         __fillMounted = true;
       }
       writeUrlState();

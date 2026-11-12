@@ -244,7 +244,8 @@ printable page with prose styling automatically — no React required.
     const MARKDOWN_DATA = JSON.stringify({}, null, 2);
 
     const MARKDOWN_DEPS = JSON.stringify({
-      "@flanksource/facet": "__FACET_VERSION__"
+      "@flanksource/facet": "__FACET_VERSION__",
+      "react-icons": "^5.4.0"
     }, null, 2);
 
     // MDX example. MDX blends Markdown prose with React components; data from the
@@ -286,7 +287,8 @@ drop it inline. The heading above pulls its text from the Data tab.
     }, null, 2);
 
     const MDX_DEPS = JSON.stringify({
-      "@flanksource/facet": "__FACET_VERSION__"
+      "@flanksource/facet": "__FACET_VERSION__",
+      "react-icons": "^5.4.0"
     }, null, 2);
 
     // Selectable starting points for the editor, swapped via the Example dropdown.
@@ -300,7 +302,7 @@ drop it inline. The heading above pulls its text from the Data tab.
     };
     let currentExt = 'tsx';
 
-    let templateEditor, dataEditor, depsEditor, headerEditor, footerEditor;
+    let templateEditor, dataEditor, depsEditor, headerEditor, footerEditor, cssEditor;
     let currentFormat = 'html';
     let renderHadError = false;
     // Suppresses URL writes while we apply state read FROM the URL on load.
@@ -421,28 +423,35 @@ drop it inline. The heading above pulls its text from the Data tab.
         automaticLayout: true,
       });
 
-      // Any edit invalidates what the preview is showing, so the pane blanks
-      // rather than displaying a render of source that no longer exists.
-      [templateEditor, headerEditor, footerEditor, dataEditor, depsEditor].forEach(function(editor) {
+      cssEditor = monaco.editor.create(document.getElementById('css-editor'), {
+        value: '', language: 'css', ariaLabel: 'CSS stylesheet',
+        minimap: { enabled: false }, fontSize: 13,
+        scrollBeyondLastLine: false, automaticLayout: true,
+      });
+
+      [templateEditor, headerEditor, footerEditor, dataEditor, depsEditor, cssEditor].forEach(function(editor) {
         editor.onDidChangeModelContent(markPreviewStale);
       });
 
       // The example dropdown was already set from the URL in initUrlRouting; now
       // that the editors exist, swap in that example's content (datasheet is the
       // default already loaded, so it needs no swap).
-      var initialExample = document.getElementById('example').value;
+      var initialExample = new URLSearchParams(location.search).get('example') || 'datasheet';
       if (initialExample && initialExample !== 'datasheet' && EXAMPLES[initialExample]) {
         loadExample(initialExample);
       }
+      document.getElementById('renderBtn').disabled = false;
+      document.getElementById('renderDrop').disabled = false;
+      queueBrowserRender();
     });
 
     function switchTab(tab, btn) {
       document.querySelectorAll('.editor-tabs button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      ['template', 'header', 'footer', 'data', 'deps'].forEach(function(t) {
+      ['template', 'header', 'footer', 'css', 'data', 'deps'].forEach(function(t) {
         document.getElementById(t + '-editor').style.display = tab === t ? 'block' : 'none';
       });
-      var editors = { template: templateEditor, header: headerEditor, footer: footerEditor, data: dataEditor, deps: depsEditor };
+      var editors = { template: templateEditor, header: headerEditor, footer: footerEditor, css: cssEditor, data: dataEditor, deps: depsEditor };
       if (editors[tab]) editors[tab].layout();
     }
 

@@ -63,11 +63,11 @@ export const pageStructure: LintRule = {
   severity: 'error',
   fileTypes: ['tsx'],
 
-  check(ctx: LintContext): LintIssue[] {
+  async check(ctx: LintContext): Promise<LintIssue[]> {
     if (isExempt(ctx.filePath)) return [];
 
     const issues: LintIssue[] = [];
-    const tree = unwrapRoots(parseJSXTree(ctx.content));
+    const tree = unwrapRoots(await parseJSXTree(ctx.content));
     if (tree.length === 0) return [];
 
     if (isCustomPageFile(ctx)) {

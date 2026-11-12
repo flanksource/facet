@@ -30,6 +30,12 @@ describe('page size overrides', () => {
     ]).toEqual([widthMm, heightMm]);
   });
 
+  it('uses the size every page declares when no default page size is given', async () => {
+    const slide = '<section data-page-size="338.67x190.5" style="width:1280px;height:720px;overflow:hidden;break-after:page"><h1 style="margin:0">Slide</h1></section>';
+    const pdf = await PDFDocument.load(await generatePDFBuffer(browser, `<html><body style="margin:0">${slide}${slide}</body></html>`, {}));
+    expect(pdf.getPages().map((page) => [Math.round(page.getWidth()), Math.round(page.getHeight())])).toEqual([[960, 540], [960, 540]]);
+  });
+
   it('does not introduce a layout override unless requested', () => {
     expect(pageSizeLayout()).toBeUndefined();
   });

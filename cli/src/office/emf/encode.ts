@@ -22,12 +22,12 @@ function comment(data: Buffer): Buffer {
   return Buffer.concat([words([0x46, size, data.length]), data, Buffer.alloc(size - data.length - 12)]);
 }
 
-export async function encodePdfEmf({ pdf, png, width, height, consumerRoot }: { pdf: Uint8Array; png: Uint8Array; width: number; height: number; consumerRoot?: string }): Promise<Uint8Array> {
+export async function encodePdfEmf({ pdf, png, width, height }: { pdf: Uint8Array; png: Uint8Array; width: number; height: number; consumerRoot?: string }): Promise<Uint8Array> {
   if (![width, height].every((value) => Number.isFinite(value) && value > 0 && value * 2540 / 96 <= 0x7fffffff)) throw new Error('Invalid PDF-in-EMF dimensions');
   if (Buffer.from(pdf.subarray(0, 5)).toString() !== '%PDF-') throw new Error('EMF artwork must contain a PDF');
   const document = await PDFDocument.load(pdf);
   if (document.getPageCount() !== 1) throw new Error('EMF artwork requires exactly one PDF page');
-  const sharp = await loadSharp(consumerRoot);
+  const sharp = await loadSharp({ rendering: true });
   const bitmap = await sharp(png).toColourspace('srgb').ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width: pixelsWide, height: pixelsHigh } = bitmap.info;
   const pixels = Buffer.alloc(bitmap.data.length);

@@ -63,6 +63,7 @@ export async function buildPostProcessCss(
   try {
     await build({
       configFile: false,
+      cacheDir: join(facetRoot, '.vite'),
       root: facetRoot,
       logLevel: 'error',
       plugins,

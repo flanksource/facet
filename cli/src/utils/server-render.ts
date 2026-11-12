@@ -120,6 +120,7 @@ export async function renderWithServer({ facetURL, format, options }: ServerRend
   form.set('data', JSON.stringify(data));
   form.set('options', JSON.stringify({
     format,
+    theme: options.theme,
     entryFile,
     filename: `${outputName}.${format}`,
     live: options.live,
@@ -130,6 +131,8 @@ export async function renderWithServer({ facetURL, format, options }: ServerRend
     // Top level so it reaches html and png too; also left in pdfOptions below
     // so an older server still honours it for PDFs.
     fontSize: options.fontSize,
+    embedFormat: options.embedFormat,
+    embedSize: options.embedSize,
     pageSizeOverride: options.pageSizeOverride,
     headerCode: await readOptionalFile(options.header),
     footerCode: await readOptionalFile(options.footer),

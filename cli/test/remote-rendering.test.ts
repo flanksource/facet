@@ -65,7 +65,7 @@ export default function RemoteReport({ data }: { data: { title: string } }) {
     const output = join(outputDirectory, 'remote.html');
 
     await execFileAsync(process.execPath, [
-      '--import', 'tsx',
+      '--import', '@oxc-node/core/register',
       'src/cli.ts',
       'html', template,
       '--data', data,
@@ -83,7 +83,7 @@ export default function RemoteReport({ data }: { data: { title: string } }) {
     const output = join(outputDirectory, 'remote.pdf');
 
     await execFileAsync(process.execPath, [
-      '--import', 'tsx',
+      '--import', '@oxc-node/core/register',
       'src/cli.ts',
       '--facet-url', server.url,
       'pdf', template,

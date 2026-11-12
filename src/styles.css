@@ -10,7 +10,6 @@
  */
 @import 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Fira+Code:wght@300;400;500;600;700&display=swap';
 
-@layer theme, base, facet, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities) source(none);
@@ -1345,5 +1344,84 @@ article {
   .facet-markdown blockquote {
     page-break-inside: avoid;
     break-inside: avoid;
+  }
+}
+
+/* Speaker notes (<SlideNotes>): hidden in every render except HTML output, which
+   marks <html data-facet-notes="show">. Collapsed they are a pill pinned to the page's
+   corner; open they are a scrollable card. Themes move the pill with the
+   --facet-slide-notes-right/-bottom properties. */
+[data-facet-notes="show"] [data-page-size]:has([data-facet-slide-notes]) {
+  position: relative;
+}
+
+[data-facet-notes="show"] [data-facet-slide-notes] {
+  /* !important overrides the component's inline display:none. */
+  display: flex !important;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  position: absolute;
+  right: var(--facet-slide-notes-right, 12px);
+  bottom: var(--facet-slide-notes-bottom, 12px);
+  z-index: 50;
+  max-width: min(60%, 560px);
+  font: 13px/1.45 "Open Sans", system-ui, sans-serif;
+  color: #1f2937;
+  text-align: left;
+}
+
+[data-facet-notes="show"] .facet-slide-notes__summary {
+  order: 2;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgb(17 24 39 / 80%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+}
+
+[data-facet-notes="show"] .facet-slide-notes__summary::-webkit-details-marker {
+  display: none;
+}
+
+[data-facet-notes="show"] .facet-slide-notes__summary::before {
+  content: "▸ ";
+}
+
+[data-facet-notes="show"] [data-facet-slide-notes][open] .facet-slide-notes__summary::before {
+  content: "▾ ";
+}
+
+[data-facet-notes="show"] .facet-slide-notes__body {
+  order: 1;
+  max-height: 420px;
+  overflow: auto;
+  padding: 12px 16px;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 25px rgb(0 0 0 / 18%);
+}
+
+[data-facet-notes="show"] .facet-slide-notes__body p,
+[data-facet-notes="show"] .facet-slide-notes__body li {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+[data-facet-notes="show"] .facet-slide-notes__body > :last-child {
+  margin-bottom: 0;
+}
+
+@media print {
+  [data-facet-slide-notes] {
+    display: none !important;
   }
 }

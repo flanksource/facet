@@ -5,8 +5,11 @@ import type { GenerateOptions, RenderFormat } from '../types.js';
 import { Logger } from '../utils/logger.js';
 import { resolveOutput } from '../utils/resolve-output.js';
 import { renderWithServer, resolveFacetURL } from '../utils/server-render.js';
+import { resolveEmbed, type EmbedFormat, type EmbedSize } from '../utils/embed.js';
+import { addEmbedOptions } from './embed-options.js';
 
 interface OfficeFlags {
+  theme?: string;
   data?: string;
   dataLoader?: string;
   output: string;
@@ -21,6 +24,8 @@ interface OfficeFlags {
   live?: boolean;
   postProcessCss?: boolean;
   fontSize?: number;
+  embedFormat?: EmbedFormat;
+  embedSize?: EmbedSize;
   sandbox?: string | boolean;
   facetUrl?: string;
 }
@@ -32,17 +37,18 @@ export function registerOfficeCommands(options: {
   parseDataLoaderArgs: () => string[];
 }): void {
   for (const format of ['docx', 'pptx'] as const) {
-    options.addSharedOptions(options.program.command(`${format} <templates...>`)
+    options.addSharedOptions(addEmbedOptions(options.program.command(`${format} <templates...>`)
       .description(format === 'docx' ? 'Generate editable Word documents' : 'Generate editable PowerPoint slides with automatic pagination')
       .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
-      .option('--no-validate', 'Skip data validation'))
+      .option('--no-validate', 'Skip data validation'), format === 'docx' ? 'pdf' : 'png'))
       .addHelpText('after', format === 'docx'
-        ? '\nWord exports use Page/Header/Footer template props. Headers, footers, figures and diagrams are captured as PDF and PNG, then embedded as EMF pictures containing both representations. Page numbers stay native. PDF export rendering depends on the viewer. Ordinary images and logos remain images.\n'
-        : '\nOffice exports use Page/Header/Footer template props. Select powerpoint-wide (16:9) or powerpoint-standard (4:3) with pageSize. A deck must use one PowerPoint size. Other templates reflow to 16:9. Complex visuals are embedded images; default body size is 18pt.\n')
+        ? '\nWord exports use Page/Header/Footer template props. With --embed-format pdf (default), headers, footers, figures and diagrams are captured as PDF and PNG, then embedded as EMF pictures containing both representations; --embed-format png inserts figures and diagrams as plain PNG pictures. --embed-size sets the PNG resolution. Page numbers stay native. PDF export rendering depends on the viewer. Ordinary images and logos remain images.\n'
+        : '\nOffice exports use Page/Header/Footer template props. Select powerpoint-wide (16:9) or powerpoint-standard (4:3) with pageSize. A deck must use one PowerPoint size. Other templates reflow to 16:9. Complex visuals are embedded as PNG pictures (default) or, with --embed-format pdf, figures and diagrams as EMF pictures holding a PDF and a PNG fallback; --embed-size sets the PNG resolution. Default body size is 18pt.\n')
       .action(async (templates: string[], _flags: OfficeFlags, command: Command) => {
         const flags = command.optsWithGlobals<OfficeFlags>();
         const logger = new Logger(flags.verbose);
         try {
+          resolveEmbed({ target: format, format: flags.embedFormat, size: flags.embedSize });
           const facetURL = resolveFacetURL(flags.facetUrl);
           await options.ensureRenderReady(format, { ...flags, facetURL }, logger);
           for (const template of templates) {
@@ -53,7 +59,7 @@ export function registerOfficeCommands(options: {
               outputNameField: flags.outputNameField, schema: flags.schema, validate: flags.validate, verbose: flags.verbose,
               refresh: flags.refresh, clearCache: flags.clearCache, skipModules: flags.skipModules,
               redact: parseRedactAllow(flags.allow), live: flags.live, postProcessCss: flags.postProcessCss,
-              fontSize: flags.fontSize, sandbox: flags.sandbox,
+              theme: flags.theme, fontSize: flags.fontSize, embedFormat: flags.embedFormat, embedSize: flags.embedSize, sandbox: flags.sandbox,
             };
             if (facetURL) await renderWithServer({ facetURL, format, options: generateOptions });
             else await (format === 'docx' ? generateDOCX : generatePPTX)(generateOptions);

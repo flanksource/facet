@@ -1,5 +1,10 @@
-export type Severity = 'error' | 'warning';
-export type LintFileType = 'tsx' | 'mdx' | 'md';
+export type Severity = 'error' | 'warning' | 'info';
+export type LintFileType = 'tsx' | 'mdx' | 'md' | 'png' | 'pdf' | 'docx';
+export interface PdfLocation { type: 'pdf'; page: number; object?: string; resource?: string }
+export interface DocxLocation { type: 'docx'; part: string; elementPath?: string; relationshipId?: string; asset?: string; role?: string; pdf?: PdfLocation }
+export type LintLocation = { type: 'source'; line: number; column?: number } | PdfLocation | DocxLocation | {
+  type: 'png'; units: 'px'; origin: 'top-left'; image: { width: number; height: number }; x?: number; y?: number; bounds?: { x: number; y: number; width: number; height: number };
+};
 
 export interface LintIssue {
   file: string;
@@ -22,7 +27,7 @@ export interface LintContext {
 export interface LintRule {
   name: string;
   description: string;
-  severity: Severity;
+  severity: Exclude<Severity, 'info'>;
   fileTypes: readonly LintFileType[];
-  check(ctx: LintContext): LintIssue[];
+  check(ctx: LintContext): LintIssue[] | Promise<LintIssue[]>;
 }
