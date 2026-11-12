@@ -32,6 +32,8 @@ export interface ParsedRenderRequest {
   dependencies?: Record<string, string>;
   headerCode?: string;
   footerCode?: string;
+  css?: string;
+  theme?: string;
   encryption?: PDFEncryptionOptions;
   signature?: PDFSignatureOptions;
   /** Render deadline in milliseconds, overriding the server default. */
@@ -147,6 +149,8 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     dependencies: parseDependencies(body.dependencies),
     headerCode: typeof body.headerCode === 'string' ? body.headerCode : undefined,
     footerCode: typeof body.footerCode === 'string' ? body.footerCode : undefined,
+    css: parseCss(body.css),
+    theme: parseTheme(body.theme),
     encryption,
     signature,
     timeoutMs: parseTimeout(body.timeout),
@@ -159,6 +163,12 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     embedSize: parseEmbedSize(body.embedSize),
     pageSizeOverride: parsePageSizeOverride(body.pageSizeOverride, format, (body.pngOptions as PNGOptions | undefined)?.viewport),
   };
+}
+
+function parseCss(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'string') throw new RenderError('INVALID_REQUEST', 'css must be a string', 400);
+  return raw;
 }
 
 function parseTimeout(raw: unknown): number | undefined {
@@ -248,6 +258,8 @@ async function parseMultipartRequest(
     timeoutMs: parseTimeout(options.timeout),
     headerCode: typeof options.headerCode === 'string' ? options.headerCode : undefined,
     footerCode: typeof options.footerCode === 'string' ? options.footerCode : undefined,
+    css: parseCss(options.css),
+    theme: parseTheme(options.theme),
     pngOptions,
     live: parseBoolean(options.live, 'live'),
     postProcessCss: parseBoolean(options.postProcessCss, 'postProcessCss'),
@@ -297,6 +309,7 @@ async function parseGzipRequest(
     timeoutMs: parseTimeout(url.searchParams.get('timeout')),
     pngOptions,
     postProcessCss: parseBooleanQuery(url.searchParams.get('postProcessCss'), 'postProcessCss'),
+    theme: parseTheme(url.searchParams.get('theme') ?? undefined),
     fontSize: parseFontSize(url.searchParams.get('fontSize') ?? undefined),
     embedFormat: parseEmbedFormat(url.searchParams.get('embedFormat') ?? undefined),
     embedSize: parseEmbedSize(url.searchParams.get('embedSize') ?? undefined),
@@ -516,4 +529,10 @@ function parseSignatureOptions(raw: unknown): PDFSignatureOptions | undefined {
     location: typeof r.location === 'string' ? r.location : undefined,
     timestampUrl: typeof r.timestampUrl === 'string' ? r.timestampUrl : undefined,
   };
+}
+
+function parseTheme(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !/^[a-z][a-z0-9-]*$/.test(value)) throw new RenderError('INVALID_REQUEST', 'theme must be a theme alias', 400);
+  return value;
 }

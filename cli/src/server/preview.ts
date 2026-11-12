@@ -1,3 +1,4 @@
+import { discoverThemes } from '../builders/themes.js';
 import { serverCacheDirectory } from '../runtime/workspace.js';
 import { resolve } from 'path';
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -26,6 +27,7 @@ import { readFileSync } from 'fs';
 import { assetPath } from '../utils/assets.js';
 import { installedRuntime } from '../runtime/installed.js';
 import { requestAbortSignal } from './request-abort.js';
+import { startBrowserOrigin, type BrowserOrigin } from '../runtime/browser-origin.js';
 
 const facetVersion: string = JSON.parse(readFileSync(assetPath('package.json'), 'utf-8')).version;
 const openapiSpec: string = readFileSync(assetPath('openapi.yaml'), 'utf-8');
@@ -39,6 +41,7 @@ export interface ServerHandle {
 export async function createServer(config: ServerConfig): Promise<ServerHandle> {
   const logger = new Logger(config.verbose);
   const ssrLoaderOwner = {};
+  const browserOrigins = new Map<string, Promise<BrowserOrigin>>();
 
   if (config.skipModules && !process.env.FACET_DEV_ROOT) {
     await installedRuntime();
@@ -105,6 +108,22 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
     const authErr = checkAuth(request, config.apiKey);
     if (authErr) return errorResponse(authErr);
 
+    if (url.pathname === '/themes') return Response.json({ default: config.theme ?? 'facet', themes: [{ id: 'facet', module: '@flanksource/facet/Theme' }, ...discoverThemes(process.cwd()).map(({ id, module, package: name, version }) => ({ id, module, package: name, version }))] });
+    if (url.pathname === '/playground/runtime' && request.method === 'GET') {
+      try {
+        const theme = url.searchParams.get('theme') ?? 'facet';
+        const key = url.origin + '/' + theme;
+        const selected = discoverThemes(process.cwd()).find(item => item.id === theme);
+        if (theme !== 'facet' && !selected) throw new Error('Unknown theme: ' + theme);
+        let runtime = browserOrigins.get(key);
+        if (!runtime) { runtime = startBrowserOrigin({ hostOrigin: url.origin, themeRoots: selected ? [selected.root] : [] }); browserOrigins.set(key, runtime); }
+        return Response.json({ runtimeOrigin: (await runtime).origin });
+      } catch (error) {
+        browserOrigins.delete(url.origin + '/' + (url.searchParams.get('theme') ?? 'facet'));
+        return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
+      }
+    }
+
     if (url.pathname === '/fill-pdf' && request.method === 'POST') {
       return handleFillPdf(request);
     }
@@ -161,6 +180,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
     stop: async () => {
       await new Promise<void>((resolveClose) => httpServer.close(() => resolveClose()));
       await Promise.all([
+        ...Array.from(browserOrigins.values(), async runtime => (await runtime).close()),
         pool.shutdown(),
         shutdownPersistentSsrLoaders(ssrLoaderOwner),
       ]);

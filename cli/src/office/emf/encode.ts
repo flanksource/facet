@@ -27,7 +27,7 @@ export async function encodePdfEmf({ pdf, png, width, height }: { pdf: Uint8Arra
   if (Buffer.from(pdf.subarray(0, 5)).toString() !== '%PDF-') throw new Error('EMF artwork must contain a PDF');
   const document = await PDFDocument.load(pdf);
   if (document.getPageCount() !== 1) throw new Error('EMF artwork requires exactly one PDF page');
-  const sharp = await loadSharp();
+  const sharp = await loadSharp({ rendering: true });
   const bitmap = await sharp(png).toColourspace('srgb').ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width: pixelsWide, height: pixelsHigh } = bitmap.info;
   const pixels = Buffer.alloc(bitmap.data.length);

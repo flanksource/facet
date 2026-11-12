@@ -38,6 +38,8 @@ test('packed default runtime renders with a fresh cache and disabled package man
       if (['docx', 'pptx'].includes(format)) expect(bytes.subarray(0, 2).toString()).toBe('PK');
     }
     expect(readdirSync(join(cache, 'runtimes'))).toHaveLength(1);
+    await run(process.execPath, [join(outDir, 'facet.cjs'), 'png', 'Report.tsx', '--data', 'data.json', '--skip-modules', '--autocrop', '--output', join(project, 'cropped.png')], { cwd: project, env, maxBuffer: 8 * 1024 * 1024 });
+    expect(readFileSync(join(project, 'cropped.png')).subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
     await run(process.execPath, [join(outDir, 'facet.cjs'), 'html', 'Report.tsx', '--data', 'data.json', '--output', join(project, 'automatic.html')], { cwd: project, env, maxBuffer: 8 * 1024 * 1024 });
     expect(readFileSync(join(project, 'automatic.html'), 'utf8')).toContain('Installed runtime works');
     writeFileSync(join(project, 'helper.ts'), 'type Node = { value?: string; children?: Node[] }; export default function plugin() { return (tree: Node) => { for (const paragraph of tree.children ?? []) for (const child of paragraph.children ?? []) if (child.value) child.value = "Runtime plugin"; }; }');

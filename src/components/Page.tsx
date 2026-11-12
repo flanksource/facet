@@ -1,6 +1,7 @@
 import React from 'react';
 import type { PageType } from './Header';
 import { useDocumentDefaults } from './Document';
+import { useFacetTheme } from './Theme';
 import { PAGE_SIZE_PRESETS } from '../utils/page-size-presets';
 
 export type PageSize = string;
@@ -46,6 +47,8 @@ export default function Page({
   type = 'default',
 }: PageProps) {
   const documentDefaults = useDocumentDefaults();
+  const { theme, options } = useFacetTheme();
+  const ThemePage = theme.slots?.page;
   const resolvedPageSize = pageSize ?? documentDefaults?.pageSize ?? 'a4';
   const preset = PAGE_SIZE_PRESETS[resolvedPageSize.toLowerCase()];
   const canvas = preset?.unit === 'px' ? preset : undefined;
@@ -91,8 +94,8 @@ export default function Page({
         <h2 className={titleClassName}>{title}</h2>
       )}
 
-      <main className={className} style={mainStyle}>
-        <article>{children}</article>
+      <main className={[theme.pageClassName, className].filter(Boolean).join(' ')} style={mainStyle}>
+        <article>{ThemePage ? <ThemePage title={title} options={options}>{children}</ThemePage> : children}</article>
       </main>
     </div>
   );

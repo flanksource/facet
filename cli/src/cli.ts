@@ -131,6 +131,7 @@ function buildSignature(options: any): PDFSignatureOptions | undefined {
 
 function addSharedOptions(cmd: Command): Command {
   return cmd
+    .option('--theme <name>', 'Installed document theme (default: facet)')
     .option('-d, --data <file>', 'Path to JSON or YAML data file')
     .option('-l, --data-loader <file>', 'Path to data loader module (.ts or .js)')
     .option('-o, --output <path>', 'Output file path or directory', '.')
@@ -218,6 +219,7 @@ addSharedOptions(
         live: options.live,
         postProcessCss: options.postProcessCss,
         fontSize: options.fontSize,
+        theme: options.theme,
         sandbox: options.sandbox,
         showSlideNotes: true,
       };
@@ -285,6 +287,7 @@ addSharedOptions(
         live: options.live,
         postProcessCss: options.postProcessCss,
         fontSize: options.fontSize,
+        theme: options.theme,
         sandbox: options.sandbox,
         pngOptions: {
           width: options.width,
@@ -378,6 +381,7 @@ addSharedOptions(addEmbedOptions(
         debug: options.debug,
         debugTypography: options.debugTypography,
         fontSize: options.fontSize,
+        theme: options.theme,
         embedFormat: options.embedFormat,
         embedSize: options.embedSize,
         pageSize: sizes.length ? undefined : options.pageSize,
@@ -443,6 +447,7 @@ program
 // serve command
 program
   .command('serve')
+  .option('--theme <name>', 'Default installed document theme (default: facet)')
   .description('Start API server for rendering templates')
   .option('-p, --port <number>', 'Server port', '3010')
   .option('--templates-dir <dir>', 'Directory containing templates', '.')

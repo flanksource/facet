@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { cpSync, existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
@@ -12,6 +12,7 @@ import { runtimePlatform, runtimePlatformName } from '../src/runtime/platform.js
 import { Logger } from '../src/utils/logger.js';
 import { runtimePackages } from './runtime-packages.cjs';
 import { buildDependencyRuntime, runtimeEntries } from '@flanksource/page-runtime/build/dependencies';
+import { stageRenderingRuntime } from './runtime-files.js';
 
 const run = promisify(execFile);
 
@@ -20,7 +21,11 @@ export async function packageRuntime(options: { root: string; out: string; facet
   const versions = Object.fromEntries(options.dependencies.map(name => [name, JSON.parse(readFileSync(join(options.root, 'node_modules', name, 'package.json'), 'utf8')).version as string]));
   mkdirSync(options.out, { recursive: true });
   const archive = join(options.out, 'default-runtime.tgz');
-  await run('tar', ['-czf', archive, '-C', options.root, '.'], { maxBuffer: 16 * 1024 * 1024 });
+  const projection = mkdtempSync(join(options.out, '.rendering-'));
+  try {
+    await stageRenderingRuntime({ root: options.root, out: projection, packages: options.dependencies });
+    await run('tar', ['-czf', archive, '-C', projection, '.'], { maxBuffer: 16 * 1024 * 1024 });
+  } finally { rmSync(projection, { recursive: true, force: true }); }
   const target = runtimePlatform();
   writeFileSync(join(options.out, 'default-runtime.json'), JSON.stringify({ schema: 1, facetVersion: options.facetVersion, target, versions, sha256: createHash('sha256').update(readFileSync(archive)).digest('hex') }, null, 2));
   writeFileSync(join(options.out, 'package.json'), JSON.stringify({ name: `@flanksource/facet-runtime-${runtimePlatformName()}`, version: options.facetVersion, description: 'Precompiled Facet rendering runtime and toolchain', license: 'Apache-2.0', os: [target.platform], cpu: [target.arch], ...(target.libc ? { libc: [target.libc] } : {}), files: ['default-runtime.json', 'default-runtime.tgz'] }, null, 2));
@@ -55,6 +60,12 @@ export async function buildDefaultRuntime(repoRoot: string): Promise<void> {
     dependencies['@flanksource/clicky-ui'] = facet.peerDependencies['@flanksource/clicky-ui'];
     dependencies['@oxc-node/core'] = facet.devDependencies['@oxc-node/core'];
     dependencies['@flanksource/page-runtime-build'] = '0.1.0';
+    const compilerRoot = resolve(createRequire(import.meta.url).resolve('@flanksource/page-runtime/build/dependencies'), '..');
+    const compiler = JSON.parse(readFileSync(join(compilerRoot, 'package.json'), 'utf8'));
+    const css = JSON.parse(readFileSync(join(dirname(createRequire(import.meta.url).resolve('lightningcss')), '../package.json'), 'utf8'));
+    dependencies.rolldown = compiler.dependencies.rolldown;
+    const pnpm = manifest.pnpm as { overrides?: Record<string, unknown> } | undefined;
+    manifest.pnpm = { ...pnpm, overrides: { ...pnpm?.overrides, rolldown: dependencies.rolldown, lightningcss: css.version } };
     const archives: Record<string, string> = {};
     for (const name of Object.keys(dependencies)) {
       const directory = name === '@flanksource/page-runtime-build'
@@ -82,7 +93,7 @@ export async function buildDefaultRuntime(repoRoot: string): Promise<void> {
       await buildDependencyRuntime({ root: environment.root, outDir: join(environment.root, 'page-runtime', target), entries, target });
     }
     const out = join(repoRoot, 'cli/assets/runtimes', runtimePlatformName());
-    await packageRuntime({ root: environment.root, out, facetVersion: facet.version, dependencies: Object.keys(dependencies) });
+    await packageRuntime({ root: environment.root, out, facetVersion: facet.version, dependencies: Object.keys(dependencies).filter(name => name !== '@flanksource/clicky-ui') });
     console.log(`Prepared installed runtime ${out}`);
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 }

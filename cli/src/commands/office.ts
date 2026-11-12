@@ -9,6 +9,7 @@ import { resolveEmbed, type EmbedFormat, type EmbedSize } from '../utils/embed.j
 import { addEmbedOptions } from './embed-options.js';
 
 interface OfficeFlags {
+  theme?: string;
   data?: string;
   dataLoader?: string;
   output: string;
@@ -58,7 +59,7 @@ export function registerOfficeCommands(options: {
               outputNameField: flags.outputNameField, schema: flags.schema, validate: flags.validate, verbose: flags.verbose,
               refresh: flags.refresh, clearCache: flags.clearCache, skipModules: flags.skipModules,
               redact: parseRedactAllow(flags.allow), live: flags.live, postProcessCss: flags.postProcessCss,
-              fontSize: flags.fontSize, embedFormat: flags.embedFormat, embedSize: flags.embedSize, sandbox: flags.sandbox,
+              theme: flags.theme, fontSize: flags.fontSize, embedFormat: flags.embedFormat, embedSize: flags.embedSize, sandbox: flags.sandbox,
             };
             if (facetURL) await renderWithServer({ facetURL, format, options: generateOptions });
             else await (format === 'docx' ? generateDOCX : generatePPTX)(generateOptions);

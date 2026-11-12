@@ -1,5 +1,5 @@
 import { pathToFileURL } from 'node:url';
-import { toolPath } from '../runtime/tools.js';
+import { cliDependencyPath } from '../runtime/cli-dependencies.js';
 
 export interface AstNode { type: string; start: number; end: number; [key: string]: unknown }
 let parser: Promise<typeof import('rolldown/utils')> | undefined;
@@ -21,7 +21,7 @@ export function walk(value: AstNode, visit: (value: AstNode) => boolean | void):
 }
 
 export async function parseProgram(source: string): Promise<AstNode> {
-  parser ??= toolPath('rolldown/utils').then(path => import(pathToFileURL(path).href));
+  parser ??= import(pathToFileURL(cliDependencyPath('rolldown/utils')).href);
   const { parseSync } = await parser;
   const program = node(parseSync('template.tsx', source).program);
   if (!program) throw new Error('Rolldown returned no syntax tree for template.tsx');

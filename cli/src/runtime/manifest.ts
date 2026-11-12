@@ -1,6 +1,5 @@
 import requiredPackages from './packages.json';
 import { SHARP_VERSION } from '../utils/sharp.js';
-import { PDFJS_VERSION, PDFJS_CANVAS_VERSION } from '../utils/pdfjs.js';
 
 export const REQUIRED_DEPENDENCIES: readonly string[] = requiredPackages;
 
@@ -36,8 +35,6 @@ export function createDefaultModulePackageJson(options: DefaultModulePackageOpti
   }
   dependencies.lightningcss = '^1.30.2';
   dependencies.sharp = SHARP_VERSION;
-  dependencies['pdfjs-dist'] = PDFJS_VERSION;
-  dependencies['@napi-rs/canvas'] = PDFJS_CANVAS_VERSION;
 
   const manifest: Record<string, unknown> = {
     name: '.facet-default-modules',

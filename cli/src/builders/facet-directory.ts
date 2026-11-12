@@ -27,13 +27,13 @@ import {
   type RedactPolicy,
 } from './remark-config.js';
 
+import { themeEntry, themeFingerprint } from './themes.js';
+import { cascadeOrder } from '@flanksource/page-runtime/styles';
 import { assetPath } from '../utils/assets.js';
 import { createDefaultModulePackageJson, defaultModuleNpmrc, REQUIRED_DEPENDENCIES } from '../runtime/manifest.js';
 import { VERSION } from '../version-generated.js';
 import { dependencyManifest } from '../runtime/dependencies.js';
 import { LowPriorityProcessError, runLowPriority } from '../utils/subprocess-priority.js';
-import { SHARP_VERSION } from '../utils/sharp.js';
-import { PDFJS_VERSION, PDFJS_CANVAS_VERSION } from '../utils/pdfjs.js';
 import { pageStyles, wrapFacetStylesInLayer } from '../../../dist/page-styles/index.mjs';
 export { wrapFacetStylesInLayer } from '../../../dist/page-styles/index.mjs';
 import { resolveConsumerDependencies, readWorkspaceOverrides, resolveOverrideValues } from './consumer-dependencies.js';
@@ -42,6 +42,8 @@ import { computeTemplateBuildKey } from '../bundler/build-cache.js';
 const rootPackageJson = assetPath('package.json');
 
 export interface FacetDirectoryOptions {
+  theme?: string;
+  themeOverrides?: { header?: boolean; footer?: boolean };
   buildRoot?: string;
   /** Consumer's project root directory */
   consumerRoot: string;
@@ -167,7 +169,7 @@ function newestExistingMtime(paths: string[]): number {
 
 export function needsLocalFacetComponentsBuild(packageRoot: string): boolean {
   const output = join(packageRoot, 'dist/components/index.js');
-  const sourceMtime = newestMatchingMtime(join(packageRoot, 'src'), isComponentBuildSource);
+  const sourceMtime = Math.max(...['components', 'utils', 'types', 'remark'].map(dir => newestMatchingMtime(join(packageRoot, 'src', dir), isComponentBuildSource)));
   if (sourceMtime === 0) return false;
   if (!existsSync(output)) return true;
   return sourceMtime > statSync(output).mtimeMs;
@@ -289,9 +291,13 @@ export class FacetDirectory {
   private remarkConfig: RemarkConfig;
   private redact?: RedactPolicy;
   private skipModules: boolean;
+  private theme?: string;
+  private themeOverrides?: { header?: boolean; footer?: boolean };
 
   constructor(options: FacetDirectoryOptions) {
     this.consumerRoot = options.consumerRoot;
+    this.theme = options.theme;
+    this.themeOverrides = options.themeOverrides;
     this.facetRoot = options.buildRoot ?? join(this.consumerRoot, '.facet');
     this.facetSrc = join(this.facetRoot, 'src');
     this.templateFile = options.templateFile;
@@ -421,17 +427,17 @@ export class FacetDirectory {
     const entry = isMarkdown
       ? `import React from 'react';
 import './facet.css';
-import { Page, RedactPolicyProvider } from '@flanksource/facet';
+import { Document, Page, RedactPolicyProvider } from '@flanksource/facet';
 import { Icon } from '@iconify/react';
 import Content from './src/${templateRelPath}';
 
 export default function Template({ data }) {
   return (
-    <RedactPolicyProvider policy={${JSON.stringify(this.redact ?? { allow: {} })}}><Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+    <RedactPolicyProvider policy={${JSON.stringify(this.redact ?? { allow: {} })}}><Document title={data?.title}><Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>
       <article className="prose">
         <Content components={{ Icon }} {...data} />
       </article>
-    </Page></RedactPolicyProvider>
+    </Page></Document></RedactPolicyProvider>
   );
 }
 `
@@ -447,7 +453,10 @@ export default function Entry(props) {
 `;
 
     const entryPath = join(this.facetRoot, 'entry.tsx');
-    writeFileSync(entryPath, entry, 'utf-8');
+    const selected = themeEntry(this.facetRoot, this.theme);
+    const themeCss = this.theme && this.theme !== 'facet' ? `import ${JSON.stringify(selected.slice(0, selected.lastIndexOf('/')) + '/styles.css')};` : '';
+    const themed = entry.replace('export default function', 'function');
+    writeFileSync(entryPath, `${themeCss}\nimport { ThemeProvider } from '@flanksource/facet';\nimport { ${this.theme && this.theme !== 'facet' ? 'theme' : 'facetTheme'} as selectedTheme } from ${JSON.stringify(selected)};\n${themed}\nexport default function ThemedEntry(props) { return <ThemeProvider theme={selectedTheme} options={props.data?.theme} overrides={${JSON.stringify(this.themeOverrides ?? {})}}><${isMarkdown ? 'Template' : 'Entry'} {...props} /></ThemeProvider>; }`, 'utf-8');
 
     this.logger.debug('Generated entry.tsx');
   }
@@ -833,14 +842,6 @@ export default defineConfig(async () => {
       dependencies['lightningcss'] = '^1.30.2';
     }
 
-    // sharp backs `facet png --autocrop`; the SEA binary cannot embed the native
-    // addon, so it has to be resolvable from .facet at runtime.
-    if (!dependencies['sharp']) {
-      dependencies['sharp'] = SHARP_VERSION;
-    }
-    dependencies['pdfjs-dist'] = PDFJS_VERSION;
-    dependencies['@napi-rs/canvas'] = PDFJS_CANVAS_VERSION;
-
     this.logger.debug(`Merged with facet build dependencies, total: ${Object.keys(dependencies).length}`);
 
     // Warn when overrides collide with facet's build deps — the override wins
@@ -1003,13 +1004,17 @@ export default defineConfig(async () => {
       // Another process may have completed the build while this process waited.
       if (isCurrent()) return;
       const shouldBuildCss = needsLocalFacetCssBuild(packageRoot);
-      if (needsLocalFacetComponentsBuild(packageRoot)) {
+      const rebuildComponents = needsLocalFacetComponentsBuild(packageRoot);
+      if (rebuildComponents) {
         await this.runLocalFacetBuildScript(packageRoot, 'build:components');
       }
       // vite.lib.config.ts empties dist/ before building components. If CSS was
       // current before that run, it may now be missing, so re-check afterward.
       if (shouldBuildCss || needsLocalFacetCssBuild(packageRoot)) {
         await this.runLocalFacetBuildScript(packageRoot, 'build:css');
+      }
+      if (process.env.FACET_DEV_ROOT && (rebuildComponents || !existsSync(join(packageRoot, 'dist/runtime/importmap.json')))) {
+        await this.runLocalFacetBuildScript(packageRoot, 'build:runtime');
       }
     });
   }
@@ -1128,7 +1133,7 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
         : assetPath('styles.css');
     writeFileSync(
       join(this.facetRoot, 'facet.css'),
-      wrapFacetStylesInLayer(readFileSync(stylesPath, 'utf-8')),
+      cascadeOrder(['components', 'facet', ...(this.theme && this.theme !== 'facet' ? [this.theme] : [])]) + '\n' + wrapFacetStylesInLayer(readFileSync(stylesPath, 'utf-8')),
       'utf-8',
     );
 
@@ -1176,8 +1181,9 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
    */
   generatedConfigDigest(): string {
     const hash = createHash('sha256');
+    hash.update(themeFingerprint(this.facetRoot, this.theme) ?? 'facet');
     const generated = [
-      'package.json', 'runtime.json',
+      'package.json', 'runtime.json', 'entry.tsx',
       'vite.config.ts', 'postcss.config.js', 'post-process-v4.css',
       // facet.css is the whole facet stylesheet and the SSR bundle inlines it.
       // Leaving it out meant editing facet's own CSS — or installing a patched

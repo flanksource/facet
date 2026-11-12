@@ -3,6 +3,29 @@ import { parseRenderRequest, validateRequestModuleMode } from './request.js';
 
 const MAX_UPLOAD = 1024 * 1024;
 
+describe('custom CSS requests', () => {
+  it('preserves the selected theme in JSON and multipart requests', async () => {
+    for (const request of [jsonRequest({ code: 'export default null', theme: 'old-mutual' }), multipartRequest({ theme: 'old-mutual' })]) {
+      expect(await parseRenderRequest(request, MAX_UPLOAD)).toHaveProperty('theme', 'old-mutual');
+    }
+  });
+  it.each([null, 42, '../theme', ''])('rejects invalid theme aliases %j', async theme => {
+    await expect(parseRenderRequest(jsonRequest({ code: 'export default null', theme }), MAX_UPLOAD)).rejects.toThrow('theme must be a theme alias');
+  });
+  it('preserves CSS from JSON and multipart options', async () => {
+    const css = 'h1 { color: rebeccapurple; }';
+    for (const request of [jsonRequest({ code: 'export default null', css }), multipartRequest({ css })]) {
+      expect(await parseRenderRequest(request, MAX_UPLOAD)).toHaveProperty('css', css);
+    }
+  });
+
+  it.each([null, 42, {}, []])('rejects CSS that is not a string: %j', async (css) => {
+    for (const request of [jsonRequest({ code: 'export default null', css }), multipartRequest({ css })]) {
+      await expect(parseRenderRequest(request, MAX_UPLOAD)).rejects.toThrow('css must be a string');
+    }
+  });
+});
+
 describe('page size override requests', () => {
   it.each(['png', 'pdf'])('accepts concrete %s sizes in all request forms', async (format) => {
     for (const request of [

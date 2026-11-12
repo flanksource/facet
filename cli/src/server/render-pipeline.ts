@@ -1,4 +1,5 @@
 import { serverCacheDirectory } from '../runtime/workspace.js';
+import { cascadeOrder } from '@flanksource/page-runtime/styles';
 import { createHash } from 'node:crypto';
 import { lstatSync, rmSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
@@ -103,6 +104,8 @@ export function cleanupTempDir(tempDir: string): void {
 }
 
 interface RenderHTMLOptions {
+  theme?: string;
+  themeOverrides?: { header?: boolean; footer?: boolean };
   consumerRoot: string;
   entryFile: string;
   data: Record<string, unknown>;
@@ -129,6 +132,8 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
       logger,
       timings,
       redact: options.redact,
+      theme: options.theme,
+      themeOverrides: options.themeOverrides,
       skipModules: options.skipModules,
       signal: options.signal,
     });
@@ -148,6 +153,8 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
     persistentLoader,
     timings,
     redact: options.redact,
+      theme: options.theme,
+      themeOverrides: options.themeOverrides,
     skipModules: options.skipModules,
     signal: options.signal,
   });
@@ -156,6 +163,8 @@ export async function renderHTML(options: RenderHTMLOptions): Promise<string> {
       html: buildResult.html,
       facetRoot: buildResult.facetRoot,
       buildCacheKey: buildResult.buildCacheKey,
+      baseCss: buildResult.css,
+      theme: options.theme,
       logger,
       enabled: shouldPostProcessTemplateCSS(options.postProcessCss, join(consumerRoot, entryFile)),
       timings,
@@ -181,6 +190,8 @@ export async function renderHTMLStreamed(options: StreamedHTMLOptions): Promise<
       logger,
       timings,
       redact: options.redact,
+      theme: options.theme,
+      themeOverrides: options.themeOverrides,
       skipModules: options.skipModules,
     });
     try {
@@ -200,6 +211,8 @@ export async function renderHTMLStreamed(options: StreamedHTMLOptions): Promise<
     timings,
     skipModules: options.skipModules,
     redact: options.redact,
+      theme: options.theme,
+      themeOverrides: options.themeOverrides,
   });
   try {
     progress.emit('tailwind', 'Processing Tailwind CSS...');
@@ -207,6 +220,8 @@ export async function renderHTMLStreamed(options: StreamedHTMLOptions): Promise<
       html: buildResult.html,
       facetRoot: buildResult.facetRoot,
       buildCacheKey: buildResult.buildCacheKey,
+      baseCss: buildResult.css,
+      theme: options.theme,
       logger,
       enabled: shouldPostProcessTemplateCSS(options.postProcessCss, join(consumerRoot, entryFile)),
       timings,
@@ -328,6 +343,8 @@ export async function injectHeaderFooter(options: {
 }
 
 async function applyTailwind(options: {
+  theme?: string;
+  baseCss: string;
   html: string;
   facetRoot: string;
   buildCacheKey: string;
@@ -347,7 +364,8 @@ async function applyTailwind(options: {
   logger.debug(enabled
     ? 'CSS generated from source and rendered class names'
     : 'CSS generated from source; rendered-HTML post-processing disabled');
-  return combineHTMLAndCSS(html, css);
+  const order = cascadeOrder(['components', 'facet', ...(options.theme && options.theme !== 'facet' ? [options.theme] : [])]);
+  return combineHTMLAndCSS(html, order + '\n' + css + '\n' + options.baseCss);
 }
 
 export async function respondWithOutput(options: {

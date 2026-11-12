@@ -34,6 +34,39 @@ paths:
                     type: object
                     description: Worker pool statistics.
 
+  /playground/runtime:
+    get:
+      operationId: playgroundRuntime
+      summary: Start the local browser page runtime
+      description: Returns a separate loopback origin for the playground's browser compiler. Available when the playground is accessed through localhost; remote playgrounds must supply a hosted runtime origin. No template compilation runs on this endpoint.
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Local browser runtime is ready.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runtimeOrigin]
+                properties:
+                  runtimeOrigin:
+                    type: string
+                    format: uri
+        "400":
+          description: The host is not loopback, or the runtime could not start.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /templates:
     get:
       operationId: listTemplates
@@ -365,6 +398,13 @@ components:
         footerCode:
           type: string
           description: Inline TSX for a footer component.
+        css:
+          type: string
+          description: Plain CSS overrides appended after generated styles. Available in JSON requests and multipart options; applies to HTML and rendered output formats.
+        theme:
+          type: string
+          pattern: '^[a-z][a-z0-9-]*$'
+          description: Installed document theme alias. Defaults to the server theme, or facet. Available in JSON requests and multipart options.
         timeout:
           type: integer
           minimum: 1
