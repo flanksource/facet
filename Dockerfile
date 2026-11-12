@@ -32,16 +32,10 @@ RUN cd cli && pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build the component library + styles that rendered templates import from
-# "@flanksource/facet", then pack the package while dist/ holds only the library
-# (the CLI binary is added to dist/ afterwards and would bloat the tarball),
-# then build the standalone CLI binary (Node SEA) into dist/facet.
+# Build the library and its installed runtime before embedding both in the binary.
 ENV GIT_COMMIT=${GIT_COMMIT}
-RUN pnpm run build:components && pnpm run build:css
-RUN cd /app && npm pack --pack-destination /app/ \
-    && mv /app/flanksource-facet-*.tgz /app/facet.tgz
-
-RUN cd cli && pnpm run build
+RUN pnpm run build
+RUN pnpm --dir cli run build:cli
 
 # Final stage with Chromium browser
 FROM ${NODE_IMAGE}
@@ -84,18 +78,6 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 # Copy the compiled standalone binary from builder
 COPY --from=builder /app/dist/facet /usr/local/bin/facet
 
-# Copy source files needed at runtime (component library + examples)
-COPY --from=builder /app/src /app/src
-COPY --from=builder /app/node_modules /app/node_modules
-COPY --from=builder /app/package.json /app/package.json
-COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
-
-# Copy the @flanksource/facet tarball built in the builder stage. Renders
-# resolve @flanksource/facet from the npm registry (honoring the template's
-# pinned version); the tarball is only used for the build-time warmup below,
-# and can be opted into at runtime with FACET_PACKAGE_PATH=/app/facet.tgz.
-COPY --from=builder /app/facet.tgz /app/facet.tgz
-
 # Copy example files for demonstration
 COPY cli/examples/SimpleReport.tsx /app/examples/
 COPY cli/examples/FacetReport.tsx /app/examples/
@@ -119,13 +101,11 @@ LABEL org.opencontainers.image.title="Facet" \
       org.opencontainers.image.vendor="Flanksource" \
       org.opencontainers.image.version="${VERSION}"
 
-# Populate the immutable shared module entry from the exact-version tarball and
-# verify that the package can render. The cache rejects a tarball whose Facet
-# version differs from the CLI version.
+# Verify the embedded runtime; these renders never install dependencies.
 WORKDIR /app/examples
 RUN mkdir -p /app/.tmp
-RUN FACET_PACKAGE_PATH=/app/facet.tgz facet --skip-modules html FacetReport.tsx --data simple-data.json --output /app/.tmp/warmup.html
-RUN FACET_PACKAGE_PATH=/app/facet.tgz facet --skip-modules pdf FacetReport.tsx --data simple-data.json --output /app/.tmp/warmup.pdf
+RUN facet --skip-modules html FacetReport.tsx --data simple-data.json --output /app/.tmp/warmup.html
+RUN facet --skip-modules pdf FacetReport.tsx --data simple-data.json --output /app/.tmp/warmup.pdf
 RUN rm -f /app/.tmp/warmup.html /app/.tmp/warmup.pdf
 WORKDIR /app
 

@@ -106,6 +106,7 @@ jobs:
       - name: Build CLI binary (Node SEA)
         shell: bash
         run: |
+          pnpm run build
           pnpm --dir cli run build:cli
           mv "dist/facet${{ matrix.ext }}" "dist/facet-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}"
 
@@ -119,6 +120,61 @@ jobs:
           name: facet-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/facet-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}
           retention-days: 1
+
+      - name: Upload runtime package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: runtime-${{ matrix.platform }}-${{ matrix.arch }}
+          path: cli/assets/runtimes/
+          retention-days: 1
+
+  build-musl-runtimes:
+    needs: version-bump
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.version-bump.outputs.new_tag }}
+          persist-credentials: false
+      - name: Build musl runtime
+        run: |
+          docker build --target builder --tag facet-runtime-build .
+          docker create --name facet-runtime-output facet-runtime-build
+          docker cp facet-runtime-output:/app/cli/assets/runtimes ./runtime-output
+          docker rm facet-runtime-output
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: runtime-linux-${{ matrix.arch }}-musl
+          path: runtime-output/
+          retention-days: 1
+
+  publish-runtimes:
+    needs: [version-bump, build-binaries, build-musl-runtimes]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: runtime-*
+          path: runtime-packages
+      - name: Publish runtime packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for manifest in runtime-packages/*/*/package.json
+          do
+            npm publish "$(dirname "$manifest")" --access public --provenance --ignore-scripts
+          done
 
   create-release:
     name: Create GitHub Release
@@ -171,7 +227,7 @@ jobs:
 
   publish-npm:
     name: Publish to npm
-    needs: [version-bump, build-binaries]
+    needs: [version-bump, publish-runtimes]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -199,14 +255,16 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Build library
-        run: cd cli && pnpm run gen-version && pnpm run build:lib
+        run: |
+          pnpm run build
+          pnpm exec tsx cli/scripts/pack-library.ts .tmp/facet-library.tgz
 
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        run: npm publish .tmp/facet-library.tgz --access public --provenance --ignore-scripts
 
   publish-cli:
     name: Publish CLI to npm
-    needs: [version-bump]
+    needs: [version-bump, publish-runtimes]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -238,7 +296,7 @@ jobs:
       - name: Assemble npm package
         env:
           NEW_VERSION: ${{ needs.version-bump.outputs.new_version }}
-        run: node cli/scripts/pack-npm-cli.cjs "$NEW_VERSION" npm-dist
+        run: node cli/scripts/pack-npm-cli.cjs "$NEW_VERSION" npm-dist --portable
 
       - name: Publish to npm
         env:

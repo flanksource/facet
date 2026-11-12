@@ -78,6 +78,9 @@ async function loadLivePage(
   // otherwise be captured as a near-empty "successful" page.
   const pageErrors: string[] = [];
   page.on('pageerror', (err) => pageErrors.push(err instanceof Error ? err.stack ?? err.message : String(err)));
+  // React reports render errors thrown while mounting through console.error, not pageerror.
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
 
   await page.goto(url, { waitUntil: 'networkidle0', timeout: 60_000 });
   await renderMermaidInPage(page);
@@ -103,7 +106,8 @@ async function loadLivePage(
       { timeout: READY_TIMEOUT_MS },
     );
   } catch {
-    throw new Error(`Live render produced an empty #facet-root — the template did not mount within ${READY_TIMEOUT_MS}ms`);
+    const errors = [...pageErrors, ...consoleErrors];
+    throw new Error(`Live render produced an empty #facet-root — the template did not mount within ${READY_TIMEOUT_MS}ms${errors.length ? `; browser errors:\n${errors.join('\n')}` : ''}`);
   }
   if (normalizedPNG) await resolvePNGTarget(page, normalizedPNG);
 

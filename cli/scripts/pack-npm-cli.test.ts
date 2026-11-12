@@ -6,20 +6,24 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 const { buildPackage } = require('./pack-npm-cli.cjs');
+import { runtimePlatformName } from '../src/runtime/platform.js';
 
 describe('buildPackage', () => {
   let root: string;
   beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'facet-pack-')); });
   afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
-  it('assembles the bundle, runtime assets, and a version-pinned package.json', () => {
+  it.each([false, true])('assembles runtime assets and version-pinned packages (portable=%s)', (portable) => {
     const repoRoot = join(root, 'repo');
     const templateDir = join(root, 'tmpl');
     const outDir = join(root, 'out');
     mkdirSync(join(repoRoot, 'dist'), { recursive: true });
+    mkdirSync(join(repoRoot, 'src/types'), { recursive: true });
+    writeFileSync(join(repoRoot, 'src/types/page-sizes.json'), '{}');
     mkdirSync(join(repoRoot, 'node_modules', 'mermaid', 'dist'), { recursive: true });
     mkdirSync(join(repoRoot, 'postcss'), { recursive: true });
     mkdirSync(join(repoRoot, 'remark'), { recursive: true });
+    mkdirSync(join(repoRoot, 'cli/assets/plugins'), { recursive: true });
     mkdirSync(join(repoRoot, 'oxlint-plugins'), { recursive: true });
     mkdirSync(templateDir, { recursive: true });
     writeFileSync(join(repoRoot, 'package.json'), JSON.stringify({ name: '@flanksource/facet', version: '1.0.0' }));
@@ -28,13 +32,18 @@ describe('buildPackage', () => {
     writeFileSync(join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js'), 'window.mermaid={}');
     writeFileSync(join(repoRoot, 'postcss', 'facet-font-scale.mjs'), 'export default () => ({});');
     writeFileSync(join(repoRoot, 'remark', 'facet-redact.mjs'), 'export default () => (tree) => tree;');
+    writeFileSync(join(repoRoot, 'cli/assets/plugins/facet-runtime.mjs'), 'export function facetRuntimePlugin() {}');
     writeFileSync(join(repoRoot, 'oxlint-plugins', 'facet-diagrams.js'), 'export default { meta: { name: "facet" }, rules: {} };');
     const bundlePath = join(root, 'cli.cjs');
     writeFileSync(bundlePath, '#!/usr/bin/env node\nconsole.log(1)');
     writeFileSync(join(templateDir, 'package.json'), JSON.stringify({ name: '@flanksource/facet-cli', version: '0.0.0', bin: { facet: 'facet.cjs' } }));
     writeFileSync(join(templateDir, 'README.md'), '# cli');
+    const runtime = join(repoRoot, 'cli/assets/runtimes', runtimePlatformName());
+    mkdirSync(runtime, { recursive: true });
+    writeFileSync(join(runtime, 'default-runtime.json'), JSON.stringify({ facetVersion: '9.9.9' }));
+    writeFileSync(join(runtime, 'default-runtime.tgz'), 'runtime payload');
 
-    buildPackage({ version: '9.9.9', bundlePath, repoRoot, templateDir, outDir });
+    buildPackage({ version: '9.9.9', bundlePath, repoRoot, templateDir, outDir, portable });
 
     expect(existsSync(join(outDir, 'facet.cjs'))).toBe(true);
     expect(existsSync(join(outDir, 'assets', 'styles.css'))).toBe(true);
@@ -46,6 +55,7 @@ describe('buildPackage', () => {
     // every consumer document rather than degrading.
     expect(existsSync(join(outDir, 'assets', 'facet-font-scale.mjs'))).toBe(true);
     expect(existsSync(join(outDir, 'assets', 'facet-redact.mjs'))).toBe(true);
+    expect(existsSync(join(outDir, 'assets', 'facet-runtime.mjs'))).toBe(true);
     expect(readFileSync(join(outDir, 'assets', 'facet-diagrams.oxlint.mjs'), 'utf8')).toContain('"facet"');
     expect(existsSync(join(outDir, 'assets', 'review-diagram.prompt'))).toBe(true);
     expect(readFileSync(join(outDir, 'assets', 'review-diagram.prompt'), 'utf8')).toContain('arrow-rendering');
@@ -53,6 +63,15 @@ describe('buildPackage', () => {
 
     const pkg = JSON.parse(readFileSync(join(outDir, 'package.json'), 'utf8'));
     expect(pkg.version).toBe('9.9.9');
+    expect(existsSync(join(outDir, 'assets/page-sizes.json'))).toBe(true);
+    if (portable) {
+      expect(Object.keys(pkg.optionalDependencies)).toHaveLength(6);
+      expect(new Set(Object.values(pkg.optionalDependencies))).toEqual(new Set(['9.9.9']));
+      expect(existsSync(join(outDir, 'assets/default-runtime.tgz'))).toBe(false);
+    } else {
+      expect(readFileSync(join(outDir, 'assets/default-runtime.tgz'), 'utf8')).toBe('runtime payload');
+      expect(pkg.os).toEqual([process.platform]);
+    }
     expect(pkg.bin.facet).toBe('facet.cjs');
     // The shipped manifest is the @flanksource/facet component library.
     expect(JSON.parse(readFileSync(join(outDir, 'assets', 'package.json'), 'utf8')).name).toBe('@flanksource/facet');

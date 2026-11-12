@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'fs/promises';
-import { existsSync, symlinkSync, utimesSync, lstatSync, readdirSync, readlinkSync } from 'fs';
+import { existsSync, symlinkSync, utimesSync, lstatSync, readdirSync } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 import { Logger } from '../utils/logger.js';
@@ -22,6 +22,7 @@ let savedFacetPackagePath: string | undefined;
 
 beforeEach(async () => {
   consumerRoot = await mkdtemp(join(tmpdir(), 'facet-fd-test-'));
+  vi.stubEnv('FACET_CACHE_DIR', join(consumerRoot, '.cache'));
   facetRoot = join(consumerRoot, '.facet');
   await mkdir(facetRoot, { recursive: true });
   savedFacetPackagePath = process.env.FACET_PACKAGE_PATH;
@@ -32,6 +33,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   if (savedFacetPackagePath === undefined) delete process.env.FACET_PACKAGE_PATH;
   else process.env.FACET_PACKAGE_PATH = savedFacetPackagePath;
   await rm(consumerRoot, { recursive: true, force: true });
@@ -56,14 +58,6 @@ describe('wrapFacetStylesInLayer', () => {
   });
 });
 
-async function writeSentinels(deps: string[] = ['react', 'vite', '@vitejs/plugin-react', '@flanksource/facet']) {
-  const nm = join(facetRoot, 'node_modules');
-  for (const dep of deps) {
-    const dir = join(nm, ...dep.split('/'));
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, 'package.json'), JSON.stringify({ name: dep, version: '0.0.0' }));
-  }
-}
 
 async function writeLocalFacetPackage(options: { scripts?: Record<string, string> } = {}) {
   const root = join(consumerRoot, 'local-facet');
@@ -127,46 +121,32 @@ describe('FacetDirectory.symlinkConsumerFiles', () => {
   });
 });
 
-describe('FacetDirectory.nukeInstall', () => {
-  it('removes node_modules and pnpm-lock.yaml', async () => {
-    await writeSentinels();
-    await writeFile(join(facetRoot, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n');
-    await mkdir(join(facetRoot, '.pnpm-store'));
-
-    newFacetDir().nukeInstall();
-
-    expect(existsSync(join(facetRoot, 'node_modules'))).toBe(false);
-    expect(existsSync(join(facetRoot, 'pnpm-lock.yaml'))).toBe(false);
-    expect(existsSync(join(facetRoot, '.pnpm-store'))).toBe(false);
-  });
-
-  it('is a no-op when nothing is installed', () => {
-    expect(() => newFacetDir().nukeInstall()).not.toThrow();
-  });
-
-  it('removes a symlinked node_modules without following the link', async () => {
-    const externalCache = await mkdtemp(join(tmpdir(), 'facet-cache-'));
-    await writeFile(join(externalCache, 'sentinel.txt'), 'do-not-delete');
-    symlinkSync(externalCache, join(facetRoot, 'node_modules'), 'junction');
-    await writeFile(join(facetRoot, 'package-lock.json'), '{}');
-    newFacetDir().nukeInstall();
-    expect(existsSync(join(facetRoot, 'node_modules'))).toBe(false);
-    expect(existsSync(join(facetRoot, 'package-lock.json'))).toBe(false);
-    expect(existsSync(join(externalCache, 'sentinel.txt'))).toBe(true);
-    await rm(externalCache, { recursive: true, force: true });
-  });
-});
 
 describe('FacetDirectory.generateViteConfig remark plugins', () => {
-  it('resolves public Facet subpaths through the package exports in both renderers', async () => {
+  it('resolves public Facet subpaths through the compiled runtimes in both renderers', async () => {
     const dir = newFacetDir();
     dir.generateViteConfig();
     dir.generateClientScaffold({});
 
     for (const name of ['vite.config.ts', 'vite.client.config.ts']) {
       const config = await readFile(join(facetRoot, name), 'utf-8');
-      expect(config).toContain('fileURLToPath(import.meta.resolve(source))');
+      expect(config).toContain("await facetRuntimePlugin(__dirname,");
       expect(config).not.toContain("'@flanksource/facet': resolve(__dirname, 'node_modules/@flanksource/facet')");
+    }
+  });
+
+  // The runtime <Classified> (and <SlideNotes>) apply the same policy to TSX content, so
+  // both renderers must compile it into the bundle — the empty policy when none is given.
+  it.each([
+    [undefined, '{"allow":{}}'],
+    [{ allow: { audience: ['presenter'] } }, '{"allow":{"audience":["presenter"]}}'],
+  ])('defines the redaction policy %j as __FACET_REDACT__ in both renderers', async (redact, policy) => {
+    const dir = new FacetDirectory({ consumerRoot, templateFile: 'deck.tsx', logger, redact });
+    dir.generateViteConfig();
+    dir.generateClientScaffold({});
+
+    for (const name of ['vite.config.ts', 'vite.client.config.ts']) {
+      expect(await readFile(join(facetRoot, name), 'utf-8')).toContain(`__FACET_REDACT__: ${JSON.stringify(policy)}`);
     }
   });
 
@@ -219,23 +199,15 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
     expect(v4).toContain('--text-2xl--line-height: 28pt;');
   });
 
-  it('bundles icon data packages rather than externalising them', async () => {
-    // The SSR bundle is CJS, so an externalised dependency is require()d and a
-    // module whose only export is a default arrives as its namespace instead of
-    // the value. Iconify icon data is exactly that shape, and the failure is
-    // silent: the glyph renders as an empty <svg> and the PDF prints a blank.
+  it('loads compiled dependency modules with ESM default interop', async () => {
     newFacetDir().generateViteConfig();
     const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
 
-    expect(config).toContain("new RegExp('^@iconify-icons/')");
-    expect(config).toContain("new RegExp('^@iconify/')");
+    expect(config).toContain("formats: ['es']");
+    expect(config).toContain("await facetRuntimePlugin(__dirname, 'node')");
   });
 
   it('keeps lazy imports inside the one SSR bundle', async () => {
-    // The SSR loader requires the single .cjs it finds. A template with a
-    // reachable import() (clicky-ui's code highlighter loads its languages so)
-    // otherwise splits into chunks, and the loader required a language chunk
-    // instead of entry.cjs: "Template must export a React component function".
     newFacetDir().generateViteConfig();
     const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
 
@@ -324,7 +296,7 @@ describe('FacetDirectory Tailwind integration', () => {
 
     for (const name of ['vite.config.ts', 'vite.client.config.ts']) {
       const config = await readFile(join(facetRoot, name), 'utf-8');
-      expect(config).toContain("await import('@tailwindcss/vite')");
+      expect(config).toContain("import tailwind from '@tailwindcss/vite'");
       expect(config).toContain('facet requires Tailwind CSS v4 (with @tailwindcss/vite)');
       expect(config).not.toContain('tailwindMajor');
     }
@@ -408,6 +380,7 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     const facetDir = newFacetDir();
     facetDir.create();
 
+    await facetDir.generatePackageJson();
     facetDir.copyStylesCss();
 
     expect(await readFile(join(facetRoot, 'facet.css'), 'utf-8'))
@@ -424,6 +397,7 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     await writeFile(join(consumerRoot, 'template.tsx'), 'export default function Template() { return null; }\n');
     const facetDir = newFacetDir();
     facetDir.create();
+    await facetDir.generatePackageJson();
 
     facetDir.copyStylesCss();
     const before = facetDir.generatedConfigDigest();
@@ -456,6 +430,18 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
       portal: `portal:${resolve(consumerRoot, 'portal')}`,
       registry: '^1.3.0',
     });
+  });
+
+  it('invalidates template bundles when a linked override changes its built modules', async () => {
+    const library = join(consumerRoot, 'example-kit');
+    await mkdir(join(library, 'dist'), { recursive: true });
+    await writeFile(join(library, 'package.json'), JSON.stringify({ name: 'example-kit', version: '1.0.0' }));
+    await writeFile(join(library, 'dist/index.js'), 'export const value = "first";');
+    await writeFile(join(facetRoot, 'package.json'), JSON.stringify({ dependencies: {}, pnpm: { overrides: { 'example-kit': `link:${library}` } } }));
+    const dir = newFacetDir();
+    const before = dir.generatedConfigDigest();
+    await writeFile(join(library, 'dist/index.js'), 'export const value = "second";');
+    expect(dir.generatedConfigDigest()).not.toBe(before);
   });
 
   it('uses local package metadata and writes a build fingerprint into .facet/package.json', async () => {
@@ -566,24 +552,6 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
     expect(existsSync(lockPath)).toBe(false);
   });
 
-  it('removes a stale installed local package copy when package.json is unchanged', async () => {
-    const localRoot = await writeLocalFacetPackage();
-    process.env.FACET_PACKAGE_PATH = localRoot;
-    const facetDir = newFacetDir();
-
-    await facetDir.generatePackageJson();
-
-    const installedRoot = join(facetRoot, 'node_modules/@flanksource/facet');
-    await mkdir(join(installedRoot, 'dist/components'), { recursive: true });
-    await writeFile(join(installedRoot, 'package.json'), await readFile(join(localRoot, 'package.json'), 'utf-8'));
-    await writeFile(join(installedRoot, 'dist/components/index.js'), 'export const Marker = "stale";\n');
-    await writeFile(join(facetRoot, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n');
-
-    await facetDir.generatePackageJson();
-
-    expect(existsSync(installedRoot)).toBe(false);
-    expect(existsSync(join(facetRoot, 'pnpm-lock.yaml'))).toBe(false);
-  });
 });
 
 describe('serializeInjectedData', () => {
@@ -606,38 +574,5 @@ describe('serializeInjectedData', () => {
     const script = serializeInjectedData(data);
     const json = script.replace(/^window\.__FACET_DATA__ = /, '').replace(/;\n$/, '');
     expect(JSON.parse(json)).toEqual(data);
-  });
-});
-
-describe('FacetDirectory.linkConsumerNodeModules', () => {
-  it('symlinks consumer node_modules to .facet/node_modules when the consumer has none', async () => {
-    await writeSentinels();
-    newFacetDir().linkConsumerNodeModules();
-
-    const link = join(consumerRoot, 'node_modules');
-    expect(lstatSync(link).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(link)).toBe(join(facetRoot, 'node_modules'));
-    expect(existsSync(join(link, 'react', 'package.json'))).toBe(true);
-  });
-
-  it('leaves a real consumer node_modules directory untouched', async () => {
-    await writeSentinels();
-    const own = join(consumerRoot, 'node_modules', 'left-pad');
-    await mkdir(own, { recursive: true });
-
-    newFacetDir().linkConsumerNodeModules();
-
-    expect(lstatSync(join(consumerRoot, 'node_modules')).isDirectory()).toBe(true);
-    expect(existsSync(own)).toBe(true);
-  });
-
-  it('replaces a dangling consumer node_modules symlink', async () => {
-    await writeSentinels();
-    const link = join(consumerRoot, 'node_modules');
-    symlinkSync(join(consumerRoot, 'gone'), link, 'junction');
-
-    newFacetDir().linkConsumerNodeModules();
-
-    expect(readlinkSync(link)).toBe(join(facetRoot, 'node_modules'));
   });
 });

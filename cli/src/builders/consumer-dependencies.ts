@@ -1,11 +1,11 @@
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, globSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { load } from 'js-yaml';
 import { satisfies } from 'semver';
-import { resolvePackageManager } from '../utils/package-manager.js';
-import { runLowPriority } from '../utils/subprocess-priority.js';
 
 interface Workspace {
+  overrides?: Record<string, unknown>;
+  packages?: string[];
   root: string;
   path: string;
   catalog?: Record<string, string>;
@@ -33,18 +33,13 @@ function findWorkspace(packageDir: string): Workspace | undefined {
 }
 
 async function listWorkspacePackages(workspace: Workspace): Promise<WorkspacePackage[]> {
-  const pm = await resolvePackageManager(workspace.root);
-  const { stdout } = await runLowPriority({
-    command: pm.cmd,
-    args: ['--recursive', 'list', '--depth', '-1', '--json'],
-    options: { cwd: workspace.root },
-    timeoutMs: 30_000,
+  const patterns = workspace.packages ?? ['**'];
+  const excluded = patterns.filter(pattern => pattern.startsWith('!')).map(pattern => `${pattern.slice(1)}/**`);
+  const files = new Set(['package.json', ...globSync(patterns.filter(pattern => !pattern.startsWith('!')).map(pattern => `${pattern}/package.json`), { cwd: workspace.root, exclude: ['**/node_modules/**', '**/.*/**', ...excluded] })]);
+  return [...files].map(file => {
+    const pkg = JSON.parse(readFileSync(join(workspace.root, file), 'utf8'));
+    return { name: pkg.name, version: pkg.version, path: realpathSync(dirname(join(workspace.root, file))) };
   });
-  const packages: unknown = JSON.parse(stdout.toString());
-  if (!Array.isArray(packages) || packages.some(pkg => typeof pkg?.path !== 'string')) {
-    throw new Error(`Invalid pnpm workspace package list for ${workspace.path}`);
-  }
-  return packages;
 }
 
 function workspaceLink(options: {
@@ -79,6 +74,7 @@ export async function resolveConsumerDependencies(options: {
   let packages: WorkspacePackage[] | undefined;
   const resolved: Record<string, string> = {};
   for (const [name, declared] of Object.entries(dependencies)) {
+    if (typeof declared !== 'string' || !declared) throw new Error(`Invalid dependency specification for ${name} in ${packageDir}`);
     let spec = declared;
     let base = packageDir;
     if (spec.startsWith('catalog:') || spec.startsWith('workspace:')) {
@@ -103,4 +99,36 @@ export async function resolveConsumerDependencies(options: {
     resolved[name] = protocol ? protocol + resolve(base, spec.slice(protocol.length)) : spec;
   }
   return resolved;
+}
+
+export function resolveOverrideValues(overrides: Record<string, unknown> | undefined, packageDir: string): Record<string, unknown> | undefined {
+  if (overrides === undefined) return undefined;
+  return Object.fromEntries(Object.entries(overrides).map(([name, value]) => {
+    if (typeof value === 'string') {
+      if (value.startsWith('workspace:')) throw new Error(`facet overrides cannot use the "workspace:" protocol (got "${value}"): use a concrete version or local path`);
+      const protocol = ['file:', 'link:', 'portal:'].find(prefix => value.startsWith(prefix));
+      return [name, protocol ? protocol + resolve(packageDir, value.slice(protocol.length)) : value];
+    }
+    return [name, value && typeof value === 'object' ? resolveOverrideValues(value as Record<string, unknown>, packageDir) : value];
+  }));
+}
+
+export function readWorkspaceOverrides(packageDir: string): Record<string, unknown> | undefined {
+  const workspace = findWorkspace(packageDir);
+  return workspace ? resolveOverrideValues(workspace.overrides, workspace.root) : undefined;
+}
+
+export async function snapshotPackageManifest(packageDir: string): Promise<string | undefined> {
+  const path = join(packageDir, 'package.json');
+  if (!existsSync(path)) return undefined;
+  const pkg = JSON.parse(readFileSync(path, 'utf8'));
+  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    if (pkg[field]) pkg[field] = await resolveConsumerDependencies({ dependencies: pkg[field], packageDir });
+  }
+  const overrides = { ...readWorkspaceOverrides(packageDir), ...resolveOverrideValues(pkg.pnpm?.overrides, packageDir) };
+  if (Object.keys(overrides).length) pkg.pnpm = { ...pkg.pnpm, overrides };
+  for (const field of ['overrides', 'resolutions']) {
+    if (pkg[field]) pkg[field] = resolveOverrideValues(pkg[field], packageDir);
+  }
+  return JSON.stringify(pkg, null, 2);
 }

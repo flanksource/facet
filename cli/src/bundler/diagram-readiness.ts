@@ -12,7 +12,8 @@ export interface DiagramReadiness {
   pending: number;
 }
 
-export const DIAGRAM_SELECTOR = '[data-facet-diagram]';
+/** Diagram roots and <FitFrame>s, which settle only once their scale is measured. */
+export const DIAGRAM_SELECTOR = '[data-facet-diagram],[data-facet-fit]';
 
 /**
  * A diagram is settled once it is ready="true" or carries an error attribute.
