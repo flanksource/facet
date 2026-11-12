@@ -132,7 +132,7 @@ describe('runLint with the data-driven diagram rule', () => {
 
   it('lists the oxlint rule among the available rules', async () => {
     const cwd = project(lines);
-    expect(await runLint({ paths: ['.'], cwd, rule: 'nope', severity: 'warning', verbose: false, logger })).toBe(1);
+    expect(await runLint({ paths: ['.'], cwd, rule: 'nope', severity: 'warning', verbose: false, logger })).toBe(2);
     expect(logs.join('\n')).toContain(OXLINT_RULE);
   });
 });
