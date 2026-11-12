@@ -542,10 +542,10 @@ export default defineConfig(async () => {
       fileName: 'bundle',
       formats: ['es'],
     },
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         entryFileNames: 'bundle.mjs',
-        inlineDynamicImports: true,
+        codeSplitting: false,
       },
     },
     cssCodeSplit: false,

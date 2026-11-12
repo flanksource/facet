@@ -66,9 +66,9 @@ export class DataLoader {
     const ext = extname(absolutePath);
 
     try {
-      // For TypeScript files, execute with tsx
+      // For TypeScript files, execute with Oxc
       if (ext === '.ts') {
-        this.logger.debug('Executing TypeScript file with tsx');
+        this.logger.debug('Executing TypeScript file with Oxc');
         const [command, ...baseArgs] = selfExecBase();
         const result = await runLowPriority({ command, args: [...baseArgs, absolutePath, ...args], options: { env: { ...process.env, FACET_LOADER: 'data' } } });
         this.logger.debug(`Executed ${absolutePath} with args: ${args.join(' ')}`);

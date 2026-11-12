@@ -26,8 +26,8 @@ export const emptyPage: LintRule = {
   severity: 'warning',
   fileTypes: ['tsx'],
 
-  check(ctx: LintContext): LintIssue[] {
-    const tree = parseJSXTree(ctx.content);
+  async check(ctx: LintContext): Promise<LintIssue[]> {
+    const tree = await parseJSXTree(ctx.content);
     if (tree.length === 0) return [];
 
     const issues: LintIssue[] = [];

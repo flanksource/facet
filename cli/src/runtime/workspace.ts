@@ -5,7 +5,8 @@ import { join, resolve } from 'node:path';
 import { VERSION } from '../version-generated.js';
 
 export function runtimeCacheRoot(): string {
-  return process.env.FACET_CACHE_DIR ?? join(homedir(), '.facet', 'cache');
+  const root = resolve(process.env.FACET_CACHE_DIR ?? join(homedir(), '.facet', 'cache'));
+  return process.env.FACET_DEV_ROOT ? join(root, 'dev', createHash('sha256').update(resolve(process.env.FACET_DEV_ROOT)).digest('hex')) : root;
 }
 
 export function compilationWorkspace(options: { consumerRoot: string; templatePath: string; skipModules?: boolean; redact?: unknown; invalidate?: boolean }): string {
@@ -26,5 +27,6 @@ export function compilationWorkspace(options: { consumerRoot: string; templatePa
 }
 
 export function serverCacheDirectory(config: { cacheDir?: string; templatesDir: string }): string {
+  if (process.env.FACET_DEV_ROOT && config.cacheDir) return join(resolve(config.cacheDir), 'dev', createHash('sha256').update(resolve(process.env.FACET_DEV_ROOT)).digest('hex'));
   return config.cacheDir ? resolve(config.cacheDir) : join(runtimeCacheRoot(), 'servers', createHash('sha256').update(resolve(config.templatesDir)).digest('hex'));
 }

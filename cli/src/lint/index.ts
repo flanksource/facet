@@ -46,12 +46,14 @@ function collectFiles(directory: string, files: Set<string>): void {
     if (type && !(type === 'tsx' && SKIP_TSX_SUFFIXES.some((suffix) => entry.name.endsWith(suffix)))) files.add(path);
   }
 }
-export function findDiagramCandidates(files: string[], cwd = process.cwd()): string[] {
-  return files.filter((file) => {
+export async function findDiagramCandidates(files: string[], cwd = process.cwd()): Promise<string[]> {
+  const candidates: string[] = [];
+  for (const file of files) {
     const type = fileType(file);
-    if (type !== 'tsx' && type !== 'mdx') return false;
-    return hasDirectDiagramCandidate(readFileSync(resolve(cwd, file), 'utf8'), type);
-  });
+    if (type !== 'tsx' && type !== 'mdx') continue;
+    if (await hasDirectDiagramCandidate(readFileSync(resolve(cwd, file), 'utf8'), type)) candidates.push(file);
+  }
+  return candidates;
 }
 function disabled(lines: string[], index: number): boolean { return lines[index]?.includes('// facet-lint-disable') === true || (index > 0 && lines[index - 1].includes('// facet-lint-disable-next-line')); }
 function compare(left: LintIssue, right: LintIssue): number { return lexical(left.file, right.file) || left.line - right.line || (left.column ?? 0) - (right.column ?? 0) || lexical(left.rule, right.rule) || lexical(left.severity, right.severity) || lexical(left.message, right.message); }
@@ -75,7 +77,7 @@ async function lintFile(options: { filePath: string; rule?: string; embeddedImag
     const content = readFileSync(filePath, 'utf-8');
     const lines = content.split('\n');
     const ctx: LintContext = { filePath: file, lines, content };
-    return rules.flatMap(candidate => candidate.check(ctx)).filter(issue => {
+    return (await Promise.all(rules.map(candidate => candidate.check(ctx)))).flat().filter(issue => {
       if (issue.line === undefined || issue.line < 1 || issue.line > lines.length) throw new Error(`Invalid source location for rule ${issue.rule}`);
       return !isDisabled(lines, issue.line - 1);
     });
@@ -101,7 +103,7 @@ export async function runLint(options: LintOptions): Promise<number> {
     if (!applicable.length) continue;
     const content = readFileSync(absolute, 'utf8');
     const context: LintContext = { filePath: cwdRelativePath(cwd, absolute), fileType: type, lines: content.split('\n'), content };
-    for (const rule of applicable) for (const issue of rule.check(context)) if (!disabled(context.lines, issue.line - 1)) issues.push(issue);
+    for (const rule of applicable) for (const issue of await rule.check(context)) if (!disabled(context.lines, issue.line - 1)) issues.push(issue);
   }
   const relativeFiles = files.map((file) => cwdRelativePath(cwd, file));
   const runner = options.runner ?? runExternalTool;
@@ -124,7 +126,7 @@ export async function runLint(options: LintOptions): Promise<number> {
   let completed = false;
   try {
     if (options.diagrams) {
-      const candidates = findDiagramCandidates(files, cwd);
+      const candidates = await findDiagramCandidates(files, cwd);
       const renderer = options.diagramRenderer ?? defaultDiagramRenderer;
       const llmModel = options.llmModel ?? process.env.FACET_LLM_MODEL;
       if (candidates.length > 0) {

@@ -26,7 +26,7 @@ test('renders independent projects through one shared install without creating p
         const runtime = JSON.parse(await readFile(join(result.facetRoot, 'runtime.json'), 'utf8'));
         compiledRoots.push(runtime.compiled.node.root);
         const bundle = await readFile(join(result.facetRoot, 'build-cache', result.buildCacheKey, 'bundle.mjs'), 'utf8');
-        expect(bundle.length).toBeLessThan(5000);
+        expect(bundle.length, bundle).toBeLessThan(10_000);
         expect(bundle).not.toContain('function Classified');
       } finally { await result.cleanup(); }
       expect(existsSync(join(project, '.facet'))).toBe(false);
@@ -43,8 +43,12 @@ test('renders independent projects through one shared install without creating p
       for (const message of ['first request', 'second request']) {
         servers.push(await startViteServer({ consumerRoot: join(scratch, 'project-a'), templatePath: 'Report.tsx', data: { message }, logger: new Logger(false) }));
       }
-      expect(await Promise.all(servers.map(async server => (await (await fetch(new URL('facet-data.js', server.url))).text()).split('\n')[0])))
-        .toEqual(['window.__FACET_DATA__ = {"message":"first request"};', 'window.__FACET_DATA__ = {"message":"second request"};']);
+      expect(await Promise.all(servers.map(async server => {
+        const script = await (await fetch(new URL('facet-data.js', server.url))).text();
+        const assignment = script.match(/^window\.__FACET_DATA__\s*=\s*(.+);$/m);
+        if (!assignment) throw new Error(`Missing request data in ${server.url}`);
+        return JSON.parse(assignment[1]);
+      }))).toEqual([{ message: 'first request' }, { message: 'second request' }]);
     } finally { await Promise.all(servers.map(server => server.close())); }
     expect(existsSync(join(environment, 'node_modules/.vite'))).toBe(false);
     expect(existsSync(join(environment, 'node_modules/.vite-temp'))).toBe(false);

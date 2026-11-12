@@ -1,5 +1,9 @@
 # Installed rendering runtimes
 
+The renderer uses Vite 8 with Rolldown and Oxc for template builds. TypeScript data scripts run through the installed `@oxc-node/core/importer` API, including in standalone executables. Source commands use `oxnode`; `facet doctor` checks the installed runner. JSX lint analysis uses the same installed Rolldown parser.
+
+Run `pnpm run typecheck` for components and `pnpm --dir cli run typecheck` for the CLI. Both use pinned tsrs with upstream defaults. TypeScript remains a development dependency for declaration generation and is excluded from the rendering payload.
+
 Facet distributes the precompiled component libraries, browser runtime artifacts, exact dependency closure and native/compiler tools together. npm installations select an optional `@flanksource/facet-runtime-<platform>-<arch>[-<libc>]` package pinned to the CLI version. Local npm packages include the matching archive directly; standalone executables embed it. Docker renders with the embedded runtime.
 
 Install optional dependencies normally. Omitting them removes the rendering runtime and causes an explicit error. Supported release targets are macOS arm64, Windows x64, and Linux x64/arm64 with glibc or musl. Chrome is supplied separately.
@@ -48,7 +52,29 @@ The compiled builder is packaged as `@flanksource/page-runtime-build` by the sha
 For a local browser inspection of a template using the installed runtime:
 
 ```sh
-pnpm exec tsx cli/scripts/preview-runtime.ts examples/office/LiveDiagram.tsx
+pnpm exec oxnode cli/scripts/preview-runtime.ts examples/office/LiveDiagram.tsx
 ```
 
 Open the printed URL and interrupt the command to stop the preview.
+
+Use `--dev` to test unpublished local Facet, Clicky UI and page-runtime compiler builds:
+
+```sh
+facet --dev html Report.tsx --output report.html
+facet --dev serve --templates-dir examples
+```
+
+The CLI finds a Facet checkout in the current directory, an ancestor, a sibling named `facet`, or the CLI's own checkout. Set `FACET_PACKAGE_PATH=/absolute/path/to/facet` when using another layout. That checkout must link `node_modules/@flanksource/clicky-ui` and `node_modules/@flanksource/page-runtime` to local checkouts. Missing links or runtime/compiler artifacts fail explicitly. `--dev` requires local rendering and cannot be combined with `--facet-url` or `FACET_URL`.
+
+Build artifacts before the first dev render. From the Facet checkout with the usual sibling layout:
+
+```sh
+pnpm --dir ../clicky-ui/packages/page-runtime run build:builder
+pnpm --dir ../clicky-ui/packages/ui run build:artifacts
+pnpm run build:components
+pnpm run build:css
+pnpm run build:runtime
+pnpm exec oxnode cli/src/cli.ts --dev --skip-modules html examples/office/LiveDiagram.tsx --output .tmp/local-diagram.html
+```
+
+These artifact builds do not publish to npm or rebuild the installed runtime archive. `--dev` resolves the compiler directly from the local page-runtime checkout and compiles dependency closures against the linked libraries. Consumer dependencies remain available; adding `--skip-modules` ignores them while retaining local libraries. Development caches live under `dev/<checkout-hash>/` in the shared cache. The server bypasses rendered-response reuse in dev mode, and changed built-library inputs invalidate compiled closures. Rebuild the relevant artifacts after library or compiler edits and submit a new render; Clicky UI source hot reload and automatic Clicky UI/compiler builds are not provided by this flag.

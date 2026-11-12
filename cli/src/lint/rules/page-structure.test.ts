@@ -35,17 +35,17 @@ export default function Report() {
 
 describe('page-structure', () => {
   describe('Document as the root wrapper', () => {
-    it('accepts a Document-rooted template whose pages sit inside Document', () => {
-      expect(pageStructure.check(ctx(documentTemplate(SINGLE_LINE_IMPORT)))).toEqual([]);
+    it('accepts a Document-rooted template whose pages sit inside Document', async () => {
+      expect(await pageStructure.check(ctx(documentTemplate(SINGLE_LINE_IMPORT)))).toEqual([]);
     });
 
-    it('accepts a Document-rooted template regardless of import formatting', () => {
-      const single = pageStructure.check(ctx(documentTemplate(SINGLE_LINE_IMPORT)));
-      const multi = pageStructure.check(ctx(documentTemplate(MULTI_LINE_IMPORT)));
+    it('accepts a Document-rooted template regardless of import formatting', async () => {
+      const single = await pageStructure.check(ctx(documentTemplate(SINGLE_LINE_IMPORT)));
+      const multi = await pageStructure.check(ctx(documentTemplate(MULTI_LINE_IMPORT)));
       expect(multi).toEqual(single);
     });
 
-    it('accepts custom Header/Footer wrapper components as Document children', () => {
+    it('accepts custom Header/Footer wrapper components as Document children', async () => {
       const content = `${SINGLE_LINE_IMPORT}
 import FlanksourceHeader from './FlanksourceHeader';
 import FlanksourceFooter from './FlanksourceFooter';
@@ -61,10 +61,10 @@ export default function Report() {
     </Document>
   );
 }`;
-      expect(pageStructure.check(ctx(content))).toEqual([]);
+      expect(await pageStructure.check(ctx(content))).toEqual([]);
     });
 
-    it('reports content placed directly in Document outside any Page', () => {
+    it('reports content placed directly in Document outside any Page', async () => {
       const content = `${SINGLE_LINE_IMPORT}
 
 export default function Report() {
@@ -76,14 +76,14 @@ export default function Report() {
     </Document>
   );
 }`;
-      const issues = pageStructure.check(ctx(content));
+      const issues = await pageStructure.check(ctx(content));
       expect(issues).toHaveLength(1);
       expect(issues[0].message).toMatch(/outside <Page> wrapper/);
     });
   });
 
   describe('template detection is independent of import formatting', () => {
-    it('reports a missing Page when the Page import spans multiple lines', () => {
+    it('reports a missing Page when the Page import spans multiple lines', async () => {
       const content = `${MULTI_LINE_IMPORT}
 
 export default function Report() {
@@ -93,14 +93,14 @@ export default function Report() {
     </Document>
   );
 }`;
-      const issues = pageStructure.check(ctx(content));
+      const issues = await pageStructure.check(ctx(content));
       expect(issues).toHaveLength(1);
       expect(issues[0].message).toBe('Template must wrap content in a <Page> component');
     });
   });
 
   describe('Page-rooted templates', () => {
-    it('accepts a Page-rooted template with allowed siblings', () => {
+    it('accepts a Page-rooted template with allowed siblings', async () => {
       const content = `${SINGLE_LINE_IMPORT}
 
 export default function Report() {
@@ -112,10 +112,10 @@ export default function Report() {
     </>
   );
 }`;
-      expect(pageStructure.check(ctx(content))).toEqual([]);
+      expect(await pageStructure.check(ctx(content))).toEqual([]);
     });
 
-    it('reports a Page nested inside another Page', () => {
+    it('reports a Page nested inside another Page', async () => {
       const content = `${SINGLE_LINE_IMPORT}
 
 export default function Report() {
@@ -127,14 +127,14 @@ export default function Report() {
     </Document>
   );
 }`;
-      const issues = pageStructure.check(ctx(content));
+      const issues = await pageStructure.check(ctx(content));
       expect(issues).toHaveLength(1);
       expect(issues[0].message).toMatch(/Nested <Page> inside <Page>/);
     });
   });
 
   describe('fragments are transparent', () => {
-    it('accepts chrome grouped in a React.Fragment inside Document', () => {
+    it('accepts chrome grouped in a React.Fragment inside Document', async () => {
       const content = `${SINGLE_LINE_IMPORT}
 
 export default function Report() {
@@ -150,10 +150,10 @@ export default function Report() {
     </Document>
   );
 }`;
-      expect(pageStructure.check(ctx(content))).toEqual([]);
+      expect(await pageStructure.check(ctx(content))).toEqual([]);
     });
 
-    it('sees a nested Page through a shorthand fragment', () => {
+    it('sees a nested Page through a shorthand fragment', async () => {
       const content = `${SINGLE_LINE_IMPORT}
 
 export default function Report() {
@@ -167,30 +167,30 @@ export default function Report() {
     </Document>
   );
 }`;
-      const issues = pageStructure.check(ctx(content));
+      const issues = await pageStructure.check(ctx(content));
       expect(issues).toHaveLength(1);
       expect(issues[0].message).toMatch(/Nested <Page>/);
     });
   });
 
   describe('non-templates', () => {
-    it('ignores a file that does not import Page', () => {
+    it('ignores a file that does not import Page', async () => {
       const content = `import { Badge } from '@flanksource/facet';
 
 export default function Chip() {
   return <Badge variant="status">ok</Badge>;
 }`;
-      expect(pageStructure.check(ctx(content))).toEqual([]);
+      expect(await pageStructure.check(ctx(content))).toEqual([]);
     });
 
-    it('ignores a component that only imports Page types', () => {
+    it('ignores a component that only imports Page types', async () => {
       const content = `import React from 'react';
 import type { PageSize, PageMargins } from './Page';
 
 export default function Wrapper({ children }: { children: React.ReactNode }) {
   return <div className="wrapper">{children}</div>;
 }`;
-      expect(pageStructure.check(ctx(content), )).toEqual([]);
+      expect(await pageStructure.check(ctx(content), )).toEqual([]);
     });
   });
 });

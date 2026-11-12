@@ -7,7 +7,7 @@ import { fixture } from '../inspection/fixtures.test-utils.js';
 describe('inspect CLI', () => {
   let directory: string;
   let file: string;
-  const cli = (...args: string[]) => spawnSync(process.execPath, ['--import', 'tsx', resolve('src/cli.ts'), 'inspect', ...args], { encoding: 'utf8' });
+  const cli = (...args: string[]) => spawnSync(process.execPath, ['--import', '@oxc-node/core/register', resolve('src/cli.ts'), 'inspect', ...args], { encoding: 'utf8' });
   beforeEach(async () => {
     await mkdir(resolve('.tmp'), { recursive: true });
     directory = await mkdtemp(resolve('.tmp/inspect-'));

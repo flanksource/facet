@@ -258,10 +258,11 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
  * A signed PDF embeds the signing time (and, with a TSA, a fresh timestamp
  * token), so its bytes are not a function of its inputs. Caching one replays
  * the original timestamp on every later render, so these bypass the cache.
- * Only the PDF path applies the signature, so other formats stay cacheable.
+ * Only the PDF path applies the signature. Dev requests also bypass reuse so
+ * rebuilding a local library takes effect on the next render.
  */
 function isCacheable(parsed: ParsedRenderRequest): boolean {
-  return !(parsed.signature && parsed.format === 'pdf');
+  return !process.env.FACET_DEV_ROOT && !(parsed.signature && parsed.format === 'pdf');
 }
 
 /**

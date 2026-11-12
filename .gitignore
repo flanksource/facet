@@ -183,6 +183,7 @@ cli/src/server/playground-form-generated.ts
 cli/dist-playground/
 examples/kitchen-sink/
 cli/npm-dist/
+cli/assets/runtimes/
 .facet-*/
 
 # Claude Code plugin content ships from the repo. A global core.excludesFile

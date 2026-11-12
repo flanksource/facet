@@ -1,5 +1,15 @@
 allowBuilds:
   esbuild: false
+minimumReleaseAgeExclude:
+  - '@tsrs/darwin-arm64@0.25.0-ts7.1.0-beta'
+  - '@tsrs/darwin-x64@0.25.0-ts7.1.0-beta'
+  - '@tsrs/linux-arm64-gnu@0.25.0-ts7.1.0-beta'
+  - '@tsrs/linux-arm64-musl@0.25.0-ts7.1.0-beta'
+  - '@tsrs/linux-x64-gnu@0.25.0-ts7.1.0-beta'
+  - '@tsrs/linux-x64-musl@0.25.0-ts7.1.0-beta'
+  - '@tsrs/win32-arm64@0.25.0-ts7.1.0-beta'
+  - '@tsrs/win32-x64@0.25.0-ts7.1.0-beta'
+  - tsrs@0.25.0-ts7.1.0-beta
 overrides:
   crypto-js: 4.2.0
   esbuild: 0.28.1

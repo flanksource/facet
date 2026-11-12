@@ -211,7 +211,7 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
     newFacetDir().generateViteConfig();
     const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
 
-    expect(config).toMatch(/output:\s*\{[^}]*inlineDynamicImports:\s*true/);
+    expect(config).toMatch(/output:\s*\{[^}]*codeSplitting:\s*false/);
   });
 
   it('transforms consumer Markdown while leaving raw imports to Vite', async () => {

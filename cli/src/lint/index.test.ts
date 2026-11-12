@@ -42,14 +42,14 @@ describe('PNG lint command integration', () => {
   });
 
   it('returns a failing CLI exit status for a PNG finding', () => {
-    const result = spawnSync(process.execPath, ['--import', 'tsx', resolve('src/cli.ts'), 'lint', blank], { encoding: 'utf8' });
+    const result = spawnSync(process.execPath, ['--import', '@oxc-node/core/register', resolve('src/cli.ts'), 'lint', blank], { encoding: 'utf8' });
     expect({ status: result.status, output: result.stdout }).toEqual({
       status: 1, output: expect.stringContaining('png-empty'),
     });
   });
 
   it('exports parseable ESLint JSON from the CLI, even with verbose enabled', () => {
-    const result = spawnSync(process.execPath, ['--import', 'tsx', resolve('src/cli.ts'), 'lint', blank, '--json', '--verbose'], { encoding: 'utf8' });
+    const result = spawnSync(process.execPath, ['--import', '@oxc-node/core/register', resolve('src/cli.ts'), 'lint', blank, '--json', '--verbose'], { encoding: 'utf8' });
     expect(result.status).toBe(1);
     expect(JSON.parse(result.stdout)).toEqual([expect.objectContaining({
       filePath: blank, errorCount: 1, warningCount: 0,
@@ -58,7 +58,7 @@ describe('PNG lint command integration', () => {
   });
 
   it('omits files with no findings in JSON output', () => {
-    const result = spawnSync(process.execPath, ['--import', 'tsx', resolve('src/cli.ts'), 'lint', dir, '--rule', 'inline-hex-colors', '--json'], { encoding: 'utf8' });
+    const result = spawnSync(process.execPath, ['--import', '@oxc-node/core/register', resolve('src/cli.ts'), 'lint', dir, '--rule', 'inline-hex-colors', '--json'], { encoding: 'utf8' });
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual([]);
   });
@@ -88,7 +88,7 @@ describe('PNG lint command integration', () => {
     const count = 1200;
     const file = join(dir, 'Report.tsx');
     await writeFile(file, 'const colour = <div style={{ color: "#ffffff" }} />;\n'.repeat(count));
-    const result = spawnSync(process.execPath, ['--import', 'tsx', resolve('src/cli.ts'), 'lint', file, '--rule', 'inline-hex-colors', '--json'], { encoding: 'utf8' });
+    const result = spawnSync(process.execPath, ['--import', '@oxc-node/core/register', resolve('src/cli.ts'), 'lint', file, '--rule', 'inline-hex-colors', '--json'], { encoding: 'utf8' });
     expect(result.status).toBe(1);
     expect(JSON.parse(result.stdout)).toEqual([expect.objectContaining({
       filePath: file, warningCount: count, messages: expect.any(Array),
@@ -97,7 +97,7 @@ describe('PNG lint command integration', () => {
   });
 
   it('keeps operational failures on stderr in JSON mode', () => {
-    const result = spawnSync(process.execPath, ['--import', 'tsx', resolve('src/cli.ts'), 'lint', blank, '--rule', 'unknown-rule', '--json', '--verbose'], { encoding: 'utf8' });
+    const result = spawnSync(process.execPath, ['--import', '@oxc-node/core/register', resolve('src/cli.ts'), 'lint', blank, '--rule', 'unknown-rule', '--json', '--verbose'], { encoding: 'utf8' });
     expect({ status: result.status, stdout: result.stdout, stderr: result.stderr }).toEqual({
       status: 2, stdout: '', stderr: expect.stringContaining('Unknown rule: unknown-rule'),
     });

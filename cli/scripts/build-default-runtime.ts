@@ -53,7 +53,7 @@ export async function buildDefaultRuntime(repoRoot: string): Promise<void> {
     const manifest = createDefaultModulePackageJson({ facetVersion: facet.version, facetPackage: facet });
     const dependencies = manifest.dependencies as Record<string, string>;
     dependencies['@flanksource/clicky-ui'] = facet.peerDependencies['@flanksource/clicky-ui'];
-    dependencies.tsx = facet.devDependencies.tsx;
+    dependencies['@oxc-node/core'] = facet.devDependencies['@oxc-node/core'];
     dependencies['@flanksource/page-runtime-build'] = '0.1.0';
     const archives: Record<string, string> = {};
     for (const name of Object.keys(dependencies)) {

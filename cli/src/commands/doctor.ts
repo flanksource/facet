@@ -19,7 +19,7 @@ import { resolveChromePath } from '../utils/pdf-generator.js';
 import { VERSION } from '../version-generated.js';
 import { assetPath } from '../utils/assets.js';
 import { loadSharp } from '../utils/sharp.js';
-import { checkGlobalModuleStore, fixGlobalModuleStore, checkNativeBindings, checkTsx, checkTailwindBin } from './doctor-runtime.js';
+import { checkGlobalModuleStore, fixGlobalModuleStore, checkNativeBindings, checkOxcNode, checkTailwindBin } from './doctor-runtime.js';
 
 type CheckStatus = 'pass' | 'warn' | 'fail';
 
@@ -51,7 +51,7 @@ const CHECK_REGISTRY: ReadonlyArray<readonly [string, CheckFn]> = [
   ['chromium', () => checkChromium()],
   ['git', () => checkGit()],
   ['tar', () => checkTar()],
-  ['tsx', () => checkTsx()],
+  ['oxc-node', () => checkOxcNode()],
   ['tailwindcss', () => checkTailwindBin()],
   ['sharp', () => checkSharp()],
   ['facet-package-path', () => checkFacetPackagePath()],

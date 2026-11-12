@@ -24,9 +24,10 @@ import { payloadSatisfies } from '../runtime/payload.js';
 import { compilationWorkspace, runtimeCacheRoot } from '../runtime/workspace.js';
 import { spawnLowPriority } from '../utils/subprocess-priority.js';
 import { AbortLock } from '../utils/abort-lock.js';
-import { compileEnvironment } from '../runtime/compiled.js';
+import { compileEnvironment } from '../runtime/compilation.js';
 import { pathToFileURL } from 'node:url';
 import { assetPath } from '../utils/assets.js';
+import { devRuntimeManifest } from '../runtime/dev.js';
 
 export interface BuildResult {
   html: string;
@@ -68,9 +69,10 @@ export async function prepareModules(
 ): Promise<void> {
   const facetRoot = facetDir.getFacetRoot();
   try {
-    const manifest = JSON.parse(readFileSync(join(facetRoot, 'package.json'), 'utf8'));
+    const manifest = devRuntimeManifest(JSON.parse(readFileSync(join(facetRoot, 'package.json'), 'utf8')));
+    writeFileSync(join(facetRoot, 'package.json'), JSON.stringify(manifest, null, 2));
     const override = resolveFacetPackageOverride();
-    const useInstalled = skipModules || (!override && payloadSatisfies(installedRuntimePayload(), manifest));
+    const useInstalled = !process.env.FACET_DEV_ROOT && (skipModules || (!override && payloadSatisfies(installedRuntimePayload(), manifest)));
     const runtime = await (useInstalled ? installedRuntime() : ensureEnvironment({
       cacheRoot: runtimeCacheRoot(),
       manifest,
