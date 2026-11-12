@@ -21,6 +21,7 @@
       "import": "./dist/components/index.js"
     },
     "./styles.css": "./dist/styles.css",
+    "./runtime/*": "./dist/runtime/*",
     "./page-styles": {
       "types": "./dist/page-styles/index.d.mts",
       "import": "./dist/page-styles/index.mjs"

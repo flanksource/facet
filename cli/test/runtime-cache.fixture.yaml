@@ -21,7 +21,7 @@ steps:
     kind: exec
     cwd: ../../cli
     exec: pnpm
-    args: [exec, vitest, run, src/runtime, src/bundler/build-cache.test.ts, src/bundler/vite-builder.test.ts, src/builders/facet-workspace-dependencies.test.ts, src/builders/facet-directory.test.ts, src/server/template-workspaces.test.ts, src/loaders/css.test.ts, scripts/build-default-runtime.test.ts, scripts/compiled-runtime.test.ts, scripts/pack-npm-cli.test.ts, scripts/toolchain.test.ts, src/lint/diagram-candidates.test.ts, src/lint/rules/page-structure.test.ts, test/jsx-parser.test.ts, src/commands/doctor.test.ts, test/runtime-processes.test.ts]
+    args: [exec, vitest, run, src/runtime, src/bundler/build-cache.test.ts, src/bundler/vite-builder.test.ts, src/builders/facet-workspace-dependencies.test.ts, src/builders/facet-directory.test.ts, src/server/template-workspaces.test.ts, src/loaders/css.test.ts, scripts/build-default-runtime.test.ts, scripts/runtime-files.test.ts, scripts/compiled-runtime.test.ts, scripts/pack-npm-cli.test.ts, scripts/toolchain.test.ts, src/lint/diagram-candidates.test.ts, src/lint/rules/page-structure.test.ts, test/jsx-parser.test.ts, src/commands/doctor.test.ts, test/runtime-processes.test.ts]
     cel: exitCode == 0
   - id: shared-builder-hook
     kind: exec
@@ -41,7 +41,7 @@ steps:
     env:
       FACET_RUNTIME_TEST_ROOT: '{{.fixture.dir}}/../../../facet-runtime-verification/.tmp'
     exec: pnpm
-    args: [exec, vitest, run, test/installed-runtime.test.ts, src/office/dom.test.ts]
+    args: [exec, vitest, run, test/installed-runtime.test.ts, test/cli-tools-package.test.ts, src/office/dom.test.ts, src/office/emf/emf.test.ts]
     cel: exitCode == 0
   - id: lint
     continueOnError: true

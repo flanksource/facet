@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import type { PageSize, PageMargins } from './Page';
+import { useFacetTheme } from './Theme';
 
 export interface DocumentBaseProps {
   title?: string;
@@ -16,6 +17,10 @@ export interface DocumentDefaults {
 }
 
 export interface DocumentProps extends DocumentBaseProps, DocumentDefaults {
+  themeOptions?: Record<string, unknown>;
+  cover?: React.ReactNode;
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -99,8 +104,20 @@ export default function Document({
   className,
   style,
   children,
+  themeOptions,
+  cover,
+  header,
+  footer,
   ...datasheetProps
 }: DocumentProps) {
+  const { theme, options, overrides } = useFacetTheme();
+  const slotProps = { title: datasheetProps.title, options: { ...options, ...themeOptions } };
+  const { cover: Cover, header: ThemeHeader, footer: ThemeFooter } = theme.slots ?? {};
+  pageSize ??= theme.defaults?.pageSize;
+  margins = { ...theme.defaults?.margins, ...margins };
+  fontSize ??= theme.defaults?.fontSize;
+  lineHeight ??= theme.defaults?.lineHeight;
+  fontFamily ??= theme.defaults?.fontFamily;
   const defaults: DocumentDefaults = {
     pageSize,
     margins,
@@ -130,8 +147,11 @@ export default function Document({
           {mergedCss && <style dangerouslySetInnerHTML={{ __html: mergedCss }} />}
         </head>
         <body>
-          <div className={className} style={contentStyle}>
+          <div data-facet-theme={theme.id} className={[theme.className, className].filter(Boolean).join(' ')} style={contentStyle}>
+            {!overrides.header && (header !== undefined ? header : ThemeHeader && <ThemeHeader {...slotProps} />)}
+            {cover !== undefined ? cover : Cover && <Cover {...slotProps} />}
             {children}
+            {!overrides.footer && (footer !== undefined ? footer : ThemeFooter && <ThemeFooter {...slotProps} />)}
           </div>
         </body>
       </html>

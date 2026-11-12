@@ -53,7 +53,7 @@ describe('wrapFacetStylesInLayer', () => {
 
     const wrapped = wrapFacetStylesInLayer(css);
 
-    expect(wrapped).toContain('@import url("https://fonts.example/font.css");\n@layer theme');
+    expect(wrapped).toContain('@import url("https://fonts.example/font.css");\n@layer facet');
     expect(wrapped).toContain('@layer facet {\nh1 { font-size: 22pt; }\n}');
   });
 });
@@ -250,11 +250,11 @@ describe('FacetDirectory Tailwind integration', () => {
 
     const facetCss = await readFile(join(facetRoot, 'facet.css'), 'utf-8');
     expect(facetCss).toMatch(/@import ['"]https:\/\/fonts\.googleapis\.com\//);
-    expect(facetCss.indexOf('@import')).toBeLessThan(facetCss.indexOf('@layer theme'));
+    expect(facetCss.indexOf('@import')).toBeLessThan(facetCss.indexOf('@layer facet {'));
     // facet sits between base and utilities: above Tailwind preflight, so the
     // stylesheet's element defaults survive, and below utilities, so a
     // `text-lg` on the element still wins.
-    expect(facetCss).toContain('@layer theme, base, facet, components, utilities;');
+    expect(facetCss).toContain('@layer theme, base, components, facet, utilities;');
     expect(facetCss).toContain('@layer facet {');
     expect(facetCss).not.toContain('layer(facet)');
 

@@ -7,6 +7,7 @@ export async function toolPath(specifier: string): Promise<string> {
   const dev = devRuntime();
   if (dev) {
     if (specifier === '@flanksource/page-runtime-build/dependencies') return dev.compiler;
+    if (specifier === 'sharp') return createRequire(join(dev.facetRoot, 'cli/package.json')).resolve(specifier);
     return createRequire(join(dev.facetRoot, 'package.json')).resolve(specifier);
   }
   const runtime = await installedRuntime();

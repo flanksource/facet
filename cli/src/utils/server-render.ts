@@ -120,6 +120,7 @@ export async function renderWithServer({ facetURL, format, options }: ServerRend
   form.set('data', JSON.stringify(data));
   form.set('options', JSON.stringify({
     format,
+    theme: options.theme,
     entryFile,
     filename: `${outputName}.${format}`,
     live: options.live,

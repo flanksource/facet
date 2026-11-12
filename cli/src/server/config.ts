@@ -9,6 +9,7 @@ export interface S3Config {
 }
 
 export interface ServerConfig {
+  theme?: string;
   port: number;
   templatesDir: string;
   workers: number;
@@ -30,6 +31,7 @@ export interface ServerConfig {
 }
 
 export interface ServerCLIFlags {
+  theme?: string;
   port?: string;
   templatesDir?: string;
   workers?: string;
@@ -74,6 +76,7 @@ function intOption(
 
 export function loadConfig(flags: ServerCLIFlags): ServerConfig {
   const config: ServerConfig = {
+    theme: flags.theme,
     port: parseInt(flags.port ?? process.env['FACET_PORT'] ?? '3010', 10),
     templatesDir: flags.templatesDir ?? process.env['FACET_TEMPLATES_DIR'] ?? '.',
     workers: parseInt(flags.workers ?? process.env['FACET_WORKERS'] ?? '2', 10),

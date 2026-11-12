@@ -38,6 +38,8 @@ export interface BuildResult {
 }
 
 export interface BuildOptions {
+  theme?: string;
+  themeOverrides?: { header?: boolean; footer?: boolean };
   templatePath: string;
   data: Record<string, unknown>;
   consumerRoot?: string;
@@ -247,6 +249,8 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
     templateFile: templatePath,
     logger,
     remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
+    theme: options.theme,
+      themeOverrides: options.themeOverrides,
     redact: options.redact,
     skipModules: options.skipModules,
   });
@@ -256,7 +260,7 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
     await facetDir.generatePackageJson();
     facetDir.symlinkConsumerFiles();
     facetDir.copyStylesCss();
-    facetDir.generateEntryWrapper();
+
     facetDir.generateTsConfig();
     facetDir.generateViteConfig();
     facetDir.generatePostCSSConfig();
@@ -265,6 +269,7 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
   await timings.measure('dependency-install', () =>
     profiler.measure('dependencies', () => prepareModules(facetDir, logger, options.skipModules, options.clearCache)));
   facetDir.copyStylesCss();
+  facetDir.generateEntryWrapper();
 
   // Keyed after scaffolding so the generated config participates: a config
   // change at an unchanged facet version must not reuse stale SSR bundles.

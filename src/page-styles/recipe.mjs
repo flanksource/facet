@@ -2,7 +2,6 @@ import postcss from 'postcss';
 import facetFontScale from './font-scale.mjs';
 import { theme } from './type-scale.mjs';
 
-export const layerOrder = '@layer theme, base, facet, components, utilities;';
 
 export function wrapFacetStylesInLayer(css) {
   const imports = [];
@@ -28,7 +27,7 @@ export function wrapFacetStylesInLayer(css) {
   if (/@import\s/.test(remaining)) {
     throw new Error('Facet styles contain an @import after style rules; CSS imports must precede all layered rules');
   }
-  return [...imports, layerOrder, '@layer facet {', remaining.trim(), '}', ''].join('\n');
+  return [...imports, '@layer facet {', remaining.trim(), '}', ''].join('\n');
 }
 
 export function transform(css) {

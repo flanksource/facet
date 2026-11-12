@@ -520,7 +520,7 @@ async function checkTar(): Promise<CheckResult> {
  */
 async function checkSharp(): Promise<CheckResult> {
   try {
-    const sharp = await loadSharp();
+    const sharp = await loadSharp({ rendering: true });
     return {
       id: 'sharp',
       name: 'sharp',

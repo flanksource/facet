@@ -1,5 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { toolPath } from '../runtime/tools.js';
+import { cliDependencyPath } from '../runtime/cli-dependencies.js';
 
 type SharpModule = typeof import('sharp').default;
 
@@ -10,9 +11,7 @@ type SharpModule = typeof import('sharp').default;
  */
 export const SHARP_VERSION = '^0.35.3';
 
-/**
- * Load the pinned native tool from the installed runtime.
- */
-export async function loadSharp(): Promise<SharpModule> {
-  return (await import(pathToFileURL(await toolPath('sharp')).href)).default as SharpModule;
+export async function loadSharp(options: { rendering?: boolean } = {}): Promise<SharpModule> {
+  const file = options.rendering ? await toolPath('sharp') : cliDependencyPath('sharp');
+  return (await import(pathToFileURL(file).href)).default as SharpModule;
 }

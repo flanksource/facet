@@ -9,7 +9,7 @@ export default defineConfig({
   clean: true,
   splitting: false,
   minify: false,
-  external: ['@oxc-node/core', 'puppeteer-core', 'sharp', 'pdfjs-dist/legacy/build/pdf.mjs', '@napi-rs/canvas', 'vite', 'react', 'react-dom', /\.yaml$/, /\.css$/],
+  external: ['@oxc-node/core', 'puppeteer-core', 'sharp', 'pdfjs-dist/legacy/build/pdf.mjs', '@napi-rs/canvas', 'rolldown', 'vite', 'react', 'react-dom', /\.yaml$/, /\.css$/],
   noExternal: [/.*/],
   outputOptions: { inlineDynamicImports: true },
   platform: 'node',

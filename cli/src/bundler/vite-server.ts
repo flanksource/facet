@@ -23,6 +23,8 @@ import { RenderTimings } from '../utils/performance.js';
 import { spawnLowPriority } from '../utils/subprocess-priority.js';
 
 export interface ViteServerOptions {
+  theme?: string;
+  themeOverrides?: { header?: boolean; footer?: boolean };
   templatePath: string;
   data: Record<string, unknown>;
   consumerRoot?: string;
@@ -60,6 +62,8 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
       templateFile: templatePath,
       logger,
       remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
+      theme: options.theme,
+      themeOverrides: options.themeOverrides,
       redact: options.redact,
       skipModules: options.skipModules,
     });
@@ -67,12 +71,13 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
     await facetDir.generatePackageJson();
     facetDir.symlinkConsumerFiles();
     facetDir.copyStylesCss();
-    facetDir.generateEntryWrapper();
+
     facetDir.generateTsConfig();
     facetDir.generateClientScaffold(data);
 
     await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules, options.clearCache));
     facetDir.copyStylesCss();
+    facetDir.generateEntryWrapper();
     options.signal?.throwIfAborted();
 
     const facetRoot = realpathSync(facetDir.getFacetRoot());

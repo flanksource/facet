@@ -7,9 +7,10 @@ import { resolve } from 'path';
 // bundle is base64-inlined into cli/src/server/playground-form-generated.ts by
 // cli/scripts/gen-playground-form.cjs so `facet serve` can embed and serve it at
 // /playground-form.js (+ .css) with no runtime file dependency. The entry
-// exposes window.FacetFillPdf.mountFillPdf(selector).
+// exposes window.FacetPlayground for the form and browser-runtime islands.
 export default defineConfig({
   plugins: [react()],
+  resolve: { dedupe: ['react', 'react-dom'] },
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),
   },
@@ -23,9 +24,9 @@ export default defineConfig({
     cssCodeSplit: false,
     minify: true,
     lib: {
-      entry: resolve(__dirname, 'src/playground/fill-pdf-app.tsx'),
+      entry: resolve(import.meta.dirname, 'src/playground/index.ts'),
       formats: ['iife'],
-      name: 'FacetFillPdf',
+      name: 'FacetPlayground',
       fileName: () => 'playground-form.js',
     },
     rolldownOptions: {

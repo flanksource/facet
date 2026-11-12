@@ -8,6 +8,7 @@ import { buildTemplate } from '../bundler/vite-builder.js';
 import { startViteServer } from '../bundler/vite-server.js';
 import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
+import { cascadeOrder } from '@flanksource/page-runtime/styles';
 import { scopeHTML } from '../utils/css-scoper.js';
 import { injectFontScale } from '../utils/font-size.js';
 import { showSlideNotes } from '../utils/slide-notes.js';
@@ -57,6 +58,7 @@ export async function renderTemplateHTML({ options, layout }: { options: Generat
       logger,
       timings,
       redact: options.redact,
+      theme: options.theme,
       skipModules: options.skipModules,
       clearCache: options.clearCache,
     });
@@ -83,6 +85,7 @@ export async function renderTemplateHTML({ options, layout }: { options: Generat
     sandbox: options.sandbox,
     timings,
     redact: options.redact,
+      theme: options.theme,
     skipModules: options.skipModules,
     clearCache: options.clearCache,
   });
@@ -110,7 +113,7 @@ export async function renderTemplateHTML({ options, layout }: { options: Generat
     // Combine generated CSS with the static HTML.
 
     const combinedHTML = await renderBrowserHTML({
-      html: combineHTMLAndCSS(htmlWithoutCSS, generatedCSS),
+      html: combineHTMLAndCSS(htmlWithoutCSS, cascadeOrder(['components', 'facet', ...(options.theme && options.theme !== 'facet' ? [options.theme] : [])]) + '\n' + generatedCSS + '\n' + buildResult.css),
       layout,
     });
     const scopedHTML = options.cssScope

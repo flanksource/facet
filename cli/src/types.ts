@@ -38,6 +38,7 @@ export interface PNGOptions {
 
 export interface GenerateOptions {
   template: string;
+  theme?: string;
   loadedData?: LoadedData;
   data?: string;
   dataLoader?: string;
