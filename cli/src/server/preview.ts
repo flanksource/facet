@@ -1,3 +1,4 @@
+import { serverCacheDirectory } from '../runtime/workspace.js';
 import { resolve } from 'path';
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
@@ -23,8 +24,7 @@ import { RenderCache } from './render-cache.js';
 import { facetTypes } from './facet-types.js';
 import { readFileSync } from 'fs';
 import { assetPath } from '../utils/assets.js';
-import { ensureGlobalModuleStore } from '../bundler/module-store.js';
-import { resolveFacetPackageOverride } from '../builders/facet-directory.js';
+import { installedRuntime } from '../runtime/installed.js';
 import { requestAbortSignal } from './request-abort.js';
 
 const facetVersion: string = JSON.parse(readFileSync(assetPath('package.json'), 'utf-8')).version;
@@ -41,14 +41,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   const ssrLoaderOwner = {};
 
   if (config.skipModules) {
-    const facetPackage = JSON.parse(readFileSync(assetPath('package.json'), 'utf-8'));
-    const override = resolveFacetPackageOverride();
-    await ensureGlobalModuleStore({
-      facetVersion,
-      facetPackage,
-      logger,
-      facetTarball: override?.kind === 'tarball' ? override.path : undefined,
-    });
+    await installedRuntime();
   }
 
   const templatesDir = resolve(process.cwd(), config.templatesDir);
@@ -69,7 +62,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   const s3 = config.s3 ? new S3Uploader(config.s3) : undefined;
   if (s3) logger.info(`S3 upload enabled: ${config.s3!.bucket}`);
 
-  const cacheDir = config.cacheDir ? resolve(config.cacheDir) : resolve(process.cwd(), '.facet');
+  const cacheDir = serverCacheDirectory(config);
   const cache = new RenderCache(cacheDir, config.cacheMaxSize);
   logger.info(`Render cache: ${cacheDir}/render-cache (max ${(config.cacheMaxSize / 1048576).toFixed(0)}MB)`);
 

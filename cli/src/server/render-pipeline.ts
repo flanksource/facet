@@ -1,8 +1,9 @@
+import { serverCacheDirectory } from '../runtime/workspace.js';
 import { createHash } from 'node:crypto';
 import { lstatSync, rmSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import type { RedactPolicy } from '../builders/remark-config.js';
@@ -68,7 +69,7 @@ export async function resolveTemplateSource(
     if (!ref) throw new RenderError('TEMPLATE_NOT_FOUND', `Cannot parse remote ref: ${source.template}`, 400);
 
     const resolved = await resolveRemoteRef(ref, { verbose: config.verbose });
-    const cacheDir = config.cacheDir ? resolve(config.cacheDir) : resolve(process.cwd(), '.facet');
+    const cacheDir = serverCacheDirectory(config);
     const workspace = await acquireTemplateWorkspace(resolved.consumerRoot, resolved.templateFile, cacheDir);
     return {
       consumerRoot: workspace.path,
@@ -81,7 +82,7 @@ export async function resolveTemplateSource(
   const info = resolveLocalTemplate(source.name, templates);
   if (!info) throw new RenderError('TEMPLATE_NOT_FOUND', `Template not found: ${source.name}`, 404);
 
-  const cacheDir = config.cacheDir ? resolve(config.cacheDir) : resolve(process.cwd(), '.facet');
+  const cacheDir = serverCacheDirectory(config);
   const workspace = await acquireTemplateWorkspace(info.consumerRoot, info.entryFile, cacheDir);
   return {
     consumerRoot: workspace.path,

@@ -104,7 +104,11 @@ function regionParts(node, element, inline = false) {
   return [{ kind: 'node', node }];
 }
 
-function permits(allow, attributes, element) {
+/**
+ * Whether a region's attributes are all permitted. Shared with the runtime
+ * `<Classified>` component so Markdown and TSX redaction apply one rule.
+ */
+export function permits(allow, attributes, element) {
   for (const [name, value] of Object.entries(attributes)) {
     const permitted = allow[name];
     if (!permitted) {
@@ -132,7 +136,8 @@ export default function facetRedact(options = {}) {
         // MDX gives the whole region as one node, so it resolves immediately.
         if (part.kind === 'element') {
           if (part.inline) throw new Error(`Inline <${element}> region`);
-          if (permits(allow, part.attributes, element)) children.push(part.node);
+          // Unwrapped like an HTML region: nothing resolves the element itself at runtime.
+          if (permits(allow, part.attributes, element)) children.push(...part.node.children);
           continue;
         }
         if (part.kind === 'open') {

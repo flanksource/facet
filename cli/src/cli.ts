@@ -15,6 +15,8 @@ import type { GenerateOptions, PNGViewport, RenderFormat } from './types.js';
 import { parsePNGViewport } from './utils/png-generator.js';
 import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
 import { registerOfficeCommands } from './commands/office.js';
+import { addEmbedOptions } from './commands/embed-options.js';
+import { resolveEmbed } from './utils/embed.js';
 import { registerInspectCommand } from './commands/inspect.js';
 import { dispatchLoader } from './loaders/dispatch.js';
 import { expandRenderSizes, renderSizes } from './utils/render-sizes.js';
@@ -64,7 +66,7 @@ function parseDataLoaderArgs(): string[] {
   return dashIndex !== -1 ? process.argv.slice(dashIndex + 1) : [];
 }
 
-// Remote rendering needs `tar`; local rendering needs pnpm and may need Chromium.
+// Installed runtimes need tar; only a new custom dependency environment needs pnpm.
 // TypeScript data loaders need tsx in either mode.
 function renderRequirements(command: RenderFormat, options: any): string[] {
   if (options.facetURL) {
@@ -72,7 +74,7 @@ function renderRequirements(command: RenderFormat, options: any): string[] {
     if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
     return ids;
   }
-  const ids = options.skipModules ? [] : ['pnpm'];
+  const ids = ['tar'];
   if (command === 'pdf' || command === 'png' || command === 'docx' || command === 'pptx' || options.live) ids.push('chromium');
   if (options.autocrop) ids.push('sharp');
   if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
@@ -134,7 +136,7 @@ function addSharedOptions(cmd: Command): Command {
     .option('--output-name-field <field>', 'Data field to use for output filename', 'name')
     .option('-v, --verbose', 'Increase verbosity (-v Vite progress, -vv Vite debug, -vvv plugin debug + profile)', (_value, previous: number) => previous + 1, 0)
     .option('--refresh', 'Force re-fetch of remote template (bypass cache)')
-    .option('--clear-cache', 'Delete .facet/ build cache and node_modules cache before generation')
+    .option('--clear-cache', 'Rebuild the selected compilation and custom dependency environment')
     .option('--live', 'Render in a live browser (Vite dev server) instead of SSR; required for diagram components')
     .option('--post-process-css <boolean>', 'Rebuild CSS after rendering to include data-dependent classes', booleanOption)
     .option('--font-size <pt>', 'Base font size in pt; scales the whole type scale proportionally (default: 10)', fontSizeOption)
@@ -161,7 +163,7 @@ program
   .name('facet')
   .description('Build HTML, PDF, PNG, editable DOCX and widescreen PPTX output from React templates')
   .version(versionStr)
-  .option('--skip-modules', 'Use the shared Facet-only module install and ignore package.json dependencies')
+  .option('--skip-modules', 'Use the installed default runtime and ignore package.json dependencies')
   .option('--facet-url <url>', 'Submit template renders to a Facet server (or FACET_URL)')
   .hook('preAction', (_command, actionCommand) => {
     if (['lint', 'inspect'].includes(actionCommand.name()) && actionCommand.opts().json) return;
@@ -210,6 +212,7 @@ addSharedOptions(
         postProcessCss: options.postProcessCss,
         fontSize: options.fontSize,
         sandbox: options.sandbox,
+        showSlideNotes: true,
       };
       if (facetURL) {
         await renderWithServer({ facetURL, format: 'html', options: generateOptions });
@@ -307,16 +310,16 @@ addSharedOptions(
 });
 
 // pdf command
-addSharedOptions(
+addSharedOptions(addEmbedOptions(
   program
     .command('pdf <templates...>')
-    .description('Generate PDF from one or more templates')
+    .description('Generate PDF from one or more templates'), 'pdf')
     .option('--sizes <pattern>', 'Render each matching page size and append it to the filename; repeatable (quote globs)', (value: string, previous: string[]) => [...previous, value], [] as string[])
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
     .option('--debug', 'Add layout guides and font, line-height, and block-spacing annotations')
     .option('--debug-typography', 'Append a font-size reference page to the PDF')
-    .option('--page-size <size>', 'Default page size: paper/screen presets, powerpoint-wide/standard, facebook-*, linkedin-*, reddit-*, google-ads-* or WxH in mm (see docs/page-sizes.md)', 'a4')
+    .option('--page-size <size>', 'Page size override: paper/screen presets, powerpoint-wide/standard, facebook-*, linkedin-*, reddit-*, google-ads-* or WxH in mm (see docs/page-sizes.md); default: the sizes the template\'s <Document>/<Page> declare, else a4')
     .option('--landscape', 'Use landscape orientation')
     .option('--margin-top <mm>', 'Top margin in mm', parseFloat)
     .option('--margin-bottom <mm>', 'Bottom margin in mm', parseFloat)
@@ -342,6 +345,7 @@ addSharedOptions(
     const facetURL = resolveFacetURL(options.facetUrl);
     const sizes = expandRenderSizes(options.sizes);
     if (sizes.length && command.getOptionValueSource('pageSize') === 'cli') throw new Error('--sizes cannot be combined with --page-size');
+    resolveEmbed({ target: 'pdf', format: options.embedFormat, size: options.embedSize });
     if (options.lint) await lintTemplatesBeforeRender(templates, logger, options.verbose);
     await ensureRenderReady('pdf', { ...options, facetURL }, logger);
     for (const template of templates) {
@@ -367,6 +371,8 @@ addSharedOptions(
         debug: options.debug,
         debugTypography: options.debugTypography,
         fontSize: options.fontSize,
+        embedFormat: options.embedFormat,
+        embedSize: options.embedSize,
         pageSize: sizes.length ? undefined : options.pageSize,
         landscape: options.landscape,
         margins: buildMargins(options),
@@ -444,7 +450,7 @@ program
   .option('--api-key <key>', 'API key for authentication')
   .option('--max-upload <bytes>', 'Max upload size in bytes', '52428800')
   .option('--cache-max-size <bytes>', 'Max render cache size in bytes', '104857600')
-  .option('--cache-dir <dir>', 'Render cache directory (default: ./.facet)')
+  .option('--cache-dir <dir>', 'Render cache directory (default: shared Facet cache)')
   .option('--s3-endpoint <url>', 'S3 endpoint URL')
   .option('--s3-bucket <name>', 'S3 bucket name')
   .option('--s3-region <region>', 'S3 region', 'us-east-1')

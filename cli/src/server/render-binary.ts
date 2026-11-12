@@ -25,10 +25,12 @@ export async function renderBinary(options: {
   const { format } = parsed;
   if (format === 'html') throw new Error('HTML must use the HTML render pipeline');
   progress?.emit(`rendering-${format}`, `Generating ${format.toUpperCase()}...`);
-  if (format === 'docx' || format === 'pptx') return timings.measure(`${format}-generation`, () => generateOfficeBuffer({ browser, html, format, fontSize: parsed.fontSize, consumerRoot: options.consumerRoot }));
+  if (format === 'docx' || format === 'pptx') return timings.measure(`${format}-generation`, () => generateOfficeBuffer({ browser, html, format, fontSize: parsed.fontSize, embedFormat: parsed.embedFormat, embedSize: parsed.embedSize, consumerRoot: options.consumerRoot }));
   if (format === 'png') return timings.measure('png-generation', () => generatePNGBuffer(browser, html, { ...parsed.pngOptions, ...(layout ? { viewport: layout.viewport } : {}) }));
   let output = await timings.measure('pdf-generation', () => generatePDFBuffer(browser, html, {
     ...parsed.pdfOptions,
+    embedFormat: parsed.embedFormat,
+    embedSize: parsed.embedSize,
     ...(layout ? { defaultPageSize: layout.pageSizeOverride } : {}),
   }));
   if (parsed.encryption || parsed.signature) {
