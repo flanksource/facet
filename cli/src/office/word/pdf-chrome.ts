@@ -20,6 +20,10 @@ export function readOverlayCounters(): Paragraph[] {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   while (walker.nextNode()) if (/(_PG_|_TL_)/.test(walker.currentNode.textContent ?? '')) nodes.push(walker.currentNode as Text);
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 1;
+  const context = canvas.getContext('2d', { willReadFrequently: true, colorSpace: 'srgb' });
+  if (!context) throw new Error('Word page-field color conversion requires a 2D canvas');
   for (const node of nodes) {
     const parent = node.parentElement!;
     if (parent.closest('script,style')) continue;
@@ -30,13 +34,16 @@ export function readOverlayCounters(): Paragraph[] {
     const rect = range.getBoundingClientRect();
     if (!rect.width || !rect.height) continue;
     if (range.getClientRects().length !== 1) throw new Error('Word header/footer page fields must fit on one line');
-    const rgb = css.color.match(/[\d.]+/g)?.map(Number);
-    if (!rgb || rgb.length < 3) throw new Error(`Invalid Word page-field color: ${css.color}`);
+    if (!CSS.supports('color', css.color)) throw new Error(`Invalid Word page-field color: ${css.color}`);
+    context.clearRect(0, 0, 1, 1);
+    context.fillStyle = css.color;
+    context.fillRect(0, 0, 1, 1);
+    const rgb = context.getImageData(0, 0, 1, 1).data.slice(0, 3);
     const style: TextStyle = {
       font: css.fontFamily.split(',')[0].replace(/["']/g, '').trim(), size: parseFloat(css.fontSize) * 0.75,
       bold: Number(css.fontWeight) >= 600 || css.fontWeight === 'bold', italic: css.fontStyle === 'italic',
       underline: css.textDecorationLine.includes('underline'), strike: css.textDecorationLine.includes('line-through'),
-      color: rgb.slice(0, 3).map((channel) => Math.round(channel).toString(16).padStart(2, '0')).join('').toUpperCase(),
+      color: Array.from(rgb, channel => channel.toString(16).padStart(2, '0')).join('').toUpperCase(),
       align: ['right', 'center', 'justify'].includes(css.textAlign) ? css.textAlign as TextStyle['align'] : 'left',
       lineHeight: css.lineHeight === 'normal' ? parseFloat(css.fontSize) * 1.2 : parseFloat(css.lineHeight), before: 0, after: 0, borderWidth: 0,
     };

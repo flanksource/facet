@@ -52,10 +52,10 @@ describe('PDF-in-EMF Word header/footer artwork', () => {
     } finally { await context.close(); }
   });
 
-  it('removes counter glyphs from both captures while preserving styled, aligned native fields', async () => {
+  it.each([{ cssColor: 'rgb(18,52,86)', hex: '123456' }, { cssColor: 'oklch(0 0 260)', hex: '000000' }])('removes counter glyphs while preserving native field color $cssColor', async ({ cssColor, hex }) => {
     const context = await browser.createBrowserContext();
     try {
-      const html = `<html><head><style>body {margin:0;font:10pt Arial} @media print {footer {color:rgb(18,52,86)}}</style></head><body>
+      const html = `<html><head><style>body {margin:0;font:10pt Arial} @media print {footer {color:${cssColor}}}</style></head><body>
         <footer data-footer-type="default" data-footer-height="12" style="display:flex;justify-content:space-between;align-items:center">
           <span></span><span style="font-weight:700">Page _PG_ of _TL_</span></footer>
         <main data-page-size="a4"><p>Editable body</p></main></body></html>`;
@@ -66,7 +66,7 @@ describe('PDF-in-EMF Word header/footer artwork', () => {
       const asset = assets.get(document.pages[0].footer!)!;
       expect(asset.counters).toHaveLength(1);
       expect(asset.counters[0].runs[0].text).toBe('Page _PG_ of _TL_');
-      expect(asset.counters[0].style).toMatchObject({ bold: true, color: '123456', align: 'right' });
+      expect(asset.counters[0].style).toMatchObject({ bold: true, color: hex, align: 'right' });
       const pdf = await PDFDocument.load(asset.data);
       expect(pdf.getPage(0).node.Resources()?.get(PDFName.of('Font'))).toBeUndefined();
       expect((await sharp(asset.png).ensureAlpha().stats()).channels[3].max).toBe(0);
@@ -74,7 +74,7 @@ describe('PDF-in-EMF Word header/footer artwork', () => {
       const footer = await zip.file('word/footer1.xml')!.async('string');
       expect(footer).toContain('PAGE');
       expect(footer).toContain('NUMPAGES');
-      expect(footer).toContain('w:color w:val="123456"');
+      expect(footer).toContain(`w:color w:val="${hex}"`);
       expect(footer).toContain('<w:jc w:val="right"');
       expect(footer).toContain('w:hAnchor="page"');
       expect(footer).not.toMatch(/_PG_|_TL_|v:imagedata|OLEObject/);
