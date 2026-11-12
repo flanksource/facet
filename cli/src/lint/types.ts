@@ -24,5 +24,5 @@ export interface LintRule {
   description: string;
   severity: Severity;
   fileTypes: readonly LintFileType[];
-  check(ctx: LintContext): LintIssue[];
+  check(ctx: LintContext): LintIssue[] | Promise<LintIssue[]>;
 }

@@ -28,7 +28,7 @@ async function buildHtml(): Promise<string> {
   // Run the CLI from source via tsx rather than the packaged `dist/facet` SEA:
   // the stylesheet under test is assembled at build time, so this must exercise
   // the current tree, not whatever binary happens to be lying around.
-  const tsx = join(import.meta.dirname, '../../node_modules/.bin/tsx');
+  const tsx = join(import.meta.dirname, '../../node_modules/.bin/oxnode');
   const cli = join(import.meta.dirname, '../src/cli.ts');
   const outDir = await mkdtemp(join(tmpdir(), 'facet-type-'));
   execSync(`${tsx} ${cli} html ${TEMPLATE} -o ${outDir}`, {

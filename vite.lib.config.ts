@@ -21,7 +21,7 @@ export default defineConfig({
     },
     outDir: 'dist',
     emptyOutDir: true,
-    rollupOptions: {
+    rolldownOptions: {
       external: [
         'react',
         'react-dom',

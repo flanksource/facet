@@ -28,7 +28,7 @@ export default defineConfig({
       name: 'FacetFillPdf',
       fileName: () => 'playground-form.js',
     },
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         assetFileNames: (asset) =>
           asset.name && asset.name.endsWith('.css') ? 'playground-form.css' : 'assets/[name][extname]',

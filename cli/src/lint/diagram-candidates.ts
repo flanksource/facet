@@ -1,6 +1,6 @@
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
-import * as ts from 'typescript';
+import { node, parseProgram, walk } from './parser.js';
 
 const DIAGRAM_NAMES = new Set(['Diagram', 'FlowDiagram', 'DiagreDiagram']);
 
@@ -72,7 +72,7 @@ function scanJsxTag(source: string, start: number): JsxTag | undefined {
   if (source[start] !== '<') return undefined;
   const next = source[start + 1];
   const nextCodePoint = source.codePointAt(start + 1);
-  if (next !== '>' && next !== '/' && (nextCodePoint === undefined || !ts.isIdentifierStart(nextCodePoint, ts.ScriptTarget.Latest))) return undefined;
+  if (next !== '>' && next !== '/' && (nextCodePoint === undefined || !/[\p{ID_Start}_$]/u.test(String.fromCodePoint(nextCodePoint)))) return undefined;
 
   let position = start + 1;
   let quote: string | undefined;
@@ -250,38 +250,23 @@ function neutralizeMdx(source: string): string {
   return chars.join('');
 }
 
-function sourceHasDiagramElement(source: string): boolean {
-  const file = ts.createSourceFile('diagram-candidate.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+async function sourceHasDiagramElement(source: string): Promise<boolean> {
   let found = false;
-  const visit = (node: ts.Node): void => {
-    if (found) return;
-    if (ts.isJsxOpeningLikeElement(node) && ts.isIdentifier(node.tagName) && DIAGRAM_NAMES.has(node.tagName.text)) {
-      found = true;
-      return;
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(file);
+  walk(await parseProgram(source), value => {
+    const name = node(value.name);
+    if (value.type === 'JSXOpeningElement' && name?.type === 'JSXIdentifier' && DIAGRAM_NAMES.has(String(name.name))) found = true;
+  });
   return found;
 }
-
-/**
- * Detect direct diagram JSX with the TypeScript parser. Aliases, member
- * expressions, and wrapper components are deliberately not candidates.
- */
-export function hasDirectDiagramCandidate(source: string, fileType: 'tsx' | 'mdx'): boolean {
+export async function hasDirectDiagramCandidate(source: string, fileType: 'tsx' | 'mdx'): Promise<boolean> {
   const prepared = fileType === 'mdx' ? neutralizeMdx(source) : source;
-  if (sourceHasDiagramElement(prepared)) return true;
-
-  // Markdown prose before a JSX block can stop TypeScript's normal recovery
-  // before it reaches the block. Scanner positions are only used to isolate
-  // possible JSX starts; acceptance still requires a parsed JSX opening node.
+  if (await sourceHasDiagramElement(prepared)) return true;
   if (fileType !== 'mdx') return false;
-  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.JSX, prepared);
-  let token = scanner.scan();
-  while (token !== ts.SyntaxKind.EndOfFileToken) {
-    if (token === ts.SyntaxKind.LessThanToken && sourceHasDiagramElement(prepared.slice(scanner.getTokenPos()))) return true;
-    token = scanner.scan();
+  for (let position = 0; position < prepared.length; position++) {
+    if (prepared[position] !== '<') continue;
+    const tag = scanJsxTag(prepared, position);
+    if (tag && await sourceHasDiagramElement(prepared.slice(position))) return true;
+    if (tag) position = tag.end - 1;
   }
   return false;
 }

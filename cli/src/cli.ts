@@ -20,6 +20,7 @@ import { resolveEmbed } from './utils/embed.js';
 import { registerInspectCommand } from './commands/inspect.js';
 import { dispatchLoader } from './loaders/dispatch.js';
 import { expandRenderSizes, renderSizes } from './utils/render-sizes.js';
+import { activateDevRuntime } from './runtime/dev.js';
 
 function numericOption(minimum: number): (value: string) => number {
   return (value: string): number => {
@@ -67,17 +68,17 @@ function parseDataLoaderArgs(): string[] {
 }
 
 // Installed runtimes need tar; only a new custom dependency environment needs pnpm.
-// TypeScript data loaders need tsx in either mode.
+// TypeScript data loaders need Oxc in either mode.
 function renderRequirements(command: RenderFormat, options: any): string[] {
   if (options.facetURL) {
     const ids = ['tar'];
-    if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
+    if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('oxc-node');
     return ids;
   }
   const ids = ['tar'];
   if (command === 'pdf' || command === 'png' || command === 'docx' || command === 'pptx' || options.live) ids.push('chromium');
   if (options.autocrop) ids.push('sharp');
-  if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
+  if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('oxc-node');
   return ids;
 }
 
@@ -163,9 +164,15 @@ program
   .name('facet')
   .description('Build HTML, PDF, PNG, editable DOCX and widescreen PPTX output from React templates')
   .version(versionStr)
-  .option('--skip-modules', 'Use the installed default runtime and ignore package.json dependencies')
+  .option('--dev', 'Use local Facet, Clicky UI and page-runtime builds without publishing')
+  .option('--skip-modules', 'Ignore package.json dependencies; use default packages (local libraries with --dev)')
   .option('--facet-url <url>', 'Submit template renders to a Facet server (or FACET_URL)')
   .hook('preAction', (_command, actionCommand) => {
+    if (actionCommand.optsWithGlobals().dev) {
+      if (resolveFacetURL(actionCommand.optsWithGlobals().facetUrl)) throw new Error('--dev requires local rendering; unset FACET_URL and omit --facet-url');
+      activateDevRuntime(process.cwd());
+      console.error(`Using local rendering runtime: ${process.env.FACET_DEV_ROOT}`);
+    }
     if (['lint', 'inspect'].includes(actionCommand.name()) && actionCommand.opts().json) return;
     console.log(chalk.gray(`facet ${versionStr}`));
   });

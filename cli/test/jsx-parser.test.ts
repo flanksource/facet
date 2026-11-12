@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { parseJSXTree } from '../src/lint/jsx-parser.js';
 
 describe('parseJSXTree', () => {
-  it('parses single element return', () => {
-    const tree = parseJSXTree([
+  it('parses single element return', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo() {',
       '  return <Page pageSize="a4"><div>hello</div></Page>;',
       '}',
@@ -14,8 +14,8 @@ describe('parseJSXTree', () => {
     expect(tree[0].children[0].name).toBe('div');
   });
 
-  it('parses fragment with multiple children', () => {
-    const tree = parseJSXTree([
+  it('parses fragment with multiple children', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo() {',
       '  return (',
       '    <>',
@@ -34,8 +34,8 @@ describe('parseJSXTree', () => {
     expect(tree[2].name).toBe('Footer');
   });
 
-  it('parses self-closing elements', () => {
-    const tree = parseJSXTree([
+  it('parses self-closing elements', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo() {',
       '  return <PageBreak />;',
       '}',
@@ -45,8 +45,8 @@ describe('parseJSXTree', () => {
     expect(tree[0].hasContent).toBe(true);
   });
 
-  it('sets hasContent false for empty element', () => {
-    const tree = parseJSXTree([
+  it('sets hasContent false for empty element', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo() {',
       '  return <Page></Page>;',
       '}',
@@ -55,8 +55,8 @@ describe('parseJSXTree', () => {
     expect(tree[0].hasContent).toBe(false);
   });
 
-  it('sets hasContent false for whitespace-only element', () => {
-    const tree = parseJSXTree([
+  it('sets hasContent false for whitespace-only element', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo() {',
       '  return (',
       '    <Page>',
@@ -69,8 +69,8 @@ describe('parseJSXTree', () => {
     expect(tree[0].hasContent).toBe(false);
   });
 
-  it('sets hasContent true for text content', () => {
-    const tree = parseJSXTree([
+  it('sets hasContent true for text content', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo() {',
       '  return <Page>Hello World</Page>;',
       '}',
@@ -79,8 +79,8 @@ describe('parseJSXTree', () => {
     expect(tree[0].hasContent).toBe(true);
   });
 
-  it('sets hasContent true for child elements', () => {
-    const tree = parseJSXTree([
+  it('sets hasContent true for child elements', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo() {',
       '  return <Page><div>content</div></Page>;',
       '}',
@@ -89,8 +89,8 @@ describe('parseJSXTree', () => {
     expect(tree[0].hasContent).toBe(true);
   });
 
-  it('sets hasContent true for expression children', () => {
-    const tree = parseJSXTree([
+  it('sets hasContent true for expression children', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo({ items }) {',
       '  return (',
       '    <Page>',
@@ -103,13 +103,13 @@ describe('parseJSXTree', () => {
     expect(tree[0].hasContent).toBe(true);
   });
 
-  it('returns empty array for non-component file', () => {
-    const tree = parseJSXTree('const x = 42; export { x };');
+  it('returns empty array for non-component file', async () => {
+    const tree = await parseJSXTree('const x = 42; export { x };');
     expect(tree).toHaveLength(0);
   });
 
-  it('handles arrow function default export', () => {
-    const tree = parseJSXTree([
+  it('handles arrow function default export', async () => {
+    const tree = await parseJSXTree([
       'const Foo = () => <Page><div>hi</div></Page>;',
       'export default Foo;',
     ].join('\n'));
@@ -118,8 +118,8 @@ describe('parseJSXTree', () => {
     expect(tree).toHaveLength(0);
   });
 
-  it('handles export default arrow function', () => {
-    const tree = parseJSXTree([
+  it('handles export default arrow function', async () => {
+    const tree = await parseJSXTree([
       'export default () => (',
       '  <Page><div>hi</div></Page>',
       ');',
@@ -128,8 +128,8 @@ describe('parseJSXTree', () => {
     expect(tree[0].name).toBe('Page');
   });
 
-  it('provides correct line numbers', () => {
-    const tree = parseJSXTree([
+  it('provides correct line numbers', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo() {',
       '  return (',
       '    <>',
@@ -145,8 +145,8 @@ describe('parseJSXTree', () => {
     expect(tree[1].line).toBe(5);
   });
 
-  it('handles ternary expressions in JSX', () => {
-    const tree = parseJSXTree([
+  it('handles ternary expressions in JSX', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo({ show }) {',
       '  return (',
       '    <Page>',
@@ -160,8 +160,8 @@ describe('parseJSXTree', () => {
     expect(tree[0].children).toHaveLength(2);
   });
 
-  it('handles .map() callback children', () => {
-    const tree = parseJSXTree([
+  it('handles .map() callback children', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo({ items }) {',
       '  return (',
       '    <Page>',
@@ -178,8 +178,8 @@ describe('parseJSXTree', () => {
     expect(tree[0].children[0].name).toBe('Card');
   });
 
-  it('handles deeply nested structure', () => {
-    const tree = parseJSXTree([
+  it('handles deeply nested structure', async () => {
+    const tree = await parseJSXTree([
       'export default function Foo() {',
       '  return (',
       '    <Page>',

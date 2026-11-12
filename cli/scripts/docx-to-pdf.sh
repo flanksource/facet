@@ -45,6 +45,6 @@ input="$input_directory/$(basename -- "$input")"
 
 script_directory=$(cd -- "$(dirname -- "$0")"
   pwd -P)
-runner="$script_directory/../node_modules/tsx/dist/cli.mjs"
+runner="$script_directory/../node_modules/@oxc-node/cli/dist/index.js"
 [[ -f "$runner" ]] || fail 'Install CLI dependencies first: pnpm --dir cli install'
 exec node "$runner" "$script_directory/word-capture.ts" "$input"

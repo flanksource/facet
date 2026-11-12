@@ -40,7 +40,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   const logger = new Logger(config.verbose);
   const ssrLoaderOwner = {};
 
-  if (config.skipModules) {
+  if (config.skipModules && !process.env.FACET_DEV_ROOT) {
     await installedRuntime();
   }
 

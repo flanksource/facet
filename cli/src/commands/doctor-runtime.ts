@@ -5,6 +5,7 @@ import { installedRuntime, installedRuntimePayload } from '../runtime/installed.
 import { runtimePlatformName } from '../runtime/platform.js';
 import { runtimeCacheRoot } from '../runtime/workspace.js';
 import { toolPath } from '../runtime/tools.js';
+import { devRuntime } from '../runtime/dev.js';
 import type { CheckResult } from './doctor.js';
 
 function failure(id: string, name: string, error: unknown): CheckResult {
@@ -13,6 +14,8 @@ function failure(id: string, name: string, error: unknown): CheckResult {
 
 export function checkGlobalModuleStore(): CheckResult {
   try {
+    const dev = devRuntime();
+    if (dev) return { id: 'global-modules', name: 'Local page runtime', status: 'pass', message: `${dev.facetRoot}; Clicky UI: ${dev.clickyUiRoot}; compiler: ${dev.compiler}` };
     const payload = installedRuntimePayload();
     if (runtimePlatformName(payload.target) !== runtimePlatformName()) throw new Error(`Runtime targets ${runtimePlatformName(payload.target)}; expected ${runtimePlatformName()}`);
     const root = join(runtimeCacheRoot(), 'runtimes', payload.sha256);
@@ -21,7 +24,7 @@ export function checkGlobalModuleStore(): CheckResult {
 }
 
 export async function fixGlobalModuleStore(): Promise<CheckResult> {
-  try { await installedRuntime(); return checkGlobalModuleStore(); }
+  try { if (!process.env.FACET_DEV_ROOT) await installedRuntime(); return checkGlobalModuleStore(); }
   catch (error) { return failure('global-modules', 'Installed page runtime', error); }
 }
 
@@ -32,11 +35,11 @@ export async function checkNativeBindings(): Promise<CheckResult> {
   } catch (error) { return failure('native-bindings', 'Native bindings', error); }
 }
 
-export async function checkTsx(): Promise<CheckResult> {
+export async function checkOxcNode(): Promise<CheckResult> {
   try {
-    const manifest = JSON.parse(readFileSync(await toolPath('tsx/package.json'), 'utf8'));
-    return { id: 'tsx', name: 'tsx', status: 'pass', message: manifest.version };
-  } catch (error) { return failure('tsx', 'tsx', error); }
+    const manifest = JSON.parse(readFileSync(await toolPath('@oxc-node/core/package.json'), 'utf8'));
+    return { id: 'oxc-node', name: 'oxc-node', status: 'pass', message: manifest.version };
+  } catch (error) { return failure('oxc-node', 'oxc-node', error); }
 }
 
 export async function checkTailwindBin(): Promise<CheckResult> {

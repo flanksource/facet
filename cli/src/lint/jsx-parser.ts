@@ -1,181 +1,38 @@
-import * as ts from 'typescript';
-
-export interface JSXNode {
-  name: string;
-  line: number;
-  children: JSXNode[];
-  hasContent: boolean;
+import { children, node, parseProgram, walk, type AstNode } from './parser.js';
+export interface JSXNode { name: string; line: number; children: JSXNode[]; hasContent: boolean }
+export async function parseJSXTree(content: string): Promise<JSXNode[]> {
+  let returned: AstNode | undefined;
+  walk(await parseProgram(content), current => {
+    if (returned || current.type !== 'ExportDefaultDeclaration') return;
+    const declaration = node(current.declaration);
+    if (!declaration) return;
+    const body = node(declaration.body);
+    if (declaration.type === 'ArrowFunctionExpression' && body?.type !== 'BlockStatement') returned = body;
+    else walk(declaration, value => {
+      if (value.type === 'ReturnStatement' && !returned) returned = node(value.argument);
+    });
+  });
+  if (!returned) return [];
+  const out: JSXNode[] = [];
+  collect(returned, content, out);
+  return out;
 }
-
-export function parseJSXTree(content: string): JSXNode[] {
-  const source = ts.createSourceFile('temp.tsx', content, ts.ScriptTarget.Latest, true);
-  const returnJSX = findDefaultExportReturn(source);
-  if (!returnJSX) return [];
-  return extractChildren(returnJSX, source);
-}
-
-function findDefaultExportReturn(source: ts.SourceFile): ts.Expression | undefined {
-  let result: ts.Expression | undefined;
-
-  function visit(node: ts.Node) {
-    if (result) return;
-
-    if (ts.isFunctionDeclaration(node) && hasExportDefault(node)) {
-      result = findReturn(node);
-      return;
-    }
-
-    if (ts.isExportAssignment(node) && ts.isArrowFunction(node.expression)) {
-      result = findReturn(node.expression);
-      return;
-    }
-
-    if (ts.isVariableStatement(node) && hasExportDefault(node)) {
-      const decl = node.declarationList.declarations[0];
-      if (decl?.initializer && ts.isArrowFunction(decl.initializer)) {
-        result = findReturn(decl.initializer);
-      }
-      return;
-    }
-
-    ts.forEachChild(node, visit);
-  }
-
-  visit(source);
-  return result;
-}
-
-function hasExportDefault(node: ts.Node): boolean {
-  const modifiers = ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;
-  if (!modifiers) return false;
-  return modifiers.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
-    && modifiers.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
-}
-
-function findReturn(node: ts.Node): ts.Expression | undefined {
-  let result: ts.Expression | undefined;
-
-  function visit(child: ts.Node) {
-    if (result) return;
-    if (ts.isReturnStatement(child) && child.expression) {
-      result = child.expression;
-      return;
-    }
-    ts.forEachChild(child, visit);
-  }
-
-  if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
-    return node.body;
-  }
-
-  visit(node);
-  return result;
-}
-
-function extractChildren(node: ts.Node, source: ts.SourceFile): JSXNode[] {
-  if (ts.isParenthesizedExpression(node)) {
-    return extractChildren(node.expression, source);
-  }
-
-  if (ts.isJsxFragment(node)) {
-    return node.children
-      .filter((c) => ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c))
-      .map((c) => jsxNodeFrom(c, source));
-  }
-
-  if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
-    return [jsxNodeFrom(node, source)];
-  }
-
-  return [];
-}
-
-function jsxNodeFrom(node: ts.JsxElement | ts.JsxSelfClosingElement, source: ts.SourceFile): JSXNode {
-  const name = getTagName(node);
-  const line = source.getLineAndCharacterOfPosition(node.getStart()).line + 1;
-  const children: JSXNode[] = [];
-  let hasContent = ts.isJsxSelfClosingElement(node);
-
-  if (ts.isJsxElement(node)) {
-    hasContent = appendJsxChildren(node.children, source, children) || hasContent;
-  }
-
-  return { name, line, children, hasContent };
-}
-
-// Fragments carry no structure of their own, so their children are spliced into
-// the parent. Without this, anything inside a `<>…</>` is invisible to the rules.
-function appendJsxChildren(
-  nodes: ts.NodeArray<ts.JsxChild>,
-  source: ts.SourceFile,
-  out: JSXNode[],
-): boolean {
-  let hasContent = false;
-
-  for (const child of nodes) {
-    if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
-      out.push(jsxNodeFrom(child, source));
-      hasContent = true;
-    } else if (ts.isJsxFragment(child)) {
-      appendJsxChildren(child.children, source, out);
-      hasContent = true;
-    } else if (ts.isJsxExpression(child) && child.expression) {
-      collectFromExpression(child.expression, source, out);
-      hasContent = true;
-    } else if (ts.isJsxText(child) && child.text.trim().length > 0) {
-      hasContent = true;
-    }
-  }
-
-  return hasContent;
-}
-
-function collectFromExpression(expr: ts.Expression, source: ts.SourceFile, out: JSXNode[]) {
-  if (ts.isJsxElement(expr) || ts.isJsxSelfClosingElement(expr)) {
-    out.push(jsxNodeFrom(expr, source));
+function collect(value: AstNode, content: string, out: JSXNode[]): void {
+  if (value.type === 'JSXElement') {
+    const opening = node(value.openingElement)!;
+    const tag = node(opening.name)!;
+    const nested: JSXNode[] = [];
+    const items = Array.isArray(value.children) ? value.children : [];
+    for (const child of items) if (node(child)) collect(node(child)!, content, nested);
+    out.push({ name: content.slice(tag.start, tag.end), line: content.slice(0, value.start).split('\n').length,
+      children: nested, hasContent: opening.selfClosing === true || items.some(child => {
+        const item = node(child);
+        if (!item) return false;
+        if (item.type === 'JSXText') return String(item.value).trim().length > 0;
+        if (item.type === 'JSXExpressionContainer') return node(item.expression)?.type !== 'JSXEmptyExpression';
+        return item.type === 'JSXElement' || (item.type === 'JSXFragment' && nested.length > 0);
+      }) });
     return;
   }
-
-  if (ts.isJsxFragment(expr)) {
-    appendJsxChildren(expr.children, source, out);
-    return;
-  }
-
-  if (ts.isConditionalExpression(expr)) {
-    collectFromExpression(expr.whenTrue, source, out);
-    collectFromExpression(expr.whenFalse, source, out);
-    return;
-  }
-
-  if (ts.isCallExpression(expr)) {
-    for (const arg of expr.arguments) {
-      if (ts.isArrowFunction(arg) || ts.isFunctionExpression(arg)) {
-        visitForJSX(arg.body, source, out);
-      }
-    }
-    return;
-  }
-
-  if (ts.isParenthesizedExpression(expr)) {
-    collectFromExpression(expr.expression, source, out);
-  }
-}
-
-function visitForJSX(node: ts.Node, source: ts.SourceFile, out: JSXNode[]) {
-  if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
-    out.push(jsxNodeFrom(node, source));
-    return;
-  }
-  if (ts.isParenthesizedExpression(node)) {
-    visitForJSX(node.expression, source, out);
-    return;
-  }
-  ts.forEachChild(node, (child) => visitForJSX(child, source, out));
-}
-
-function getTagName(node: ts.JsxElement | ts.JsxSelfClosingElement): string {
-  const tag = ts.isJsxElement(node) ? node.openingElement.tagName : node.tagName;
-  if (ts.isIdentifier(tag)) return tag.text;
-  if (ts.isPropertyAccessExpression(tag)) return tag.getText();
-  return tag.getText();
+  for (const child of children(value)) collect(child, content, out);
 }

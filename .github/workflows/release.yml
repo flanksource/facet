@@ -257,7 +257,7 @@ jobs:
       - name: Build library
         run: |
           pnpm run build
-          pnpm exec tsx cli/scripts/pack-library.ts .tmp/facet-library.tgz
+          pnpm exec oxnode cli/scripts/pack-library.ts .tmp/facet-library.tgz
 
       - name: Publish to npm
         run: npm publish .tmp/facet-library.tgz --access public --provenance --ignore-scripts
