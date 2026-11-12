@@ -58,5 +58,7 @@ export interface OfficePage {
   margins: { top: number; right: number; bottom: number; left: number };
   header?: Chrome;
   footer?: Chrome;
+  /** Speaker notes from <SlideNotes>, one paragraph per line. */
+  notes?: string;
 }
 export interface OfficeDocument { title: string; pages: OfficePage[] }

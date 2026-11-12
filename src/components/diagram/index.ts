@@ -1,5 +1,7 @@
 export { default as Diagram } from './Diagram';
 export type { DiagramProps, IdFn } from './Diagram';
+export { default as FitFrame } from './FitFrame';
+export type { FitFrameProps } from './FitFrame';
 export { default as DiagreDiagram } from './DiagreDiagram';
 export type { DiagreDiagramProps, DiagramDirection, DiagramGap } from './DiagreDiagram';
 export { default as BoxNode } from './BoxNode';

@@ -11,6 +11,7 @@ import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { runtimePlatformName } from '../runtime/platform.js';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const requireCjs = createRequire(import.meta.url);
@@ -46,6 +47,8 @@ function seaAssetPath(name: string): string | undefined {
 // where no `assets/` dir exists. Order matters: in an installed package the
 // source-tree path would otherwise collide with the consumer's own package.json.
 const ASSET_CANDIDATES = {
+  'default-runtime.json': ['assets/default-runtime.json', `../../assets/runtimes/${runtimePlatformName()}/default-runtime.json`],
+  'default-runtime.tgz': ['assets/default-runtime.tgz', `../../assets/runtimes/${runtimePlatformName()}/default-runtime.tgz`],
   'package.json': ['assets/package.json', '../../../package.json'],
   'openapi.yaml': ['assets/openapi.yaml', '../../../openapi.yaml'],
   'styles.css': ['assets/styles.css', '../../../dist/styles.css'],
@@ -58,6 +61,7 @@ const ASSET_CANDIDATES = {
   // import here would drop the redaction pass, so it is copied in rather than
   // resolved from the consumer's pinned @flanksource/facet.
   'facet-redact.mjs': ['assets/facet-redact.mjs', '../../../remark/facet-redact.mjs'],
+  'facet-runtime.mjs': ['assets/facet-runtime.mjs', '../../assets/plugins/facet-runtime.mjs'],
   // The oxlint plugin is the root `@flanksource/facet/oxlint` export; the `.mjs` asset name makes
   // oxlint load it as ESM when it is materialised outside the package (SEA temp dir, npm assets/).
   'facet-diagrams.oxlint.mjs': ['assets/facet-diagrams.oxlint.mjs', '../../../oxlint-plugins/facet-diagrams.js'],
@@ -77,6 +81,10 @@ export function assetPath(name: AssetName): string {
   for (const rel of candidates) {
     const candidate = resolve(moduleDir, rel);
     if (existsSync(candidate)) return candidate;
+  }
+  if (name === 'default-runtime.json' || name === 'default-runtime.tgz') {
+    try { return requireCjs.resolve(`@flanksource/facet-runtime-${runtimePlatformName()}/${name}`); }
+    catch (cause) { throw new Error(`Missing installed runtime for ${runtimePlatformName()}; reinstall Facet with optional dependencies enabled or run make build in a source checkout`, { cause }); }
   }
   throw new Error(`Could not locate asset "${name}" relative to ${moduleDir}`);
 }

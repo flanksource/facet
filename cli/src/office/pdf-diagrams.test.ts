@@ -1,11 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from 'puppeteer-core';
-import { readEmfPdf } from '../emf/decode.js';
+import { readEmfPdf } from './emf/decode.js';
 import JSZip from 'jszip';
 import { PDFDocument, PDFName } from 'pdf-lib';
-import { launchBrowser } from '../../utils/pdf-generator.js';
-import { generateOfficeBuffer } from '../index.js';
-import { officeText } from '../../../test/office-xml.js';
+import { launchBrowser } from '../utils/pdf-generator.js';
+import { generateOfficeBuffer } from './index.js';
+import sharp from 'sharp';
+import { officeText } from '../../test/office-xml.js';
+
+const DIAGRAM_WIDTH = 320;
+const DIAGRAM_HEIGHT = 120;
 
 const html = `<html><head><style>
 body {margin:0;font:10pt Arial} figure {margin:0;width:480px;height:180px}
@@ -50,10 +54,36 @@ describe('PDF diagrams in Word documents', () => {
     }
   });
 
-  it('keeps PowerPoint diagram captures as images', async () => {
-    const diagram = '<html><body><figure><div data-facet-ready="true" style="width:320px;height:120px"><svg width="100" height="50"><path d="M0 0L100 50" stroke="blue"/></svg></div></figure></body></html>';
+  const diagram = `<html><body><figure><div data-facet-ready="true" style="width:${DIAGRAM_WIDTH}px;height:${DIAGRAM_HEIGHT}px"><svg width="100" height="50"><path d="M0 0L100 50" stroke="blue"/></svg></div></figure></body></html>`;
+  const media = (zip: JSZip, extension: string) => Object.values(zip.files).filter((file) => new RegExp(`/media/.+\\.${extension}$`).test(file.name));
+
+  it('keeps PowerPoint diagram captures as PNG images by default', async () => {
     const zip = await JSZip.loadAsync(await generateOfficeBuffer({ browser, html: diagram, format: 'pptx' }));
     expect(Object.keys(zip.files).some((path) => path.includes('/embeddings/'))).toBe(false);
-    expect(Object.keys(zip.files).some((path) => /ppt\/media\/.+\.png$/.test(path))).toBe(true);
+    expect(media(zip, 'png')).toHaveLength(1);
+    expect(media(zip, 'emf')).toHaveLength(0);
+  });
+
+  it('embeds PowerPoint figures as PDF-in-EMF pictures with --embed-format pdf', async () => {
+    const zip = await JSZip.loadAsync(await generateOfficeBuffer({ browser, html: diagram, format: 'pptx', embedFormat: 'pdf' }));
+    const [part] = media(zip, 'emf');
+    expect(media(zip, 'emf')).toHaveLength(1);
+    expect(media(zip, 'png')).toHaveLength(0);
+    expect(await zip.file('[Content_Types].xml')!.async('string')).toContain('Extension="emf"');
+    const pdf = await PDFDocument.load(readEmfPdf(await part.async('uint8array'))!);
+    expect(pdf.getPageCount()).toBe(1);
+  });
+
+  it('inserts Word figures as plain PNG pictures with --embed-format png', async () => {
+    const zip = await JSZip.loadAsync(await generateOfficeBuffer({ browser, html: diagram, format: 'docx', embedFormat: 'png' }));
+    expect(media(zip, 'emf')).toHaveLength(0);
+    expect(media(zip, 'png')).toHaveLength(1);
+  });
+
+  it.each([1, 2, 3] as const)('captures PNG visuals at %dx the CSS size with --embed-size', async (embedSize) => {
+    const zip = await JSZip.loadAsync(await generateOfficeBuffer({ browser, html: diagram, format: 'pptx', embedSize }));
+    const [png] = media(zip, 'png');
+    const { width, height } = await sharp(await png.async('nodebuffer')).metadata();
+    expect({ width, height }).toEqual({ width: DIAGRAM_WIDTH * embedSize, height: DIAGRAM_HEIGHT * embedSize });
   });
 });

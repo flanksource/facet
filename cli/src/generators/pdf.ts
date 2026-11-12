@@ -103,6 +103,8 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
       debug: options.debug,
       debugTypography: options.debugTypography,
       fontSize: options.fontSize,
+      embedFormat: options.embedFormat,
+      embedSize: options.embedSize,
       defaultPageSize: pageSizeLayout(options.pageSizeOverride, options.landscape)?.pageSizeOverride ?? options.pageSize,
       landscape: options.landscape,
       margins: options.margins,

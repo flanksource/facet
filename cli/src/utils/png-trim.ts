@@ -88,7 +88,7 @@ export async function measureContentBounds(
   png: Buffer,
   options: { selector: string; consumerRoot?: string },
 ): Promise<ContentBounds> {
-  const sharp = await loadSharp(options.consumerRoot);
+  const sharp = await loadSharp();
   const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
   const image: RawImage = { data, width: info.width, height: info.height, channels: info.channels };
 

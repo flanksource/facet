@@ -11,6 +11,8 @@ export async function renderElementPdf(options: {
   widthMm: number;
   preserveLayout?: boolean;
   viewport?: { width: number; height: number };
+  /** Device pixels per CSS pixel for the PNG capture; layout and the PDF are unaffected. */
+  deviceScaleFactor?: number;
   debugOutputPath?: string;
   capturePng?: boolean;
   preparePage?: (page: Page) => Promise<void>;
@@ -19,7 +21,7 @@ export async function renderElementPdf(options: {
   if (![widthMm, heightMm].every((value) => Number.isFinite(value) && value > 0)) throw new Error(`Invalid PDF overlay dimensions: ${widthMm}x${heightMm}mm`);
   const page = await options.browser.newPage();
   try {
-    await page.setViewport(options.viewport ?? { width: Math.round(widthMm * 96 / 25.4), height: Math.round(heightMm * 96 / 25.4) });
+    await page.setViewport({ ...(options.viewport ?? { width: Math.round(widthMm * 96 / 25.4), height: Math.round(heightMm * 96 / 25.4) }), deviceScaleFactor: options.deviceScaleFactor ?? 1 });
     await setPreparedContent(page, html);
     await page.emulateMediaType(options.preserveLayout ? 'screen' : 'print');
     await page.evaluate(({ selector, heightMm, widthMm, preserveLayout }) => {

@@ -1,17 +1,35 @@
 import type { Block, Border, Box, Cell, Chrome, Group, Insets, Line, OfficeDocument, Paragraph, Run, TextStyle } from './model.js';
 
+export interface OfficeDOMOptions {
+  format: 'docx' | 'pptx';
+  /** pdf captures `embedSelector` matches as PDF artwork; png screenshots every visual. */
+  embedFormat: 'pdf' | 'png';
+  embedSelector: string;
+}
+
 // This function is serialized into Chromium; keep runtime dependencies inside it.
-export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument {
+export function readOfficeDOM({ format, embedFormat, embedSelector }: OfficeDOMOptions): OfficeDocument {
   const media = new Map<Element, string>();
   const listIds = new Map<Element, string>();
   const hidden = (el: Element): boolean => {
     const css = getComputedStyle(el);
     return css.display === 'none' || css.visibility === 'hidden' || css.opacity === '0' || el.hasAttribute('hidden');
   };
+  const colors = new Map<string, string | undefined>();
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 1;
+  const context = canvas.getContext('2d', { willReadFrequently: true, colorSpace: 'srgb' });
+  if (!context) throw new Error('Office color conversion requires a 2D canvas');
   const color = (value: string): string | undefined => {
-    const rgba = value.match(/[\d.]+/g)?.map(Number);
-    if (!rgba || rgba.length < 3 || rgba[3] === 0) return undefined;
-    return rgba.slice(0, 3).map((part) => Math.round(part).toString(16).padStart(2, '0')).join('').toUpperCase();
+    if (colors.has(value)) return colors.get(value);
+    if (!CSS.supports('color', value)) throw new Error(`Invalid Office color: ${value}`);
+    context.clearRect(0, 0, 1, 1);
+    context.fillStyle = value;
+    context.fillRect(0, 0, 1, 1);
+    const rgba = context.getImageData(0, 0, 1, 1).data;
+    const hex = rgba[3] === 0 ? undefined : Array.from(rgba.slice(0, 3), channel => channel.toString(16).padStart(2, '0')).join('').toUpperCase();
+    colors.set(value, hex);
+    return hex;
   };
   const style = (el: Element): TextStyle => {
     const css = getComputedStyle(el);
@@ -106,7 +124,7 @@ export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument 
     if (format === 'docx' && el.tagName === 'MAIN' && el.parentElement?.hasAttribute('data-page-size')) return children(el, origin);
     if (el.matches('input,button,select,textarea,video,audio,iframe,object,embed')) throw new Error(`Unsupported Office content: ${source(el)}`);
     if (el.classList.contains('page-break')) return [{ kind: 'break' }];
-    const pdf = format === 'docx' && el.matches('figure,[data-facet-ready],[data-facet-diagram],[data-facet-flow-diagram]');
+    const pdf = embedFormat === 'pdf' && el.matches(embedSelector);
     if (pdf || el.matches('svg,canvas,img,[data-facet-ready]')) {
       if (el instanceof HTMLImageElement && (!el.complete || !el.naturalWidth)) throw new Error(`Office image failed to load: ${el.getAttribute('src')}`);
       const mediaId = media.get(el) ?? `office-media-${media.size}`;
@@ -215,6 +233,15 @@ export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument 
     return { blocks: format === 'docx' || height === 0 ? [] : read(el, el.getBoundingClientRect(), true), height,
       selector: `[data-${kind}-type="${el.getAttribute(`data-${kind}-type`)}"]` };
   };
+  // <SlideNotes> is hidden, so readElement skips it; its paragraphs become the page's speaker notes.
+  const slideNotes = (root: Element): string | undefined => {
+    const clean = (text: string | null): string => (text ?? '').replace(/\s+/g, ' ').trim();
+    const lines = Array.from(root.querySelectorAll('[data-facet-slide-notes-body]')).flatMap((notes) => {
+      const blocks = Array.from(notes.querySelectorAll('p,li'));
+      return (blocks.length ? blocks : [notes]).map((block) => clean(block.textContent));
+    }).filter(Boolean);
+    return lines.length ? lines.join('\n') : undefined;
+  };
   const roots = Array.from(document.querySelectorAll('[data-page-size]'));
   if (!roots.length) roots.push(document.body);
   const pages = roots.map((root) => {
@@ -228,7 +255,7 @@ export function readOfficeDOM(format: 'docx' | 'pptx' = 'docx'): OfficeDocument 
       size: root.getAttribute('data-page-size') ?? 'a4',
       blocks: read(root, root.getBoundingClientRect()), width: root.getBoundingClientRect().width, height: root.getBoundingClientRect().height,
       margins: { top: margin('top'), right: margin('right'), bottom: margin('bottom'), left: margin('left') },
-      header: chrome('header', type), footer: chrome('footer', type),
+      header: chrome('header', type), footer: chrome('footer', type), notes: slideNotes(root),
     };
   });
   return { title: document.title, pages };
