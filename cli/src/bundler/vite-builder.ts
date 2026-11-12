@@ -8,8 +8,7 @@
 
 import { selfExecBase } from '../utils/self-exec.js';
 import { join, resolve } from 'path';
-import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
+import { writeFileSync, readFileSync, mkdtempSync, rmSync, symlinkSync, lstatSync, readlinkSync } from 'fs';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory, resolveFacetPackageOverride } from '../builders/facet-directory.js';
 import { readRemarkFrontmatter } from '../utils/frontmatter.js';
@@ -18,10 +17,16 @@ import { RenderProfiler, RenderTimings } from '../utils/performance.js';
 import { computeTemplateBuildKey, pruneBuildCache } from './build-cache.js';
 import { VERSION } from '../version-generated.js';
 import { runPersistentSsrLoader } from './ssr-pool.js';
-import { assetPath } from '../utils/assets.js';
-import { ensureGlobalModuleStore, prepareProjectModules } from './module-store.js';
+import { installModules } from '../runtime/install.js';
+import { ensureEnvironment } from '../runtime/environment.js';
+import { installedRuntime, installedRuntimePayload } from '../runtime/installed.js';
+import { payloadSatisfies } from '../runtime/payload.js';
+import { compilationWorkspace, runtimeCacheRoot } from '../runtime/workspace.js';
 import { spawnLowPriority } from '../utils/subprocess-priority.js';
 import { AbortLock } from '../utils/abort-lock.js';
+import { compileEnvironment } from '../runtime/compiled.js';
+import { pathToFileURL } from 'node:url';
+import { assetPath } from '../utils/assets.js';
 
 export interface BuildResult {
   html: string;
@@ -43,6 +48,7 @@ export interface BuildOptions {
   redact?: RedactPolicy;
   skipModules?: boolean;
   signal?: AbortSignal;
+  clearCache?: boolean;
 }
 
 interface LoaderResult {
@@ -58,24 +64,33 @@ export async function prepareModules(
   facetDir: FacetDirectory,
   logger: Logger,
   skipModules = false,
+  clearCache = false,
 ): Promise<void> {
   const facetRoot = facetDir.getFacetRoot();
-  const facetPackage = JSON.parse(readFileSync(assetPath('package.json'), 'utf-8'));
-  const override = resolveFacetPackageOverride();
-  const seed = await ensureGlobalModuleStore({
-    facetVersion: VERSION,
-    facetPackage,
-    logger,
-    facetTarball: skipModules && override?.kind === 'tarball' ? override.path : undefined,
-  });
-  await prepareProjectModules({
-    consumerRoot: resolve(facetRoot, '..'),
-    facetRoot,
-    seed,
-    logger,
-    skipModules,
-  });
-  if (!skipModules) facetDir.linkConsumerNodeModules();
+  try {
+    const manifest = JSON.parse(readFileSync(join(facetRoot, 'package.json'), 'utf8'));
+    const override = resolveFacetPackageOverride();
+    const useInstalled = skipModules || (!override && payloadSatisfies(installedRuntimePayload(), manifest));
+    const runtime = await (useInstalled ? installedRuntime() : ensureEnvironment({
+      cacheRoot: runtimeCacheRoot(),
+      manifest,
+      npmrc: readFileSync(join(facetRoot, '.npmrc'), 'utf8'),
+      logger,
+      install: root => installModules(root, logger),
+      invalidate: clearCache,
+    }));
+    logger.debug(`Selected ${useInstalled ? 'installed' : 'cached dependency'} runtime ${runtime.identity} at ${runtime.root}`);
+    const compiled = await compileEnvironment(runtime);
+    writeFileSync(join(facetRoot, 'runtime.json'), JSON.stringify(compiled));
+    writeFileSync(join(facetRoot, 'facet-runtime.mjs'), readFileSync(assetPath('facet-runtime.mjs'), 'utf8').replace("'__FACET_RUNTIME_COMPILER__'", JSON.stringify(pathToFileURL(compiled.compiler).href)));
+    const modules = join(facetRoot, 'node_modules');
+    try {
+      if (!lstatSync(modules).isSymbolicLink()) throw new Error(`Expected a runtime dependency link at ${modules}`);
+      if (readlinkSync(modules) === runtime.nodeModules) return;
+      rmSync(modules);
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+    symlinkSync(runtime.nodeModules, modules, 'junction');
+  } finally { rmSync(join(facetRoot, '.npmrc'), { force: true }); }
 }
 
 // Patterns that indicate the loader failed because a *package* (not a relative
@@ -184,8 +199,7 @@ function runLoaderOnce(args: LoaderArgs, logger: Logger): Promise<{ stderr?: Buf
   });
 }
 
-async function runLoaderWithRetry(
-  facetDir: FacetDirectory,
+async function loadTemplate(
   args: LoaderArgs,
   logger: Logger,
   skipModules: boolean,
@@ -206,16 +220,7 @@ async function runLoaderWithRetry(
         `This mode only provides Facet's default packages; rerun without --skip-modules for consumer dependencies.\n${deduplicateOutput(raw)}`,
       );
     }
-    logger.warn('Loader failed with missing-dep signature; rebuilding .facet/ once.');
-    facetDir.nukeInstall();
-    await prepareModules(facetDir, logger);
-    try {
-      await runLoaderOnce(args, logger);
-      return JSON.parse(readFileSync(args.resultFilePath, 'utf-8'));
-    } catch (secondErr: any) {
-      const out = secondErr?.stderr?.toString?.() || String(secondErr);
-      throw new Error(`Vite SSR build failed after .facet/ rebuild:\n${deduplicateOutput(out)}`);
-    }
+    throw new Error(`Vite SSR build failed:\n${deduplicateOutput(stderr || String(firstErr))}`);
   }
 }
 
@@ -236,6 +241,7 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
   // Setup .facet/ directory
   const facetDir = new FacetDirectory({
     consumerRoot,
+    buildRoot: compilationWorkspace({ consumerRoot, templatePath, skipModules: options.skipModules, redact: options.redact, invalidate: options.clearCache }),
     templateFile: templatePath,
     logger,
     remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
@@ -254,6 +260,10 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
     facetDir.generatePostCSSConfig();
   });
 
+  await timings.measure('dependency-install', () =>
+    profiler.measure('dependencies', () => prepareModules(facetDir, logger, options.skipModules, options.clearCache)));
+  facetDir.copyStylesCss();
+
   // Keyed after scaffolding so the generated config participates: a config
   // change at an unchanged facet version must not reuse stale SSR bundles.
   const buildCacheKey = await profiler.measure('build-cache-key', async () => computeTemplateBuildKey({
@@ -271,14 +281,9 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
 
   const facetRoot = facetDir.getFacetRoot();
 
-  // Link the immutable shared store directly, or clone it and reconcile the
-  // generated project manifest when consumer dependencies are enabled.
-  await timings.measure('dependency-install', () =>
-    profiler.measure('dependencies', () => prepareModules(facetDir, logger, options.skipModules)));
-
-  // Re-exec the CLI as an SSR loader subprocess (Vite runs from .facet/).
+  // Re-exec the CLI against the selected cached runtime.
   logger.info('Loading template with Vite SSR...');
-  const tmpDir = mkdtempSync(join(tmpdir(), 'facet-'));
+  const tmpDir = mkdtempSync(join(facetRoot, 'request-'));
   const dataFilePath = join(tmpDir, 'data.json');
   const resultFilePath = join(tmpDir, 'result.json');
   writeFileSync(dataFilePath, JSON.stringify(data));
@@ -292,8 +297,7 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
             logger.warn(`Persistent SSR loader failed; falling back to one-shot loader: ${error instanceof Error ? error.message : String(error)}`);
           }
         }
-        return runLoaderWithRetry(
-          facetDir,
+        return loadTemplate(
           { facetRoot, dataFilePath, resultFilePath, cacheKey: buildCacheKey, sandbox: options.sandbox },
           logger,
           options.skipModules ?? false,

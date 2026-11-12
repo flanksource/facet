@@ -9,10 +9,12 @@
 
 import type { ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
-import { realpathSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { realpathSync, rmSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { join, resolve } from 'node:path';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory } from '../builders/facet-directory.js';
+import { compilationWorkspace } from '../runtime/workspace.js';
 import { prepareModules } from './vite-builder.js';
 import { selfExecBase } from '../utils/self-exec.js';
 import { readRemarkFrontmatter } from '../utils/frontmatter.js';
@@ -29,6 +31,7 @@ export interface ViteServerOptions {
   redact?: RedactPolicy;
   skipModules?: boolean;
   signal?: AbortSignal;
+  clearCache?: boolean;
 }
 
 export interface ViteServer {
@@ -48,63 +51,70 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
   options.signal?.throwIfAborted();
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
   const timings = options.timings ?? new RenderTimings();
+  const buildRoot = join(compilationWorkspace({ consumerRoot, templatePath, skipModules: options.skipModules, redact: options.redact, invalidate: options.clearCache }), 'live', randomUUID());
 
-  const facetDir = new FacetDirectory({
-    consumerRoot,
-    templateFile: templatePath,
-    logger,
-    remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
-    redact: options.redact,
-    skipModules: options.skipModules,
-  });
-  facetDir.create();
-  await facetDir.generatePackageJson();
-  facetDir.symlinkConsumerFiles();
-  facetDir.copyStylesCss();
-  facetDir.generateEntryWrapper();
-  facetDir.generateTsConfig();
-  facetDir.generateClientScaffold(data);
-
-  await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules));
-  options.signal?.throwIfAborted();
-
-  const facetRoot = realpathSync(facetDir.getFacetRoot());
-
-  logger.info('Starting Vite dev server for live render...');
-  const { proc, url } = await timings.measure('vite', async () => {
-    const [cmd, ...baseArgs] = selfExecBase();
-    const proc = spawnLowPriority({
-      command: cmd,
-      args: [...baseArgs, `--facet-root=${facetRoot}`],
-      options: {
-        cwd: facetRoot,
-        env: { ...process.env, FACET_LOADER: 'dev' },
-        stdio: ['ignore', 'pipe', 'inherit'],
-      },
+  try {
+    const facetDir = new FacetDirectory({
+      consumerRoot,
+      buildRoot,
+      templateFile: templatePath,
+      logger,
+      remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
+      redact: options.redact,
+      skipModules: options.skipModules,
     });
-    return { proc, url: await readHandshake(proc, options.signal) };
-  });
-  logger.debug(`Vite dev server ready at ${url}`);
+    facetDir.create();
+    await facetDir.generatePackageJson();
+    facetDir.symlinkConsumerFiles();
+    facetDir.copyStylesCss();
+    facetDir.generateEntryWrapper();
+    facetDir.generateTsConfig();
+    facetDir.generateClientScaffold(data);
 
-  return {
-    url,
-    close: async () => {
-      try {
-        if (proc.exitCode === null && proc.signalCode === null) {
-          proc.kill();
-          await Promise.race([
-            once(proc, 'exit'),
-            new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
-          ]);
+    await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules, options.clearCache));
+    facetDir.copyStylesCss();
+    options.signal?.throwIfAborted();
+
+    const facetRoot = realpathSync(facetDir.getFacetRoot());
+
+    logger.info('Starting Vite dev server for live render...');
+    const { proc, url } = await timings.measure('vite', async () => {
+      const [cmd, ...baseArgs] = selfExecBase();
+      const proc = spawnLowPriority({
+        command: cmd,
+        args: [...baseArgs, `--facet-root=${facetRoot}`],
+        options: {
+          cwd: facetRoot,
+          env: { ...process.env, FACET_LOADER: 'dev' },
+          stdio: ['ignore', 'pipe', 'inherit'],
+        },
+      });
+      return { proc, url: await readHandshake(proc, options.signal) };
+    });
+    logger.debug(`Vite dev server ready at ${url}`);
+
+    return {
+      url,
+      close: async () => {
+        try {
           if (proc.exitCode === null && proc.signalCode === null) {
-            proc.kill('SIGKILL');
+            proc.kill();
+            await Promise.race([
+              once(proc, 'exit'),
+              new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+            ]);
+            if (proc.exitCode === null && proc.signalCode === null) {
+              proc.kill('SIGKILL');
+              await once(proc, 'exit');
+            }
           }
+        } catch (err) {
+          logger.warn(`Failed to stop Vite dev server: ${err instanceof Error ? err.message : String(err)}`);
         }
-      } catch (err) {
-        logger.warn(`Failed to stop Vite dev server: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    },
-  };
+        if (proc.exitCode !== null || proc.signalCode !== null) rmSync(buildRoot, { recursive: true, force: true });
+      },
+    };
+  } catch (error) { rmSync(buildRoot, { recursive: true, force: true }); throw error; }
 }
 
 /** Read the dev server's stdout until the FACET_DEV_URL handshake line appears. */

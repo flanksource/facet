@@ -9,6 +9,7 @@ const roots: string[] = [];
 function project(): string {
   const root = mkdtempSync(join(tmpdir(), 'facet-build-key-'));
   roots.push(root);
+  vi.stubEnv('FACET_CACHE_DIR', join(root, '.cache'));
   mkdirSync(join(root, 'src'));
   writeFileSync(join(root, 'package.json'), '{"name":"test"}');
   writeFileSync(join(root, 'src', 'Template.tsx'), 'export default () => <div />');
@@ -16,6 +17,7 @@ function project(): string {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -80,12 +82,11 @@ describe('computeTemplateBuildKey', () => {
 
   it('reuses the content digest from disk across process restarts', async () => {
     const root = project();
-    mkdirSync(join(root, '.facet'));
     const stats: import('./build-cache.js').BuildKeyStats[] = [];
     const options = { consumerRoot: root, facetVersion: '1', onStats: (s: import('./build-cache.js').BuildKeyStats) => stats.push(s) };
 
     const first = computeTemplateBuildKey(options);
-    expect(existsSync(join(root, '.facet', 'build-key-cache.json'))).toBe(true);
+    expect(existsSync(join(root, '.facet'))).toBe(false);
 
     vi.resetModules();
     const fresh = await import('./build-cache.js');

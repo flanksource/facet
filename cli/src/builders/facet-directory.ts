@@ -17,7 +17,6 @@ import { mkdirSync, existsSync, symlinkSync, writeFileSync, readdirSync, statSyn
 import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname, sep } from 'path';
 import { homedir } from 'os';
-import { load as loadYAML } from 'js-yaml';
 import type { Logger } from '../utils/logger.js';
 import {
   generatePluginCodegen,
@@ -29,18 +28,21 @@ import {
 } from './remark-config.js';
 
 import { assetPath } from '../utils/assets.js';
-import { createDefaultModulePackageJson, defaultModuleNpmrc } from '../bundler/module-store.js';
+import { createDefaultModulePackageJson, defaultModuleNpmrc, REQUIRED_DEPENDENCIES } from '../runtime/manifest.js';
 import { VERSION } from '../version-generated.js';
+import { dependencyManifest } from '../runtime/dependencies.js';
 import { LowPriorityProcessError, runLowPriority } from '../utils/subprocess-priority.js';
 import { SHARP_VERSION } from '../utils/sharp.js';
 import { PDFJS_VERSION, PDFJS_CANVAS_VERSION } from '../utils/pdfjs.js';
 import { pageStyles, wrapFacetStylesInLayer } from '../../../dist/page-styles/index.mjs';
 export { wrapFacetStylesInLayer } from '../../../dist/page-styles/index.mjs';
-import { resolveConsumerDependencies } from './consumer-dependencies.js';
+import { resolveConsumerDependencies, readWorkspaceOverrides, resolveOverrideValues } from './consumer-dependencies.js';
+import { computeTemplateBuildKey } from '../bundler/build-cache.js';
 
 const rootPackageJson = assetPath('package.json');
 
 export interface FacetDirectoryOptions {
+  buildRoot?: string;
   /** Consumer's project root directory */
   consumerRoot: string;
   /** Template file to build */
@@ -87,22 +89,12 @@ function shouldSkipConsumerItem(item: string): boolean {
 
 // Embedded in the generated vite configs so an unsupported tailwindcss fails
 // the first build step, before the SSR bundle runs, rather than mid-pipeline.
-const TAILWIND_V4_GUARD = `const facetRequire = createRequire(import.meta.url);
+const TAILWIND_V4_GUARD = `const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const facetRequire = createRequire(import.meta.url);
 const tailwindVersion = facetRequire('tailwindcss/package.json').version;
 if (Number(tailwindVersion.split('.')[0]) !== 4) {
   throw new Error(\`Found tailwindcss \${tailwindVersion}; facet requires Tailwind CSS v4 (with @tailwindcss/vite). Upgrade tailwindcss to ^4 and install @tailwindcss/vite.\`);
 }`;
-
-// pnpm/npm protocols whose value is a path relative to the declaring package.json.
-const LOCAL_PATH_PROTOCOLS = ['file:', 'link:', 'portal:'] as const;
-
-// Emit an absolute path for a local-path dependency. .facet/package.json lives one level below the consumer, so a
-// relative link:/portal: path would resolve against the wrong directory, and pnpm realpath-resolves the install dir
-// (e.g. /var → /private/var on macOS), which breaks relative file: deps that point outside the tempdir root.
-function resolveFileProtocol(version: string, pkgDir: string): string {
-  const proto = LOCAL_PATH_PROTOCOLS.find((candidate) => version.startsWith(candidate));
-  return proto ? proto + resolve(pkgDir, version.slice(proto.length)) : version;
-}
 
 export interface FacetPackageOverride {
   kind: 'directory' | 'tarball';
@@ -275,68 +267,6 @@ export function localFacetBuildFingerprint(packageRoot: string): string {
   return hash.digest('hex').slice(0, 20);
 }
 
-// Resolve any pnpm/npm local-path protocol (file:, link:, portal:) to an
-// absolute form anchored at `pkgDir`, so the reference survives being rewritten
-// into `.facet/package.json` which lives at a different depth.
-//
-// `workspace:` is rejected: it resolves through pnpm-workspace.yaml, but
-// .facet/ is built with `--ignore-workspace` and has no workspace context, so
-// passing it through would surface as a confusing pnpm error at install time.
-function resolveLocalProtocol(version: string, pkgDir: string): string {
-  if (version.startsWith('workspace:')) {
-    throw new Error(
-      `facet overrides cannot use the "workspace:" protocol (got "${version}"): ` +
-      `.facet/ installs run with --ignore-workspace and have no pnpm-workspace.yaml. ` +
-      `Use a concrete version, or a file:/link:/portal: path that points at the workspace package.`
-    );
-  }
-  return resolveFileProtocol(version, pkgDir);
-}
-
-/**
- * pnpm 11 moved `overrides` out of `package.json`'s `pnpm` field and into
- * `pnpm-workspace.yaml`. A consumer on pnpm 11 therefore has overrides that are
- * invisible to a reader that only looks at package.json — and because the
- * staging install runs inside the consumer root, pnpm still *applies* them while
- * the seeded lockfile knows nothing about them. That mismatch surfaces as
- * ERR_PNPM_LOCKFILE_CONFIG_MISMATCH at install time.
- *
- * Reading them here keeps `.facet/package.json` agreeing with the pnpm that
- * installs it, on both the pnpm 10 and pnpm 11 layouts.
- */
-function readWorkspaceOverrides(consumerRoot: string): Record<string, unknown> | undefined {
-  const workspacePath = join(consumerRoot, 'pnpm-workspace.yaml');
-  if (!existsSync(workspacePath)) return undefined;
-
-  const workspace = loadYAML(readFileSync(workspacePath, 'utf-8'));
-  if (!workspace || typeof workspace !== 'object') return undefined;
-
-  const overrides = (workspace as { overrides?: unknown }).overrides;
-  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return undefined;
-  return overrides as Record<string, unknown>;
-}
-
-// Resolve every local-path protocol inside an overrides-shaped record
-// (pnpm.overrides / resolutions / overrides). Keeps nested object overrides
-// (targeted shape: `{ "pkg": { ".": "1.2.3" } }`) structurally intact.
-function resolveOverrideValues(
-  overrides: Record<string, unknown> | undefined,
-  pkgDir: string,
-): Record<string, unknown> | undefined {
-  if (!overrides || typeof overrides !== 'object') return undefined;
-  const out: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(overrides)) {
-    if (typeof val === 'string') {
-      out[key] = resolveLocalProtocol(val, pkgDir);
-    } else if (val && typeof val === 'object') {
-      out[key] = resolveOverrideValues(val as Record<string, unknown>, pkgDir);
-    } else {
-      out[key] = val;
-    }
-  }
-  return out;
-}
-
 /**
  * Build the `window.__FACET_DATA__ = ...;` payload for the live-render scaffold.
  * Escapes `<` and the U+2028/U+2029 line separators so data containing
@@ -362,7 +292,7 @@ export class FacetDirectory {
 
   constructor(options: FacetDirectoryOptions) {
     this.consumerRoot = options.consumerRoot;
-    this.facetRoot = join(this.consumerRoot, '.facet');
+    this.facetRoot = options.buildRoot ?? join(this.consumerRoot, '.facet');
     this.facetSrc = join(this.facetRoot, 'src');
     this.templateFile = options.templateFile;
     this.logger = options.logger;
@@ -377,9 +307,19 @@ export class FacetDirectory {
    * and the rehypePlugins array. Local plugin paths resolve relative to
    * the template file's directory.
    */
+  /**
+   * The redaction policy compiled into the bundle for the runtime `<Classified>`, which
+   * applies it to TSX content the remark plugin never sees. Always emitted — the empty
+   * policy when none is given — so a classified render fails closed instead of guessing.
+   */
+  private redactDefine(): string {
+    return `define: { __FACET_REDACT__: ${JSON.stringify(JSON.stringify(this.redact ?? { allow: {} }))} },`;
+  }
+
   /** Copied beside the generated config so `./facet-redact.mjs` resolves. */
   private copyRedactPlugin(): void {
     copyFileSync(assetPath('facet-redact.mjs'), join(this.facetRoot, 'facet-redact.mjs'));
+    copyFileSync(assetPath('facet-runtime.mjs'), join(this.facetRoot, 'facet-runtime.mjs'));
   }
 
   private mdxPluginSource(): { imports: string; remarkArray: string; rehypeArray: string } {
@@ -467,69 +407,6 @@ export class FacetDirectory {
     }
   }
 
-  /**
-   * Symlink node_modules from consumer root to .facet/
-   */
-  symlinkNodeModules(): void {
-    this.logger.debug('Symlinking node_modules');
-
-    const source = join(this.consumerRoot, 'node_modules');
-    const target = join(this.facetRoot, 'node_modules');
-
-    if (!existsSync(source)) {
-      this.logger.warn('node_modules not found in consumer directory');
-      return;
-    }
-
-    try {
-      // Check if symlink already exists
-      if (existsSync(target)) {
-        try {
-          const existingTarget = readlinkSync(target);
-          if (existingTarget === source) {
-            this.logger.debug('node_modules symlink already exists');
-            return;
-          }
-          rmSync(target, { force: true });
-        } catch {
-          rmSync(target, { recursive: true, force: true });
-        }
-      }
-
-      symlinkSync(source, target, 'junction');
-      this.logger.debug('Symlinked node_modules');
-    } catch (error) {
-      throw new Error(`Failed to symlink node_modules: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /**
-   * Expose .facet/node_modules at the consumer root when the consumer has no
-   * install of its own. Vite resolves the symlinked template files in
-   * .facet/src/ to their real paths under the consumer root, so their bare
-   * imports resolve by walking up from there — which needs a node_modules.
-   */
-  linkConsumerNodeModules(): void {
-    const link = join(this.consumerRoot, 'node_modules');
-    const target = join(this.facetRoot, 'node_modules');
-
-    try {
-      const existing = lstatSync(link, { throwIfNoEntry: false });
-      if (existing) {
-        if (!existing.isSymbolicLink()) {
-          // The consumer has its own install; leave it alone.
-          return;
-        }
-        if (readlinkSync(link) === target) return;
-        unlinkSync(link);
-      }
-
-      symlinkSync(target, link, 'junction');
-      this.logger.debug('Symlinked consumer node_modules to .facet/node_modules');
-    } catch (error) {
-      this.logger.warn(`Failed to link consumer node_modules: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
 
   /**
    * Generate entry.tsx wrapper that imports the user's template
@@ -544,26 +421,29 @@ export class FacetDirectory {
     const entry = isMarkdown
       ? `import React from 'react';
 import './facet.css';
-import { Page } from '@flanksource/facet';
+import { Page, RedactPolicyProvider } from '@flanksource/facet';
 import { Icon } from '@iconify/react';
 import Content from './src/${templateRelPath}';
 
 export default function Template({ data }) {
   return (
-    <Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+    <RedactPolicyProvider policy={${JSON.stringify(this.redact ?? { allow: {} })}}><Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>
       <article className="prose">
         <Content components={{ Icon }} {...data} />
       </article>
-    </Page>
+    </Page></RedactPolicyProvider>
   );
 }
 `
       : `import React from 'react';
 import './facet.css';
+import { RedactPolicyProvider } from '@flanksource/facet';
 import Template from './src/${templateRelPath}';
 
 
-export default Template;
+export default function Entry(props) {
+  return <RedactPolicyProvider policy={${JSON.stringify(this.redact ?? { allow: {} })}}><Template {...props} /></RedactPolicyProvider>;
+}
 `;
 
     const entryPath = join(this.facetRoot, 'entry.tsx');
@@ -582,6 +462,9 @@ export default Template;
     const { imports, remarkArray, rehypeArray } = this.mdxPluginSource();
     const config = `
 import { defineConfig } from 'vite';
+import { facetRuntimePlugin } from './facet-runtime.mjs';
+import * as viteNs from 'vite';
+import tailwind from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import mdx from '@mdx-js/rollup';
 import remarkGfm from 'remark-gfm';
@@ -595,7 +478,7 @@ import { createRequire } from 'module';${imports}
 ${TAILWIND_V4_GUARD}
 
 export default defineConfig(async () => {
-  const tailwindPlugins = [(await import('@tailwindcss/vite')).default()];
+  const tailwindPlugins = [tailwind()];
   const mdxPlugin = {
     enforce: 'pre',
     ...mdx({
@@ -615,12 +498,14 @@ export default defineConfig(async () => {
   // Rolldown crosses the native->JS boundary for every module unless a hook
   // declares a filter (the plugin's own include only filters inside JS). With
   // zero markdown files this dispatch tax was measured at 76% of build time.
-  const viteNs = await import('vite');
   if (viteNs.rolldownVersion && typeof mdxPlugin.transform === 'function') {
     mdxPlugin.transform = { filter: { id: /\\.(md|mdx)$/ }, handler: mdxPlugin.transform };
   }
   return {
+  ${this.redactDefine()}
+  cacheDir: resolve(__dirname, '.vite'),
   plugins: [
+    { ...await facetRuntimePlugin(__dirname, 'node'), enforce: 'pre' },
     ...tailwindPlugins,
     mdxPlugin,
     react({
@@ -631,34 +516,16 @@ export default defineConfig(async () => {
     // Resolve symlinks to real paths so pnpm's symlinked transitive deps stay
     // reachable; dedupe keeps a single React copy across the symlinked packages.
     dedupe: ['react', 'react-dom'],
-    preserveSymlinks: ${this.skipModules},
+    preserveSymlinks: true,
     alias: [
-      { find: new RegExp('^@flanksource/facet(?:/.*)?$'), replacement: '$&', customResolver(source) { return fileURLToPath(import.meta.resolve(source)); } },
-      { find: '@facet/core', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
-      { find: '@facet', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
+      { find: '@facet/core', replacement: '@flanksource/facet' },
+      { find: '@facet', replacement: '@flanksource/facet' },
       { find: '@src', replacement: resolve(__dirname, 'src') },
-      { find: 'react-icons', replacement: resolve(__dirname, 'node_modules/react-icons') },
     ],
     conditions: ['import', 'module', 'browser', 'default'],
   },
   ssr: {
-    // Icon libraries are dual CJS/ESM with no CSS side effects and megabyte-scale
-    // generated modules; bundling them was 92% of SSR build input. They resolve
-    // at render time from .facet/node_modules instead (output byte-identical).
-    // @flanksource/facet stays bundled: externalizing it changes rendered HTML.
-    //
-    // Icon *data* packages are the exception. The SSR bundle is CJS, so an
-    // externalized dependency is require()d, and a module whose only export is
-    // a default arrives as the namespace — { __esModule, default } — rather
-    // than the value. Iconify icon data is exactly that shape, so an
-    // externalized glyph renders as an empty <svg> with no error. They are
-    // small, so bundling them costs little of what externalizing icons saved.
-    noExternal: [
-      '@flanksource/facet',
-      new RegExp('^@flanksource/(?:$|[^i]|i(?:$|[^c]|c(?:$|[^o]|o(?:$|[^n]|n(?:$|[^s])))))'),
-      new RegExp('^@iconify-icons/'),
-      new RegExp('^@iconify/'),
-    ],
+    noExternal: true,
     resolve: {
       conditions: ['node', 'import', 'module', 'browser', 'default'],
       externalConditions: ['node'],
@@ -673,13 +540,11 @@ export default defineConfig(async () => {
       entry: resolve(__dirname, 'entry.tsx'),
       name: 'DatasheetApp',
       fileName: 'bundle',
-      formats: ['cjs'],
+      formats: ['es'],
     },
     rollupOptions: {
-      external: ['react', 'react-dom'],
       output: {
-        exports: 'default',
-        // One bundle: the SSR loader requires a single .cjs and renders synchronously.
+        entryFileNames: 'bundle.mjs',
         inlineDynamicImports: true,
       },
     },
@@ -739,6 +604,8 @@ root.render(React.createElement(Template, { data }));
     const { imports, remarkArray, rehypeArray } = this.mdxPluginSource();
     const config = `
 import { defineConfig } from 'vite';
+import { facetRuntimePlugin } from './facet-runtime.mjs';
+import tailwind from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import mdx from '@mdx-js/rollup';
 import remarkGfm from 'remark-gfm';
@@ -752,7 +619,7 @@ import { createRequire } from 'module';${imports}
 ${TAILWIND_V4_GUARD}
 
 export default defineConfig(async () => {
-  const tailwindPlugins = [(await import('@tailwindcss/vite')).default()];
+  const tailwindPlugins = [tailwind()];
   const mdxPlugin = {
     enforce: 'pre',
     ...mdx({
@@ -770,7 +637,11 @@ export default defineConfig(async () => {
     };
   }
   return {
+  ${this.redactDefine()}
+  cacheDir: resolve(__dirname, '.vite'),
+  optimizeDeps: { noDiscovery: true, include: [] },
   plugins: [
+    { ...await facetRuntimePlugin(__dirname, 'browser'), enforce: 'pre' },
     ...tailwindPlugins,
     // enforce: 'pre' — in dev mode plugin-react's transform runs before
     // array-ordered plugins, so MDX must be hoisted to the pre stage or
@@ -785,13 +656,11 @@ export default defineConfig(async () => {
     // (e.g. d3-array → internmap) are reachable during esbuild dep optimization.
     // dedupe keeps a single React copy, which preserveSymlinks otherwise guarded.
     dedupe: ['react', 'react-dom'],
-    preserveSymlinks: ${this.skipModules},
+    preserveSymlinks: true,
     alias: [
-      { find: new RegExp('^@flanksource/facet(?:/.*)?$'), replacement: '$&', customResolver(source) { return fileURLToPath(import.meta.resolve(source)); } },
-      { find: '@facet/core', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
-      { find: '@facet', replacement: resolve(__dirname, 'node_modules/@flanksource/facet') },
+      { find: '@facet/core', replacement: '@flanksource/facet' },
+      { find: '@facet', replacement: '@flanksource/facet' },
       { find: '@src', replacement: resolve(__dirname, 'src') },
-      { find: 'react-icons', replacement: resolve(__dirname, 'node_modules/react-icons') },
     ],
     conditions: ['import', 'module', 'browser', 'default'],
   },
@@ -854,7 +723,6 @@ export default defineConfig(async () => {
       let existingPackage = '';
       try { existingPackage = readFileSync(packagePath, 'utf-8'); } catch { /* first generation */ }
       if (existingPackage !== packageContent) writeFileSync(packagePath, packageContent, 'utf-8');
-      this.removePaths(['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock']);
       const npmrcPath = join(this.facetRoot, '.npmrc');
       writeFileSync(npmrcPath, defaultModuleNpmrc(), { encoding: 'utf-8', mode: 0o600 });
       chmodSync(npmrcPath, 0o600);
@@ -923,60 +791,7 @@ export default defineConfig(async () => {
     const allDeps = { ...rootPackage.dependencies, ...rootPackage.devDependencies };
 
     // Extract only the dependencies we need for building
-    const requiredDeps = [
-      '@codemirror/autocomplete',
-      '@codemirror/commands',
-      '@codemirror/lang-json',
-      '@codemirror/lang-sql',
-      '@codemirror/state',
-      '@codemirror/view',
-      'react',
-      'react-dom',
-      'vite',
-      '@vitejs/plugin-react',
-      '@mdx-js/rollup',
-      'remark-gfm',
-      'remark-frontmatter',
-      'remark-github-blockquote-alert',
-      'rehype-raw',
-      'mermaid',
-      'react-icons',
-      'react-xarrows',
-      '@flanksource/icons',
-      '@floating-ui/react',
-      '@iconify/react',
-      '@monaco-editor/react',
-      '@radix-ui/react-compose-refs',
-      '@radix-ui/react-slot',
-      '@tanstack/react-query',
-      'class-variance-authority',
-      'typescript',
-      '@tailwindcss/typography',
-      '@tailwindcss/postcss',
-      '@tailwindcss/vite',
-      'tailwindcss',
-      'autoprefixer',
-      'postcss',
-      'source-map-support',
-      // d3 runtime deps surfaced by facet source imports; declared here so
-      // pnpm hoists them into .facet/node_modules/ for SSR resolution when
-      // facet is consumed via link:/file: (which doesn't carry through
-      // transitive deps the way a published tarball does).
-      'd3-array',
-      'd3-format',
-      'd3-interpolate',
-      'd3-scale',
-      'd3-shape',
-      'd3-time',
-      'd3-time-format',
-      'dompurify',
-      'jotai',
-      'monaco-editor',
-      'monaco-yaml',
-      'recharts',
-      'tailwind-merge',
-      'yaml',
-    ];
+    const requiredDeps = REQUIRED_DEPENDENCIES;
 
     for (const dep of requiredDeps) {
       if (allDeps[dep] && !dependencies[dep]) {
@@ -1070,24 +885,8 @@ export default defineConfig(async () => {
     if (existing !== newContent) {
       writeFileSync(packagePath, newContent, 'utf-8');
       this.logger.debug('Generated package.json (changed)');
-      // When deps change, the old pnpm-lock.yaml no longer describes the
-      // intended install graph. Stale lockfiles are a common source of
-      // ERR_PNPM_LINKING_FAILED / ENOENT-on-mkdir failures when facet ships
-      // new required deps. Drop the lockfile so pnpm re-resolves cleanly.
-      const lockPath = join(this.facetRoot, 'pnpm-lock.yaml');
-      if (existsSync(lockPath)) {
-        try {
-          rmSync(lockPath, { force: true });
-          this.logger.debug('Removed stale pnpm-lock.yaml (package.json changed)');
-        } catch (err) {
-          this.logger.warn(`Could not remove stale pnpm-lock.yaml: ${err}`);
-        }
-      }
     } else {
       this.logger.debug('package.json unchanged, skipping write');
-    }
-    if (facetOverride?.kind === 'directory') {
-      this.removeStaleInstalledLocalFacetOverride(facetOverride.path);
     }
 
     // Generate .npmrc. Start from consumer + user-home .npmrc so private
@@ -1134,11 +933,6 @@ export default defineConfig(async () => {
       this.logger.debug(`Generated .npmrc with ${inheritedLines.length} inherited line(s)`);
     }
 
-    // If the generated .npmrc may carry auth tokens, remind the consumer to
-    // gitignore .facet/ so they don't accidentally commit them.
-    if (inheritedLines.some(l => /_authToken|_password|_auth|certfile|keyfile/.test(l))) {
-      this.warnIfFacetNotGitignored();
-    }
   }
 
   /**
@@ -1270,25 +1064,6 @@ export default defineConfig(async () => {
     }
   }
 
-  private removeStaleInstalledLocalFacetOverride(packageRoot: string): void {
-    const installedRoot = join(this.facetRoot, 'node_modules/@flanksource/facet');
-    if (!existsSync(installedRoot)) return;
-
-    let isStale = false;
-    try {
-      isStale = facetBuildContentFingerprint(packageRoot) !== facetBuildContentFingerprint(installedRoot);
-    } catch (error) {
-      isStale = true;
-      this.logger.warn(
-        `Could not compare installed FACET_PACKAGE_PATH override with ${packageRoot}; reinstalling @flanksource/facet: ` +
-        `${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-    if (!isStale) return;
-
-    this.removePaths(['node_modules/@flanksource/facet', 'pnpm-lock.yaml']);
-    this.logger.debug('Removed stale installed @flanksource/facet local override');
-  }
 
   private async runLocalFacetBuildScript(packageRoot: string, script: string): Promise<void> {
     this.logger.info(`FACET_PACKAGE_PATH local override is stale; running pnpm run ${script}`);
@@ -1316,84 +1091,6 @@ export default defineConfig(async () => {
     }
   }
 
-  /**
-   * Warn if no ancestor directory's .gitignore excludes .facet/ — we may have
-   * just written tokens into `.facet/.npmrc`. Walks up from consumerRoot to
-   * the filesystem root (or the nearest .git checkout), so a monorepo's
-   * top-level .gitignore covers its examples.
-   */
-  private warnIfFacetNotGitignored(): void {
-    let dir = this.consumerRoot;
-    while (true) {
-      const gitignorePath = join(dir, '.gitignore');
-      if (existsSync(gitignorePath)) {
-        try {
-          const contents = readFileSync(gitignorePath, 'utf-8');
-          const matches = contents.split(/\r?\n/).some(line => {
-            const t = line.trim();
-            return t === '.facet' || t === '.facet/' || t === '/.facet' || t === '/.facet/' || t === '**/.facet' || t === '**/.facet/';
-          });
-          if (matches) return;
-        } catch (err) {
-          this.logger.debug(`Could not read ${gitignorePath}: ${err}`);
-        }
-      }
-      // Stop at a .git checkout boundary or the filesystem root.
-      if (existsSync(join(dir, '.git'))) break;
-      const parent = dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-    }
-    this.logger.warn('.facet/.npmrc may contain inherited auth tokens but no ancestor .gitignore excludes `.facet/`. Add `.facet/` (or `**/.facet/` for monorepos) to .gitignore to avoid committing secrets.');
-  }
-
-  /** Reset .facet/ install state so the next pnpm install re-resolves clean. */
-  nukeInstall(): void {
-    // Include package-lock.json: a stale npm/yarn lockfile makes pnpm treat
-    // the dir as foreign and refuse to write into node_modules.
-    this.removePaths(['node_modules', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', '.pnpm-store']);
-    this.logger.info('Reset .facet/ install state (node_modules + pnpm-lock.yaml removed)');
-  }
-
-  /** Remove only `node_modules`, symlink-safe. */
-  removeNodeModules(): void {
-    this.removePaths(['node_modules']);
-  }
-
-  /** Remove pnpm's lockfile so the next install re-resolves from package.json. */
-  removePnpmLock(): void {
-    this.removePaths(['pnpm-lock.yaml']);
-  }
-
-  /** Remove foreign-manager lockfiles that confuse pnpm. */
-  removeForeignLocks(): void {
-    this.removePaths(['package-lock.json', 'yarn.lock']);
-  }
-
-  /** Remove the local pnpm content store. */
-  removePnpmStore(): void {
-    this.removePaths(['.pnpm-store']);
-  }
-
-  private removePaths(names: string[]): void {
-    for (const p of names) {
-      const target = join(this.facetRoot, p);
-      try {
-        // lstatSync so we can detect symlinks without following them. Without
-        // this, rmSync({ recursive: true }) walks into the symlink target
-        // (e.g. an external facet cache) and may partially delete shared deps.
-        const st = lstatSync(target);
-        if (st.isSymbolicLink()) {
-          unlinkSync(target);
-        } else {
-          rmSync(target, { recursive: true, force: true });
-        }
-      } catch (err: any) {
-        if (err?.code === 'ENOENT') continue;
-        this.logger.warn(`removePaths: failed to remove ${target}: ${err}`);
-      }
-    }
-  }
 
 
   /**
@@ -1480,6 +1177,7 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
   generatedConfigDigest(): string {
     const hash = createHash('sha256');
     const generated = [
+      'package.json', 'runtime.json',
       'vite.config.ts', 'postcss.config.js', 'post-process-v4.css',
       // facet.css is the whole facet stylesheet and the SSR bundle inlines it.
       // Leaving it out meant editing facet's own CSS — or installing a patched
@@ -1493,6 +1191,7 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
       // policy itself lives in vite.config.ts above, so two audiences already
       // fork the key; this covers a change to the plugin's own logic.
       'facet-redact.mjs',
+      'facet-runtime.mjs',
     ];
     for (const name of generated) {
       try {
@@ -1501,6 +1200,13 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
         hash.update(readFileSync(join(this.facetRoot, name)));
         hash.update('\0');
       } catch { /* variant-specific file not generated */ }
+    }
+    const manifest = JSON.parse(readFileSync(join(this.facetRoot, 'package.json'), 'utf8'));
+    for (const path of Object.keys(dependencyManifest(manifest).localDependencies ?? {})) {
+      if (!statSync(path).isDirectory()) continue;
+      hash.update(computeTemplateBuildKey({ consumerRoot: path, facetVersion: VERSION }));
+      if (JSON.parse(readFileSync(join(path, 'package.json'), 'utf8')).name === '@flanksource/facet') hash.update(facetBuildContentFingerprint(path));
+      else addTreeContentFingerprint(hash, path, 'dist');
     }
     return hash.digest('hex');
   }
