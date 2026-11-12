@@ -42,13 +42,45 @@ function anchorCandidates(anchor: Anchor): Array<{
   });
 }
 
+/** A rect in the root's own CSS px, independent of any transform or zoom on its ancestors. */
+export interface LocalRect {
+  bottom: number;
+  height: number;
+  left: number;
+  right: number;
+  top: number;
+  width: number;
+}
+
+/** Ratio of rendered to laid-out root width, or null when the root has no layout box. */
+export function rootScale(root: HTMLElement, rootRect: DOMRectReadOnly): number | null {
+  return root.offsetWidth === 0 ? null : rootRect.width / root.offsetWidth;
+}
+
+export function rectInRoot(rect: DOMRectReadOnly, rootRect: DOMRectReadOnly, scale: number): LocalRect {
+  const left = (rect.left - rootRect.left) / scale;
+  const top = (rect.top - rootRect.top) / scale;
+  const width = rect.width / scale;
+  const height = rect.height / scale;
+  return { bottom: top + height, height, left, right: left + width, top, width };
+}
+
+/**
+ * The element's rect relative to `root`, in root CSS px. `getBoundingClientRect` includes ancestor
+ * transforms, so it is divided by the root's rendered/laid-out width ratio. Null when the root has
+ * no layout box (hidden or detached), where no scale can be derived.
+ */
+export function localRect(element: Element, root: HTMLElement): LocalRect | null {
+  const rootRect = root.getBoundingClientRect();
+  const scale = rootScale(root, rootRect);
+  return scale === null ? null : rectInRoot(element.getBoundingClientRect(), rootRect, scale);
+}
+
 function pointForAnchor(
-  rect: DOMRect,
-  root: DOMRect,
+  rect: LocalRect,
   candidate: ReturnType<typeof anchorCandidates>[number],
 ): PositionedAnchor {
-  const left = rect.left - root.left;
-  const top = rect.top - root.top;
+  const { left, top } = rect;
   const points: Record<AnchorPosition, Point> = {
     bottom: { x: left + rect.width / 2, y: top + rect.height },
     left: { x: left, y: top + rect.height / 2 },
@@ -68,16 +100,15 @@ function distance(from: Point, to: Point): number {
 }
 
 function closestAnchors(
-  startRect: DOMRect,
-  endRect: DOMRect,
-  rootRect: DOMRect,
+  startRect: LocalRect,
+  endRect: LocalRect,
   startAnchor: Anchor,
   endAnchor: Anchor,
 ): [PositionedAnchor, PositionedAnchor] {
   const starts = anchorCandidates(startAnchor)
-    .map((candidate) => pointForAnchor(startRect, rootRect, candidate));
+    .map((candidate) => pointForAnchor(startRect, candidate));
   const ends = anchorCandidates(endAnchor)
-    .map((candidate) => pointForAnchor(endRect, rootRect, candidate));
+    .map((candidate) => pointForAnchor(endRect, candidate));
   let closest: [PositionedAnchor, PositionedAnchor] = [starts[0], ends[0]];
   for (const start of starts) {
     for (const end of ends) {
@@ -152,11 +183,12 @@ export function measureArrow(options: {
   const startElement = options.root.ownerDocument.getElementById(options.from);
   const endElement = options.root.ownerDocument.getElementById(options.to);
   if (!startElement || !endElement) return null;
-  const rootRect = options.root.getBoundingClientRect();
+  const startRect = localRect(startElement, options.root);
+  const endRect = localRect(endElement, options.root);
+  if (!startRect || !endRect) return null;
   const [start, end] = closestAnchors(
-    startElement.getBoundingClientRect(),
-    endElement.getBoundingClientRect(),
-    rootRect,
+    startRect,
+    endRect,
     options.startAnchor,
     options.endAnchor,
   );

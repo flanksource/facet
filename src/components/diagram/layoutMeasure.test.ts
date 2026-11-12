@@ -53,7 +53,7 @@ describe('measureLayout', () => {
     ]);
   });
 
-  it('samples each arrow path every 2px up to its end and maps the points to screen coordinates', () => {
+  it('samples each arrow path every 2px up to its end and maps the points through its screen transform', () => {
     const root = document.createElement('div');
     root.append(arrowContainer('a', 'b', { length: 5, ctm: { a: 1, b: 0, c: 0, d: 1, e: 10, f: 20 } }));
 
@@ -76,11 +76,39 @@ describe('measureLayout', () => {
     expect(() => measureLayout(root)).toThrow('Diagram: arrow a -> b has no screen transform');
   });
 
-  it('measures the diagram bounds from the root', () => {
+  it('measures the diagram bounds in root-local coordinates', () => {
     const root = document.createElement('div');
     root.getBoundingClientRect = () => domRect(5, 10, 300, 200);
+    Object.defineProperty(root, 'offsetWidth', { value: 300 });
 
-    expect(measureLayout(root).bounds).toEqual({ left: 5, top: 10, right: 305, bottom: 210 });
+    expect(measureLayout(root).bounds).toEqual({ left: 0, top: 0, right: 300, bottom: 200 });
+  });
+
+  it('reports the same boxes, lines, arrows and bounds under a root scaled to 50% as at full size', () => {
+    const measureAt = (scale: number) => {
+      const root = document.createElement('div');
+      root.getBoundingClientRect = () => domRect(5, 10, 300 * scale, 200 * scale);
+      Object.defineProperty(root, 'offsetWidth', { value: 300 });
+      const place = (left: number, top: number, width: number, height: number) => domRect(
+        5 + (left - 5) * scale, 10 + (top - 10) * scale, width * scale, height * scale,
+      );
+      const container = arrowContainer('a', 'b', {
+        length: 5,
+        ctm: { a: scale, b: 0, c: 0, d: scale, e: 5 + 20 * scale, f: 10 + 30 * scale },
+      });
+      container.append(labelElement('edge label', place(50, 60, 30, 10)));
+      root.append(container);
+      const lines = [place(52, 60, 20, 10)];
+      Range.prototype.getClientRects = () => lines as unknown as DOMRectList;
+      return measureLayout(root);
+    };
+
+    expect(measureAt(0.5)).toEqual(measureAt(1));
+    expect(measureAt(0.5)).toMatchObject({
+      bounds: { left: 0, top: 0, right: 300, bottom: 200 },
+      labels: [{ box: { left: 45, top: 50, right: 75, bottom: 60 }, lines: [{ left: 47, top: 50, right: 67, bottom: 60 }] }],
+      arrows: [{ points: [{ x: 20, y: 30 }, { x: 22, y: 30 }, { x: 24, y: 30 }, { x: 25, y: 30 }] }],
+    });
   });
 
   it('records the computed font size of each element holding text, once per element', () => {

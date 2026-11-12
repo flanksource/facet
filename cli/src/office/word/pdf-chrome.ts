@@ -56,6 +56,7 @@ export async function renderWordChrome(options: {
   context: BrowserContext;
   html: string;
   document: OfficeDocument;
+  deviceScaleFactor: number;
   logger?: Pick<Logger, 'debug'>;
 }): Promise<Map<Chrome, PdfChrome>> {
   const result = new Map<Chrome, PdfChrome>();
@@ -71,7 +72,7 @@ export async function renderWordChrome(options: {
         let counters: Paragraph[] = [];
         try {
           const result = await renderElementPdf({ browser: options.context, html: options.html, selector: chrome.selector,
-            widthMm: size.width, heightMm, capturePng: true,
+            widthMm: size.width, heightMm, capturePng: true, deviceScaleFactor: options.deviceScaleFactor,
             preparePage: async (page) => { counters = await page.evaluate(readOverlayCounters); } });
           const pdf = await PDFDocument.load(result.pdf);
           if (pdf.getPageCount() !== 1) throw new Error(`Expected one PDF page, received ${pdf.getPageCount()}`);

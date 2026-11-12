@@ -9,7 +9,8 @@ import { officeLayout } from './layout.js';
 import { writeDOCX } from './docx.js';
 import { writePPTX } from './pptx.js';
 import { renderWordChrome } from './word/pdf-chrome.js';
-import { renderWordDiagram } from './word/pdf-diagrams.js';
+import { renderOfficeDiagram } from './pdf-diagrams.js';
+import { EMBED_SELECTOR, resolveEmbed, type EmbedFormat, type EmbedSize } from '../utils/embed.js';
 import type { Block } from './model.js';
 import { logVisual } from './logging.js';
 import { presentationSize } from './powerpoint/size.js';
@@ -19,20 +20,23 @@ export async function generateOfficeBuffer(options: {
   html: string;
   format: 'docx' | 'pptx';
   fontSize?: number;
+  embedFormat?: EmbedFormat;
+  embedSize?: EmbedSize;
   verbose?: boolean | number;
   consumerRoot?: string;
 }): Promise<Buffer> {
   const logger = new Logger(options.verbose);
+  const embed = resolveEmbed({ target: options.format, format: options.embedFormat, size: options.embedSize });
   const layout = officeLayout(options.format, parseFontSize(options.fontSize));
   const html = injectFontScale(options.html, options.fontSize);
   const styledHTML = html.includes('</head>') ? html.replace('</head>', `<style>${layout.css}</style></head>`) : `<style>${layout.css}</style>${html}`;
   const context = await options.browser.createBrowserContext();
   try {
     const page = await context.newPage();
-    await page.setViewport(layout.viewport);
+    await page.setViewport({ ...layout.viewport, deviceScaleFactor: embed.size });
     await setPreparedContent(page, styledHTML);
     await page.evaluate(applyBrowserLayout, layout);
-    const officeDocument = await page.evaluate(readOfficeDOM, options.format);
+    const officeDocument = await page.evaluate(readOfficeDOM, { format: options.format, embedFormat: embed.format, embedSelector: EMBED_SELECTOR });
     if (options.format === 'pptx') presentationSize(officeDocument.pages);
     const snapshot = await page.content();
     const hydrate = async (blocks: Block[]): Promise<void> => {
@@ -43,7 +47,7 @@ export async function generateOfficeBuffer(options: {
           const element = await page.$(`[data-facet-office-media="${block.mediaId}"]`);
           if (!element) throw new Error(`Office visual disappeared: ${block.source}`);
           if (block.format === 'pdf') {
-            const result = await renderWordDiagram({ context, html: snapshot, block, viewport: layout.viewport });
+            const result = await renderOfficeDiagram({ context, html: snapshot, block, viewport: layout.viewport, deviceScaleFactor: embed.size });
             block.data = result.pdf;
             block.preview = result.png;
             logVisual({ logger, format: options.format, action: 'generated', block, elapsedMs: result.timings.pdf });
@@ -72,8 +76,8 @@ export async function generateOfficeBuffer(options: {
     }
     if (!officeDocument.pages.some((spec) => spec.blocks.length)) throw new Error('Office export contains no visible content');
     return options.format === 'docx'
-      ? await writeDOCX({ document: officeDocument, assets: await renderWordChrome({ context, html, document: officeDocument, logger }), logger, consumerRoot: options.consumerRoot })
-      : await writePPTX({ document: officeDocument, logger });
+      ? await writeDOCX({ document: officeDocument, assets: await renderWordChrome({ context, html, document: officeDocument, deviceScaleFactor: embed.size, logger }), logger, consumerRoot: options.consumerRoot })
+      : await writePPTX({ document: officeDocument, logger, consumerRoot: options.consumerRoot });
   } finally {
     await context.close();
   }

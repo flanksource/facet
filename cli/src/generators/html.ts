@@ -1,6 +1,5 @@
 import { mkdir, writeFile } from 'fs/promises';
-import { resolve, join, dirname } from 'path';
-import { existsSync, rmSync } from 'fs';
+import { resolve, join } from 'path';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
 import { DataLoader } from '../utils/data-loader.js';
@@ -11,6 +10,7 @@ import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { scopeHTML } from '../utils/css-scoper.js';
 import { injectFontScale } from '../utils/font-size.js';
+import { showSlideNotes } from '../utils/slide-notes.js';
 import { resolveTemplateSource } from '../utils/template-source.js';
 import { runTailwindCached } from '../utils/tailwind.js';
 import { shouldPostProcessTemplateCSS, shouldUseLiveRendering } from '../utils/live-template.js';
@@ -35,14 +35,6 @@ export async function renderTemplateHTML({ options, layout }: { options: Generat
   if (source.resolvedSha) logger.info(`Resolved to ${source.resolvedSha}`);
   if (consumerRoot) logger.debug(`Using project root: ${consumerRoot}`);
 
-  if (options.clearCache) {
-    const root = consumerRoot || resolve(dirname(options.template));
-    const facetDir = join(root, '.facet');
-    if (existsSync(facetDir)) {
-      rmSync(facetDir, { recursive: true, force: true });
-      logger.info(`Cleared .facet/ cache: ${facetDir}`);
-    }
-  }
 
   // Load data
   const dataLoader = new DataLoader(logger);
@@ -66,6 +58,7 @@ export async function renderTemplateHTML({ options, layout }: { options: Generat
       timings,
       redact: options.redact,
       skipModules: options.skipModules,
+      clearCache: options.clearCache,
     });
     try {
       const snapshot = await snapshotHTML(server.url, logger, { png: options.pngOptions, layout });
@@ -91,6 +84,7 @@ export async function renderTemplateHTML({ options, layout }: { options: Generat
     timings,
     redact: options.redact,
     skipModules: options.skipModules,
+    clearCache: options.clearCache,
   });
 
   logger.debug(`Using output filename: ${outputName}`);
@@ -138,7 +132,7 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
   const outputDir = resolve(process.cwd(), options.outputDir);
   await mkdir(outputDir, { recursive: true });
   const outputPath = join(outputDir, `${outputName}.html`);
-  await writeFile(outputPath, html, 'utf-8');
+  await writeFile(outputPath, options.showSlideNotes ? showSlideNotes(html) : html, 'utf-8');
   new Logger(options.verbose).success(`HTML generated: ${outputPath}`);
   return outputName;
 }

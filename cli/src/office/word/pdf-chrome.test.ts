@@ -6,9 +6,12 @@ import sharp from 'sharp';
 import { readEmfPdf } from '../emf/decode.js';
 import { launchBrowser } from '../../utils/pdf-generator.js';
 import { renderElementPdf } from '../../utils/pdf-overlay.js';
-import { readOfficeDOM } from '../dom.js';
+import { EMBED_SELECTOR } from '../../utils/embed.js';
+import { readOfficeDOM, type OfficeDOMOptions } from '../dom.js';
 import { writeDOCX } from '../docx.js';
 import { renderWordChrome } from './pdf-chrome.js';
+
+const DOCX: OfficeDOMOptions = { format: 'docx', embedFormat: 'pdf', embedSelector: EMBED_SELECTOR };
 
 describe('PDF-in-EMF Word header/footer artwork', () => {
   let browser: Browser;
@@ -27,8 +30,8 @@ describe('PDF-in-EMF Word header/footer artwork', () => {
         <main data-page-size="a3" data-page-type="last"><p>Four</p></main></body></html>`;
       const page = await context.newPage();
       await page.setContent(html);
-      const document = await page.evaluate(readOfficeDOM);
-      const assets = await renderWordChrome({ context, html, document });
+      const document = await page.evaluate(readOfficeDOM, DOCX);
+      const assets = await renderWordChrome({ context, html, document, deviceScaleFactor: 1 });
       expect(assets.size).toBe(4);
       expect(assets.get(document.pages[0].header!)).toBe(assets.get(document.pages[1].header!));
       expect(assets.has(document.pages[3].footer!)).toBe(false);
@@ -58,8 +61,8 @@ describe('PDF-in-EMF Word header/footer artwork', () => {
         <main data-page-size="a4"><p>Editable body</p></main></body></html>`;
       const page = await context.newPage();
       await page.setContent(html);
-      const document = await page.evaluate(readOfficeDOM);
-      const assets = await renderWordChrome({ context, html, document });
+      const document = await page.evaluate(readOfficeDOM, DOCX);
+      const assets = await renderWordChrome({ context, html, document, deviceScaleFactor: 1 });
       const asset = assets.get(document.pages[0].footer!)!;
       expect(asset.counters).toHaveLength(1);
       expect(asset.counters[0].runs[0].text).toBe('Page _PG_ of _TL_');
@@ -88,8 +91,8 @@ describe('PDF-in-EMF Word header/footer artwork', () => {
         <main data-page-size="a4" data-page-type="last">Last</main></body></html>`;
       const page = await context.newPage();
       await page.setContent(html);
-      const document = await page.evaluate(readOfficeDOM);
-      const assets = await renderWordChrome({ context, html, document });
+      const document = await page.evaluate(readOfficeDOM, DOCX);
+      const assets = await renderWordChrome({ context, html, document, deviceScaleFactor: 1 });
       const zip = await JSZip.loadAsync(await writeDOCX({ document, assets }));
       expect(Object.keys(zip.files).filter((path) => /media\/.+\.emf$/.test(path))).toHaveLength(1);
       expect(await zip.file('word/header1.xml')!.async('string')).toContain('<w:drawing');
@@ -104,7 +107,7 @@ describe('PDF-in-EMF Word header/footer artwork', () => {
         .rejects.toThrow('Missing PDF overlay: #missing');
       expect(await context.pages()).toHaveLength(0);
       const chrome = { selector: '#missing', height: 20, blocks: [] };
-      await expect(renderWordChrome({ context, html: '<html><body></body></html>', document: { title: 'Missing', pages: [
+      await expect(renderWordChrome({ context, html: '<html><body></body></html>', deviceScaleFactor: 1, document: { title: 'Missing', pages: [
         { size: 'a4', width: 800, height: 1100, margins: { top: 0, bottom: 0, left: 0, right: 0 }, blocks: [], header: chrome },
       ] } })).rejects.toThrow('Failed to render Word #missing at a4');
       expect(await context.pages()).toHaveLength(0);

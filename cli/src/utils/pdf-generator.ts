@@ -22,6 +22,8 @@ import { ELEMENT_SCALE } from './type-scale.js';
 import { applySpawnedProcessPriority, buildLowPriorityCommand } from './subprocess-priority.js';
 import { resolveAutomaticTableOfContents, type TocPageRenderSpec } from './toc-pagination.js';
 import { prepareInternalLinks, restoreInternalLinks } from './pdf-internal-links.js';
+import { resolveEmbed, type EmbedFormat, type EmbedSize } from './embed.js';
+import { rasterizeEmbeds } from './pdf-embed-raster.js';
 
 function readVersion(): string {
   try {
@@ -514,6 +516,8 @@ export interface PDFOptions {
   debug?: boolean;
   debugTypography?: boolean;
   fontSize?: number;
+  embedFormat?: EmbedFormat;
+  embedSize?: EmbedSize;
   defaultPageSize?: string;
   margins?: PDFMargins;
   landscape?: boolean;
@@ -531,6 +535,8 @@ export interface BufferPDFOptions {
   debug?: boolean;
   debugTypography?: boolean;
   fontSize?: number;
+  embedFormat?: EmbedFormat;
+  embedSize?: EmbedSize;
   defaultPageSize?: string;
   margins?: PDFMargins;
   logger?: Logger;
@@ -547,15 +553,19 @@ async function renderPDF(
   // String injection, not addStyleTag: this same HTML is re-loaded into fresh
   // pages to render the header and footer overlays, which an addStyleTag on the
   // content page alone would leave unscaled.
-  const html = injectFontScale(inputHtml, options.fontSize);
+  const embed = resolveEmbed({ target: 'pdf', format: options.embedFormat, size: options.embedSize });
+  const dims = options.defaultPageSize ? resolvePageSize(options.defaultPageSize) : undefined;
+  const viewport = dims ? { width: mmToPx(dims.width), height: mmToPx(dims.height) } : undefined;
+  const scaledHtml = injectFontScale(inputHtml, options.fontSize);
+  const html = embed.format === 'png' ? await rasterizeEmbeds({ browser, html: scaledHtml, scale: embed.size, viewport }) : scaledHtml;
+  if (embed.format === 'png') log.info(`Rasterized figures and diagrams at ${embed.size}x`);
   // The same ratio the injected stylesheet carries, so the debug overlay
   // compares against the sizes actually in force rather than the unscaled ones.
   const fontScale = options.fontSize == null ? 1 : options.fontSize / ELEMENT_SCALE.body.pt;
   const context = await browser.createBrowserContext();
   const page = await context.newPage();
   try {
-    const dims = options.defaultPageSize ? resolvePageSize(options.defaultPageSize) : undefined;
-    if (dims) await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
+    if (viewport) await page.setViewport(viewport);
     await setPreparedContent(page, html);
     if (dims) await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
 
@@ -604,6 +614,8 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
       debug: options.debug,
       debugTypography: options.debugTypography,
       fontSize: options.fontSize,
+      embedFormat: options.embedFormat,
+      embedSize: options.embedSize,
       defaultPageSize: options.defaultPageSize,
       margins: options.margins,
       logger: log,

@@ -1,27 +1,43 @@
+import { rectInRoot, rootScale } from './geometry';
 import type { ArrowMeasure, BoxMeasure, LabelMeasure, LayoutMeasure, Rect, TextMeasure } from './layoutCheck';
 
 const ARROW_SAMPLE_PX = 2;
 
-function toRect({ left, top, right, bottom }: DOMRect): Rect {
-  return { left, top, right, bottom };
+/** Maps viewport geometry into the root's own CSS px so results do not depend on ancestor transforms. */
+interface RootFrame {
+  point: (point: { x: number; y: number }) => { x: number; y: number };
+  rect: (rect: DOMRectReadOnly) => Rect;
 }
 
-function measureLabels(root: HTMLElement, arrowContainers: Element[]): LabelMeasure[] {
+function rootFrame(root: HTMLElement): RootFrame {
+  const rootRect = root.getBoundingClientRect();
+  // A root without a layout box (jsdom, hidden) has nothing to scale: every rect is empty.
+  const scale = rootScale(root, rootRect) ?? 1;
+  return {
+    point: ({ x, y }) => ({ x: (x - rootRect.left) / scale, y: (y - rootRect.top) / scale }),
+    rect: (rect) => {
+      const { left, top, right, bottom } = rectInRoot(rect, rootRect, scale);
+      return { left, top, right, bottom };
+    },
+  };
+}
+
+function measureLabels(root: HTMLElement, arrowContainers: Element[], frame: RootFrame): LabelMeasure[] {
   return [...root.querySelectorAll<HTMLElement>('[data-facet-label]')].map((element) => {
     const range = element.ownerDocument.createRange();
     range.selectNodeContents(element);
-    const lines = [...range.getClientRects()].filter((line) => line.width > 0 && line.height > 0).map(toRect);
+    const lines = [...range.getClientRects()].filter((line) => line.width > 0 && line.height > 0).map(frame.rect);
     const container = element.closest('[data-facet-arrow]');
     return {
       name: element.dataset.facetLabel!,
-      box: toRect(element.getBoundingClientRect()),
+      box: frame.rect(element.getBoundingClientRect()),
       lines,
       ...(container ? { arrowGroup: arrowContainers.indexOf(container) } : {}),
     };
   });
 }
 
-function measureArrow(container: HTMLElement, group: number): ArrowMeasure[] {
+function measureArrow(container: HTMLElement, group: number, frame: RootFrame): ArrowMeasure[] {
   const path = container.querySelector<SVGPathElement>(':scope > svg > path');
   // Environments without SVG layout (jsdom) have no path geometry to sample.
   if (!path || typeof path.getTotalLength !== 'function') return [];
@@ -32,7 +48,7 @@ function measureArrow(container: HTMLElement, group: number): ArrowMeasure[] {
   const distances = [...Array.from({ length: Math.ceil(length / ARROW_SAMPLE_PX) }, (_, index) => index * ARROW_SAMPLE_PX), length];
   const points = distances.map((distance) => {
     const { x, y } = path.getPointAtLength(distance);
-    return { x: ctm.a * x + ctm.c * y + ctm.e, y: ctm.b * x + ctm.d * y + ctm.f };
+    return frame.point({ x: ctm.a * x + ctm.c * y + ctm.e, y: ctm.b * x + ctm.d * y + ctm.f });
   });
   return [{ name, group, points }];
 }
@@ -87,10 +103,11 @@ function measureBoxes(root: HTMLElement): BoxMeasure[] {
 
 export function measureLayout(root: HTMLElement): LayoutMeasure {
   const arrowContainers = [...root.querySelectorAll<HTMLElement>('[data-facet-arrow]')];
+  const frame = rootFrame(root);
   return {
-    bounds: toRect(root.getBoundingClientRect()),
-    labels: measureLabels(root, arrowContainers),
-    arrows: arrowContainers.flatMap((container, group) => measureArrow(container, group)),
+    bounds: frame.rect(root.getBoundingClientRect()),
+    labels: measureLabels(root, arrowContainers, frame),
+    arrows: arrowContainers.flatMap((container, group) => measureArrow(container, group, frame)),
     texts: measureTexts(root),
     boxes: measureBoxes(root),
   };

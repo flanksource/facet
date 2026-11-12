@@ -157,8 +157,7 @@ function DiagreLayout({ graph, direction, gapX, gapY, availableWidth, availableH
       for (const node of graph.nodes) {
         const element = elements.current.get(node.id);
         if (element) {
-          const rect = element.getBoundingClientRect();
-          next[node.id] = { width: rect.width, height: rect.height };
+          next[node.id] = { width: element.offsetWidth, height: element.offsetHeight };
         }
       }
       setSizes((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next);
