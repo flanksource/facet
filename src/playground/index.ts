@@ -1,2 +1,8 @@
 export { mountFillPdf } from './fill-pdf-app';
-export { renderBrowserPage, disposeBrowserPage, invalidateBrowserPage, showBrowserError, inspectStyles } from './browser-runtime';
+import { createBrowserPreview } from './browser-runtime';
+export { inspectStyles } from './browser-runtime';
+const preview = createBrowserPreview();
+export const renderBrowserPage = preview.render;
+export const disposeBrowserPage = preview.dispose;
+export const invalidateBrowserPage = preview.invalidate;
+export const showBrowserError = preview.showError;
