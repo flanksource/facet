@@ -13,4 +13,4 @@ try {
   throw new Error('Facet runtime requires @flanksource/clicky-ui >=0.3.57 shipping runtime/importmap.json; install a version with the library runtime set and build it first when linked locally.', { cause });
 }
 
-await buildLibraryRuntime({ libraryDir, outDir: fileURLToPath(new URL('../dist/runtime/', import.meta.url)), base: JSON.parse(readFileSync(basePath, 'utf8')) });
+await buildLibraryRuntime({ libraryDir, outDir: fileURLToPath(new URL('../dist/runtime/', import.meta.url)), base: JSON.parse(readFileSync(basePath, 'utf8')), exclude: ['@flanksource/facet/browser-preview'] });
