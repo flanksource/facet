@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { VERSION } from '../version-generated.js';
 
 export function runtimeCacheRoot(): string {
-  const root = resolve(process.env.FACET_CACHE_DIR ?? join(homedir(), '.facet', 'cache'));
+  const root = resolve(process.env.FACET_CACHE_DIR || join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'facet'));
   return process.env.FACET_DEV_ROOT ? join(root, 'dev', createHash('sha256').update(resolve(process.env.FACET_DEV_ROOT)).digest('hex')) : root;
 }
 
