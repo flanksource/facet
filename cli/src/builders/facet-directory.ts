@@ -994,7 +994,8 @@ export default defineConfig(async () => {
 
   private async ensureLocalFacetPackageBuilt(packageRoot: string): Promise<void> {
     const isCurrent = (): boolean =>
-      !needsLocalFacetComponentsBuild(packageRoot) && !needsLocalFacetCssBuild(packageRoot);
+      !needsLocalFacetComponentsBuild(packageRoot) && !needsLocalFacetCssBuild(packageRoot) &&
+      ['importmap.json', 'barrels.json'].every(name => existsSync(join(packageRoot, 'dist/runtime', name)));
     if (isCurrent()) {
       this.logger.debug(`FACET_PACKAGE_PATH build outputs are current: ${packageRoot}`);
       return;
@@ -1013,9 +1014,7 @@ export default defineConfig(async () => {
       if (shouldBuildCss || needsLocalFacetCssBuild(packageRoot)) {
         await this.runLocalFacetBuildScript(packageRoot, 'build:css');
       }
-      if (process.env.FACET_DEV_ROOT && (rebuildComponents || !existsSync(join(packageRoot, 'dist/runtime/importmap.json')))) {
-        await this.runLocalFacetBuildScript(packageRoot, 'build:runtime');
-      }
+      await this.runLocalFacetBuildScript(packageRoot, 'build:runtime');
     });
   }
 
