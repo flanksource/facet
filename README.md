@@ -610,7 +610,7 @@ facet pdf MyDatasheet.tsx --skip-modules -o out.pdf
 facet serve --skip-modules --templates-dir ./templates
 ```
 
-Every install ships the Facet-only runtime pinned to the CLI version. First use verifies and extracts it under `${FACET_CACHE_DIR:-~/.facet/cache}/runtimes/<archive-sha256>` without invoking a package manager. `--skip-modules` always selects it, ignoring consumer and nested manifests, overrides and `FACET_PACKAGE_PATH`. Templates with additional packages must run without `--skip-modules`; server requests containing `dependencies` receive HTTP 400 in this mode.
+Every install ships the Facet-only runtime pinned to the CLI version. First use verifies and extracts it under `$XDG_CACHE_HOME/facet/runtimes/<archive-sha256>` without invoking a package manager, defaulting to `~/.cache/facet` when `XDG_CACHE_HOME` is unset. `FACET_CACHE_DIR` explicitly overrides the shared cache root. `--skip-modules` always selects the installed runtime, ignoring consumer and nested manifests, overrides and `FACET_PACKAGE_PATH`. Templates with additional packages must run without `--skip-modules`; server requests containing `dependencies` receive HTTP 400 in this mode.
 
 Without `--skip-modules`, Facet uses the installed runtime when its exact package versions satisfy the effective dependency manifest. Otherwise it installs that dependency set once under `environments/<dependency-hash>`. Projects with equivalent dependencies share the same environment, including concurrent first renders. The key includes overrides, registry routing, local package dependency metadata and the platform/Node ABI; template source and render data do not trigger installations.
 

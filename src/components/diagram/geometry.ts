@@ -131,6 +131,9 @@ function direction(position: AnchorPosition, from: Point, to: Point): Point {
   }
 }
 
+// How far a grid route between two anchors on the same side runs out past the outermost one, in px.
+const GRID_CLEARANCE = 16;
+
 function gridRatio(gridBreak: string | undefined): number {
   if (!gridBreak) return 0.5;
   const percent = /^(-?\d+(?:\.\d+)?)%$/.exec(gridBreak.trim());
@@ -199,7 +202,17 @@ export function measureArrow(options: {
   if (options.path === 'grid') {
     const ratio = gridRatio(options.gridBreak);
     const startDirection = direction(start.position, start, end);
-    if (startDirection.x === 0) {
+    const endDirection = direction(end.position, end, start);
+    // Both anchors face the same way: a Z would run through the boxes, so go out past both and come back.
+    if (startDirection.x === endDirection.x && startDirection.y === endDirection.y) {
+      if (startDirection.x === 0) {
+        const outY = startDirection.y < 0 ? Math.min(start.y, end.y) - GRID_CLEARANCE : Math.max(start.y, end.y) + GRID_CLEARANCE;
+        labelPath = [start, { x: start.x, y: outY }, { x: end.x, y: outY }, end];
+      } else {
+        const outX = startDirection.x < 0 ? Math.min(start.x, end.x) - GRID_CLEARANCE : Math.max(start.x, end.x) + GRID_CLEARANCE;
+        labelPath = [start, { x: outX, y: start.y }, { x: outX, y: end.y }, end];
+      }
+    } else if (startDirection.x === 0) {
       const turnY = start.y + (end.y - start.y) * ratio;
       labelPath = [start, { x: start.x, y: turnY }, { x: end.x, y: turnY }, end];
     } else {

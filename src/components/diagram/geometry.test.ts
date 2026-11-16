@@ -119,6 +119,30 @@ describe('measureArrow', () => {
     });
   });
 
+  it('routes a grid path between anchors on the same side as a U clear of both boxes', () => {
+    expect(measureArrow({
+      curveness: 0.8,
+      endAnchor: 'top',
+      from: 'source',
+      path: 'grid',
+      root,
+      startAnchor: 'top',
+      to: 'target',
+    })).toMatchObject({
+      labelMiddle: { x: 275, y: 64 },
+      path: 'M 110 80 L 110 64 L 420 64 L 420 100',
+    });
+    expect(measureArrow({
+      curveness: 0.8,
+      endAnchor: 'right',
+      from: 'source',
+      path: 'grid',
+      root,
+      startAnchor: 'right',
+      to: 'target',
+    })?.path).toBe('M 160 110 L 496 110 L 496 140 L 480 140');
+  });
+
   it('returns null when an endpoint is missing', () => {
     expect(measureArrow({
       curveness: 0.8,
