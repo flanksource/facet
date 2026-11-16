@@ -52,6 +52,8 @@ Office commands accept shared render/data/schema flags and remote rendering. Con
 | `--output-name-field <field>` | Data field to name output files from (default `name`) |
 | `--live` | Render in a real browser via Vite dev server — **required for diagrams** |
 | `--font-size <pt>` | Base font size; scales the whole type scale (default 10) |
+| `--embed-format <pdf\|png>` | pdf/docx/pptx only: insert figures and diagrams as vector (`pdf`, PDF-in-EMF for Office) or raster (`png`); default `pdf` for pdf/docx, `png` for pptx |
+| `--embed-size <1x-4x>` | pdf/docx/pptx only: PNG capture resolution, including the EMF fallback bitmap (default `2x`); rejected on `facet pdf` unless `--embed-format png` |
 | `--refresh` | Re-fetch remote templates, bypassing cache |
 | `--clear-cache` | Delete `.facet/` and the node_modules cache before building |
 | `--allow <attr=values>` | Permit a classified region, e.g. `--allow tier=Public,Internal` (repeatable) |
@@ -66,7 +68,7 @@ Global flags (`--skip-modules`, `--facet-url`) may appear before or after the su
 
 ## Per-command flags
 
-**`facet pdf`** — `--page-size <a4|a3|letter|legal|fhd|qhd|wqhd|4k|5k|16k>` (default `a4`), `--landscape`, `--margin-top|-bottom|-left|-right <mm>`, `--header <file.tsx>`, `--footer <file.tsx>`, `--debug` (layout guides plus font, line-height, and block-spacing annotations), `--debug-typography` (append a font-size reference page), `-s/--schema <file>`, `--no-validate`.
+**`facet pdf`** — `--page-size <a4|a3|letter|legal|fhd|qhd|wqhd|4k|5k|16k>` (overrides the sizes the template's `<Document pageSize>`/`<Page pageSize>` declare; A4 when none is declared), `--landscape`, `--margin-top|-bottom|-left|-right <mm>`, `--header <file.tsx>`, `--footer <file.tsx>`, `--debug` (layout guides plus font, line-height, and block-spacing annotations), `--debug-typography` (append a font-size reference page), `-s/--schema <file>`, `--no-validate`.
 
 Encryption and signing: `--user-password`, `--owner-password`, `--no-print`, `--no-copy`, `--sign-cert <p12>`, `--sign-password`, `--self-signed`, `--sign-reason`, `--sign-name`, `--timestamp-url <RFC3161 TSA>`.
 

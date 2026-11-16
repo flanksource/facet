@@ -20,7 +20,7 @@ facet html Report.tsx --skip-modules --output report.html
 
 The first render verifies the archive SHA-256, checks its Facet version and platform, then extracts it atomically. Later renders reuse that directory. A default render never runs pnpm, npm or corepack. Custom dependencies are resolved from the consumer manifest and any manifest next to the template. Workspace/catalog references and local overrides are resolved before selecting the dependency environment.
 
-The shared cache defaults to `~/.facet/cache`. `FACET_CACHE_DIR` replaces this root for all runtime, server and compilation state:
+The shared cache defaults to `$XDG_CACHE_HOME/facet`, or `~/.cache/facet` when `XDG_CACHE_HOME` is unset. `FACET_CACHE_DIR` explicitly replaces this root for all runtime, server and compilation state. Consumers should inherit these settings rather than assign a project-local cache:
 
 ```sh
 FACET_CACHE_DIR="$PWD/.tmp/facet-cache" facet html Report.tsx --output report.html
