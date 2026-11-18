@@ -21,6 +21,8 @@ import { registerInspectCommand } from './commands/inspect.js';
 import { dispatchLoader } from './loaders/dispatch.js';
 import { expandRenderSizes, renderSizes } from './utils/render-sizes.js';
 import { activateDevRuntime } from './runtime/dev.js';
+import { selectRuntime } from './runtime/named.js';
+import { registerRuntimeCommands } from './commands/runtime.js';
 
 function numericOption(minimum: number): (value: string) => number {
   return (value: string): number => {
@@ -131,6 +133,7 @@ function buildSignature(options: any): PDFSignatureOptions | undefined {
 
 function addSharedOptions(cmd: Command): Command {
   return cmd
+    .option('--runtime <selector>', 'Use a prebuilt runtime by name, name@version, or folder')
     .option('--theme <name>', 'Installed document theme (default: facet)')
     .option('-d, --data <file>', 'Path to JSON or YAML data file')
     .option('-l, --data-loader <file>', 'Path to data loader module (.ts or .js)')
@@ -168,18 +171,27 @@ program
   .option('--dev', 'Use local Facet, Clicky UI and page-runtime builds without publishing')
   .option('--skip-modules', 'Ignore package.json dependencies; use default packages (local libraries with --dev)')
   .option('--facet-url <url>', 'Submit template renders to a Facet server (or FACET_URL)')
-  .hook('preAction', (_command, actionCommand) => {
-    if (actionCommand.optsWithGlobals().dev) {
-      if (resolveFacetURL(actionCommand.optsWithGlobals().facetUrl)) throw new Error('--dev requires local rendering; unset FACET_URL and omit --facet-url');
+  .hook('preAction', async (_command, actionCommand) => {
+    const runtimeAction = actionCommand.parent?.name() === 'runtime' ? actionCommand.name() : undefined;
+    if (runtimeAction === 'list') return;
+    const flags = actionCommand.optsWithGlobals();
+    if (flags.runtime !== undefined) {
+      if (flags.dev || process.env.FACET_DEV_ROOT) throw new Error('--runtime cannot be combined with Facet --dev');
+      if (resolveFacetURL(flags.facetUrl)) throw new Error('--runtime requires local rendering; unset FACET_URL and omit --facet-url');
+      await selectRuntime(flags.runtime);
+    }
+    if (flags.dev) {
+      if (resolveFacetURL(flags.facetUrl)) throw new Error('--dev requires local rendering; unset FACET_URL and omit --facet-url');
       activateDevRuntime(process.cwd());
       console.error(`Using local rendering runtime: ${process.env.FACET_DEV_ROOT}`);
     }
-    if (['lint', 'inspect'].includes(actionCommand.name()) && actionCommand.opts().json) return;
+    if (runtimeAction === 'build' || (actionCommand.opts().json && ['lint', 'inspect'].includes(actionCommand.name()))) return;
     console.log(chalk.gray(`facet ${versionStr}`));
   });
 
 registerOfficeCommands({ program, addSharedOptions, ensureRenderReady, parseDataLoaderArgs });
 registerInspectCommand(program);
+registerRuntimeCommands(program);
 
 // html command
 addSharedOptions(
@@ -582,7 +594,9 @@ program.on('command:*', () => {
 
 async function run(): Promise<void> {
   if (await dispatchLoader()) return;
-  program.parse();
+  // Runtime build has its own --version option. Other commands still accept global flags after their name.
+  if (process.argv[2] === 'runtime') program.enablePositionalOptions();
+  await program.parseAsync();
 }
 
 run().catch((error) => {

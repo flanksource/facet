@@ -29,6 +29,25 @@ facet html Report.tsx --clear-cache --output report.html
 
 `runtimes/` holds shipped archives after extraction; `environments/` holds custom dependency installations; `compiled/` holds reusable Node and browser dependency modules; `compilations/` holds generated Vite scaffolds and compiled templates. `servers/` holds source snapshots and server artifacts. Dependency credentials exist only during preparation and are removed before publication. Failed preparation never publishes a ready environment. Dependency environments are retained, so an active renderer never loses its modules to automatic eviction.
 
+## Named runtimes
+
+Build a named runtime from a project’s `package.json`. The project inherits the shipped Facet runtime, which in turn inherits Clicky UI. Facet keeps the inherited version of any package the project also declares and builds indexes only for new exports. If the source is a Facet or Clicky UI checkout, build that library’s artifacts first. The runtime version defaults to the project version. The build prints a folder you can also select directly or copy to another machine with the same platform and Node ABI.
+
+```sh
+facet runtime build facet ./report-project --version 1.2.0
+facet runtime list
+facet html Report.tsx --runtime facet@1.2.0 -o report.html
+facet png Report.tsx --runtime facet --live -o report.png
+gavel edit Report.tsx --facet-runtime facet@1.2.0
+facet runtime delete facet@1.2.0
+```
+
+`facet runtime list` shows each `name@version` selector, the last successful build time in UTC, and the project’s Git commit and clean or dirty state at build time. Git state is unknown for older builds and builds outside a Git repository. Use `--selectors` for one copyable selector per line or `--json` for structured metadata including the runtime path and full commit when available. An empty list shows a build hint on stderr, or emits `[]` with `--json`. Runtime builds show completed stages, pnpm package counts, and browser file verification on stderr, with color on supported terminals. The published runtime folder goes to stdout.
+
+A bare name selects the last successful build for that name. To select a built directory use an absolute path or a relative path such as `./report-runtime`. `--runtime` is available on the local HTML, PNG, PDF, DOCX, and PPTX commands. The templates and their data are still processed on every render. Adding a runtime dependency requires an explicit rebuild, and `--clear-cache` refreshes the template compilation for the selected build.
+
+An explicit build replaces the same `name@version` for future invocations while active renders and editor sessions retain their build. Delete accepts a cached name or `name@version` and reports if that version is still in use.
+
 Source, data and package description/script edits do not reinstall dependencies. Dependency or override changes select a different environment. Local library source and built-module edits invalidate compilation independently. `--clear-cache` publishes a new custom environment generation while preserving old generations for active readers. Clearing a default render only invalidates compilation.
 
 Build the installed runtime after building component/runtime artifacts:
@@ -47,9 +66,9 @@ The tracked verification fixture covers cache identity and concurrency, independ
 gavel fixtures cli/test/runtime-cache.fixture.yaml
 ```
 
-Each install includes distinct ESM dependency closures for Node SSR and the browser. Vite compiles template-owned modules and CSS against those closures. The default archive supports Facet's public component/subpath exports and React. Declare additional libraries, including Clicky UI application components and editors, in the consumer's package.json and render without `--skip-modules`; the full dependency environment is installed and cached separately. Additional imported subpaths compile once into that environment's dependency cache using the installed compiler and share the base runtime's React instance. Redaction policies are passed through the template's provider, so audiences can reuse one dependency runtime.
+Each install includes distinct dependency layers for Node SSR and the browser. Templates can import public Clicky UI and Facet components and browser-compatible exports such as `@flanksource/icons/mi` without declaring them. Clicky UI supplies the version when both libraries expose a package. Use `--skip-modules` to render exclusively with the shipped runtime. With ordinary rendering, declare any new packages in the project’s `package.json`; Facet installs just those additions. Named runtimes also expose their template imports to `gavel edit --facet-runtime`. Rebuild an existing named runtime to pick up the expanded exports.
 
-Custom compiled generations include the resolved lockfile, compiler implementation, target, ABI, requested exports and library inputs in their identity and validation. Changed library code publishes a new generation while existing readers retain the old one. Named imports use published barrel indexes to avoid loading unrelated optional features.
+Custom compiled generations include the resolved lockfile, compiler implementation, target, ABI, requested exports and library inputs in their identity and validation. Changed library code publishes a new generation while existing readers retain the old one. Named runtime builds index each layer against its installed dependency graph before publication.
 
 The compiled builder is packaged as `@flanksource/page-runtime-build` by the shared page-runtime project in clicky-ui. It contains JavaScript, declarations and its required build dependencies. The parent clicky-ui repository's main-branch Release workflow builds, tests, versions and publishes that package from `packages/page-runtime/dist/build`; pull-request CI uploads its tarball for inspection. Update Facet's dependency and lockfile after that CI release succeeds. The browser host's unpublished workspace dependencies are excluded from the compiler distribution.
 
@@ -93,7 +112,7 @@ The CSS tab accepts plain CSS overrides for both runtimes, including HTML downlo
 
 Browser mode supports HTML and PDF. Download HTML saves a snapshot with styles and image assets inlined. For PDF, click Save PDF after the preview is ready and choose Save as PDF in the browser print dialog. The report is one continuous page with Facet page breaks and print minimum heights removed; header/footer editor content appears once. The native Markdown/MDX entry is retained so library-declared export plugins run for HTML and PDF. Both data shapes are available to MDX: `props.data.title` and `props.title`. Facet's multipage pagination, per-page headers/footers, page-size controls and PDF signing are available through the server runtime.
 
-On localhost, leaving Runtime origin empty starts a separate loopback runtime origin automatically. Browser worker/frame assets are embedded with the CLI's playground assets, separately from the rendering archive. Normal mode resolves published libraries through npm/unpkg. `--dev` serves immutable local Facet and Clicky UI build publications through the shared package-origin implementation, so testing unpublished libraries needs no npm release. Rebuild/publish local artifacts and restart serve to select a new local generation.
+On localhost, leaving Runtime origin empty starts a separate loopback runtime origin automatically. Browser worker/frame assets are embedded with the CLI's playground assets. Normal mode serves the pinned browser package catalog and files from the installed rendering runtime, or from the runtime selected with `--runtime`. Additional dependencies can resolve through npm/unpkg. `--dev` serves immutable local Facet and Clicky UI build publications through the shared package-origin implementation, so testing unpublished libraries needs no npm release. Rebuild/publish local artifacts and restart serve to select a new local generation.
 
 Build the linked page-runtime's browser assets before building this playground from source:
 

@@ -2,6 +2,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync,
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { createRequire } from 'node:module';
 import { parseSync } from 'rolldown/utils';
+import { clicky, facet, layersFile } from '../src/runtime/layers.js';
 
 interface Manifest {
   name: string;
@@ -78,18 +79,19 @@ function copyTools(options: { root: string; out: string; packages: string[] }): 
     for (const dependency of Object.keys(pkg.dependencies ?? {})) visit(dependency, directory);
     for (const dependency of Object.keys(pkg.optionalDependencies ?? {})) visit(dependency, directory, true);
   };
-  for (const name of options.packages) if (name !== '@flanksource/facet') visit(name, options.root);
+  for (const name of options.packages) if (name !== facet && name !== clicky) visit(name, options.root);
 }
 
-function copyFacet(options: { root: string; out: string }): void {
-  const source = join(options.root, 'node_modules/@flanksource/facet');
-  const destination = join(options.out, 'node_modules/@flanksource/facet');
+function copyLibrary(options: { root: string; out: string; name: string }): void {
+  const { name } = options;
+  const source = join(options.root, 'node_modules', name);
+  const destination = join(options.out, 'node_modules', name);
   const runtimeRoot = join(options.out, 'page-runtime/node');
   const runtime = JSON.parse(readFileSync(join(runtimeRoot, 'runtime.json'), 'utf8')) as { imports: Record<string, string> };
   const exports: Record<string, unknown> = { './package.json': './package.json', './styles.css': './dist/styles.css' };
   mkdirSync(join(destination, 'entries'), { recursive: true });
   for (const [specifier, entry] of Object.entries(runtime.imports)) {
-    if (specifier !== '@flanksource/facet' && !specifier.startsWith('@flanksource/facet/')) continue;
+    if (specifier !== name && !specifier.startsWith(`${name}/`)) continue;
     const target = join(runtimeRoot, entry);
     const parsed = parseSync(target, readFileSync(target, 'utf8'));
     if (parsed.errors.length) throw new Error(`Invalid precompiled rendering entry ${target}: ${parsed.errors.map(error => error.message).join('\n')}`);
@@ -97,15 +99,22 @@ function copyFacet(options: { root: string; out: string }): void {
     const file = `entries/${Object.keys(exports).length}.mjs`;
     const module = JSON.stringify(relative(dirname(join(destination, file)), target).split(sep).join('/'));
     writeFileSync(join(destination, file), `export * from ${module};\n${hasDefault ? `export { default } from ${module};\n` : ''}`);
-    exports[specifier === '@flanksource/facet' ? '.' : `.${specifier.slice('@flanksource/facet'.length)}`] = `./${file}`;
+    exports[specifier === name ? '.' : `.${specifier.slice(name.length)}`] = `./${file}`;
   }
   const pkg = manifest(source);
   const { scripts, devDependencies, bin, main, module, types, files, ...metadata } = pkg;
-  writeFileSync(join(destination, 'package.json'), JSON.stringify({ ...metadata, exports }, null, 2));
   for (const file of ['dist/styles.css', 'dist/runtime/importmap.json', 'dist/runtime/barrels.json']) {
     mkdirSync(dirname(join(destination, file)), { recursive: true });
     cpSync(join(source, file), join(destination, file));
   }
+  for (const [specifier, asset] of Object.entries(pkg.exports ?? {})) {
+    if (typeof asset !== 'string' || !asset.startsWith('./dist/') || !/\.(css|json)$/.test(asset)) continue;
+    const dest = join(destination, asset);
+    mkdirSync(dirname(dest), { recursive: true });
+    cpSync(join(source, asset), dest);
+    exports[specifier] = asset;
+  }
+  writeFileSync(join(destination, 'package.json'), JSON.stringify({ ...metadata, exports }, null, 2));
   for (const file of readdirSync(source).filter(file => /^(?:licen[sc]e|notice|copying)(?:\.|$)/i.test(file))) cpSync(join(source, file), join(destination, file));
 }
 
@@ -139,7 +148,11 @@ export async function stageRenderingRuntime(options: { root: string; out: string
   mkdirSync(join(options.out, 'node_modules'), { recursive: true });
   copyTools(options);
   cpSync(join(options.root, 'page-runtime'), join(options.out, 'page-runtime'), { recursive: true });
-  if (options.packages.includes('@flanksource/facet')) copyFacet(options);
+  for (const name of [facet, clicky]) if (options.packages.includes(name)) copyLibrary({ ...options, name });
+  if (existsSync(join(options.root, layersFile))) {
+    cpSync(join(options.root, layersFile), join(options.out, layersFile));
+    cpSync(join(options.root, 'browser-packages'), join(options.out, 'browser-packages'), { recursive: true, verbatimSymlinks: true });
+  }
   stripSourceMaps(join(options.out, 'node_modules'));
   copyLicenses(options);
   const pkg = manifest(options.root);

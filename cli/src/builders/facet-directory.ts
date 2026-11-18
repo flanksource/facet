@@ -427,7 +427,7 @@ export class FacetDirectory {
     const entry = isMarkdown
       ? `import React from 'react';
 import './facet.css';
-import { Document, Page, RedactPolicyProvider } from '@flanksource/facet';
+import { Document, Page, RedactPolicyProvider, mdxComponents } from '@flanksource/facet';
 import { Icon } from '@iconify/react';
 import Content from './src/${templateRelPath}';
 
@@ -435,7 +435,7 @@ export default function Template({ data }) {
   return (
     <RedactPolicyProvider policy={${JSON.stringify(this.redact ?? { allow: {} })}}><Document title={data?.title}><Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>
       <article className="prose">
-        <Content components={{ Icon }} {...data} />
+        <Content components={{ ...mdxComponents, Icon }} {...data} />
       </article>
     </Page></Document></RedactPolicyProvider>
   );
@@ -1188,7 +1188,7 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
    * folded into the build-cache key so config changes at an unchanged facet
    * version invalidate cached bundles.
    */
-  generatedConfigDigest(): string {
+  generatedConfigDigest({ pinned = false }: { pinned?: boolean } = {}): string {
     const hash = createHash('sha256');
     hash.update(themeFingerprint(this.facetRoot, this.theme) ?? 'facet');
     const generated = [
@@ -1216,6 +1216,7 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
         hash.update('\0');
       } catch { /* variant-specific file not generated */ }
     }
+    if (pinned) return hash.digest('hex');
     const manifest = JSON.parse(readFileSync(join(this.facetRoot, 'package.json'), 'utf8'));
     for (const path of Object.keys(dependencyManifest(manifest).localDependencies ?? {})) {
       if (!statSync(path).isDirectory()) continue;
