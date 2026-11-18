@@ -8,7 +8,7 @@
 
 import { selfExecBase } from '../utils/self-exec.js';
 import { join, resolve } from 'path';
-import { writeFileSync, readFileSync, mkdtempSync, rmSync, symlinkSync, lstatSync, readlinkSync } from 'fs';
+import { copyFileSync, writeFileSync, readFileSync, mkdtempSync, rmSync, symlinkSync, lstatSync, readlinkSync } from 'fs';
 import { Logger } from '../utils/logger.js';
 import { FacetDirectory, resolveFacetPackageOverride } from '../builders/facet-directory.js';
 import { readRemarkFrontmatter } from '../utils/frontmatter.js';
@@ -24,10 +24,12 @@ import { payloadSatisfies } from '../runtime/payload.js';
 import { compilationWorkspace, runtimeCacheRoot } from '../runtime/workspace.js';
 import { spawnLowPriority } from '../utils/subprocess-priority.js';
 import { AbortLock } from '../utils/abort-lock.js';
-import { compileEnvironment } from '../runtime/compilation.js';
+import { compileEnvironment, loadCompiledRuntime } from '../runtime/compilation.js';
 import { pathToFileURL } from 'node:url';
 import { assetPath } from '../utils/assets.js';
 import { devRuntimeManifest } from '../runtime/dev.js';
+import { selectedRuntime } from '../runtime/named.js';
+import { checkProjectPeers, inheritModules, readRuntimeLayers, unpackLayerManifest } from '../runtime/layers.js';
 
 export interface BuildResult {
   html: string;
@@ -71,30 +73,64 @@ export async function prepareModules(
 ): Promise<void> {
   const facetRoot = facetDir.getFacetRoot();
   try {
+    const selected = selectedRuntime();
+    if (selected) {
+      const compiled = await loadCompiledRuntime(selected.root, `${selected.name}@${selected.version}`);
+      copyFileSync(join(selected.root, 'package.json'), join(facetRoot, 'package.json'));
+      linkRuntime(facetRoot, compiled);
+      return;
+    }
     const manifest = devRuntimeManifest(JSON.parse(readFileSync(join(facetRoot, 'package.json'), 'utf8')));
     writeFileSync(join(facetRoot, 'package.json'), JSON.stringify(manifest, null, 2));
     const override = resolveFacetPackageOverride();
+    if (!process.env.FACET_DEV_ROOT && (skipModules || !override)) {
+      const base = await installedRuntime();
+      const layers = readRuntimeLayers(base.root);
+      if (layers) {
+        const extra = unpackLayerManifest(manifest, { ...installedRuntimePayload().versions, ...layers.versions }, line => logger.debug(line));
+        const compiled = { ...await loadCompiledRuntime(base.root, skipModules ? `facet@${VERSION} (shipped)` : undefined), versions: layers.versions, compiledCache: join(runtimeCacheRoot(), 'compiled') };
+        if (skipModules || !Object.keys(extra.dependencies as object).length) {
+          linkRuntime(facetRoot, compiled);
+          return;
+        }
+        const extension = await ensureEnvironment({
+          cacheRoot: runtimeCacheRoot(), manifest: extra, npmrc: readFileSync(join(facetRoot, '.npmrc'), 'utf8'), logger,
+          baseIdentity: base.identity, invalidate: clearCache,
+          install: async root => {
+            const version = await installModules(root, { logger, nodeLinker: 'isolated' });
+            checkProjectPeers(root, Object.keys(extra.dependencies as object), layers.versions);
+            inheritModules(base.root, root);
+            return version;
+          },
+        });
+        linkRuntime(facetRoot, { ...compiled, ...extension });
+        return;
+      }
+    }
     const useInstalled = !process.env.FACET_DEV_ROOT && (skipModules || (!override && payloadSatisfies(installedRuntimePayload(), manifest)));
     const runtime = await (useInstalled ? installedRuntime() : ensureEnvironment({
       cacheRoot: runtimeCacheRoot(),
       manifest,
       npmrc: readFileSync(join(facetRoot, '.npmrc'), 'utf8'),
       logger,
-      install: root => installModules(root, logger),
+      install: root => installModules(root, { logger }),
       invalidate: clearCache,
     }));
     logger.debug(`Selected ${useInstalled ? 'installed' : 'cached dependency'} runtime ${runtime.identity} at ${runtime.root}`);
-    const compiled = await compileEnvironment(runtime);
-    writeFileSync(join(facetRoot, 'runtime.json'), JSON.stringify(compiled));
-    writeFileSync(join(facetRoot, 'facet-runtime.mjs'), readFileSync(assetPath('facet-runtime.mjs'), 'utf8').replace("'__FACET_RUNTIME_COMPILER__'", JSON.stringify(pathToFileURL(compiled.compiler).href)));
-    const modules = join(facetRoot, 'node_modules');
-    try {
-      if (!lstatSync(modules).isSymbolicLink()) throw new Error(`Expected a runtime dependency link at ${modules}`);
-      if (readlinkSync(modules) === runtime.nodeModules) return;
-      rmSync(modules);
-    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-    symlinkSync(runtime.nodeModules, modules, 'junction');
+    linkRuntime(facetRoot, await compileEnvironment(runtime));
   } finally { rmSync(join(facetRoot, '.npmrc'), { force: true }); }
+}
+
+function linkRuntime(facetRoot: string, runtime: { compiler: string; nodeModules: string }): void {
+  writeFileSync(join(facetRoot, 'runtime.json'), JSON.stringify(runtime));
+  writeFileSync(join(facetRoot, 'facet-runtime.mjs'), readFileSync(assetPath('facet-runtime.mjs'), 'utf8').replace("'__FACET_RUNTIME_COMPILER__'", JSON.stringify(pathToFileURL(runtime.compiler).href)));
+  const modules = join(facetRoot, 'node_modules');
+  try {
+    if (!lstatSync(modules).isSymbolicLink()) throw new Error(`Expected a runtime dependency link at ${modules}`);
+    if (readlinkSync(modules) === runtime.nodeModules) return;
+    rmSync(modules);
+  } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  symlinkSync(runtime.nodeModules, modules, 'junction');
 }
 
 // Patterns that indicate the loader failed because a *package* (not a relative
@@ -239,34 +275,36 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
   const profiler = new RenderProfiler('template-build', logger);
   const timings = options.timings ?? new RenderTimings();
+  const runtime = selectedRuntime();
 
   logger.debug(`Building template: ${templatePath}`);
 
   // Setup .facet/ directory
   const facetDir = new FacetDirectory({
     consumerRoot,
-    buildRoot: compilationWorkspace({ consumerRoot, templatePath, skipModules: options.skipModules, redact: options.redact, invalidate: options.clearCache }),
+    buildRoot: compilationWorkspace({ consumerRoot, templatePath, skipModules: options.skipModules, redact: options.redact, invalidate: options.clearCache, runtime: runtime && `${runtime.id}:${runtime.root}` }),
     templateFile: templatePath,
     logger,
     remarkConfig: readRemarkFrontmatter(resolve(consumerRoot, templatePath)),
     theme: options.theme,
       themeOverrides: options.themeOverrides,
     redact: options.redact,
-    skipModules: options.skipModules,
+    skipModules: options.skipModules || !!runtime,
   });
 
   await profiler.measure('scaffold', async () => {
     facetDir.create();
-    await facetDir.generatePackageJson();
+    if (!runtime) await facetDir.generatePackageJson();
     facetDir.symlinkConsumerFiles();
-    facetDir.copyStylesCss();
+    if (!runtime) facetDir.copyStylesCss();
 
     facetDir.generateTsConfig();
     facetDir.generateViteConfig();
     facetDir.generatePostCSSConfig();
   });
 
-  await timings.measure('dependency-install', () =>
+  if (runtime) await prepareModules(facetDir, logger);
+  else await timings.measure('dependency-install', () =>
     profiler.measure('dependencies', () => prepareModules(facetDir, logger, options.skipModules, options.clearCache)));
   facetDir.copyStylesCss();
   facetDir.generateEntryWrapper();
@@ -278,7 +316,7 @@ async function buildTemplateUnlocked(options: BuildOptions): Promise<BuildResult
     facetVersion: VERSION,
     templatePath,
     skipModules: options.skipModules,
-    extraDigest: facetDir.generatedConfigDigest(),
+    extraDigest: facetDir.generatedConfigDigest({ pinned: !!runtime }),
     onStats: (stats) => logger.debug(
       `Build key digest: ${stats.fileCount} files walked in ${stats.walkMs}ms, `
       + (stats.contentReused ? 'content digest reused' : `${stats.contentBytes} bytes hashed`)

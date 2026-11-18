@@ -31,13 +31,22 @@ it('ships a dependency environment with its exact versions and platform metadata
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 });
 
-it('keeps the rendering archive small and excludes inspection, editors, duplicated CLI and native compilers', () => {
+it('bounds the layered archive and ships precompiled editors with one copy of the native toolchain', () => {
   const archive = resolve(import.meta.dirname, '../assets/runtimes', runtimePlatformName(), 'default-runtime.tgz');
   const paths = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }).split('\n');
-  expect(statSync(archive).size).toBeLessThan(64 * 1024 * 1024);
+  expect(statSync(archive).size).toBeLessThan(128 * 1024 * 1024);
   expect(paths.filter(path => /\.map$|\.d\.[cm]?ts$|^\.\/packages\/|node_modules\/(?:pdfjs-dist|@napi-rs\/canvas[^/]*|monaco-editor|monaco-yaml|@codemirror|@lexical|lexical|rollup|@rollup\/rollup-[^/]*)\/|@flanksource\/facet\/cli\//.test(path))).toEqual([]);
   expect(paths.filter(path => /rolldown-binding\..*\.node$/.test(path))).toHaveLength(1);
   expect(paths.filter(path => /lightningcss\..*\.node$/.test(path))).toHaveLength(1);
-  expect(paths).toContain('./page-runtime/node/runtime.json');
-  expect(paths).toContain('./page-runtime/browser/runtime.json');
+  for (const target of ['node', 'browser']) {
+    const path = `./page-runtime/${target}/runtime.json`;
+    const { imports } = JSON.parse(execFileSync('tar', ['-xOf', archive, path], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
+    expect(imports).toMatchObject({
+      '@flanksource/facet': expect.stringMatching(/^layers\/facet\//),
+      '@flanksource/clicky-ui/mdx-editor': expect.stringMatching(/^layers\/clicky-ui\//),
+      '@flanksource/icons/mi': expect.stringMatching(/^layers\/clicky-ui\//),
+    });
+  }
+  const { browserCatalog } = JSON.parse(execFileSync('tar', ['-xOf', archive, './runtime-layers.json'], { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 }));
+  expect(browserCatalog.integrity[browserCatalog.imports['@flanksource/icons/mi']]).toMatch(/^sha384-/);
 });

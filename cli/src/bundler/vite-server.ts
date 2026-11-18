@@ -21,6 +21,7 @@ import { readRemarkFrontmatter } from '../utils/frontmatter.js';
 import type { RedactPolicy } from '../builders/remark-config.js';
 import { RenderTimings } from '../utils/performance.js';
 import { spawnLowPriority } from '../utils/subprocess-priority.js';
+import { selectedRuntime } from '../runtime/named.js';
 
 export interface ViteServerOptions {
   theme?: string;
@@ -53,7 +54,8 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
   options.signal?.throwIfAborted();
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
   const timings = options.timings ?? new RenderTimings();
-  const buildRoot = join(compilationWorkspace({ consumerRoot, templatePath, skipModules: options.skipModules, redact: options.redact, invalidate: options.clearCache }), 'live', randomUUID());
+  const runtime = selectedRuntime();
+  const buildRoot = join(compilationWorkspace({ consumerRoot, templatePath, skipModules: options.skipModules, redact: options.redact, invalidate: options.clearCache, runtime: runtime && `${runtime.id}:${runtime.root}` }), 'live', randomUUID());
 
   try {
     const facetDir = new FacetDirectory({
@@ -65,17 +67,18 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
       theme: options.theme,
       themeOverrides: options.themeOverrides,
       redact: options.redact,
-      skipModules: options.skipModules,
+      skipModules: options.skipModules || !!runtime,
     });
     facetDir.create();
-    await facetDir.generatePackageJson();
+    if (!runtime) await facetDir.generatePackageJson();
     facetDir.symlinkConsumerFiles();
-    facetDir.copyStylesCss();
+    if (!runtime) facetDir.copyStylesCss();
 
     facetDir.generateTsConfig();
     facetDir.generateClientScaffold(data);
 
-    await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules, options.clearCache));
+    if (runtime) await prepareModules(facetDir, logger);
+    else await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules, options.clearCache));
     facetDir.copyStylesCss();
     facetDir.generateEntryWrapper();
     options.signal?.throwIfAborted();

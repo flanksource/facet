@@ -4,13 +4,17 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { VERSION } from '../version-generated.js';
 
+export function sharedRuntimeCacheRoot(): string {
+  return resolve(process.env.FACET_CACHE_DIR || join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'facet'));
+}
+
 export function runtimeCacheRoot(): string {
-  const root = resolve(process.env.FACET_CACHE_DIR || join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'facet'));
+  const root = sharedRuntimeCacheRoot();
   return process.env.FACET_DEV_ROOT ? join(root, 'dev', createHash('sha256').update(resolve(process.env.FACET_DEV_ROOT)).digest('hex')) : root;
 }
 
-export function compilationWorkspace(options: { consumerRoot: string; templatePath: string; skipModules?: boolean; redact?: unknown; invalidate?: boolean }): string {
-  const identity = createHash('sha256').update(JSON.stringify({ consumerRoot: resolve(options.consumerRoot), templatePath: options.templatePath, skipModules: !!options.skipModules, redact: options.redact, version: VERSION })).digest('hex');
+export function compilationWorkspace(options: { consumerRoot: string; templatePath: string; skipModules?: boolean; redact?: unknown; invalidate?: boolean; runtime?: string }): string {
+  const identity = createHash('sha256').update(JSON.stringify({ consumerRoot: resolve(options.consumerRoot), templatePath: options.templatePath, skipModules: !!options.skipModules, redact: options.redact, version: VERSION, runtime: options.runtime })).digest('hex');
   const parent = join(runtimeCacheRoot(), 'compilations');
   mkdirSync(parent, { recursive: true });
   const pointer = join(parent, `${identity}.current.json`);
