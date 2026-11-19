@@ -1,4 +1,5 @@
 import { scaled } from '../utils/font-scale';
+import { formatJson, isTokenizedLanguage, tokenizeCode, type CodeTokenKind } from './code-tokens';
 
 /**
  * The one monospace surface. Inline `<code>` is styled in styles.css as 9pt
@@ -107,8 +108,9 @@ function generateHighlightedCode(code: string, language: string, showLineNumbers
   // This is a simplified version - in production you'd use Shiki's async API
   // during the build process
 
-  // Basic syntax highlighting with minimal styling
-  const lines = code.split('\n');
+  const tokenized = isTokenizedLanguage(language);
+  const source = language.toLowerCase() === 'json' ? formatJson(code) : code;
+  const lines = tokenized ? tokenLines(source, language) : source.split('\n');
   const lineNumberWidth = lines.length.toString().length;
 
   const styledCode = lines.map((line, idx) => {
@@ -117,13 +119,44 @@ function generateHighlightedCode(code: string, language: string, showLineNumbers
       ? `<span class="line-number" style="color: #858585; user-select: none; margin-right: 1.5rem; opacity: 0.6;">${lineNum}</span>`
       : '';
 
-    // Apply basic syntax coloring based on patterns
-    let styledLine = highlightSyntax(line, language);
+    const styledLine = tokenized ? line : highlightSyntax(line, language);
 
     return `<span class="line">${lineNumberHtml}${styledLine}</span>`;
   }).join('\n');
 
   return `<pre class="shiki" style="background-color: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: ${showLineNumbers ? '0' : '0.375rem'}; overflow-x: auto; margin: 0; border-bottom-left-radius: 0.375rem; border-bottom-right-radius: 0.375rem; font-family: ${MONO_FAMILY}; line-height: ${MONO_LEADING}; font-size: ${MONO_SIZE};"><code style="display: block;">${styledCode}</code></pre>`;
+}
+
+/** VS Code Dark+ colours for each token kind; `text` stays the block's foreground. */
+const TOKEN_STYLES: Record<CodeTokenKind, string> = {
+  text: '',
+  key: 'color: #9cdcfe;',
+  string: 'color: #ce9178;',
+  number: 'color: #b5cea8;',
+  keyword: 'color: #569cd6;',
+  comment: 'color: #6a9955; font-style: italic;',
+  punctuation: 'color: #808080;',
+  tag: 'color: #569cd6;',
+  attribute: 'color: #9cdcfe;',
+  meta: 'color: #c586c0;',
+};
+
+/**
+ * The highlighted HTML of each line of `code`. Tokens such as XML comments or
+ * JSON strings may span lines, so each one is closed at a newline and reopened
+ * on the next line, keeping every `.line` span self-contained.
+ */
+function tokenLines(code: string, language: string): string[] {
+  const lines: string[] = [''];
+  for (const token of tokenizeCode(code, language)) {
+    const style = TOKEN_STYLES[token.kind];
+    token.text.split('\n').forEach((part, index) => {
+      if (index > 0) lines.push('');
+      if (!part) return;
+      lines[lines.length - 1] += style ? `<span style="${style}">${escapeHtml(part)}</span>` : escapeHtml(part);
+    });
+  }
+  return lines;
 }
 
 /**
@@ -133,24 +166,7 @@ function generateHighlightedCode(code: string, language: string, showLineNumbers
 function highlightSyntax(line: string, language: string): string {
   let highlighted = escapeHtml(line);
 
-  if (language === 'yaml') {
-    // YAML highlighting with enhanced dark theme
-    highlighted = highlighted
-      // Keys (cyan/blue)
-      .replace(/^(\s*)([\w-]+):/g, '<span style="color: #4fc1ff;">$1$2</span>:')
-      // Strings (orange/salmon)
-      .replace(/:\s*(&quot;[^&]*&quot;|&#39;[^&]*&#39;)/g, ': <span style="color: #ce9178;">$1</span>')
-      // Numbers (light green)
-      .replace(/:\s*(\d+)/g, ': <span style="color: #b5cea8;">$1</span>')
-      // Booleans and null (blue)
-      .replace(/:\s*(true|false|null)/g, ': <span style="color: #569cd6;">$1</span>')
-      // Comments (green)
-      .replace(/^(\s*#.*)$/g, '<span style="color: #6a9955; font-style: italic;">$1</span>')
-      // List markers
-      .replace(/^(\s*-\s)/g, '<span style="color: #c586c0;">$1</span>')
-      // apiVersion, kind (magenta/purple)
-      .replace(/^(\s*)(apiVersion|kind):/g, '<span style="color: #c586c0;">$1$2</span>:');
-  } else if (language === 'bash' || language === 'sh' || language === 'shell') {
+  if (language === 'bash' || language === 'sh' || language === 'shell') {
     // Bash highlighting with enhanced dark theme
     highlighted = highlighted
       // Comments (green italic)

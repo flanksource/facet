@@ -442,17 +442,39 @@ drop it inline. The heading above pulls its text from the Data tab.
       }
       document.getElementById('renderBtn').disabled = false;
       document.getElementById('renderDrop').disabled = false;
-      queueBrowserRender();
+      document.dispatchEvent(new Event('facet-editors-ready'));
+      renderInitialBrowserPreview();
     });
 
-    function switchTab(tab, btn) {
-      document.querySelectorAll('.editor-tabs button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      ['template', 'header', 'footer', 'css', 'data', 'deps'].forEach(function(t) {
-        document.getElementById(t + '-editor').style.display = tab === t ? 'block' : 'none';
-      });
-      var editors = { template: templateEditor, header: headerEditor, footer: footerEditor, css: cssEditor, data: dataEditor, deps: depsEditor };
-      if (editors[tab]) editors[tab].layout();
+    const editorTabs = [...document.querySelectorAll('.editor-tabs [role="tab"]')];
+
+    function switchTab(tab) {
+      const selectedTab = editorTabs.find(button => button.dataset.tab === tab);
+      if (!selectedTab || tab === document.body.dataset.editorTab) return;
+      document.body.dataset.editorTab = tab;
+      for (const button of editorTabs) {
+        const selected = button === selectedTab;
+        button.setAttribute('aria-selected', String(selected));
+        button.tabIndex = selected ? 0 : -1;
+        document.getElementById(button.getAttribute('aria-controls')).hidden = !selected;
+      }
+      const editors = { template: templateEditor, header: headerEditor, footer: footerEditor, css: cssEditor, data: dataEditor, deps: depsEditor };
+      editors[tab]?.layout();
+      updateThemeEditor();
+      selectedTab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      writeUrlState();
+    }
+
+    function onEditorTabKey(event) {
+      const index = editorTabs.indexOf(event.target);
+      if (index === -1) return;
+      const last = editorTabs.length - 1;
+      const positions = { ArrowLeft: index === 0 ? last : index - 1, ArrowRight: index === last ? 0 : index + 1, Home: 0, End: last };
+      if (!Object.hasOwn(positions, event.key)) return;
+      event.preventDefault();
+      const button = editorTabs[positions[event.key]];
+      switchTab(button.dataset.tab);
+      button.focus();
     }
 
     function loadExample(name) {
@@ -468,6 +490,7 @@ drop it inline. The heading above pulls its text from the Data tab.
       // produced identical text would not, so mark it explicitly.
       markPreviewStale();
       writeUrlState();
+      document.dispatchEvent(new Event('facet-preview-styles'));
     }
 
 `;

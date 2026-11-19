@@ -8,7 +8,7 @@ export function browserPageFiles(options: { code: string; ext: string; header: s
     'footer.tsx': options.footer || 'export default function Footer() { return null; }',
     'custom.css': options.css,
     'layout.tsx': `import React, { useLayoutEffect, useRef } from 'react';
-import { ThemeProvider, Document, Page } from '@flanksource/facet';
+import * as facet from '@flanksource/facet';
 import * as themeModule from ${JSON.stringify(options.themeModule ?? '@flanksource/facet/Theme')};
 import Header from './header.tsx';
 import Footer from './footer.tsx';
@@ -26,7 +26,8 @@ export default function Layout({ children, data }) {
     return () => { observer.disconnect(); style.remove(); window.removeEventListener('beforeprint', size); };
   }, []);
   const props = ${component ? '{ data }' : "data && typeof data === 'object' && !Array.isArray(data) ? { ...Object.fromEntries(Object.entries(data).filter(([name]) => !['key', 'ref', 'children'].includes(name))), data } : { data }"};
-  return <ThemeProvider theme={themeModule.theme ?? themeModule.facetTheme} options={data?.theme} overrides={${JSON.stringify({ header: !!options.header, footer: !!options.footer })}}><div ref={root} id="facet-browser-page"><Header {...props} /><div className={${JSON.stringify(component ? '' : 'prose max-w-none p-8')}}>{${component ? 'React.cloneElement(children, props)' : '<Document title={data?.title}><Page>{React.cloneElement(children, props)}</Page></Document>'}}</div><Footer {...props} /></div></ThemeProvider>;
+  const { ThemeProvider, Document, Page } = facet;
+  return <ThemeProvider theme={themeModule.theme ?? themeModule.facetTheme} options={data?.theme} overrides={${JSON.stringify({ header: !!options.header, footer: !!options.footer })}}><div ref={root} id="facet-browser-page"><Header {...props} /><div className={${JSON.stringify(component ? '' : 'prose max-w-none p-8')}}>{${component ? 'React.cloneElement(children, props)' : '<Document title={data?.title}><Page>{React.cloneElement(children, { ...props, components: facet.mdxComponents })}</Page></Document>'}}</div><Footer {...props} /></div></ThemeProvider>;
 }`,
     'report.css': `html, body { margin: 0; padding: 0; background: white; }
 #facet-browser-page { display: flow-root; width: 100%; }

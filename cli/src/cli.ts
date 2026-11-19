@@ -459,7 +459,9 @@ program
 // serve command
 program
   .command('serve')
-  .option('--theme <name>', 'Default installed document theme (default: facet)')
+  .option('--theme <name>', 'Default document theme (default: facet)')
+  .option('--themes-dir <dir>', 'Local directory of editable theme packages (binds to loopback)')
+  .option('--pdf-renderer <renderer>', 'Server PDF template renderer: node or page-runtime (default: node)')
   .description('Start API server for rendering templates')
   .option('-p, --port <number>', 'Server port', '3010')
   .option('--templates-dir <dir>', 'Directory containing templates', '.')
@@ -488,6 +490,9 @@ program
       const { startServer } = await import('./server/preview.js');
       await startServer({
         port: options.port,
+        theme: options.theme,
+        themesDir: options.themesDir,
+        pdfRenderer: options.pdfRenderer,
         templatesDir: options.templatesDir,
         workers: options.workers,
         maxRendersPerWorker: options.maxRendersPerWorker,

@@ -102,15 +102,37 @@ pnpm exec oxnode cli/src/cli.ts --dev --skip-modules html examples/office/LiveDi
 
 These artifact builds do not publish to npm or rebuild the installed runtime archive. `--dev` resolves the compiler directly from the local page-runtime checkout and compiles dependency closures against the linked libraries. Consumer dependencies remain available; adding `--skip-modules` ignores them while retaining local libraries. Development caches live under `dev/<checkout-hash>/` in the shared cache. The server bypasses rendered-response reuse in dev mode, and changed built-library inputs invalidate compiled closures. Rebuild the relevant artifacts after library or compiler edits and submit a new render; Clicky UI source hot reload and automatic Clicky UI/compiler builds are not provided by this flag.
 
+## Server PDF runtime
+
+`facet serve` defaults to the Node PDF renderer. Enable browser template execution on a host with a working Chromium sandbox:
+
+```sh
+facet serve --templates-dir ./reports --pdf-renderer page-runtime
+```
+
+The setting applies to PDF jobs on `/render` and `/render/stream`. Both endpoints accept server templates, inline code, project archives, and remote template references. The page runtime lays out each Facet `Page` at its print width, including named presets and custom dimensions. Set `pageSizeOverride` to use one size for the whole PDF or `pdfOptions.landscape` to turn portrait sheets sideways. Use browser-compatible imports and dependencies. Project-local package links, Node APIs, and project package overrides are unavailable in this renderer. Compile and asset errors identify the source file and phase. The standalone local `facet pdf` command and other server output formats continue to use their existing renderers.
+
+Each worker keeps the installed or selected named runtime warm. Operator-installed templates with matching resolved package locks share a frame. Each job mounts a new document, while a new lock opens a fresh frame in that worker. Inline, archive, and remote templates run in separate browser contexts. Facet takes a snapshot after fonts, images, and diagrams are ready. The trusted browser host sanitizes it outside the template frame before handing it to the PDF pipeline for pagination, page sizes, headers and footers, and PDF security.
+
+Compare cold and warm jobs with the `Server-Timing` response header or the streaming result's `timings` field. Vary the data to measure rendering independently of final-PDF cache hits. The timing phases include queue time, frame boot when needed, dependency resolution, module loading and compilation, readiness, snapshot, and PDF generation. Restart with `--pdf-renderer node` to switch back.
+
+The local integration benchmark uses one worker and changes the document data for each request:
+
+```sh
+FACET_TEST_PAGE_RUNTIME=1 FACET_BENCH_PAGE_RUNTIME=1 pnpm --dir cli exec vitest run test/page-runtime-pdf.test.ts
+```
+
+Set `PUPPETEER_EXECUTABLE_PATH` if Chromium is installed outside the system paths. Worker RSS is available on Linux.
+
 ## Playground runtimes
 
-The playground served by `facet serve` has a Runtime selector. Server (Node) uses the existing renderer and all output formats. Browser (Clicky UI / WASM) sends TSX, Markdown or MDX source, JSON data and declared dependencies to `@flanksource/page-runtime`'s isolated frame. Its service worker compiles and links the page in the browser; no `/render` request or server template build is involved. The worker uses the WASM import lexer, Sucrase for TSX and the native MDX compiler for Markdown/MDX.
+The playground served by `facet serve` has a Runtime selector. Server supports all output formats. For HTML, Browser (Clicky UI / WASM) sends TSX, Markdown or MDX source, JSON data and declared dependencies to `@flanksource/page-runtime`'s isolated frame. Its service worker compiles and links the page using the WASM import lexer, Sucrase for TSX and the native MDX compiler for Markdown/MDX.
 
-Browser mode starts rendering when selected and updates automatically after a 300 ms pause in edits. It retains one iframe, bridge and runtime origin per tab. Data updates preserve the page's React state and wait for readiness. Source edits compile versioned local modules and reconcile through the existing React root, without reloading the document, worker or agent. The previous preview remains visible while compiling; edited components may remount, while page-only edits retain the layout. Changing HTML/PDF output reuses the ready page. Invalid input shows an error above the retained preview; switching to Server or changing runtime origin disposes it. Dependency changes reopen the page to install a new import map.
+Browser mode renders automatically when selected with an empty preview. After a render, edits keep the current preview visible and show a **Refresh preview** button above it. A failed refresh shows the error above the previous result. For Browser HTML, a refresh reuses the runtime frame when possible, and data changes preserve the page's React state. Dependency changes reopen the page to install a new import map.
 
-The CSS tab accepts plain CSS overrides for both runtimes, including HTML download and PDF output. Browser CSS edits replace the loaded stylesheet without remounting the page; the last stylesheet remains active until the replacement loads. Server mode applies the CSS on the next Render. CSS remains in the editor when switching runtime or example. API callers can pass the same text as `css` in a JSON render request or multipart options; the field participates in render caching.
+The CSS tab accepts plain CSS overrides for both runtimes, including HTML download and PDF output. Render or refresh to apply CSS changes. CSS remains in the editor when switching runtime or example. API callers can pass the same text as `css` in a JSON render request or multipart options. The field participates in render caching.
 
-Browser mode supports HTML and PDF. Download HTML saves a snapshot with styles and image assets inlined. For PDF, click Save PDF after the preview is ready and choose Save as PDF in the browser print dialog. The report is one continuous page with Facet page breaks and print minimum heights removed; header/footer editor content appears once. The native Markdown/MDX entry is retained so library-declared export plugins run for HTML and PDF. Both data shapes are available to MDX: `props.data.title` and `props.title`. Facet's multipage pagination, per-page headers/footers, page-size controls and PDF signing are available through the server runtime.
+**Download HTML** in Browser mode saves a snapshot with styles and image assets inlined. In either mode, **Render PDF** sends the template and PDF options to the server and displays the generated file in a PDF iframe. The server uses the configured `--pdf-renderer`, including `page-runtime` when selected. The preview includes the same pagination, headers and footers as the downloaded file.
 
 On localhost, leaving Runtime origin empty starts a separate loopback runtime origin automatically. Browser worker/frame assets are embedded with the CLI's playground assets. Normal mode serves the pinned browser package catalog and files from the installed rendering runtime, or from the runtime selected with `--runtime`. Additional dependencies can resolve through npm/unpkg. `--dev` serves immutable local Facet and Clicky UI build publications through the shared package-origin implementation, so testing unpublished libraries needs no npm release. Rebuild/publish local artifacts and restart serve to select a new local generation.
 

@@ -3,9 +3,11 @@ import { readFileSync } from 'node:fs';
 import { launchBrowser } from '../utils/pdf-generator.js';
 import { RenderError } from './errors.js';
 import { Logger } from '../utils/logger.js';
+import type { PageRuntimeWorker } from './page-runtime-worker.js';
 
 export interface Worker {
   browser: Browser;
+  pageRuntime?: PageRuntimeWorker;
   renders: number;
   startedAt: number;
   lastRssMb: number;
@@ -18,6 +20,7 @@ export interface WorkerPoolOptions {
   maxWorkerAgeMs?: number;
   maxWorkerRssMb?: number;
   acquireTimeoutMs?: number;
+  initializePageRuntime?: (browser: Browser) => Promise<PageRuntimeWorker>;
 }
 
 function chromiumTreeRssMb(browser: Browser): number {
@@ -51,12 +54,12 @@ export class WorkerPool {
   private total = 0;
   private shuttingDown = false;
   private logger: Logger;
-  private readonly limits: Required<WorkerPoolOptions>;
+  private readonly limits: Required<Omit<WorkerPoolOptions, 'initializePageRuntime'>>;
 
   constructor(
     private size: number,
     verbose = false,
-    options: WorkerPoolOptions = {},
+    private readonly options: WorkerPoolOptions = {},
   ) {
     this.logger = new Logger(verbose);
     this.limits = {
@@ -75,11 +78,21 @@ export class WorkerPool {
     this.logger.info(`Starting worker pool with ${this.size} browsers...`);
     // Start sequentially to avoid a large transient memory spike.
     for (let i = 0; i < this.size; i++) {
-      const browser = await launchBrowser();
-      this.available.push({ browser, renders: 0, startedAt: Date.now(), lastRssMb: 0, lastRssAt: 0 });
+      this.available.push(await this.createWorker());
       this.total++;
     }
     this.logger.info(`Worker pool ready (${this.total} browsers)`);
+  }
+
+  private async createWorker(): Promise<Worker> {
+    const browser = await launchBrowser({ sandbox: !!this.options.initializePageRuntime });
+    try {
+      const pageRuntime = await this.options.initializePageRuntime?.(browser);
+      return { browser, ...(pageRuntime ? { pageRuntime } : {}), renders: 0, startedAt: Date.now(), lastRssMb: 0, lastRssAt: 0 };
+    } catch (error) {
+      await browser.close();
+      throw error;
+    }
   }
 
   async acquire(signal?: AbortSignal): Promise<Worker> {
@@ -172,13 +185,10 @@ export class WorkerPool {
       }
 
       try {
-        const browser = await launchBrowser();
-        const fresh: Worker = {
-          browser, renders: 0, startedAt: Date.now(), lastRssMb: 0, lastRssAt: 0,
-        };
+        const fresh = await this.createWorker();
 
         if (this.shuttingDown) {
-          try { await browser.close(); } catch { /* shutdown is best effort */ }
+          try { await fresh.browser.close(); } catch { /* shutdown is best effort */ }
           this.total = Math.max(0, this.total - 1);
           return;
         }

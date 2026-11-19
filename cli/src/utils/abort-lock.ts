@@ -1,6 +1,5 @@
 export async function waitForAbortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise;
-  signal.throwIfAborted();
   return new Promise<T>((resolve, reject) => {
     const abort = () => { signal.removeEventListener('abort', abort); reject(signal.reason); };
     signal.addEventListener('abort', abort, { once: true });

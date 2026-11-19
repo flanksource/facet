@@ -63,7 +63,7 @@ export async function injectTypographyAnnotations(page: Page): Promise<void> {
     let node: Element | null;
     while ((node = walker.nextNode() as Element | null)) {
       if (node.classList?.contains('debug-annotation')) continue;
-      if (!node.textContent?.trim()) continue;
+      if (![...node.childNodes].some(child => child.nodeType === Node.TEXT_NODE && child.textContent?.trim())) continue;
 
       const s = window.getComputedStyle(node);
       const family = s.fontFamily.split(',')[0].replace(/['"]/g, '').trim();

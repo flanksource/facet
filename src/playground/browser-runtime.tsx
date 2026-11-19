@@ -33,6 +33,20 @@ export interface RenderOptions {
   onMessage?: (message: FrameMessage) => void;
   sourceProvider?: SourceProvider;
   onBridge?: (bridge: PageBridge | null) => void;
+  /**
+   * Receives the ready preview's exports, and null when they go stale. When
+   * set, the host renders its own export controls and the built-in Download
+   * HTML / Save PDF actions are not shown.
+   */
+  onExports?: (exports: BrowserExports | null) => void;
+}
+
+/** A ready browser preview's exports. */
+export interface BrowserExports {
+  /** Object URL of the standalone HTML snapshot, valid until the next render. */
+  htmlUrl: string;
+  /** Opens the print dialog for Save as PDF (failures reach onError); present for the pdf format. */
+  print?: () => void;
 }
 
 interface Session {
@@ -75,6 +89,7 @@ export function createBrowserPreview() {
     if (!session || !session.frame.isConnected) return false;
     session.error.hidden = true;
     session.actions.inert = true;
+    session.options.onExports?.(null);
     if (session.htmlUrl) URL.revokeObjectURL(session.htmlUrl);
     session.htmlUrl = undefined;
     return true;
@@ -206,23 +221,30 @@ export function createBrowserPreview() {
         new Blob([response.message.html], { type: "text/html" }),
       );
     }
-    current.actions.replaceChildren();
-    current.actions.inert = false;
-    const download = document.createElement("a");
-    download.href = current.htmlUrl;
-    download.download = "report.html";
-    download.textContent = "Download HTML";
-    current.actions.append(download);
-    if (current.options.format === "pdf") {
-      const print = document.createElement("button");
-      print.textContent = "Save PDF";
-      print.onclick = () => {
+    const exports: BrowserExports = { htmlUrl: current.htmlUrl };
+    if (current.options.format === "pdf")
+      exports.print = () => {
         if (!current.bridge)
           throw new Error("Browser runtime bridge is missing");
         void current.bridge
           .request({ type: "export", format: "print" }, { timeoutMs: 300000 })
           .catch((error) => failure(current, error));
       };
+    current.actions.replaceChildren();
+    if (current.options.onExports) {
+      current.options.onExports(exports);
+      return;
+    }
+    current.actions.inert = false;
+    const download = document.createElement("a");
+    download.href = exports.htmlUrl;
+    download.download = "report.html";
+    download.textContent = "Download HTML";
+    current.actions.append(download);
+    if (exports.print) {
+      const print = document.createElement("button");
+      print.textContent = "Save PDF";
+      print.onclick = exports.print;
       const hint = document.createElement("span");
       hint.textContent =
         "One continuous page. Choose Save as PDF in the print dialog.";

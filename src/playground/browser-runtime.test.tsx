@@ -79,4 +79,43 @@ describe("browser preview instances", () => {
     b.remove();
     vi.unstubAllGlobals();
   });
+
+  it("hands exports to onExports instead of rendering its own actions, and clears them on invalidate", async () => {
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, {
+        createObjectURL: vi.fn(() => "blob:exports"),
+        revokeObjectURL: vi.fn(),
+      }),
+    );
+    const preview = createBrowserPreview();
+    const container = document.createElement("div");
+    document.body.append(container);
+    const onExports = vi.fn();
+    await preview.render({
+      container,
+      runtimeOrigin: "http://127.0.0.1:9999",
+      code: "export default () => null",
+      ext: "jsx",
+      header: "",
+      footer: "",
+      css: "",
+      data: null,
+      dependencies: {},
+      format: "pdf",
+      onStatus: vi.fn(),
+      onError: vi.fn(),
+      onExports,
+    });
+    expect(onExports).toHaveBeenLastCalledWith({
+      htmlUrl: "blob:exports",
+      print: expect.any(Function),
+    });
+    expect(container.querySelector(".browser-actions")?.childElementCount).toBe(0);
+    preview.invalidate();
+    expect(onExports).toHaveBeenLastCalledWith(null);
+    preview.dispose();
+    container.remove();
+    vi.unstubAllGlobals();
+  });
 });

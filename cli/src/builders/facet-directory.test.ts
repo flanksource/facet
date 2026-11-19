@@ -326,6 +326,25 @@ describe('FacetDirectory Tailwind integration', () => {
     expect(await readFile(join(facetRoot, 'post-process-v4.css'), 'utf-8'))
       .toContain('@source "./src/src";');
   });
+
+  it('loads the selected package stylesheet in the SSR CSS pass before template overrides', async () => {
+    const name = 'example-facet-theme';
+    const packageDir = join(facetRoot, 'node_modules', name);
+    const directory = new FacetDirectory({ consumerRoot, templateFile: 'template.tsx', logger, theme: 'example' });
+    directory.create();
+    await mkdir(packageDir, { recursive: true });
+    await writeFile(join(facetRoot, 'package.json'), JSON.stringify({ dependencies: { [name]: '1.0.0' } }));
+    await writeFile(join(packageDir, 'package.json'), JSON.stringify({
+      version: '1.0.0', exports: { './theme': './dist/theme.js', './styles.css': './dist/styles.css' },
+      facet: { themes: { example: './theme' } },
+    }));
+    await writeFile(join(consumerRoot, 'template.tsx'), "import './overrides.css';\nexport default null;");
+    directory.copyStylesCss();
+    const css = await readFile(join(facetRoot, 'post-process-v4.css'), 'utf8');
+    expect(css.split('\n').slice(0, 3)).toEqual([
+      "@import './facet.css';", `@import '${name}/styles.css';`, "@import './src/overrides.css';",
+    ]);
+  });
 });
 
 describe('FacetDirectory.generatePackageJson .npmrc', () => {

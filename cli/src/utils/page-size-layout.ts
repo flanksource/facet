@@ -1,7 +1,7 @@
 import type { BrowserLayout } from './render-layout.js';
 import { canonicalPageSize, PAGE_SIZE_PRESETS } from './page-size-presets.js';
 
-export function pageSizeLayout(name?: string, landscape?: boolean): BrowserLayout | undefined {
+export function pageSizeLayout(name?: string, landscape?: boolean): (BrowserLayout & { pageSizeOverride: string }) | undefined {
   if (name === undefined) return undefined;
   const size = canonicalPageSize(name);
   const preset = PAGE_SIZE_PRESETS[size];
@@ -23,5 +23,29 @@ export function pageSizeLayout(name?: string, landscape?: boolean): BrowserLayou
         ${unit === 'px' ? `height: ${pageHeight} !important; min-height: 0 !important; overflow: hidden !important; display: flex; flex-direction: column;` : `height: auto !important; min-height: ${pageHeight} !important;`} }
       ${unit === 'px' ? '[data-page-size] > main { flex: 1; min-height: 0; }' : ''}
       body:not(:has([data-page-size])) { min-height: ${pageHeight} !important; }`,
+  };
+}
+
+/** Measure live content at its print width before the diagram freezes its geometry. */
+export function pdfSnapshotLayout(options: { override?: string; defaultSize?: string; landscape?: boolean }): BrowserLayout {
+  const override = pageSizeLayout(options.override, options.landscape);
+  if (override) return override;
+  const fallback = pageSizeLayout(options.defaultSize ?? 'a4', options.landscape)!;
+  const widths = Object.entries(PAGE_SIZE_PRESETS).map(([name, { width, height, unit }]) => {
+    const pageWidth = options.landscape ? Math.max(width, height) : width;
+    return `[data-page-size="${name}" i] { width: ${pageWidth}${unit} !important; }`;
+  });
+  return {
+    viewport: fallback.viewport,
+    sizeAttribute: 'data-page-size',
+    ...(options.landscape && { landscapeSizes: Object.fromEntries(
+      Object.entries(PAGE_SIZE_PRESETS).filter(([, { width, height }]) => width < height)
+        .map(([name]) => [name, pageSizeLayout(name, true)!.pageSizeOverride]),
+    ) }),
+    css: [
+      'body { margin: 0; padding: 0; }',
+      `[data-page-size] { width: ${fallback.viewport.width}px !important; max-width: none !important; box-sizing: border-box; }`,
+      ...widths,
+    ].join('\n'),
   };
 }
