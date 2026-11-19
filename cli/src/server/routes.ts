@@ -12,6 +12,7 @@ import { officeLayout } from '../office/layout.js';
 import { pageSizeLayout, pdfSnapshotLayout } from '../utils/page-size-layout.js';
 import { PDF_LAYOUT_VERSION, renderBinary } from './render-binary.js';
 import { renderPageRuntimePDF } from './page-runtime-pdf.js';
+import { buildLiveHTML } from '../generators/html.js';
 import { hasMermaidCodeBlocks, renderBrowserHTML } from '../utils/browser-html.js';
 import { Logger } from '../utils/logger.js';
 import { RenderTimings } from '../utils/performance.js';
@@ -25,6 +26,7 @@ import {
   renderHTMLStreamed,
   resolveTemplateSource,
   respondWithOutput,
+  type ResolvedSource,
 } from './render-pipeline.js';
 import { computeCacheKey, RenderCache } from './render-cache.js';
 import { RenderProgress } from './render-stream.js';
@@ -106,6 +108,9 @@ async function resolveRenderTheme(parsed: ParsedRenderRequest, config: ServerCon
   if (workspace && local) {
     const built = await workspace.published(local);
     if (!built) throw new RenderError('INVALID_REQUEST', `Build the workspace theme ${id} in Theme editor first`, 409);
+    if (parsed.htmlMode === 'linked' || parsed.htmlMode === 'bundle') {
+      throw new RenderError('INVALID_REQUEST', 'Install or publish the built theme for linked or bundled HTML exports', 400);
+    }
     parsed.workspaceTheme = built;
   }
   if (parsed.source.kind === 'inline' && !pageRuntime) {
@@ -172,6 +177,7 @@ export function handleRenderStream(
     try {
       progress.emit('parsing', 'Parsing request...');
       parsed = await parseRenderRequest(request, config.maxUploadSize);
+      if (parsed.htmlMode === 'bundle') throw new RenderError('INVALID_REQUEST', 'Bundled HTML is available on /render', 400);
       await resolveRenderTheme(parsed, config, workspace);
       validateRequestModuleMode(parsed, config.skipModules);
     } catch (error) {
@@ -233,12 +239,12 @@ export function handleRenderStream(
       const data = typeof result.content === 'string'
         ? Buffer.from(result.content)
         : Buffer.from(result.content);
-      const storageKey = cacheable ? cacheKey : freshResultKey();
-      cache.set(storageKey, result.metadata.contentType, data);
+      const storageKey = parsed.htmlMode === 'linked' ? undefined : cacheable ? cacheKey : freshResultKey();
+      if (storageKey) cache.set(storageKey, result.metadata.contentType, data);
       progress.emitResult(
         result.metadata.contentType,
         result.metadata.binary ? '' : data.toString('utf-8'),
-        `/results/${storageKey}`,
+        storageKey ? `/results/${storageKey}` : '',
         timings.entries(),
       );
       progress.emit('done', 'Render complete');
@@ -294,6 +300,9 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
     embedFormat: parsed.embedFormat,
     embedSize: parsed.embedSize,
     pageSizeOverride: parsed.pageSizeOverride,
+    htmlMode: parsed.htmlMode,
+    htmlRuntimeOrigin: parsed.htmlRuntimeOrigin,
+    htmlCssScope: parsed.htmlCssScope,
   });
 }
 
@@ -305,7 +314,7 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
  * rebuilding a local library takes effect on the next render.
  */
 function isCacheable(parsed: ParsedRenderRequest): boolean {
-  return !process.env.FACET_DEV_ROOT && !(parsed.signature && parsed.format === 'pdf');
+  return !process.env.FACET_DEV_ROOT && !(parsed.signature && parsed.format === 'pdf') && parsed.htmlMode !== 'linked' && parsed.htmlMode !== 'bundle';
 }
 
 /**
@@ -337,6 +346,22 @@ function snapshotLayout(parsed: ParsedRenderRequest) {
 
 interface DirectRenderOptions extends RenderOptions {
   cache: RenderCache;
+}
+
+async function liveExport(options: RenderOptions, resolved: ResolvedSource) {
+  const { parsed, config, logger, timings, signal } = options;
+  if (parsed.redact) {
+    throw new RenderError('INVALID_REQUEST', 'Use inline HTML for redacted exports. Live HTML embeds the template and all input data.', 400);
+  }
+  if (parsed.headerCode || parsed.footerCode) throw new RenderError('INVALID_REQUEST', 'Use inline HTML for request-level header and footer code', 400);
+  return buildLiveHTML({
+    templatePath: resolved.entryFile, consumerRoot: resolved.consumerRoot, data: parsed.data,
+    outputName: parsed.filename?.replace(/\.html$/i, '') ?? resolved.templateName,
+    htmlMode: parsed.htmlMode, htmlRuntimeOrigin: parsed.htmlRuntimeOrigin, cssScope: parsed.htmlCssScope,
+    logger, timings, signal, showSlideNotes: true, fontSize: parsed.fontSize, css: parsed.css,
+    dependencies: parsed.dependencies, maxBytes: config.maxUploadSize, postProcessCss: parsed.postProcessCss,
+    pageSizeOverride: parsed.pageSizeOverride, theme: parsed.theme ?? config.theme, sandbox: config.sandbox, skipModules: config.skipModules,
+  });
 }
 
 async function materializeBrowserHTML(html: string, pool: WorkerPool, logger: Logger, signal?: AbortSignal): Promise<string> {
@@ -394,6 +419,12 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
     tempDir = resolved.tempDir;
     archiveCleanup = resolved.archiveCleanup;
     signal?.throwIfAborted();
+
+    if (parsed.htmlMode === 'linked' || parsed.htmlMode === 'bundle') {
+      const artifact = await liveExport(options, resolved);
+      if (artifact.script !== undefined) return Response.json(artifact);
+      return respondWithOutput({ content: artifact.html, contentType: 'text/html', extension: 'html', templateName: resolved.templateName, parsed, s3, logger });
+    }
 
     let html = await renderHTML({
       consumerRoot: resolved.consumerRoot,
@@ -496,6 +527,12 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
     const resolved = await resolveTemplateSource(parsed, templates, config);
     tempDir = resolved.tempDir;
     archiveCleanup = resolved.archiveCleanup;
+
+    if (parsed.htmlMode === 'linked') {
+      progress.emit('building', 'Building the live HTML document...');
+      const { html } = await liveExport(options, resolved);
+      return { content: html, metadata: renderFormatMetadata('html') };
+    }
 
     progress.emit('building', 'Building template with Vite SSR...');
     let html = await renderHTMLStreamed({

@@ -198,6 +198,9 @@ addSharedOptions(
   program
     .command('html <templates...>')
     .description('Generate HTML from one or more templates')
+    .option('--inline', 'Export a rendered HTML snapshot with inline styles')
+    .option('--bundle', 'Put the live template and runtime in a sibling JavaScript file')
+    .option('--runtime-origin <url>', 'Link the live document runtime from this Facet server')
     .option('--css-scope <prefix>', 'CSS scope prefix for scoped HTML generation')
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
@@ -207,8 +210,10 @@ addSharedOptions(
   const logger = new Logger(options.verbose);
   try {
     const facetURL = resolveFacetURL(options.facetUrl);
+    if (options.inline && options.bundle) throw new Error('Choose either --inline or --bundle');
+    if (options.runtimeOrigin && (options.inline || options.bundle)) throw new Error('--runtime-origin requires linked HTML');
     if (options.lint) await lintTemplatesBeforeRender(templates, logger, options.verbose);
-    await ensureRenderReady('html', { ...options, facetURL }, logger);
+    await ensureRenderReady('html', { ...options, live: options.inline && options.live, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating HTML from template: ${template}`);
       const { outputDir, outputName } = resolveOutput(options.output);
@@ -221,6 +226,8 @@ addSharedOptions(
         outputName: templates.length === 1 ? outputName : undefined,
         outputNameField: options.outputNameField,
         cssScope: options.cssScope,
+        htmlMode: options.inline ? 'inline' : options.bundle ? 'bundle' : 'linked',
+        htmlRuntimeOrigin: options.runtimeOrigin,
         schema: options.schema,
         validate: options.validate,
         verbose: options.verbose,

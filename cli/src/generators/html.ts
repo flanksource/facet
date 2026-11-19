@@ -1,16 +1,17 @@
 import { mkdir, writeFile } from 'fs/promises';
+import { readFileSync } from 'node:fs';
 import { resolve, join } from 'path';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
 import { DataLoader } from '../utils/data-loader.js';
 import { DataValidator } from '../utils/validator.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
-import { startViteServer } from '../bundler/vite-server.js';
+import { buildDocumentBundle, startViteServer } from '../bundler/vite-server.js';
 import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
 import { cascadeOrder } from '@flanksource/page-runtime/styles';
 import { scopeHTML } from '../utils/css-scoper.js';
-import { injectFontScale } from '../utils/font-size.js';
+import { fontScaleCss, injectFontScale } from '../utils/font-size.js';
 import { showSlideNotes } from '../utils/slide-notes.js';
 import { resolveTemplateSource } from '../utils/template-source.js';
 import { runTailwindCached } from '../utils/tailwind.js';
@@ -19,8 +20,13 @@ import { RenderTimings } from '../utils/performance.js';
 import { renderBrowserHTML } from '../utils/browser-html.js';
 import type { BrowserLayout } from '../utils/render-layout.js';
 import { pageSizeLayout } from '../utils/page-size-layout.js';
+import { bundledDocumentRuntime, documentRuntimeUrl, liveHTMLArtifact, parseDocumentRuntimeOrigin } from './html-artifact.js';
+import { selectedRuntime } from '../runtime/named.js';
+import { readHTMLSource } from './html-source.js';
+import { assetPath } from '../utils/assets.js';
+import { VERSION } from '../version-generated.js';
 
-export async function renderTemplateHTML({ options, layout }: { options: GenerateOptions; layout?: BrowserLayout }): Promise<{ html: string; outputName: string; consumerRoot?: string }> {
+export async function renderTemplateHTML({ options, layout, liveLayout }: { options: GenerateOptions; layout?: BrowserLayout; liveLayout?: BrowserLayout }): Promise<{ html: string; outputName: string; consumerRoot?: string }> {
   layout ??= pageSizeLayout(options.pageSizeOverride, options.landscape);
   const logger = new Logger(options.verbose);
   const timings = options.timings ?? new RenderTimings();
@@ -63,7 +69,7 @@ export async function renderTemplateHTML({ options, layout }: { options: Generat
       clearCache: options.clearCache,
     });
     try {
-      const snapshot = await snapshotHTML(server.url, logger, { png: options.pngOptions, layout });
+      const snapshot = await snapshotHTML(server.url, logger, { png: options.pngOptions, layout: liveLayout ?? layout });
       const scoped = options.cssScope ? scopeHTML(snapshot, { scopeClass: options.cssScope }) : snapshot;
       // The file is standalone, so the scale has to be in the emitted bytes.
       const html = injectFontScale(scoped, options.fontSize);
@@ -131,11 +137,57 @@ export async function renderTemplateHTML({ options, layout }: { options: Generat
 }
 
 export async function generateHTML(options: GenerateOptions): Promise<string> {
-  const { html, outputName } = await renderTemplateHTML({ options });
+  const { html, outputName, script } = options.htmlMode === 'inline'
+    ? await renderInlineArtifact(options)
+    : await renderLiveArtifact(options);
   const outputDir = resolve(process.cwd(), options.outputDir);
   await mkdir(outputDir, { recursive: true });
   const outputPath = join(outputDir, `${outputName}.html`);
-  await writeFile(outputPath, options.showSlideNotes ? showSlideNotes(html) : html, 'utf-8');
+  if (script !== undefined) await writeFile(join(outputDir, `${outputName}.js`), script, 'utf-8');
+  await writeFile(outputPath, html, 'utf-8');
   new Logger(options.verbose).success(`HTML generated: ${outputPath}`);
   return outputName;
+}
+
+async function renderInlineArtifact(options: GenerateOptions) {
+  const { html, outputName } = await renderTemplateHTML({ options });
+  return { html: options.showSlideNotes ? showSlideNotes(html) : html, outputName, script: undefined };
+}
+
+async function renderLiveArtifact(options: GenerateOptions) {
+  if (options.redact) throw new Error('Use --inline for redacted HTML exports. Live HTML embeds the template and all input data.');
+  const logger = new Logger(options.verbose);
+  const timings = options.timings ?? new RenderTimings();
+  const source = await resolveTemplateSource(options.template, { refresh: options.refresh, verbose: Boolean(options.verbose) });
+  const { data, outputName } = await new DataLoader(logger).load(options);
+  if (options.validate && options.schema) await new DataValidator(logger).validate(data, options.schema);
+  const artifact = await buildLiveHTML({
+    ...options, ...source, data, outputName, logger, timings,
+  });
+  if (!options.timings) timings.log(logger);
+  return { ...artifact, outputName };
+}
+
+export async function buildLiveHTML(options: {
+  templatePath: string; consumerRoot?: string; outputName: string; data: Record<string, unknown>;
+  htmlMode?: 'linked' | 'inline' | 'bundle'; htmlRuntimeOrigin?: string;
+  logger: Logger; timings: RenderTimings; cssScope?: string; showSlideNotes?: boolean;
+  fontSize?: number; pageSizeOverride?: string; landscape?: boolean; css?: string;
+  theme?: string; sandbox?: string | boolean; skipModules?: boolean; clearCache?: boolean; signal?: AbortSignal;
+  dependencies?: Record<string, string>; maxBytes?: number; postProcessCss?: boolean;
+}): Promise<{ html: string; script?: string }> {
+  const layout = pageSizeLayout(options.pageSizeOverride, options.landscape);
+  const settings = options.fontSize == null ? [] : [fontScaleCss(options.fontSize)];
+  const css = [layout?.css, ...settings, options.css].filter(Boolean).join('\n');
+  if (options.htmlMode === 'bundle') {
+    const bundle = await buildDocumentBundle(options);
+    return liveHTMLArtifact({ ...options, program: bundle.program, css: `${bundle.css}\n${css}`, runtimeScript: bundledDocumentRuntime() });
+  }
+  const local = selectedRuntime() || process.env.FACET_DEV_ROOT;
+  const origin = options.htmlRuntimeOrigin ?? (local ? `http://localhost:${process.env.FACET_PORT ?? '3010'}` : undefined);
+  const source = await readHTMLSource({ ...options, dynamicStyles: options.postProcessCss });
+  const { peerDependencies } = JSON.parse(readFileSync(assetPath('package.json'), 'utf8')) as { peerDependencies: Record<string, string> };
+  const managed = { '@flanksource/facet': VERSION, '@flanksource/clicky-ui': peerDependencies['@flanksource/clicky-ui']! };
+  const profileUrl = origin ? new URL('/runtime-assets/browser/profile.json', parseDocumentRuntimeOrigin(origin)).href : undefined;
+  return liveHTMLArtifact({ ...options, css, source: { ...source, managed, profileUrl }, runtimeUrl: documentRuntimeUrl(origin) });
 }

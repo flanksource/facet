@@ -29,6 +29,7 @@ import { installedRuntime } from '../runtime/installed.js';
 import { requestAbortSignal } from './request-abort.js';
 import { startBrowserOrigin, type BrowserOrigin } from '../runtime/browser-origin.js';
 import { startPageRuntimeHost } from './page-runtime-worker.js';
+import { documentRuntime } from '../generators/html-artifact.js';
 import { WorkspaceThemes } from './workspace-themes.js';
 import { handleWorkspaceThemes } from './workspace-theme-routes.js';
 
@@ -48,6 +49,7 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   const workspaceOrigins = new Map<string, { build: string; runtime: Promise<BrowserOrigin> }>();
   const themeWorkspace = config.themesDir ? new WorkspaceThemes(resolve(config.themesDir)) : undefined;
   if (themeWorkspace && config.skipModules) throw new Error('--themes-dir requires project modules; omit --skip-modules');
+  let htmlRuntime: ReturnType<typeof documentRuntime> | undefined;
 
   if (config.skipModules && !process.env.FACET_DEV_ROOT) {
     await installedRuntime();
@@ -106,6 +108,36 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
 
     if (url.pathname === '/healthz' && request.method === 'GET') {
       return handleHealthz(pool);
+    }
+
+    if (/^\/runtime-assets\/[a-f0-9]{64}\/page-runtime\.js$/.test(url.pathname) && ['GET', 'HEAD'].includes(request.method)) {
+      htmlRuntime ??= documentRuntime();
+      if (htmlRuntime.path !== url.pathname) return new Response('Facet HTML runtime build not found', { status: 404 });
+      return new Response(request.method === 'HEAD' ? null : new Uint8Array(htmlRuntime.bytes), {
+        headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=31536000, immutable', 'access-control-allow-origin': '*' },
+      });
+    }
+
+    if (url.pathname.startsWith('/runtime-assets/browser/')) {
+      const path = url.pathname.slice('/runtime-assets/browser'.length);
+      if (!/^\/(?:profile\.json|runtime-exports\.json|_packages\/.+|_generations\/.+)$/.test(path)) return new Response('Runtime package route not found', { status: 404 });
+      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, HEAD', 'access-control-allow-private-network': 'true' };
+      if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+      if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(null, { status: 405, headers: cors });
+      const key = 'document-runtime';
+      let runtime = browserOrigins.get(key);
+      if (!runtime) {
+        runtime = startBrowserOrigin({ hostOrigin: 'http://127.0.0.1', themeRoots: discoverThemes(process.cwd()).map(theme => theme.root) });
+        browserOrigins.set(key, runtime);
+        void runtime.catch(() => { browserOrigins.delete(key); });
+      }
+      const resource = await fetch((await runtime).origin + path + url.search, { method: request.method, signal: request.signal, redirect: 'error' });
+      const headers = new Headers(Object.entries(cors));
+      for (const name of ['content-type', 'cache-control']) {
+        const value = resource.headers.get(name);
+        if (value) headers.set(name, value);
+      }
+      return new Response(resource.body, { status: resource.status, headers });
     }
 
     // Fill-PDF playground assets + samples are public, like the playground HTML.

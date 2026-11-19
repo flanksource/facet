@@ -1,15 +1,14 @@
-import { readFile, writeFile as fsWriteFile, unlink } from 'fs/promises';
-import { resolve, join, dirname, basename, extname } from 'path';
-import { existsSync } from 'fs';
+import { mkdir, readFile, writeFile } from 'fs/promises';
+import { resolve, join, dirname } from 'path';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
-import { generateHTML } from './html.js';
+import { renderTemplateHTML } from './html.js';
 import { generatePDFFromHTML } from '../utils/pdf-generator.js';
 import { applyPDFSecurity } from '../utils/pdf-security.js';
 import { buildTemplate } from '../bundler/vite-builder.js';
 import { RenderProfiler, RenderTimings } from '../utils/performance.js';
 import { loadDataFile } from '../utils/data-loader.js';
-import { pageSizeLayout } from '../utils/page-size-layout.js';
+import { pageSizeLayout, pdfSnapshotLayout } from '../utils/page-size-layout.js';
 
 function extractBodyContent(html: string): string {
   const match = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
@@ -59,13 +58,17 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
 
   logger.info('Generating HTML...');
   const outputDir = resolve(process.cwd(), options.outputDir);
-  const expectedOutputName = options.outputName ?? basename(options.template, extname(options.template));
-  const existingHtmlPath = join(outputDir, `${expectedOutputName}.html`);
-  const preserveHtml = existsSync(existingHtmlPath);
-  const outputName = await profiler.measure('html', () => generateHTML({ ...options, timings }));
-
-  const htmlPath = join(outputDir, `${outputName}.html`);
-  let finalHTML = await readFile(htmlPath, 'utf-8');
+  const { html, outputName } = await profiler.measure('html', () => renderTemplateHTML({
+    options: { ...options, timings },
+    liveLayout: pdfSnapshotLayout({ override: options.pageSizeOverride, defaultSize: options.pageSize, landscape: options.landscape }),
+  }));
+  await mkdir(outputDir, { recursive: true });
+  if (options.debug) {
+    const htmlPath = join(outputDir, `${outputName}.html`);
+    await writeFile(htmlPath, html, 'utf8');
+    logger.info(`Debug HTML: ${htmlPath}`);
+  }
+  let finalHTML = html;
 
   const data = options.loadedData?.data ?? (options.data ? await loadDataFile(options.data) : {});
 
@@ -118,16 +121,7 @@ export async function generatePDF(options: GenerateOptions): Promise<void> {
       signature: options.signature,
       timings,
     });
-    await fsWriteFile(pdfPath, secured);
-  }
-
-  if (!options.debug && !preserveHtml) {
-    await unlink(htmlPath).catch(() => {});
-    logger.debug(`Cleaned up intermediate HTML: ${htmlPath}`);
-  } else if (options.debug) {
-    logger.info(`Debug: keeping intermediate HTML: ${htmlPath}`);
-  } else {
-    logger.debug(`Preserved existing HTML output: ${htmlPath}`);
+    await writeFile(pdfPath, secured);
   }
 
   logger.success(`PDF generated: ${pdfPath}`);

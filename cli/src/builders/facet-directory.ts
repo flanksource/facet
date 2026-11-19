@@ -582,10 +582,17 @@ export default defineConfig(async () => {
    * --live path so DOM-measuring components (diagrams/react-xarrows) render in a
    * real browser. The SSR entry.tsx is reused as the template source.
    */
-  generateClientScaffold(data: Record<string, unknown>): void {
+  generateClientScaffold(data: Record<string, unknown>, mode: 'preview' | 'export' = 'preview'): void {
     this.logger.debug('Generating live-render client scaffold');
 
-    const clientEntry = `import React from 'react';
+    const clientEntry = mode === 'export' ? `import * as React from 'react';
+import * as ReactDOMClient from 'react-dom/client';
+import * as ReactDOM from 'react-dom';
+import Template from './entry.tsx';
+import './live-tailwind.css';
+
+void globalThis.FacetDocumentRuntime.mount({ default: Template }, [React, ReactDOMClient, ReactDOM]);
+` : `import React from 'react';
 import { createRoot } from 'react-dom/client';
 import Template from './entry.tsx';
 import './live-tailwind.css';
