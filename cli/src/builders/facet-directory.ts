@@ -27,7 +27,7 @@ import {
   type RedactPolicy,
 } from './remark-config.js';
 
-import { themeEntry, themeFingerprint } from './themes.js';
+import { discoverThemes, themeEntry, themeFingerprint } from './themes.js';
 import { cascadeOrder } from '@flanksource/page-runtime/styles';
 import { assetPath } from '../utils/assets.js';
 import { createDefaultModulePackageJson, defaultModuleNpmrc, REQUIRED_DEPENDENCIES } from '../runtime/manifest.js';
@@ -38,6 +38,7 @@ import { pageStyles, wrapFacetStylesInLayer } from '../../../dist/page-styles/in
 export { wrapFacetStylesInLayer } from '../../../dist/page-styles/index.mjs';
 import { resolveConsumerDependencies, readWorkspaceOverrides, resolveOverrideValues } from './consumer-dependencies.js';
 import { computeTemplateBuildKey } from '../bundler/build-cache.js';
+import { DEFAULT_MARKDOWN_PAGE } from '../runtime/browser-template-layout.js';
 
 const rootPackageJson = assetPath('package.json');
 
@@ -423,17 +424,23 @@ export class FacetDirectory {
     const templateRelPath = relative(this.consumerRoot, join(this.consumerRoot, this.templateFile));
     const ext = this.templateFile.match(/\.[^.]+$/)?.[0] ?? '';
     const isMarkdown = ext === '.md' || ext === '.mdx';
+    const markdownPage = this.theme && this.theme !== 'facet'
+      ? '<Page>'
+      : DEFAULT_MARKDOWN_PAGE;
 
     const entry = isMarkdown
       ? `import React from 'react';
 import './facet.css';
-import { Document, Page, RedactPolicyProvider, mdxComponents } from '@flanksource/facet';
+import Document from '@flanksource/facet/Document';
+import Page from '@flanksource/facet/Page';
+import { RedactPolicyProvider } from '@flanksource/facet/Classified';
+import { mdxComponents } from '@flanksource/facet/MdxCodeBlock';
 import { Icon } from '@iconify/react';
 import Content from './src/${templateRelPath}';
 
 export default function Template({ data }) {
   return (
-    <RedactPolicyProvider policy={${JSON.stringify(this.redact ?? { allow: {} })}}><Document title={data?.title}><Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+    <RedactPolicyProvider policy={${JSON.stringify(this.redact ?? { allow: {} })}}><Document title={data?.title}>${markdownPage}
       <article className="prose">
         <Content components={{ ...mdxComponents, Icon }} {...data} />
       </article>
@@ -443,7 +450,7 @@ export default function Template({ data }) {
 `
       : `import React from 'react';
 import './facet.css';
-import { RedactPolicyProvider } from '@flanksource/facet';
+import { RedactPolicyProvider } from '@flanksource/facet/Classified';
 import Template from './src/${templateRelPath}';
 
 
@@ -456,7 +463,7 @@ export default function Entry(props) {
     const selected = themeEntry(this.facetRoot, this.theme);
     const themeCss = this.theme && this.theme !== 'facet' ? `import ${JSON.stringify(selected.slice(0, selected.lastIndexOf('/')) + '/styles.css')};` : '';
     const themed = entry.replace('export default function', 'function');
-    writeFileSync(entryPath, `${themeCss}\nimport { ThemeProvider } from '@flanksource/facet';\nimport { ${this.theme && this.theme !== 'facet' ? 'theme' : 'facetTheme'} as selectedTheme } from ${JSON.stringify(selected)};\n${themed}\nexport default function ThemedEntry(props) { return <ThemeProvider theme={selectedTheme} options={props.data?.theme} overrides={${JSON.stringify(this.themeOverrides ?? {})}}><${isMarkdown ? 'Template' : 'Entry'} {...props} /></ThemeProvider>; }`, 'utf-8');
+    writeFileSync(entryPath, `${themeCss}\nimport { ThemeProvider } from '@flanksource/facet/Theme';\nimport { ${this.theme && this.theme !== 'facet' ? 'theme' : 'facetTheme'} as selectedTheme } from ${JSON.stringify(selected)};\n${themed}\nexport default function ThemedEntry(props) { return <ThemeProvider theme={selectedTheme} options={props.data?.theme} overrides={${JSON.stringify(this.themeOverrides ?? {})}}><${isMarkdown ? 'Template' : 'Entry'} {...props} /></ThemeProvider>; }`, 'utf-8');
 
     this.logger.debug('Generated entry.tsx');
   }
@@ -1145,8 +1152,10 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
         const consumerPath = relative(this.consumerRoot, resolve(templateDir, specifier)).split(sep).join('/');
         return `./src/${consumerPath}`;
       });
+    const theme = this.theme && this.theme !== 'facet' ? discoverThemes(this.facetRoot).find(theme => theme.id === this.theme) : undefined;
     const postProcessLines = [
       "@import './facet.css';",
+      ...(theme ? [`@import '${theme.package}/styles.css';`] : []),
       ...imports.map((specifier) => `@import '${specifier}';`),
     ];
     const normalizedTemplateFile = this.templateFile.replaceAll('\\', '/').replace(/^\.\//, '');

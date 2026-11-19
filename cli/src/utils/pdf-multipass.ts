@@ -82,9 +82,8 @@ export async function detectPageTypes(page: Page, defaultPageSize?: string): Pro
   return page.evaluate((): RawDetectResult | null => {
     const headerEls = document.querySelectorAll('[data-header-type]');
     const footerEls = document.querySelectorAll('[data-footer-type]');
-    if (headerEls.length === 0 && footerEls.length === 0) return null;
-
     const pageEls = document.querySelectorAll('[data-page-size]');
+    if (headerEls.length === 0 && footerEls.length === 0 && pageEls.length === 0) return null;
     const types: string[] = [];
     const pageSizes: string[] = [];
     const pageMargins: { top: number; right: number; bottom: number; left: number }[] = [];
@@ -92,10 +91,10 @@ export async function detectPageTypes(page: Page, defaultPageSize?: string): Pro
       types.push(el.getAttribute('data-page-type') || 'default');
       pageSizes.push(el.getAttribute('data-page-size') || '');
       pageMargins.push({
-        top: parseInt(el.getAttribute('data-margin-top') || '0', 10),
-        right: parseInt(el.getAttribute('data-margin-right') || '0', 10),
-        bottom: parseInt(el.getAttribute('data-margin-bottom') || '0', 10),
-        left: parseInt(el.getAttribute('data-margin-left') || '0', 10),
+        top: Number(el.getAttribute('data-margin-top')),
+        right: Number(el.getAttribute('data-margin-right')),
+        bottom: Number(el.getAttribute('data-margin-bottom')),
+        left: Number(el.getAttribute('data-margin-left')),
       });
     });
 
@@ -155,9 +154,9 @@ export function buildPageGroups(typeInfo: PageTypeInfo): PageGroup[] {
     const margins = typeInfo.pageMargins[i];
     const last = groups[groups.length - 1];
     const lastMargins = last && typeInfo.pageMargins[last.elementIndices[0]];
-    const hasSameHorizontalMargins = margins?.left === lastMargins?.left
-      && margins?.right === lastMargins?.right;
-    if (last && last.type === type && last.size === size && hasSameHorizontalMargins) {
+    const sameMargins = margins?.left === lastMargins?.left && margins?.right === lastMargins?.right
+      && margins?.top === lastMargins?.top && margins?.bottom === lastMargins?.bottom;
+    if (last && last.type === type && last.size === size && sameMargins) {
       last.elementIndices.push(i);
     } else {
       groups.push({ type, size, elementIndices: [i] });
@@ -174,6 +173,34 @@ export interface RenderMargins {
   bottom: number;
   left: number;
   right: number;
+}
+
+export async function applyPrintMargins(page: Page, dims: PageSizeDimensions, margins: RenderMargins): Promise<void> {
+  if (Object.values(margins).some(value => !Number.isFinite(value) || value < 0)
+      || margins.left + margins.right >= dims.width || margins.top + margins.bottom >= dims.height) {
+    throw new Error(`Invalid PDF margins (${margins.top}/${margins.right}/${margins.bottom}/${margins.left}mm) for a ${dims.width}×${dims.height}mm page`);
+  }
+  await page.evaluate(() => {
+    for (const main of document.querySelectorAll<HTMLElement>('[data-page-size] > main')) {
+      for (const side of ['top', 'right', 'bottom', 'left']) {
+        const declared = main.parentElement?.getAttribute(`data-margin-${side}`);
+        const padding = main.style.getPropertyValue(`padding-${side}`);
+        // Page uses padding for its HTML view. The PDF reserves this space on each physical sheet.
+        if (declared != null && padding.endsWith('mm') && Number(declared) === parseFloat(padding)) {
+          main.style.removeProperty(`padding-${side}`);
+        }
+      }
+    }
+  });
+  await page.addStyleTag({ content: `
+    @page { size: ${dims.width}mm ${dims.height}mm;
+      margin: ${margins.top}mm ${margins.right}mm ${margins.bottom}mm ${margins.left}mm !important; }
+    @media print {
+      body:has([data-page-size]) { width: auto !important; max-width: ${dims.width}mm !important; margin: 0 !important; }
+      [data-page-size] { max-width: 100% !important; }
+      ${margins.top || margins.bottom ? '[data-facet-canvas] { max-height: var(--facet-printable-height) !important; }' : ''}
+    }`,
+  });
 }
 
 export function computeMarginsForSize(
@@ -353,9 +380,7 @@ export async function renderGroup(
   const bottomMm = `${margins.bottom}mm`;
   const leftMm = `${margins.left}mm`;
   const rightMm = `${margins.right}mm`;
-  await page.addStyleTag({
-    content: `@page { size: ${dims.width}mm ${dims.height}mm; margin-top: ${topMm} !important; margin-bottom: ${bottomMm} !important; margin-left: ${leftMm} !important; margin-right: ${rightMm} !important; } body { max-width: ${dims.width}mm !important; }`,
-  });
+  await applyPrintMargins(page, dims, margins);
 
   const pdfBytes = await page.pdf({
     width: `${pdfWidth}mm`,
@@ -699,7 +724,7 @@ export async function drawDebugOverlay(
     const footerHMm = def ? scaledHeight(def.footerHeight, scale) : 0;
     const headerHPt = mmToPt(headerHMm);
     const footerHPt = mmToPt(footerHMm);
-    const margins = computeMarginsForSize(typeInfo.definitions, sizeName);
+    const margins = pageMarginMap?.[i] ?? computeMarginsForSize(typeInfo.definitions, sizeName);
     const marginTopPt = mmToPt(margins.top);
     const marginBottomPt = mmToPt(margins.bottom);
 
@@ -749,12 +774,11 @@ export async function drawDebugOverlay(
     }
 
     // Draw vertical margin lines (left/right)
-    const pm = pageMarginMap?.[i] ?? { top: 0, right: 0, bottom: 0, left: 0 };
-    const leftPt = mmToPt(pm.left);
-    const rightPt = pw - mmToPt(pm.right);
+    const leftPt = mmToPt(margins.left);
+    const rightPt = pw - mmToPt(margins.right);
     const verticals = [
-      { xPt: leftPt, label: `margin-left ${pm.left}mm` },
-      { xPt: rightPt, label: `margin-right ${pm.right}mm` },
+      { xPt: leftPt, label: `margin-left ${margins.left}mm` },
+      { xPt: rightPt, label: `margin-right ${margins.right}mm` },
     ];
     for (const { xPt, label: vLabel } of verticals) {
       let y = 0;

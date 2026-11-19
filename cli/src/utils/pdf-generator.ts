@@ -59,12 +59,14 @@ import {
   drawDebugOverlay,
   renderHeaderFooterPdfs,
   resolvePageSize,
+  applyPrintMargins,
   overlayKey,
   mmToPx,
   printableHeightCss,
   PAGE_MARKER,
   TOTAL_MARKER,
   type PageTypeInfo,
+  type RenderMargins,
   type GroupResult,
   type PageType,
   type OverlayPdfs,
@@ -97,10 +99,11 @@ export function resolveChromePath(): string | undefined {
 export async function buildBrowserLaunchOptions(options: {
   chromePath: string;
   platform?: NodeJS.Platform;
+  sandbox?: boolean;
 }): Promise<LaunchOptions> {
   const chromeArgs = await puppeteer.defaultArgs({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: options.sandbox ? [] : ['--no-sandbox', '--disable-setuid-sandbox'],
   });
   const command = buildLowPriorityCommand({
     command: options.chromePath,
@@ -121,33 +124,6 @@ async function loadAndPrepare(browser: PageProvider, html: string, widthMm?: num
   }
   await setPreparedContent(page, html);
   return page;
-}
-
-async function detectMixedSizes(page: Page): Promise<PageTypeInfo | null> {
-  const raw = await page.evaluate(() => {
-    const pages = document.querySelectorAll('[data-page-size]');
-    const sizes: string[] = [];
-    const types: string[] = [];
-    const margins: {top: number; right: number; bottom: number; left: number}[] = [];
-    pages.forEach(el => {
-      sizes.push((el.getAttribute('data-page-size') || 'a4').toLowerCase());
-      types.push(el.getAttribute('data-page-type') || 'default');
-      margins.push({
-        top: parseInt(el.getAttribute('data-margin-top') || '0', 10),
-        right: parseInt(el.getAttribute('data-margin-right') || '0', 10),
-        bottom: parseInt(el.getAttribute('data-margin-bottom') || '0', 10),
-        left: parseInt(el.getAttribute('data-margin-left') || '0', 10),
-      });
-    });
-    return { sizes, types, margins };
-  });
-  if (new Set(raw.sizes).size <= 1) return null;
-  return {
-    types: raw.types as PageType[],
-    pageSizes: raw.sizes,
-    pageMargins: raw.margins,
-    definitions: new Map(),
-  };
 }
 
 async function removeEmptyPages(browser: PageProvider, html: string, emptyIndices: Set<number>): Promise<string> {
@@ -178,17 +154,13 @@ function filterEmptyPages(info: PageTypeInfo, emptyIndices: Set<number>): PageTy
   return { types, pageSizes, pageMargins, definitions: info.definitions, heightDetails: info.heightDetails };
 }
 
-function tocPageSpecs(typeInfo: PageTypeInfo): TocPageRenderSpec[] {
-  return typeInfo.types.map((type, index) => {
-    const size = typeInfo.pageSizes[index] ?? 'a4';
-    const margins = computeMarginsForSize(typeInfo.definitions, size);
-    const elementMargins = typeInfo.pageMargins[index];
-    if (elementMargins) {
-      margins.left = elementMargins.left;
-      margins.right = elementMargins.right;
-    }
-    return { type, size, margins };
-  });
+function resolvePrintMargins(bands: RenderMargins, declared?: PDFMargins, override?: PDFMargins): RenderMargins {
+  return {
+    top: bands.top + (override?.top ?? declared?.top ?? 0),
+    right: override?.right ?? declared?.right ?? 0,
+    bottom: bands.bottom + (override?.bottom ?? declared?.bottom ?? 0),
+    left: override?.left ?? declared?.left ?? 0,
+  };
 }
 
 async function renderMultiPass(
@@ -196,11 +168,10 @@ async function renderMultiPass(
   _html: string,
   typeInfo: PageTypeInfo,
   log: Logger,
-  debug?: boolean,
-  outputPath?: string,
-  debugTypography?: boolean,
-  fontScale = 1,
+  options: BufferPDFOptions,
+  fontScale: number,
 ): Promise<Buffer> {
+  const { debug, debugOutputPath: outputPath, debugTypography, margins: overrideMargins } = options;
   let html = _html;
   if (typeInfo.heightDetails) {
     for (const detail of typeInfo.heightDetails) log.debug(`  ${detail}`);
@@ -222,7 +193,11 @@ async function renderMultiPass(
     html = await removeEmptyPages(browser, html, emptyIndices);
   }
 
-  const pageSpecs = tocPageSpecs(typeInfo);
+  const pageSpecs = typeInfo.types.map((type, index): TocPageRenderSpec => {
+    const size = typeInfo.pageSizes[index] ?? 'a4';
+    return { type, size, margins: resolvePrintMargins(computeMarginsForSize(typeInfo.definitions, size), typeInfo.pageMargins[index], overrideMargins) };
+  });
+  typeInfo = { ...typeInfo, pageMargins: pageSpecs.map(spec => spec.margins) };
   if (html.includes('data-facet-toc-target=')) {
     const tocSourcePage = await loadAndPrepare(browser, html);
     try {
@@ -343,14 +318,11 @@ async function renderSinglePass(
   html: string,
   page: Page,
   log: Logger,
-  debug?: boolean,
-  landscape?: boolean,
-  overridePageSize?: string,
-  outputPath?: string,
-  overrideMargins?: PDFMargins,
-  debugTypography?: boolean,
-  fontScale = 1,
+  options: BufferPDFOptions,
+  fontScale: number,
+  declaredMargins?: PDFMargins,
 ): Promise<Buffer> {
+  const { debug, landscape, defaultPageSize: overridePageSize, debugOutputPath: outputPath, margins: overrideMargins, debugTypography } = options;
   const emptyIndices = await detectEmptyPages(page);
   if (emptyIndices.size > 0) {
     log.info(`Omitting ${emptyIndices.size} empty page(s)`);
@@ -392,11 +364,8 @@ async function renderSinglePass(
     content: `@page { size: ${dims.width}mm ${dims.height}mm; } body { max-width: ${dims.width}mm !important; }`,
   });
 
-  // Apply explicit margin overrides
-  const marginTop = overrideMargins?.top ?? pageInfo.top;
-  const marginBottom = overrideMargins?.bottom ?? pageInfo.bottom;
-  const marginLeft = overrideMargins?.left ?? 0;
-  const marginRight = overrideMargins?.right ?? 0;
+  const margins = resolvePrintMargins({ top: pageInfo.top, bottom: pageInfo.bottom, left: 0, right: 0 }, declaredMargins, overrideMargins);
+  const { top: marginTop, right: marginRight, bottom: marginBottom, left: marginLeft } = margins;
 
   const logicalPageCount = await page.evaluate(() => document.querySelectorAll('[data-page-size]').length);
   await resolveAutomaticTableOfContents({
@@ -405,13 +374,16 @@ async function renderSinglePass(
     specs: Array.from({ length: logicalPageCount }, () => ({
       type: 'default',
       size: pageInfo.pageSize,
-      margins: { top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight },
+      margins,
     })),
   });
 
   await page.addStyleTag({ content: printableHeightCss(dims.height, marginTop, marginBottom) });
 
   if (marginTop === 0 && marginBottom === 0 && marginLeft === 0 && marginRight === 0) {
+    if (overrideMargins || (declaredMargins && Object.values(declaredMargins).some(value => value !== 0))) {
+      await applyPrintMargins(page, dims, margins);
+    }
     const pdf = await page.pdf({
       width: `${pdfWidth}mm`,
       height: `${pdfHeight}mm`,
@@ -474,9 +446,7 @@ async function renderSinglePass(
   const bottomMm = `${marginBottom}mm`;
   const leftMm = `${marginLeft}mm`;
   const rightMm = `${marginRight}mm`;
-  await page.addStyleTag({
-    content: `@page { size: ${dims.width}mm ${dims.height}mm; margin-top: ${topMm} !important; margin-bottom: ${bottomMm} !important; margin-left: ${leftMm} !important; margin-right: ${rightMm} !important; }`,
-  });
+  await applyPrintMargins(page, dims, margins);
 
   const pdfBytes = await page.pdf({
     width: `${pdfWidth}mm`,
@@ -503,7 +473,7 @@ async function renderSinglePass(
 
   const composited = await compositeHeaderFooter(contentBuffer, overlays, pageMap, singleTypeInfo, pageSizeMap, browser, html, FACET_CREATOR);
   if (debug) {
-    const debugBuf = await drawDebugOverlay(composited, pageMap, pageSizeMap, singleTypeInfo, undefined, buildDebugInfo());
+    const debugBuf = await drawDebugOverlay(composited, pageMap, pageSizeMap, singleTypeInfo, Array(pageCount).fill(margins), buildDebugInfo());
     return Buffer.from(debugBuf);
   }
   return Buffer.from(composited);
@@ -575,22 +545,15 @@ async function renderPDF(
       log.info(`Typography: found ${fontCombos.length} unique font combinations`);
     }
 
-    const typeInfo = await detectPageTypes(page, options.defaultPageSize) ?? await detectMixedSizes(page);
+    const typeInfo = await detectPageTypes(page, options.defaultPageSize);
     let result: Buffer;
-    if (typeInfo != null) {
+    if (typeInfo && (typeInfo.definitions.size > 0 || buildPageGroups(typeInfo).length > 1)) {
       log.info(`Multi-pass mode: ${typeInfo.definitions.size} type(s), ${typeInfo.pageSizes.length} pages`);
       await page.close();
-      result = await renderMultiPass(
-        context, html, typeInfo, log, options.debug,
-        options.debugOutputPath, options.debugTypography, fontScale,
-      );
+      result = await renderMultiPass(context, html, typeInfo, log, options, fontScale);
     } else {
       log.info('Single-pass mode (no typed headers/footers)');
-      result = await renderSinglePass(
-        context, html, page, log, options.debug, options.landscape,
-        options.defaultPageSize, options.debugOutputPath, options.margins,
-        options.debugTypography, fontScale,
-      );
+      result = await renderSinglePass(context, html, page, log, options, fontScale, typeInfo?.pageMargins[0]);
     }
 
     if (options.debugTypography) {
@@ -629,12 +592,12 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
   }
 }
 
-export async function launchBrowser(): Promise<Browser> {
+export async function launchBrowser(options: { sandbox?: boolean } = {}): Promise<Browser> {
   const chromePath = resolveChromePath();
   if (!chromePath) {
     throw new Error('Chrome/Chromium executable not found; set PUPPETEER_EXECUTABLE_PATH or CHROME_PATH');
   }
-  const browser = await puppeteer.launch(await buildBrowserLaunchOptions({ chromePath }));
+  const browser = await puppeteer.launch(await buildBrowserLaunchOptions({ chromePath, ...options }));
   const process = browser.process();
   if (process?.pid !== undefined) {
     applySpawnedProcessPriority({ pid: process.pid, kill: () => process.kill() });

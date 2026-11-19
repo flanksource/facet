@@ -9,6 +9,7 @@ import type { PNGOptions, PNGViewport, RenderFormat } from '../types.js';
 import { isRenderFormat } from './render-format.js';
 import { parsePageSizeOverride } from './page-size.js';
 import type { RedactPolicy } from '../builders/remark-config.js';
+import type { BuiltWorkspaceTheme } from './workspace-themes.js';
 import {
   normalizePNGOptions,
   parsePNGViewport,
@@ -34,6 +35,7 @@ export interface ParsedRenderRequest {
   footerCode?: string;
   css?: string;
   theme?: string;
+  workspaceTheme?: BuiltWorkspaceTheme;
   encryption?: PDFEncryptionOptions;
   signature?: PDFSignatureOptions;
   /** Render deadline in milliseconds, overriding the server default. */

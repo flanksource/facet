@@ -1,6 +1,5 @@
 export const PLAYGROUND_CONTROLS_SCRIPT = `
-    async function showOfficeResult(preview, url, body, format) {
-      preview.innerHTML = '';
+    async function buildOfficePreview(url, body, format) {
       const panel = document.createElement('div');
       panel.style.cssText = 'display:flex;flex-direction:column;height:100%;gap:12px;padding:12px;box-sizing:border-box;color:#1f2937';
       const download = document.createElement('a');
@@ -12,20 +11,20 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       const label = document.createElement('p');
       label.textContent = 'HTML source preview — Office layout may differ';
       panel.appendChild(label);
-      preview.appendChild(panel);
       const response = await fetch('/render', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.assign({}, body, { format: 'html' })),
       });
       if (!response.ok) {
         label.textContent = 'HTML source preview failed (HTTP ' + response.status + '). The Office download is ready.';
-        return;
+        return panel;
       }
       const frame = document.createElement('iframe');
       frame.setAttribute('sandbox', 'allow-same-origin allow-scripts');
       frame.style.cssText = 'flex:1;min-height:0;width:100%;border:0';
       frame.srcdoc = await response.text();
       panel.appendChild(frame);
+      return panel;
     }
 
     /* Render format menu */
@@ -38,11 +37,10 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       document.getElementById('checkPng').innerHTML = fmt === 'png' ? '&#10003;' : '&nbsp;';
       document.getElementById('checkDocx').innerHTML = fmt === 'docx' ? '&#10003;' : '&nbsp;';
       document.getElementById('checkPptx').innerHTML = fmt === 'pptx' ? '&#10003;' : '&nbsp;';
-      document.getElementById('pdfOptions').style.display = fmt === 'pdf' && document.getElementById('runtime').value !== 'browser' ? 'flex' : 'none';
-      document.getElementById('pngOptions').style.display = fmt === 'png' ? 'flex' : 'none';
+      updateOutputOptions();
+      if (fmt === 'pdf' || fmt === 'png') document.getElementById('outputOptions').open = true;
       closeRenderMenu();
-      // A PDF render must not stay on screen under a "Render PNG" button.
-      if (document.getElementById('runtime').value === 'browser') queueBrowserRender(); else markPreviewStale();
+      markPreviewStale();
       writeUrlState();
     }
 
@@ -58,9 +56,15 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
     document.addEventListener('click', closeRenderMenu);
 
     function toggleTimestamp() {
-      document.getElementById('timestampUrl').style.display =
-        document.getElementById('timestampEnabled').checked ? '' : 'none';
+      document.getElementById('timestampUrlField').hidden = !document.getElementById('timestampEnabled').checked;
+      if (routingReady) markPreviewStale();
       writeUrlState();
+    }
+
+    function updateOutputOptions() {
+      document.getElementById('pdfOptions').hidden = currentFormat !== 'pdf';
+      document.getElementById('runtimeOriginControl').hidden = !usesBrowserPreview();
+      document.getElementById('pngOptions').hidden = currentFormat !== 'png';
     }
 
     /* URL routing — toolbar state is serialized to the query string so a
@@ -69,11 +73,31 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
     const DEFAULT_TSA = 'http://timestamp.digicert.com';
     const MARGIN_PARAMS = { mt: 'marginTop', mb: 'marginBottom', ml: 'marginLeft', mr: 'marginRight' };
 
+    function customPageSize(value) {
+      if (!/^[0-9]+(?:[.][0-9]+)?x[0-9]+(?:[.][0-9]+)?$/.test(value || '')) return;
+      const [width, height] = value.split('x').map(Number);
+      if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) return { width, height, unit: 'mm' };
+    }
+
+    function setPageSizeSelection(select, value) {
+      if (![...select.options].some(option => option.value === value)) {
+        const size = customPageSize(value);
+        if (!size) return;
+        select.add(new Option(size.width + ' × ' + size.height + ' mm', value));
+      }
+      select.value = value;
+    }
+
     function writeUrlState() {
       if (!routingReady) return;
       const p = new URLSearchParams();
       if (document.getElementById('documentTheme').value !== 'facet') p.set('theme', document.getElementById('documentTheme').value);
       if (document.body.classList.contains('mode-fill')) p.set('mode', 'fill');
+      if (document.body.dataset.editorTab === 'theme') {
+        p.set('tab', 'theme');
+        const workspaceTheme = document.getElementById('workspaceTheme').value;
+        if (workspaceTheme) p.set('workspaceTheme', workspaceTheme);
+      }
       const example = document.getElementById('example').value;
       if (example && example !== 'datasheet') p.set('example', example);
       if (currentFormat !== 'html') p.set('format', currentFormat);
@@ -99,9 +123,10 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       if (pageSize) p.set('pageSize', pageSize);
       if (document.getElementById('landscape').checked) p.set('landscape', '1');
       if (document.getElementById('debug').checked) p.set('debug', '1');
+      if (document.getElementById('debugTypography').checked) p.set('debugTypography', '1');
       for (const key in MARGIN_PARAMS) {
         const v = document.getElementById(MARGIN_PARAMS[key]).value;
-        if (v !== '' && v !== '10') p.set(key, v);
+        if (v !== '') p.set(key, v);
       }
       if (document.getElementById('timestampEnabled').checked) {
         p.set('timestamp', '1');
@@ -119,9 +144,10 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       const example = p.get('example');
       if (example && EXAMPLES[example]) document.getElementById('example').value = example;
       const pageSize = p.get('pageSize');
-      if (pageSize) document.getElementById('pageSize').value = pageSize.toLowerCase();
+      if (pageSize) setPageSizeSelection(document.getElementById('pageSize'), pageSize.toLowerCase());
       document.getElementById('landscape').checked = p.get('landscape') === '1';
       document.getElementById('debug').checked = p.get('debug') === '1';
+      document.getElementById('debugTypography').checked = p.get('debugTypography') === '1';
       for (const key in MARGIN_PARAMS) {
         if (p.has(key)) document.getElementById(MARGIN_PARAMS[key]).value = p.get(key);
       }
@@ -143,12 +169,14 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       if (p.has('pngAutocropPadding')) {
         document.getElementById('pngAutocropPadding').value = p.get('pngAutocropPadding');
       }
-      if (p.get('mode') === 'fill') setMode('fill');
+      const mode = p.get('mode');
+      if (mode === 'fill') setMode('fill');
+      if (p.get('tab') === 'theme' || mode === 'theme') switchTab('theme');
     }
 
     // Controls without an existing inline handler need a listener to keep the URL in sync.
     function bindUrlSync() {
-      ['pageSize', 'landscape', 'debug', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
+      ['pageSize', 'landscape', 'debug', 'debugTypography', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
        'timestampUrl', 'pngWidth', 'pngHeight', 'pngSelector', 'pngViewport',
        'pngAutocrop', 'pngAutocropPadding', 'runtimeOrigin']
         .forEach(function(id) {
@@ -327,14 +355,9 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
-    /* Preview banner — the pane's own status line.
-
-       Server renders clear their result on edits. Browser renders retain the
-       mounted page and update this banner while reconciling the next render. */
-    const PREVIEW_BLANKS = { idle: 1, stale: 1, rendering: 1 };
     const PREVIEW_TEXT = {
       idle: 'Click "Render" to preview your template',
-      stale: 'Template changed \\u2014 click Render',
+      stale: 'Preview out of date. Refresh to apply your changes.',
       rendering: 'Rendering\\u2026',
       done: 'Rendered',
       error: 'Render failed',
@@ -344,11 +367,7 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       document.getElementById('previewBanner').className = 'preview-banner ' + state;
       document.getElementById('previewText').textContent = detail || PREVIEW_TEXT[state];
       document.getElementById('previewTimings').textContent = formatPreviewTimings(timings);
-      if (PREVIEW_BLANKS[state]) {
-        if (document.getElementById('runtime').value === 'browser' && window.FacetPlayground && window.FacetPlayground.invalidateBrowserPage()) return;
-        if (window.FacetPlayground) window.FacetPlayground.disposeBrowserPage();
-        document.getElementById('preview').innerHTML = '';
-      }
+      document.getElementById('refreshPreview').hidden = state !== 'stale' && state !== 'error';
     }
 
     function formatPreviewTimings(timings) {
@@ -358,26 +377,29 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
         .join(' \\u00b7 ');
     }
 
-    // Only a pane that is actually showing a render can go stale, so edits made
-    // before the first render (including the example applied from the URL on
-    // load) leave the idle prompt in place.
     let previewHasRender = false;
     let previewRevision = 0;
 
     function markPreviewStale() {
       previewRevision++;
-      if (document.getElementById('runtime').value === 'browser') {
-        previewHasRender = false; setPreviewState('stale'); queueBrowserRender(); return;
-      }
-      if (!previewHasRender) return;
-      previewHasRender = false;
+      if (!previewHasRender && !previewRendering) return;
+      window.FacetPlayground?.invalidateBrowserPage();
       setPreviewState('stale');
+    }
+
+    function publishPreview(content) {
+      const preview = document.getElementById('preview');
+      for (const child of [...preview.children]) if (child !== content) child.remove();
+      if (content.parentElement !== preview) preview.append(content);
+      content.classList.remove('preview-pending');
+      content.inert = false;
+      previewHasRender = true;
     }
 
     // An <iframe> fires no error event for an HTTP failure — it renders the JSON
     // error envelope as a document instead. /results is same-origin, so read it
     // back. A real PDF is drawn by the browser's viewer and exposes no such text.
-    function checkPreviewFrame(frame, url) {
+    function previewFrameHasError(frame) {
       let text;
       try {
         const body = frame.contentDocument && frame.contentDocument.body;
@@ -385,16 +407,14 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       } catch (e) {
         return;
       }
-      if (text.charAt(0) === '{' && text.indexOf('"error"') !== -1) onPreviewLoadError(url);
+      return text.charAt(0) === '{' && text.indexOf('"error"') !== -1;
     }
 
     // Surfaces a result that failed to load — an evicted cache entry (404) or,
     // with --api-key, a subresource the browser cannot authenticate (401).
     function onPreviewLoadError(url) {
-      setPreviewState('error', 'Could not load the render \\u2014 it may have expired');
-      document.getElementById('preview').innerHTML =
-        '<div class="error">The server did not return the render at ' + escapeHtml(url)
-        + '.\\nIt may have been evicted from the render cache. Click Render again.</div>';
+      setPreviewState('error', 'Could not load the render. Refresh to try again.');
+      addLog('error', 'The server did not return the render at ' + url);
     }
 
 `;

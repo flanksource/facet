@@ -81,9 +81,18 @@ export async function acquireTemplateWorkspace(
   sourceDir: string,
   entryFile: string,
   cacheDir: string,
+  dependencies?: Record<string, string>,
 ): Promise<WorkspaceHandle> {
   const root = join(cacheDir, 'template-workspaces');
-  const manifest = await snapshotPackageManifest(sourceDir);
+  let manifest = await snapshotPackageManifest(sourceDir);
+  if (dependencies) {
+    const pkg = manifest ? JSON.parse(manifest) : {};
+    pkg.dependencies = { ...pkg.dependencies, ...dependencies };
+    for (const field of ['devDependencies', 'optionalDependencies']) {
+      for (const name of Object.keys(dependencies)) if (pkg[field]) delete pkg[field][name];
+    }
+    manifest = JSON.stringify(pkg, null, 2);
+  }
   const path = join(root, workspaceKey(sourceDir, entryFile, manifest));
   await ensureWorkspace(sourceDir, path, manifest);
   references.set(path, (references.get(path) ?? 0) + 1);

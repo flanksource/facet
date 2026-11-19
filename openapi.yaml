@@ -67,6 +67,151 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /workspace/themes:
+    get:
+      operationId: listWorkspaceThemes
+      summary: List editable local theme packages
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceEditor"
+      responses:
+        "200":
+          description: Theme IDs, source directory names, settings availability, and successful build fingerprints.
+        "403":
+          description: The request did not come from the local editor.
+    post:
+      operationId: createWorkspaceTheme
+      summary: Scaffold a theme package
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceEditor"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  pattern: "^[a-z][a-z0-9-]*$"
+                  maxLength: 80
+      responses:
+        "201":
+          description: Theme package created.
+        "409":
+          description: A theme or its directory already exists.
+
+  /workspace/themes/{id}/files:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceEditor"
+      - $ref: "#/components/parameters/WorkspaceThemeID"
+    get:
+      operationId: listWorkspaceThemeFiles
+      summary: List theme source files and images
+      responses:
+        "200":
+          description: Package-relative file paths with their kind, media type, and writable status.
+
+  /workspace/themes/{id}/file:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceEditor"
+      - $ref: "#/components/parameters/WorkspaceThemeID"
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+        description: Package-relative source or image path.
+    get:
+      operationId: readWorkspaceThemeFile
+      summary: Read a theme file and its revision
+      responses:
+        "200":
+          description: Source or image bytes. The ETag is the revision for a subsequent save.
+          headers:
+            ETag:
+              schema:
+                type: string
+    put:
+      operationId: saveWorkspaceThemeFile
+      summary: Create or replace an editable theme file
+      parameters:
+        - name: If-Match
+          in: header
+          schema:
+            type: string
+          description: ETag of the version being replaced.
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+            const: "*"
+          description: Requires that the new path is unused.
+      requestBody:
+        required: true
+        content:
+          "*/*":
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: File saved. Returns the new revision.
+        "412":
+          description: The file changed or the new path already exists.
+        "428":
+          description: A save precondition is required.
+
+  /workspace/themes/{id}/settings:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceEditor"
+      - $ref: "#/components/parameters/WorkspaceThemeID"
+    get:
+      operationId: readWorkspaceThemeSettings
+      summary: Read declarative document defaults and editable colors with their revisions
+      responses:
+        "200":
+          description: Settings, or null when the package has no facet.themeEditor declaration.
+    put:
+      operationId: saveWorkspaceThemeSettings
+      summary: Save document defaults or palette colors
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, value]
+              properties:
+                kind:
+                  enum: [defaults, colors]
+                value:
+                  type: object
+      responses:
+        "200":
+          description: Settings saved to the package source. Returns the new revision.
+        "412":
+          description: The source file changed since the supplied revision.
+
+  /workspace/themes/{id}/build:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceEditor"
+      - $ref: "#/components/parameters/WorkspaceThemeID"
+    post:
+      operationId: buildWorkspaceTheme
+      summary: Build the theme and publish a local package snapshot
+      responses:
+        "200":
+          description: A successful local build. Returns the theme ID, build fingerprint, and build output.
+        "422":
+          description: The build failed. The last successful snapshot remains available.
+
   /templates:
     get:
       operationId: listTemplates
@@ -100,6 +245,10 @@ paths:
         - **JSON** with inline code or template name
         - **Multipart** with an uploaded archive
         - **Gzip** body with a tar.gz archive
+
+        The server's `--pdf-renderer page-runtime` option enables browser-compatible
+        template execution for PDF requests across these input modes. It uses the
+        same PDF output options and response shape as the default Node renderer.
       security:
         - apiKey: []
         - bearerAuth: []
@@ -232,6 +381,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          description: The page runtime could not compile, link, or render the selected PDF template.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "504":
           $ref: "#/components/responses/Timeout"
 
@@ -242,6 +397,8 @@ paths:
       description: |
         Same as `/render` but returns a Server-Sent Events stream with progress
         updates followed by the final result. Used by the playground.
+
+        PDF requests use the server's configured PDF renderer.
 
         **Event types:**
         - `data: {...}` — progress event with `stage`, `message`, `elapsed`, `duration`
@@ -256,6 +413,13 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/RenderRequest"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/MultipartRenderRequest"
+          application/gzip:
+            schema:
+              type: string
+              format: binary
       responses:
         "200":
           description: SSE stream of progress events and final result.
@@ -334,6 +498,22 @@ paths:
                 type: string
 
 components:
+  parameters:
+    WorkspaceEditor:
+      name: X-Facet-Workspace
+      in: header
+      required: true
+      description: Available on a local server started with --themes-dir. Browser requests must be same-origin.
+      schema:
+        type: string
+        const: "1"
+    WorkspaceThemeID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z][a-z0-9-]*$"
   securitySchemes:
     apiKey:
       type: apiKey

@@ -1,4 +1,5 @@
 import { discoverThemes, themeFingerprint } from '../builders/themes.js';
+import type { WorkspaceThemes } from './workspace-themes.js';
 import { randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { performance } from 'node:perf_hooks';
@@ -8,8 +9,9 @@ import { injectFontScale } from '../utils/font-size.js';
 import { injectCustomCss } from '../utils/custom-css.js';
 import { showSlideNotes } from '../utils/slide-notes.js';
 import { officeLayout } from '../office/layout.js';
-import { pageSizeLayout } from '../utils/page-size-layout.js';
-import { renderBinary } from './render-binary.js';
+import { pageSizeLayout, pdfSnapshotLayout } from '../utils/page-size-layout.js';
+import { PDF_LAYOUT_VERSION, renderBinary } from './render-binary.js';
+import { renderPageRuntimePDF } from './page-runtime-pdf.js';
 import { hasMermaidCodeBlocks, renderBrowserHTML } from '../utils/browser-html.js';
 import { Logger } from '../utils/logger.js';
 import { RenderTimings } from '../utils/performance.js';
@@ -95,6 +97,23 @@ export function handleTemplates(templates: TemplateInfo[]): Response {
   );
 }
 
+async function resolveRenderTheme(parsed: ParsedRenderRequest, config: ServerConfig, workspace?: WorkspaceThemes): Promise<void> {
+  parsed.theme ??= config.theme;
+  const id = parsed.theme;
+  if (!id || id === 'facet') return;
+  const pageRuntime = config.pdfRenderer === 'page-runtime' && parsed.format === 'pdf';
+  const local = workspace?.list().find(theme => theme.id === id);
+  if (workspace && local) {
+    const built = await workspace.published(local);
+    if (!built) throw new RenderError('INVALID_REQUEST', `Build the workspace theme ${id} in Theme editor first`, 409);
+    parsed.workspaceTheme = built;
+  }
+  if (parsed.source.kind === 'inline' && !pageRuntime) {
+    const selected = parsed.workspaceTheme ?? discoverThemes(process.cwd()).find(theme => theme.id === id);
+    if (selected) parsed.dependencies = { ...parsed.dependencies, [selected.package]: 'file:' + selected.root };
+  }
+}
+
 export async function handleRender(
   request: Request,
   config: ServerConfig,
@@ -102,17 +121,14 @@ export async function handleRender(
   templates: TemplateInfo[],
   cache: RenderCache,
   s3?: S3Uploader,
+  workspace?: WorkspaceThemes,
 ): Promise<Response> {
   const logger = new Logger(config.verbose);
   const timings = new RenderTimings();
   let parsed: ParsedRenderRequest;
   try {
     parsed = await parseRenderRequest(request, config.maxUploadSize);
-    parsed.theme ??= config.theme;
-    if (parsed.source.kind === 'inline' && parsed.theme && parsed.theme !== 'facet') {
-      const selected = discoverThemes(process.cwd()).find(theme => theme.id === parsed.theme);
-      if (selected) parsed.dependencies = { ...parsed.dependencies, [selected.package]: 'file:' + selected.root };
-    }
+    await resolveRenderTheme(parsed, config, workspace);
     validateRequestModuleMode(parsed, config.skipModules);
   } catch (error) {
     return errorResponse(error);
@@ -145,6 +161,7 @@ export function handleRenderStream(
   templates: TemplateInfo[],
   cache: RenderCache,
   s3?: S3Uploader,
+  workspace?: WorkspaceThemes,
 ): Response {
   const { progress, stream } = RenderProgress.create();
   const timings = new RenderTimings();
@@ -155,11 +172,7 @@ export function handleRenderStream(
     try {
       progress.emit('parsing', 'Parsing request...');
       parsed = await parseRenderRequest(request, config.maxUploadSize);
-    parsed.theme ??= config.theme;
-    if (parsed.source.kind === 'inline' && parsed.theme && parsed.theme !== 'facet') {
-      const selected = discoverThemes(process.cwd()).find(theme => theme.id === parsed.theme);
-      if (selected) parsed.dependencies = { ...parsed.dependencies, [selected.package]: 'file:' + selected.root };
-    }
+      await resolveRenderTheme(parsed, config, workspace);
       validateRequestModuleMode(parsed, config.skipModules);
     } catch (error) {
       progress.emitError(error instanceof RenderError ? error.message : String(error));
@@ -167,10 +180,11 @@ export function handleRenderStream(
       return;
     }
 
+    const pageRuntime = config.pdfRenderer === 'page-runtime' && parsed.format === 'pdf';
     const cacheKey = cacheKeyForRequest(parsed, config);
     const cacheable = isCacheable(parsed);
     const lookupStartedAt = performance.now();
-    const cached = cacheable ? cache.get(cacheKey) : undefined;
+    const cached = cacheable && !pageRuntime ? cache.get(cacheKey) : undefined;
     if (cached) {
       timings.record('cache-hit', performance.now() - lookupStartedAt);
       progress.emit('done', 'Cache hit');
@@ -187,12 +201,22 @@ export function handleRenderStream(
     }
 
     const renderTimeout = parsed.timeoutMs ?? config.renderTimeout;
+    const deadline = new AbortController();
+    const signal = AbortSignal.any([deadline.signal, request.signal]);
     const timeout = setTimeout(() => {
+      deadline.abort(new RenderError('RENDER_TIMEOUT', `Render timed out after ${renderTimeout}ms`, 504));
       progress.emitError(`Render timed out after ${renderTimeout}ms`);
       progress.close();
     }, renderTimeout);
 
     try {
+      if (pageRuntime) {
+        const result = await renderPageRuntimePDF({ parsed, config, pool, templates, cache, logger, progress, timings, signal, resultKey: key => cacheable ? key : freshResultKey() });
+        signal.throwIfAborted();
+        progress.emitResult('application/pdf', '', `/results/${result.key}`, timings.entries());
+        progress.emit('done', 'Render complete');
+        return;
+      }
       const result = await doRenderStreamed({
         parsed,
         config,
@@ -202,6 +226,7 @@ export function handleRenderStream(
         logger,
         progress,
         timings,
+        signal,
       });
       clearTimeout(timeout);
 
@@ -218,12 +243,14 @@ export function handleRenderStream(
       );
       progress.emit('done', 'Render complete');
     } catch (error) {
+      if (signal.aborted) return;
       clearTimeout(timeout);
       const message = error instanceof RenderError
         ? error.message
         : error instanceof Error ? error.message : String(error);
       progress.emitError(message);
     } finally {
+      clearTimeout(timeout);
       progress.close();
     }
   })();
@@ -249,8 +276,9 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
     footerCode: parsed.footerCode,
     css: parsed.css,
     theme: parsed.theme ?? config.theme,
-    themeFingerprint: themeFingerprint(process.cwd(), parsed.theme ?? config.theme),
+    themeFingerprint: parsed.workspaceTheme?.build ?? themeFingerprint(process.cwd(), parsed.theme ?? config.theme),
     format: parsed.format,
+    pdfLayoutVersion: parsed.format === 'pdf' ? PDF_LAYOUT_VERSION : undefined,
     pdfOptions: parsed.pdfOptions,
     encryption: parsed.encryption,
     signature: parsed.signature,
@@ -301,6 +329,12 @@ interface RenderOptions {
   signal?: AbortSignal;
 }
 
+function snapshotLayout(parsed: ParsedRenderRequest) {
+  if (parsed.format === 'docx' || parsed.format === 'pptx') return officeLayout(parsed.format, parsed.fontSize);
+  if (parsed.format === 'pdf') return pdfSnapshotLayout({ override: parsed.pageSizeOverride, defaultSize: parsed.pdfOptions?.defaultPageSize, landscape: parsed.pdfOptions?.landscape });
+  return pageSizeLayout(parsed.pageSizeOverride);
+}
+
 interface DirectRenderOptions extends RenderOptions {
   cache: RenderCache;
 }
@@ -330,6 +364,11 @@ async function materializeBrowserHTML(html: string, pool: WorkerPool, logger: Lo
 async function doRender(options: DirectRenderOptions): Promise<Response> {
   const { parsed, config, pool, templates, cache, s3, logger, timings, signal } = options;
   signal?.throwIfAborted();
+  if (config.pdfRenderer === 'page-runtime' && parsed.format === 'pdf') {
+    const result = await renderPageRuntimePDF({ parsed, config, pool, templates, cache, logger, timings, signal: signal ?? new AbortController().signal, resultKey: key => isCacheable(parsed) ? key : freshResultKey() });
+    if (parsed.output === 's3') return respondWithOutput({ content: result.content, contentType: 'application/pdf', extension: 'pdf', templateName: result.templateName, parsed, s3, logger });
+    return Response.json({ url: `/results/${result.key}` });
+  }
   const cacheKey = cacheKeyForRequest(parsed, config);
   const cacheable = isCacheable(parsed);
   const cached = cacheable ? cache.lookup(cacheKey) : undefined;
@@ -372,7 +411,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       signal,
       redact: parsed.redact,
       pngOptions: parsed.pngOptions,
-      layout: parsed.format === 'docx' || parsed.format === 'pptx' ? officeLayout(parsed.format, parsed.fontSize) : pageSizeLayout(parsed.pageSizeOverride, parsed.pdfOptions?.landscape),
+      layout: snapshotLayout(parsed),
     });
     signal?.throwIfAborted();
     html = await injectHeaderFooter({
@@ -474,7 +513,7 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
       skipModules: config.skipModules,
       redact: parsed.redact,
       pngOptions: parsed.pngOptions,
-      layout: parsed.format === 'docx' || parsed.format === 'pptx' ? officeLayout(parsed.format, parsed.fontSize) : pageSizeLayout(parsed.pageSizeOverride, parsed.pdfOptions?.landscape),
+      layout: snapshotLayout(parsed),
     });
     html = await injectHeaderFooter({
       html,

@@ -8,8 +8,12 @@ export interface S3Config {
   presignExpiry: number;
 }
 
+export type PDFRenderer = 'node' | 'page-runtime';
+
 export interface ServerConfig {
+  pdfRenderer?: PDFRenderer;
   theme?: string;
+  themesDir?: string;
   port: number;
   templatesDir: string;
   workers: number;
@@ -31,7 +35,9 @@ export interface ServerConfig {
 }
 
 export interface ServerCLIFlags {
+  pdfRenderer?: string;
   theme?: string;
+  themesDir?: string;
   port?: string;
   templatesDir?: string;
   workers?: string;
@@ -75,8 +81,12 @@ function intOption(
 }
 
 export function loadConfig(flags: ServerCLIFlags): ServerConfig {
+  const pdfRenderer = flags.pdfRenderer ?? process.env['FACET_PDF_RENDERER'] ?? 'node';
+  if (pdfRenderer !== 'node' && pdfRenderer !== 'page-runtime') throw new Error(`Unknown PDF renderer ${pdfRenderer}; choose node or page-runtime`);
   const config: ServerConfig = {
+    pdfRenderer,
     theme: flags.theme,
+    themesDir: flags.themesDir,
     port: parseInt(flags.port ?? process.env['FACET_PORT'] ?? '3010', 10),
     templatesDir: flags.templatesDir ?? process.env['FACET_TEMPLATES_DIR'] ?? '.',
     workers: parseInt(flags.workers ?? process.env['FACET_WORKERS'] ?? '2', 10),
