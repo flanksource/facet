@@ -102,6 +102,27 @@ pnpm exec oxnode cli/src/cli.ts --dev --skip-modules html examples/office/LiveDi
 
 These artifact builds do not publish to npm or rebuild the installed runtime archive. `--dev` resolves the compiler directly from the local page-runtime checkout and compiles dependency closures against the linked libraries. Consumer dependencies remain available; adding `--skip-modules` ignores them while retaining local libraries. Development caches live under `dev/<checkout-hash>/` in the shared cache. The server bypasses rendered-response reuse in dev mode, and changed built-library inputs invalidate compiled closures. Rebuild the relevant artifacts after library or compiler edits and submit a new render; Clicky UI source hot reload and automatic Clicky UI/compiler builds are not provided by this flag.
 
+## HTML exports
+
+`facet html` exports a live document by default. The file contains the template source, its local imports and assets, and the input data. When the recipient opens the file, the versioned page runtime from unpkg resolves the declared packages, compiles the embedded files in the browser, and renders the document. Share live exports only with recipients who should have access to the source and input data.
+
+```sh
+facet html Report.tsx --data report.json -o report.html
+facet html Report.tsx --data report.json --inline -o snapshot.html
+facet html Report.tsx --data report.json --bundle -o report.html
+```
+
+`--inline` renders a static snapshot with inline styles. Use it with `--allow` to redact fields. `--bundle` emits live HTML and a sibling `report.js` containing the template and page runtime. Distribute both files together. Any external fonts or images the template itself references still need to be reachable.
+
+Exports made with `--runtime` or `--dev` link to the runtime script and browser package distribution served by the matching Facet build at `http://localhost:3010` by default. Run `facet serve` with that build and runtime selection. Use `--runtime-origin` for a different address, such as a shared development server. Recipients must be able to reach the selected origin.
+
+```sh
+facet --dev serve --port 3010
+facet --dev html Report.tsx --data report.json --runtime-origin http://localhost:3010 -o report.html
+```
+
+With `--facet-url`, the server prepares the export. Direct API calls with `format: html` produce a snapshot by default. Set `htmlMode: linked` for a live document, or `htmlMode: bundle` on `/render` to get `{html, script}` and write the script beside the HTML using the matching basename.
+
 ## Server PDF runtime
 
 `facet serve` defaults to the Node PDF renderer. Enable browser template execution on a host with a working Chromium sandbox:

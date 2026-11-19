@@ -4,7 +4,7 @@ Facet defaults to `--theme facet`. Copy the built theme tarball into the templat
 
 ```sh
 pnpm add ./old-mutual-facet-theme-0.1.0.tgz
-facet html Report.tsx --theme old-mutual -o output/
+facet html Report.tsx --inline --theme old-mutual -o output/
 facet pdf Report.tsx --theme old-mutual -o output/
 facet serve --theme old-mutual
 ```
@@ -29,7 +29,7 @@ Open **Theme editor** and choose a package. **Settings** saves document defaults
 
 **New theme** scaffolds a theme package. Run `pnpm install` in the new directory before its first build. A development checkout can link its built Facet, Clicky UI, and page-runtime builder packages.
 
-Save your edits, then choose **Build & Preview**. Facet runs the package's `pnpm run build` and applies the successful build to the selected document in the preview. **Use in Render** applies the existing build to that document. To share the build, run `pnpm pack` in the theme directory and install the tarball in the consuming project. Use `facet html` for a self-contained document from the installed theme.
+Save your edits, then choose **Build & Preview**. Facet runs the package's `pnpm run build` and applies the successful build to the selected document in the preview. **Use in Render** applies the existing build to that document. To share the build, run `pnpm pack` in the theme directory and install the tarball in the consuming project. Use `facet html --inline` for a self-contained document from the installed theme.
 
 To enable visual Settings for an existing package, add a manifest entry alongside `facet.themes`:
 

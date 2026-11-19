@@ -181,7 +181,7 @@ cli/src/server/samples/generated.ts
 .playwright-cli/
 cli/src/server/playground-form-generated.ts
 cli/dist-playground/
-examples/kitchen-sink/
+/
 cli/npm-dist/
 cli/assets/runtimes/
 .facet-*/
@@ -211,3 +211,5 @@ examples/quickstart/node_modules
 /output/
 # The logo kit's presentation and favicon head snippet are hand-made, not render output.
 !assets/brand/**/*.html
+*.docx
+/assets/brand/source/outline_text.py
