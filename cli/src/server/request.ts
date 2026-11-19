@@ -5,10 +5,11 @@ import { parseEmbedFormat, parseEmbedSize, type EmbedFormat, type EmbedSize } fr
 import { parseRemoteRef } from '../utils/remote-resolver.js';
 import type { BufferPDFOptions, PDFMargins } from '../utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from '../utils/pdf-security.js';
-import type { PNGOptions, PNGViewport, RenderFormat } from '../types.js';
+import type { HTMLExportMode, PNGOptions, PNGViewport, RenderFormat } from '../types.js';
 import { isRenderFormat } from './render-format.js';
 import { parsePageSizeOverride } from './page-size.js';
 import type { RedactPolicy } from '../builders/remark-config.js';
+import { parseDocumentRuntimeOrigin } from '../generators/html-artifact.js';
 import type { BuiltWorkspaceTheme } from './workspace-themes.js';
 import {
   normalizePNGOptions,
@@ -51,6 +52,27 @@ export interface ParsedRenderRequest {
   pageSizeOverride?: string;
   /** Which classified regions this render may carry. */
   redact?: RedactPolicy;
+  htmlMode?: HTMLExportMode;
+  htmlRuntimeOrigin?: string;
+  htmlCssScope?: string;
+}
+
+function htmlExportOptions(source: Record<string, unknown>, format: RenderFormat, output: 'direct' | 's3'): Pick<ParsedRenderRequest, 'htmlMode' | 'htmlRuntimeOrigin' | 'htmlCssScope'> {
+  const { htmlMode, htmlRuntimeOrigin, htmlCssScope } = source;
+  if (htmlMode === undefined && htmlRuntimeOrigin === undefined && htmlCssScope === undefined) return {};
+  if (format !== 'html' || (htmlMode !== 'linked' && htmlMode !== 'inline' && htmlMode !== 'bundle')) {
+    throw new RenderError('INVALID_REQUEST', 'htmlMode must be linked, inline, or bundle for an HTML render', 400);
+  }
+  if ((htmlRuntimeOrigin !== undefined && (typeof htmlRuntimeOrigin !== 'string' || htmlMode !== 'linked'))
+      || (htmlCssScope !== undefined && typeof htmlCssScope !== 'string')) {
+    throw new RenderError('INVALID_REQUEST', 'HTML runtime origin requires linked mode and CSS scope must be a string', 400);
+  }
+  if (htmlRuntimeOrigin !== undefined) {
+    try { parseDocumentRuntimeOrigin(htmlRuntimeOrigin); }
+    catch (error) { throw new RenderError('INVALID_REQUEST', (error as Error).message, 400); }
+  }
+  if (htmlMode === 'bundle' && output === 's3') throw new RenderError('INVALID_REQUEST', 'Bundled HTML requires direct delivery', 400);
+  return { htmlMode, htmlRuntimeOrigin, htmlCssScope };
 }
 
 /**
@@ -164,6 +186,7 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     embedFormat: parseEmbedFormat(body.embedFormat),
     embedSize: parseEmbedSize(body.embedSize),
     pageSizeOverride: parsePageSizeOverride(body.pageSizeOverride, format, (body.pngOptions as PNGOptions | undefined)?.viewport),
+    ...htmlExportOptions(body, format, output),
   };
 }
 
@@ -270,6 +293,7 @@ async function parseMultipartRequest(
     embedFormat: parseEmbedFormat(options.embedFormat),
     embedSize: parseEmbedSize(options.embedSize),
     pageSizeOverride: parsePageSizeOverride(options.pageSizeOverride, format, (options.pngOptions as PNGOptions | undefined)?.viewport),
+    ...htmlExportOptions(options, format, output),
   };
 }
 
@@ -316,6 +340,7 @@ async function parseGzipRequest(
     embedFormat: parseEmbedFormat(url.searchParams.get('embedFormat') ?? undefined),
     embedSize: parseEmbedSize(url.searchParams.get('embedSize') ?? undefined),
     pageSizeOverride: parsePageSizeOverride(url.searchParams.get('pageSizeOverride') ?? undefined, format, url.searchParams.get('pngViewport') ?? undefined),
+    ...htmlExportOptions(Object.fromEntries(url.searchParams), format, output),
   };
 }
 

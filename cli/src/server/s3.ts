@@ -18,7 +18,7 @@ export class S3Uploader {
     });
   }
 
-  async upload(key: string, body: Buffer | string, contentType: string): Promise<string> {
+  async upload({ key, body, contentType, attachment }: { key: string; body: Buffer | string; contentType: string; attachment: boolean }): Promise<string> {
     try {
       await this.client.send(
         new PutObjectCommand({
@@ -26,6 +26,7 @@ export class S3Uploader {
           Key: key,
           Body: typeof body === 'string' ? Buffer.from(body) : body,
           ContentType: contentType,
+          ContentDisposition: attachment ? 'attachment' : undefined,
         }),
       );
       return `${this.config.endpoint}/${this.config.bucket}/${key}`;

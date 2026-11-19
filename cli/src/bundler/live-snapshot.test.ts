@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createServer } from 'node:http';
 import { snapshotHTML } from './live-snapshot.js';
 import { Logger } from '../utils/logger.js';
+import { pdfSnapshotLayout } from '../utils/page-size-layout.js';
 
 const SETTLE_AFTER_MS = 1500;
 
@@ -75,12 +76,32 @@ describe('live snapshot', () => {
       const address = server.address();
       if (!address || typeof address === 'string') throw new Error('Expected a local TCP address');
 
-      const html = await snapshotHTML(`http://127.0.0.1:${address.port}`, new Logger(false));
+      const html = await snapshotHTML(`http://127.0.0.1:${address.port}`, new Logger(false), { png: { selector: 'svg[data-arrow="drawn"]' } });
 
       expect(html).toContain('data-facet-ready="true"');
       expect(html).toContain('data-arrow="drawn"');
     } finally {
       await new Promise<void>((done, reject) => server.close((error) => error ? reject(error) : done()));
+    }
+  }, 30_000);
+
+  it('measures live pages at their declared PDF widths before capture', async () => {
+    const server = createServer((_request, response) => {
+      response.setHeader('content-type', 'text/html');
+      response.end(`<div id="facet-root"><div data-page-size="a4">Portrait</div><div data-page-size="a4-landscape">Landscape</div></div>
+        <script>requestAnimationFrame(() => {
+          const widths = [...document.querySelectorAll('[data-page-size]')].map(page => Math.round(page.getBoundingClientRect().width));
+          document.getElementById('facet-root').dataset.measuredWidths = widths.join(',');
+        });</script>`);
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Expected a local TCP address');
+      const html = await snapshotHTML(`http://127.0.0.1:${address.port}`, new Logger(false), { layout: pdfSnapshotLayout({}) });
+      expect(html).toContain('data-measured-widths="794,1123"');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     }
   }, 30_000);
 });

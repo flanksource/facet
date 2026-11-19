@@ -122,6 +122,19 @@ describe('generatePNGBuffer', () => {
     expect(pngDimensions(png)).toEqual({ width: TARGET_WIDTH, height: TARGET_HEIGHT });
   });
 
+  it('captures the document body after a live template mounts a nested body', async () => {
+    const png = await generatePNGBuffer(browser!, `<body style="margin:0;width:${TARGET_WIDTH}px;height:${TARGET_HEIGHT}px">
+      <div id="facet-root"></div><p id="facet-document-status" role="status">Loading document…</p>
+      <script>setTimeout(() => {
+        const nested = document.createElement('body');
+        nested.textContent = 'Mounted document';
+        document.getElementById('facet-root').append(nested);
+        document.getElementById('facet-document-status').remove();
+      }, 150);</script>
+    </body>`);
+    expect(pngDimensions(png)).toEqual({ width: TARGET_WIDTH, height: TARGET_HEIGHT });
+  });
+
   it('scales the capture to the requested width without reflowing the element', async () => {
     const png = await generatePNGBuffer(browser!, sizedTarget(), {
       selector: '#export',

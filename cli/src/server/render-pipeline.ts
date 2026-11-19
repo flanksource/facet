@@ -397,10 +397,11 @@ export async function respondWithOutput(options: {
   logger: Logger;
 }): Promise<Response> {
   const { content, contentType, extension, templateName, parsed, s3, logger } = options;
+  const attachment = parsed.htmlMode === 'linked';
   if (parsed.output === 's3') {
     if (!s3) throw new RenderError('INVALID_REQUEST', 'S3 not configured', 400);
     const key = parsed.s3Key ?? s3.generateKey(templateName, extension);
-    const url = await s3.upload(key, content, contentType);
+    const url = await s3.upload({ key, body: content, contentType, attachment });
     const presigned = await s3.presignedUrl(key);
     logger.debug(`Uploaded to S3: ${key}`);
     return Response.json({ url, presignedUrl: presigned, key });
@@ -410,7 +411,7 @@ export async function respondWithOutput(options: {
   return new Response(typeof content === 'string' ? content : new Uint8Array(content), {
     headers: {
       'content-type': contentType,
-      'content-disposition': `inline; filename="${filename}"`,
+      'content-disposition': `${attachment ? 'attachment' : 'inline'}; filename="${filename}"`,
     },
   });
 }

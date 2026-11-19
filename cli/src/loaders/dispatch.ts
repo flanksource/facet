@@ -5,6 +5,9 @@ export async function dispatchLoader(): Promise<boolean> {
     const loader = await import('./ssr.js');
     if (mode === 'ssr-daemon') await loader.runSsrDaemon();
     else await loader.runSsrLoader();
+  } else if (mode === 'html-export') {
+    const { runHtmlExportLoader } = await import('./html-export.js');
+    await runHtmlExportLoader();
   } else if (mode === 'dev') {
     const { runDevLoader } = await import('./dev.js');
     await runDevLoader();
