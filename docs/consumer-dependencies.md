@@ -1,6 +1,6 @@
 # Consumer dependencies
 
-Facet generates an isolated `.facet/package.json` from the consumer's dependencies and development dependencies, plus any dependencies declared beside a nested template. The generated directory is installed with `pnpm install --ignore-workspace`.
+Facet uses the shipped runtime for Facet, Clicky UI, and their browser-compatible exports. It keeps the runtime's version when a consumer declares the same package. Facet installs new packages in an isolated environment using the consumer's dependencies and development dependencies, including declarations beside nested templates.
 
 For pnpm projects, Facet finds the nearest `pnpm-workspace.yaml` above the declaring package and resolves `catalog:` and `catalog:default` using its `catalog` map. Named references such as `catalog:tools` use `catalogs.tools`. Missing or invalid entries stop generation with the dependency name and workspace path.
 
@@ -9,7 +9,7 @@ packages:
   - apps/*
   - packages/*
 catalog:
-  react: ^19.0.0
+  '@acme/data': ^1.0.0
 catalogs:
   tools:
     typescript: ~5.7.0
@@ -18,7 +18,7 @@ catalogs:
 ```json
 {
   "dependencies": {
-    "react": "catalog:",
+    "@acme/data": "catalog:",
     "@acme/components": "workspace:*"
   },
   "devDependencies": {
