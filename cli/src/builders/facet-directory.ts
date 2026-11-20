@@ -1167,7 +1167,17 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
     // the browser measures layout, or diagrams bake arrows against an unstyled
     // page. Imported by the live client entry only; the SSR path gets template
     // classes from the post-process pass instead.
-    writeFileSync(join(this.facetRoot, 'live-tailwind.css'), '@tailwind utilities;\n', 'utf-8');
+    // Utilities such as p-8 read theme values, so the entry needs the theme; facet.css already emits its
+    // (font-scaled) variables, so the theme is only referenced here.
+    const liveTailwind = [
+      pageStyles.entry
+        .replace('@import "tailwindcss/theme.css" layer(theme);', '@import "tailwindcss/theme.css" theme(reference);')
+        .replace('@theme {', '@theme reference {'),
+      `@source "./src/${staticSource}";`,
+      '',
+    ].join('\n');
+    if (!liveTailwind.includes('theme(reference)') || !liveTailwind.includes('@theme reference')) throw new Error('Facet page styles entry changed; update the live Tailwind entry');
+    writeFileSync(join(this.facetRoot, 'live-tailwind.css'), liveTailwind, 'utf-8');
     writeFileSync(join(this.facetRoot, 'post-process-v4.css'), postProcessV4, 'utf-8');
     writeFileSync(join(this.facetRoot, 'post-process-v4.entry.ts'), "import './post-process-v4.css';\n", 'utf-8');
     this.logger.debug(`Generated Facet CSS entry with ${imports.length} consumer stylesheet import(s)`);
