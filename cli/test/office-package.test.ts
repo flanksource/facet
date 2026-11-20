@@ -5,6 +5,8 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import JSZip from 'jszip';
 import { officeText } from './office-xml.js';
+import { packLibrary } from '../scripts/build-default-runtime.js';
+import { runtimePlatformName } from '../src/runtime/platform.js';
 
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
@@ -14,14 +16,19 @@ describe('installed Office library exports', () => {
     await mkdir(join(root, '.tmp'), { recursive: true });
     const scratch = await mkdtemp(join(root, '.tmp/office-package-'));
     try {
-      const tarball = join(scratch, 'facet.tgz');
-      await run('pnpm', ['pack', '--out', tarball], { cwd: root, maxBuffer: 5 * 1024 * 1024 });
+      // Pack as the release does: the rendering runtime arrives as a platform optional dependency, here the local build.
+      const tarball = await packLibrary({ directory: root, scratch, name: '@flanksource/facet', includeRuntimePackages: true });
+      const runtimePackage = `@flanksource/facet-runtime-${runtimePlatformName()}`;
+      const runtime = join(scratch, 'runtime.tgz');
+      await run('pnpm', ['--config.ignoreScripts=true', 'pack', '--out', runtime], { cwd: join(root, 'cli/assets/runtimes', runtimePlatformName()), maxBuffer: 5 * 1024 * 1024 });
       const consumer = join(scratch, 'consumer');
       await mkdir(consumer);
       await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'office-consumer', private: true, type: 'module', dependencies: { '@flanksource/facet': `file:${tarball}` } }));
+      // Its own workspace root keeps the install out of the repository's workspace.
+      await writeFile(join(consumer, 'pnpm-workspace.yaml'), `packages: [.]\noverrides:\n  '${runtimePackage}': 'file:${runtime}'\n`);
       await cp(join(import.meta.dirname, 'fixtures/office-consumer.mjs'), join(consumer, 'render.mjs'));
       await writeFile(join(consumer, 'report.md'), '# Installed Office report\n\nEditable **native** content.\n');
-      await run('pnpm', ['install', '--ignore-workspace', '--ignore-scripts', '--prod'], { cwd: consumer, maxBuffer: 5 * 1024 * 1024 });
+      await run('pnpm', ['install', '--ignore-scripts', '--prod'], { cwd: consumer, maxBuffer: 5 * 1024 * 1024 });
       const output = join(consumer, 'output');
       await run(process.execPath, ['render.mjs', 'report.md', output], {
         cwd: consumer, env: { ...process.env, FACET_PACKAGE_PATH: tarball, FACET_LOW_PRIORITY: '0' }, maxBuffer: 5 * 1024 * 1024,

@@ -1,13 +1,17 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { expect, test } from 'vitest';
 
 const run = promisify(execFile);
 
-test('renders with unpublished local libraries and compiler from an independent consumer', async () => {
-  const repo = resolve(import.meta.dirname, '../..');
+const repo = resolve(import.meta.dirname, '../..');
+// --dev renders against linked Clicky UI and page-runtime checkouts; installed packages (as in CI) are rejected by design.
+const linked = !realpathSync(join(repo, 'node_modules/@flanksource/clicky-ui')).includes('/node_modules/');
+
+test.skipIf(!linked)('renders with unpublished local libraries and compiler from an independent consumer', async () => {
   await mkdir(join(repo, '.tmp'), { recursive: true });
   const scratch = await mkdtemp(join(repo, '.tmp/dev-consumer-'));
   try {

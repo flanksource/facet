@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
 import { writePPTX } from './pptx.js';
 import type { OfficePage, Paragraph, Table, TextStyle } from './model.js';
-import { first, parseXml } from './inspect/xml.js';
+import { first, parseXml } from '../inspection/xml.js';
 
 const style: TextStyle = { font: 'Arial', size: 18, bold: false, italic: false, underline: false, strike: false,
   color: '000000', align: 'left', lineHeight: 30, before: 0, after: 0, borderWidth: 0 };

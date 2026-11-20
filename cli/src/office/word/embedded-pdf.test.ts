@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import sharp from 'sharp';
 import { encodePdfEmf } from '../emf/encode.js';
 import { pdfObject, packageEmbeddedPdfs } from './embedded-pdf.js';
-import { parseXml, walk } from '../inspect/xml.js';
+import { parseXml, walk } from '../../inspection/xml.js';
 
 describe('PDF DrawingML media', () => {
   it.each(['body', 'header', 'footer'] as const)('places a PDF-in-EMF drawing directly inside a Word run in the %s', async (placement) => {
