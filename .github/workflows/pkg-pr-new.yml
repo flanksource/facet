@@ -1,0 +1,57 @@
+name: Preview Packages
+
+# Publishes every pull request and main commit to https://pkg.pr.new, e.g.
+#   npm i https://pkg.pr.new/@flanksource/facet@<pr-number-or-sha>
+#   npx https://pkg.pr.new/@flanksource/facet-cli@<pr-number-or-sha>
+# Requires the pkg.pr.new GitHub App: https://github.com/apps/pkg-pr-new
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: pkg-pr-new-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            cli/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir cli install --frozen-lockfile
+
+      # Same output the npm release packs: components, styles.css, and cli/dist.
+      - name: Build library
+        run: pnpm run build
+
+      # Same steps as release.yml's publish-cli: the CLI runtime bundle plus the
+      # assets it reads at render time.
+      - name: Build CLI runtime
+        run: |
+          pnpm --dir cli run build:bundle
+          node cli/scripts/pack-npm-cli.cjs "$(node -p "require('./package.json').version")" npm-dist
+
+      # --previewVersion keeps preview tarballs from colliding with npm releases
+      # of the same version.
+      - name: Publish previews
+        run: pnpm exec pkg-pr-new publish --previewVersion --bin '.' './npm-dist'
