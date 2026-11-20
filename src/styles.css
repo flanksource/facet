@@ -1366,7 +1366,9 @@ article {
   bottom: var(--facet-slide-notes-bottom, 12px);
   z-index: 50;
   max-width: min(60%, 560px);
-  font: 13px/1.45 "Open Sans", system-ui, sans-serif;
+  font-family: "Open Sans", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
   color: #1f2937;
   text-align: left;
 }
