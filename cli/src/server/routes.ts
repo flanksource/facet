@@ -1,15 +1,18 @@
+import { discoverThemes, themeFingerprint } from '../builders/themes.js';
 import { randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { Readable } from 'node:stream';
 
-import { generatePDFBuffer } from '../utils/pdf-generator.js';
 import { injectFontScale } from '../utils/font-size.js';
-import { generatePNGBuffer } from '../utils/png-generator.js';
+import { injectCustomCss } from '../utils/custom-css.js';
+import { showSlideNotes } from '../utils/slide-notes.js';
+import { officeLayout } from '../office/layout.js';
+import { pageSizeLayout } from '../utils/page-size-layout.js';
+import { renderBinary } from './render-binary.js';
 import { hasMermaidCodeBlocks, renderBrowserHTML } from '../utils/browser-html.js';
 import { Logger } from '../utils/logger.js';
 import { RenderTimings } from '../utils/performance.js';
-import { applyPDFSecurity } from '../utils/pdf-security.js';
 import { waitForAbortable } from '../utils/abort-lock.js';
 import type { ServerConfig } from './config.js';
 import { RenderError, errorResponse } from './errors.js';
@@ -105,6 +108,11 @@ export async function handleRender(
   let parsed: ParsedRenderRequest;
   try {
     parsed = await parseRenderRequest(request, config.maxUploadSize);
+    parsed.theme ??= config.theme;
+    if (parsed.source.kind === 'inline' && parsed.theme && parsed.theme !== 'facet') {
+      const selected = discoverThemes(process.cwd()).find(theme => theme.id === parsed.theme);
+      if (selected) parsed.dependencies = { ...parsed.dependencies, [selected.package]: 'file:' + selected.root };
+    }
     validateRequestModuleMode(parsed, config.skipModules);
   } catch (error) {
     return errorResponse(error);
@@ -147,6 +155,11 @@ export function handleRenderStream(
     try {
       progress.emit('parsing', 'Parsing request...');
       parsed = await parseRenderRequest(request, config.maxUploadSize);
+    parsed.theme ??= config.theme;
+    if (parsed.source.kind === 'inline' && parsed.theme && parsed.theme !== 'facet') {
+      const selected = discoverThemes(process.cwd()).find(theme => theme.id === parsed.theme);
+      if (selected) parsed.dependencies = { ...parsed.dependencies, [selected.package]: 'file:' + selected.root };
+    }
       validateRequestModuleMode(parsed, config.skipModules);
     } catch (error) {
       progress.emitError(error instanceof RenderError ? error.message : String(error));
@@ -234,6 +247,9 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
     dependencies: parsed.dependencies,
     headerCode: parsed.headerCode,
     footerCode: parsed.footerCode,
+    css: parsed.css,
+    theme: parsed.theme ?? config.theme,
+    themeFingerprint: themeFingerprint(process.cwd(), parsed.theme ?? config.theme),
     format: parsed.format,
     pdfOptions: parsed.pdfOptions,
     encryption: parsed.encryption,
@@ -247,6 +263,9 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
     // Reaches html and png as well as pdf (injectFontScale), so it must key the
     // render even when it did not arrive via pdfOptions.
     fontSize: parsed.fontSize,
+    embedFormat: parsed.embedFormat,
+    embedSize: parsed.embedSize,
+    pageSizeOverride: parsed.pageSizeOverride,
   });
 }
 
@@ -254,10 +273,11 @@ export function cacheKeyForRequest(parsed: ParsedRenderRequest, config: ServerCo
  * A signed PDF embeds the signing time (and, with a TSA, a fresh timestamp
  * token), so its bytes are not a function of its inputs. Caching one replays
  * the original timestamp on every later render, so these bypass the cache.
- * Only the PDF path applies the signature, so other formats stay cacheable.
+ * Only the PDF path applies the signature. Dev requests also bypass reuse so
+ * rebuilding a local library takes effect on the next render.
  */
 function isCacheable(parsed: ParsedRenderRequest): boolean {
-  return !(parsed.signature && parsed.format === 'pdf');
+  return !process.env.FACET_DEV_ROOT && !(parsed.signature && parsed.format === 'pdf');
 }
 
 /**
@@ -340,6 +360,8 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       consumerRoot: resolved.consumerRoot,
       entryFile: resolved.entryFile,
       data: parsed.data,
+      theme: parsed.theme ?? config.theme,
+      themeOverrides: { header: !!parsed.headerCode, footer: !!parsed.footerCode },
       logger,
       sandbox: config.sandbox,
       persistentLoader: config.persistentSsr,
@@ -350,6 +372,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
       signal,
       redact: parsed.redact,
       pngOptions: parsed.pngOptions,
+      layout: parsed.format === 'docx' || parsed.format === 'pptx' ? officeLayout(parsed.format, parsed.fontSize) : pageSizeLayout(parsed.pageSizeOverride, parsed.pdfOptions?.landscape),
     });
     signal?.throwIfAborted();
     html = await injectHeaderFooter({
@@ -364,10 +387,10 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
     });
     signal?.throwIfAborted();
     // Once, ahead of the format branch, so html, png and pdf all carry it.
-    html = injectFontScale(html, parsed.fontSize);
+    html = injectCustomCss(injectFontScale(html, parsed.fontSize), parsed.css);
 
     if (parsed.format === 'html') {
-      html = await materializeBrowserHTML(html, pool, logger, signal);
+      html = showSlideNotes(await materializeBrowserHTML(html, pool, logger, signal));
       cache.set(cacheKey, 'text/html', Buffer.from(html));
       return respondWithOutput({
         content: html,
@@ -387,21 +410,7 @@ async function doRender(options: DirectRenderOptions): Promise<Response> {
     if (signal?.aborted) abort();
     let workerHealthy = true;
     try {
-      let output: Buffer;
-      if (parsed.format === 'png') {
-        output = await timings.measure('png-generation', () =>
-          generatePNGBuffer(worker.browser, html, parsed.pngOptions));
-      } else {
-        output = await timings.measure('pdf-generation', () =>
-          generatePDFBuffer(worker.browser, html, parsed.pdfOptions));
-        if (parsed.encryption || parsed.signature) {
-          output = await applyPDFSecurity(output, {
-            encryption: parsed.encryption,
-            signature: parsed.signature,
-            timings,
-          }, logger);
-        }
-      }
+      const output = await renderBinary({ browser: worker.browser, html, parsed, timings, logger, consumerRoot: resolved.consumerRoot });
       signal?.throwIfAborted();
       const storageKey = cacheable ? cacheKey : freshResultKey();
       cache.set(storageKey, metadata.contentType, output);
@@ -454,6 +463,8 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
       consumerRoot: resolved.consumerRoot,
       entryFile: resolved.entryFile,
       data: parsed.data,
+      theme: parsed.theme ?? config.theme,
+      themeOverrides: { header: !!parsed.headerCode, footer: !!parsed.footerCode },
       logger,
       progress,
       persistentLoader: config.persistentSsr,
@@ -463,6 +474,7 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
       skipModules: config.skipModules,
       redact: parsed.redact,
       pngOptions: parsed.pngOptions,
+      layout: parsed.format === 'docx' || parsed.format === 'pptx' ? officeLayout(parsed.format, parsed.fontSize) : pageSizeLayout(parsed.pageSizeOverride, parsed.pdfOptions?.landscape),
     });
     html = await injectHeaderFooter({
       html,
@@ -475,9 +487,9 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
       skipModules: config.skipModules,
     });
     // Once, ahead of the format branch, so html, png and pdf all carry it.
-    html = injectFontScale(html, parsed.fontSize);
+    html = injectCustomCss(injectFontScale(html, parsed.fontSize), parsed.css);
     if (parsed.format === 'html') {
-      html = await materializeBrowserHTML(html, pool, logger);
+      html = showSlideNotes(await materializeBrowserHTML(html, pool, logger));
       progress.emit('done', 'HTML render complete');
       return {
         content: html,
@@ -486,29 +498,12 @@ async function doRenderStreamed(options: StreamRenderOptions): Promise<RenderArt
     }
 
     const metadata = renderFormatMetadata(parsed.format);
-    const stage = parsed.format === 'png' ? 'rendering-png' : 'rendering-pdf';
+    const stage = `rendering-${parsed.format}` as const;
     progress.emit(stage, 'Acquiring browser worker...');
     const worker = await pool.acquire();
     let workerHealthy = true;
     try {
-      let output: Buffer;
-      if (parsed.format === 'png') {
-        progress.emit(stage, 'Generating PNG with Puppeteer...');
-        output = await timings.measure('png-generation', () =>
-          generatePNGBuffer(worker.browser, html, parsed.pngOptions));
-      } else {
-        progress.emit(stage, 'Generating PDF with Puppeteer...');
-        output = await timings.measure('pdf-generation', () =>
-          generatePDFBuffer(worker.browser, html, parsed.pdfOptions));
-        if (parsed.encryption || parsed.signature) {
-          progress.emit('securing', 'Applying PDF security...');
-          output = await applyPDFSecurity(output, {
-            encryption: parsed.encryption,
-            signature: parsed.signature,
-            timings,
-          }, logger);
-        }
-      }
+      const output = await renderBinary({ browser: worker.browser, html, parsed, timings, logger, progress, consumerRoot: resolved.consumerRoot });
       if (parsed.output === 's3' && s3) progress.emit('uploading', 'Uploading to S3...');
       return { content: output, metadata };
     } catch (error) {

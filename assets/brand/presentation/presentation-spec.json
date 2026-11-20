@@ -1,0 +1,40 @@
+{
+  "brand": "facet",
+  "tagline": "Print-ready documents from React templates",
+  "brief": "facet turns React templates into datasheets, reports and diagrams: one template, many formats (HTML, PDF, PNG, DOCX, PPTX). The mark should feel precise, print-crafted and quiet, and sit beside UIR and clicky as one Flanksource family.",
+  "adjectives": ["precise", "print-crafted", "polished", "structured"],
+  "criteria": "Reads as an f at 16 px, says print without a document-icon cliché, works in one colour, belongs with UIR and clicky.",
+  "industry": "software",
+  "nav": ["Docs", "Components", "CLI"],
+  "brand_color": "#3578e5",
+  "greyscale": false,
+  "final": true,
+  "tile_color": "#131f3b",
+  "designer": "Flanksource",
+  "round": 3,
+  "concepts": [
+    {
+      "name": "Folded f",
+      "symbol": "facet-symbol.svg",
+      "lockup": "facet-horizontal.svg",
+      "stacked": "facet-stacked.svg",
+      "symbol_on_tile": "facet-symbol-reversed.svg",
+      "symbol_on_dark": "facet-symbol-reversed.svg",
+      "lockup_on_dark": "facet-horizontal-reversed.svg",
+      "stacked_on_dark": "facet-stacked-reversed.svg",
+      "stacked_on_tile": "facet-stacked-reversed.svg",
+      "idea": "The f's hook is a page corner folded down: print, made from the letter itself.",
+      "rationale": [
+        "Folding a strip on a 45° crease turns its end downward, which is exactly an f's hook",
+        "The fold is the one blue accent; the letter stays navy",
+        "Built on a 36-unit stroke with a 6-unit seam; a 16-unit seam for the small cut"
+      ]
+    }
+  ],
+  "recommendation": "Folded f: chosen direction, delivered with symbol, small cut, horizontal and stacked lockups, one-colour versions and the web icon set.",
+  "next_steps": [
+    "Replace the README and docs header with the horizontal lockup",
+    "Ship favicon.svg, favicon.ico and the webmanifest with the docs site",
+    "Professional trademark search before external use"
+  ]
+}

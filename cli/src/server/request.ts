@@ -1,10 +1,13 @@
 import { RenderError } from './errors.js';
 import { MAX_TIMEOUT_MS } from './config.js';
 import { parseFontSize } from '../utils/font-size.js';
+import { parseEmbedFormat, parseEmbedSize, type EmbedFormat, type EmbedSize } from '../utils/embed.js';
 import { parseRemoteRef } from '../utils/remote-resolver.js';
 import type { BufferPDFOptions, PDFMargins } from '../utils/pdf-generator.js';
 import type { PDFEncryptionOptions, PDFSignatureOptions } from '../utils/pdf-security.js';
 import type { PNGOptions, PNGViewport, RenderFormat } from '../types.js';
+import { isRenderFormat } from './render-format.js';
+import { parsePageSizeOverride } from './page-size.js';
 import type { RedactPolicy } from '../builders/remark-config.js';
 import {
   normalizePNGOptions,
@@ -29,6 +32,8 @@ export interface ParsedRenderRequest {
   dependencies?: Record<string, string>;
   headerCode?: string;
   footerCode?: string;
+  css?: string;
+  theme?: string;
   encryption?: PDFEncryptionOptions;
   signature?: PDFSignatureOptions;
   /** Render deadline in milliseconds, overriding the server default. */
@@ -38,6 +43,10 @@ export interface ParsedRenderRequest {
   postProcessCss?: boolean;
   /** Base font size in pt. Top-level so it reaches html and png, not just pdf. */
   fontSize?: number;
+  /** How pdf, docx and pptx insert figures and diagrams. */
+  embedFormat?: EmbedFormat;
+  embedSize?: EmbedSize;
+  pageSizeOverride?: string;
   /** Which classified regions this render may carry. */
   redact?: RedactPolicy;
 }
@@ -140,6 +149,8 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     dependencies: parseDependencies(body.dependencies),
     headerCode: typeof body.headerCode === 'string' ? body.headerCode : undefined,
     footerCode: typeof body.footerCode === 'string' ? body.footerCode : undefined,
+    css: parseCss(body.css),
+    theme: parseTheme(body.theme),
     encryption,
     signature,
     timeoutMs: parseTimeout(body.timeout),
@@ -148,7 +159,16 @@ async function parseJsonRequest(request: Request): Promise<ParsedRenderRequest> 
     postProcessCss: parseBoolean(body.postProcessCss, 'postProcessCss'),
     redact: parseRedactPolicy(body.redact, 'redact'),
     fontSize: parseFontSize(body.fontSize ?? (body.pdfOptions as Record<string, unknown> | undefined)?.fontSize),
+    embedFormat: parseEmbedFormat(body.embedFormat),
+    embedSize: parseEmbedSize(body.embedSize),
+    pageSizeOverride: parsePageSizeOverride(body.pageSizeOverride, format, (body.pngOptions as PNGOptions | undefined)?.viewport),
   };
+}
+
+function parseCss(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'string') throw new RenderError('INVALID_REQUEST', 'css must be a string', 400);
+  return raw;
 }
 
 function parseTimeout(raw: unknown): number | undefined {
@@ -238,11 +258,16 @@ async function parseMultipartRequest(
     timeoutMs: parseTimeout(options.timeout),
     headerCode: typeof options.headerCode === 'string' ? options.headerCode : undefined,
     footerCode: typeof options.footerCode === 'string' ? options.footerCode : undefined,
+    css: parseCss(options.css),
+    theme: parseTheme(options.theme),
     pngOptions,
     live: parseBoolean(options.live, 'live'),
     postProcessCss: parseBoolean(options.postProcessCss, 'postProcessCss'),
     redact: parseRedactPolicy(options.redact, 'redact'),
     fontSize: parseFontSize(options.fontSize ?? (options.pdfOptions as Record<string, unknown> | undefined)?.fontSize),
+    embedFormat: parseEmbedFormat(options.embedFormat),
+    embedSize: parseEmbedSize(options.embedSize),
+    pageSizeOverride: parsePageSizeOverride(options.pageSizeOverride, format, (options.pngOptions as PNGOptions | undefined)?.viewport),
   };
 }
 
@@ -284,14 +309,18 @@ async function parseGzipRequest(
     timeoutMs: parseTimeout(url.searchParams.get('timeout')),
     pngOptions,
     postProcessCss: parseBooleanQuery(url.searchParams.get('postProcessCss'), 'postProcessCss'),
+    theme: parseTheme(url.searchParams.get('theme') ?? undefined),
     fontSize: parseFontSize(url.searchParams.get('fontSize') ?? undefined),
+    embedFormat: parseEmbedFormat(url.searchParams.get('embedFormat') ?? undefined),
+    embedSize: parseEmbedSize(url.searchParams.get('embedSize') ?? undefined),
+    pageSizeOverride: parsePageSizeOverride(url.searchParams.get('pageSizeOverride') ?? undefined, format, url.searchParams.get('pngViewport') ?? undefined),
   };
 }
 
 function parseRenderFormat(raw: unknown): RenderFormat {
   if (raw === undefined) return 'pdf';
-  if (raw === 'html' || raw === 'pdf' || raw === 'png') return raw;
-  throw new RenderError('INVALID_REQUEST', 'format must be one of: html, pdf, png', 400);
+  if (isRenderFormat(raw)) return raw;
+  throw new RenderError('INVALID_REQUEST', 'format must be one of: html, pdf, png, docx, pptx', 400);
 }
 
 function parsePNGOptions(raw: unknown, format: RenderFormat): NormalizedPNGOptions | undefined {
@@ -421,12 +450,12 @@ function validateFormatOptions(
     signature?: PDFSignatureOptions;
   },
 ): void {
-  if (format !== 'png') return;
+  if (format !== 'png' && format !== 'docx' && format !== 'pptx') return;
   if (options.hasPDFOptions) {
-    throw new RenderError('INVALID_REQUEST', 'pdfOptions cannot be used with PNG renders', 400);
+    throw new RenderError('INVALID_REQUEST', `pdfOptions cannot be used with ${format.toUpperCase()} renders`, 400);
   }
   if (options.encryption || options.signature) {
-    throw new RenderError('INVALID_REQUEST', 'PDF security options cannot be used with PNG renders', 400);
+    throw new RenderError('INVALID_REQUEST', `PDF security options cannot be used with ${format.toUpperCase()} renders`, 400);
   }
 }
 
@@ -500,4 +529,10 @@ function parseSignatureOptions(raw: unknown): PDFSignatureOptions | undefined {
     location: typeof r.location === 'string' ? r.location : undefined,
     timestampUrl: typeof r.timestampUrl === 'string' ? r.timestampUrl : undefined,
   };
+}
+
+function parseTheme(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !/^[a-z][a-z0-9-]*$/.test(value)) throw new RenderError('INVALID_REQUEST', 'theme must be a theme alias', 400);
+  return value;
 }

@@ -1,9 +1,10 @@
-import { cp, mkdir, readdir, rename, rm, stat, utimes } from 'node:fs/promises';
+import { cp, mkdir, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { computeTemplateBuildKey } from '../bundler/build-cache.js';
 import { VERSION } from '../version-generated.js';
+import { snapshotPackageManifest } from '../builders/consumer-dependencies.js';
 
 interface WorkspaceHandle {
   path: string;
@@ -13,14 +14,14 @@ interface WorkspaceHandle {
 const creationLocks = new Map<string, Promise<void>>();
 const references = new Map<string, number>();
 
-function workspaceKey(sourceDir: string, entryFile: string): string {
+function workspaceKey(sourceDir: string, entryFile: string, manifest?: string): string {
   const sourceKey = computeTemplateBuildKey({ consumerRoot: sourceDir, facetVersion: VERSION });
   return createHash('sha256')
-    .update(sourceKey).update('\0').update(entryFile)
+    .update(sourceKey).update('\0').update(entryFile).update('\0').update(manifest ?? '')
     .digest('hex').slice(0, 24);
 }
 
-async function ensureWorkspace(sourceDir: string, path: string): Promise<void> {
+async function ensureWorkspace(sourceDir: string, path: string, manifest?: string): Promise<void> {
   if (existsSync(path)) {
     const now = new Date();
     await utimes(path, now, now).catch(() => undefined);
@@ -36,8 +37,9 @@ async function ensureWorkspace(sourceDir: string, path: string): Promise<void> {
     try {
       await cp(sourceDir, temporary, {
         recursive: true,
-        filter: (source) => basename(source) !== '.facet',
+        filter: (source) => !['.facet', '.git', '.tmp', 'node_modules'].includes(basename(source)),
       });
+      if (manifest) await writeFile(join(temporary, 'package.json'), manifest);
       try {
         await rename(temporary, path);
       } catch (error) {
@@ -81,8 +83,9 @@ export async function acquireTemplateWorkspace(
   cacheDir: string,
 ): Promise<WorkspaceHandle> {
   const root = join(cacheDir, 'template-workspaces');
-  const path = join(root, workspaceKey(sourceDir, entryFile));
-  await ensureWorkspace(sourceDir, path);
+  const manifest = await snapshotPackageManifest(sourceDir);
+  const path = join(root, workspaceKey(sourceDir, entryFile, manifest));
+  await ensureWorkspace(sourceDir, path, manifest);
   references.set(path, (references.get(path) ?? 0) + 1);
   await pruneWorkspaces(root);
   let released = false;

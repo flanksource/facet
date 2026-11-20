@@ -1,0 +1,3 @@
+interface:
+  display_name: "Schema Diagram Designer"
+  short_description: "Create and update schema-backed architecture diagrams"

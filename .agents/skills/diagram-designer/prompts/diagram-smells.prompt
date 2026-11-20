@@ -1,0 +1,272 @@
+---
+description: Lint rendered diagrams (PNG, SVG, HTML or facet TSX) for visible diagram smells and return gavel lint violations
+model: agent:sonnet:medium
+prompt:
+  schemaStrictness: retry
+budget:
+  timeout: 15m
+permissions:
+  mode: plan
+  tools:
+    Read: allow
+    Glob: allow
+    Grep: allow
+tools:
+  render_diagram:
+    description: Render a diagram to a PNG you can Read. A facet .tsx template renders through `facet png --live`; an .svg, .html or http(s) URL renders in Chrome; a .png is returned as is. Pass `selector` to capture one element of a page.
+    input:
+      path: string, file path or http(s) URL of the diagram
+      selector?: string, CSS selector of the element to capture instead of the whole page
+    output:
+      png: string, absolute path of the rendered PNG
+    readonly: true
+    timeout: 3m
+    exec: |
+      #!/usr/bin/env node
+      const { execFileSync } = require("node:child_process");
+      const { mkdirSync, readFileSync, realpathSync } = require("node:fs");
+      const { basename, extname, join } = require("node:path");
+      const input = JSON.parse(readFileSync(0, "utf8"));
+      const out = join(process.cwd(), ".tmp", "diagram-smells");
+      mkdirSync(out, { recursive: true });
+      const remote = /^https?:\/\//.test(input.path);
+      const file = remote ? "" : realpathSync(input.path);
+      const png = join(out, `${basename(remote ? "page" : file, extname(file))}-${process.pid}.png`);
+      if (file.endsWith(".png")) {
+        process.stdout.write(JSON.stringify({ png: file }));
+        process.exit(0);
+      }
+      if (file.endsWith(".tsx")) {
+        // No --autocrop: it trims flush to the content, which itself reads as png-clipped.
+        const args = ["png", file, "--live", "-o", png];
+        if (input.selector) args.push("--selector", input.selector);
+        execFileSync("facet", args, { stdio: ["ignore", 2, 2] });
+      } else {
+        // Every call repeats the launch flags: a call that differs gets a new, blank browser.
+        const session = `render-diagram-${process.pid}`;
+        const browser = (...args) =>
+          execFileSync("agent-browser", ["--engine", "chrome", "--allow-file-access", "--session", session, ...args], { stdio: ["ignore", 2, 2] });
+        try {
+          browser("open", remote ? input.path : `file://${file}`);
+          browser("wait", "--load", "load");
+          browser("screenshot", ...(input.selector ? [input.selector] : ["--full"]), png);
+        } finally {
+          browser("close");
+        }
+      }
+      process.stdout.write(JSON.stringify({ png }));
+  measure_layout:
+    description: Measure a rendered diagram's text in Chrome. Returns every visible label with its box in page coordinates, font size, colour, the background and box of the frame it sits in, line count, whether it overflows that frame or falls outside the page, and every pair of overlapping labels. Use it as evidence for label-overflow, label-overlap, wrapped-titles, tiny-text, low-contrast and png-clipped. Does not apply to a PNG.
+    input:
+      path: string, .tsx, .svg or .html file path, or http(s) URL of the diagram
+      selector?: string, CSS selector of an element whose labels alone are reported; coordinates and clipping stay relative to the whole page
+    readonly: true
+    timeout: 3m
+    exec: |
+      #!/usr/bin/env node
+      const { execFileSync } = require("node:child_process");
+      const { mkdirSync, readFileSync, realpathSync } = require("node:fs");
+      const { basename, join } = require("node:path");
+      const input = JSON.parse(readFileSync(0, "utf8"));
+      let url = input.path;
+      if (!/^https?:\/\//.test(url)) {
+        let file = realpathSync(url);
+        if (file.endsWith(".png")) throw new Error("measure_layout needs the diagram's source page, not a PNG");
+        if (file.endsWith(".tsx")) {
+          const out = join(process.cwd(), ".tmp", "diagram-smells");
+          mkdirSync(out, { recursive: true });
+          const html = join(out, `${basename(file, ".tsx")}-${process.pid}.html`);
+          execFileSync("facet", ["html", file, "--live", "-o", html], { stdio: ["ignore", 2, 2] });
+          file = html;
+        }
+        url = `file://${file}`;
+      }
+      const measure = (selector) => {
+        const root = (selector && document.querySelector(selector)) || document.body;
+        if (selector && root === document.body) throw new Error(`no element matches ${selector}`);
+        // The page, not the selected element, is the canvas: a selector only narrows
+        // which labels are reported, so it can never make a visible label look clipped.
+        const page = document.documentElement;
+        const canvas = { left: -window.scrollX, top: -window.scrollY, width: page.scrollWidth, height: page.scrollHeight };
+        canvas.right = canvas.left + canvas.width;
+        canvas.bottom = canvas.top + canvas.height;
+        const box = (r) => ({ x: Math.round(r.left - canvas.left), y: Math.round(r.top - canvas.top), width: Math.round(r.width), height: Math.round(r.height) });
+        const outside = (r, f) => r.left < f.left - 1 || r.right > f.right + 1 || r.top < f.top - 1 || r.bottom > f.bottom + 1;
+        const frameOf = (el) => {
+          for (let at = el; at && at !== root.parentElement; at = at.parentElement) {
+            const style = getComputedStyle(at);
+            const filled = style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.backgroundColor !== "transparent";
+            if (filled || parseFloat(style.borderTopWidth) > 0) return { el: at, background: style.backgroundColor };
+          }
+          return null;
+        };
+        const labels = [];
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          const text = walker.currentNode.textContent.trim();
+          if (!text) continue;
+          const range = document.createRange();
+          range.selectNodeContents(walker.currentNode);
+          const r = range.getBoundingClientRect();
+          if (!r.width || !r.height) continue;
+          const style = getComputedStyle(walker.currentNode.parentElement);
+          const frame = frameOf(walker.currentNode.parentElement);
+          const f = frame && frame.el.getBoundingClientRect();
+          const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+          labels.push({
+            text: text.slice(0, 80), box: box(r), fontSize: parseFloat(style.fontSize), color: style.color,
+            lines: Math.max(1, Math.round(r.height / lineHeight)),
+            ...(f ? { frame: box(f), background: frame.background, overflows: outside(r, f) } : {}),
+            clipped: outside(r, canvas),
+          });
+        }
+        const overlaps = [];
+        for (let i = 0; i < labels.length; i++) {
+          for (let j = i + 1; j < labels.length; j++) {
+            const a = labels[i].box, b = labels[j].box;
+            const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+            const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+            if (w > 1 && h > 1) overlaps.push({ a: labels[i].text, b: labels[j].text, area: w * h });
+          }
+        }
+        return { canvas: box(canvas), labels, overlaps };
+      };
+      // Every call repeats the launch flags: a call that differs gets a new, blank browser.
+      const session = `measure-layout-${process.pid}`;
+      const browser = (...args) =>
+        execFileSync("agent-browser", ["--engine", "chrome", "--allow-file-access", "--session", session, ...args], { encoding: "utf8" });
+      try {
+        browser("open", url);
+        browser("wait", "--load", "load");
+        const result = JSON.parse(browser("--json", "eval", `(${measure})(${JSON.stringify(input.selector || "")})`));
+        if (!result.success) throw new Error(result.error);
+        process.stdout.write(JSON.stringify(result.data.result));
+      } finally {
+        browser("close");
+      }
+  capture_element:
+    description: Screenshot one element of a page in a running Clicky UI playground, as rendered there, to a PNG you can Read.
+    input:
+      page: string, playground page slug, e.g. team/summary
+      selector: string, CSS selector of the element
+      origin: string, origin of the playground page supplied in the task
+    output:
+      png: string, absolute path of the captured PNG
+    readonly: true
+    timeout: 2m
+    exec: |
+      #!/usr/bin/env node
+      const { execFileSync } = require("node:child_process");
+      const { mkdirSync, readFileSync } = require("node:fs");
+      const { join } = require("node:path");
+      const input = JSON.parse(readFileSync(0, "utf8"));
+      if (!input.origin) throw new Error("capture_element requires an explicit playground origin");
+      const origin = input.origin;
+      const out = join(process.cwd(), ".tmp", "diagram-smells");
+      mkdirSync(out, { recursive: true });
+      const png = join(out, `${input.page.replaceAll("/", "-")}-${process.pid}.png`);
+      const session = `capture-element-${process.pid}`;
+      const browser = (...args) =>
+        execFileSync("agent-browser", ["--engine", "chrome", "--session", session, ...args], { stdio: ["ignore", 2, 2] });
+      try {
+        browser("open", `${origin}/?page=${encodeURIComponent(input.page)}`);
+        browser("wait", input.selector);
+        browser("screenshot", input.selector, png);
+      } finally {
+        browser("close");
+      }
+      process.stdout.write(JSON.stringify({ png }));
+  facet_lint:
+    description: Run facet's own linter over facet .tsx templates and PNG renders. Returns ESLint-style JSON, one entry per file with rule ids, severities, messages and source lines.
+    input:
+      paths(array): string, .tsx or .png file paths
+      rule?: string, run only this facet rule
+    readonly: true
+    timeout: 3m
+    exec: |
+      #!/usr/bin/env node
+      const { spawnSync } = require("node:child_process");
+      const { readFileSync } = require("node:fs");
+      const input = JSON.parse(readFileSync(0, "utf8"));
+      const args = ["lint", "--json", ...(input.rule ? ["--rule", input.rule] : []), ...input.paths];
+      const lint = spawnSync("facet", args, { encoding: "utf8", stdio: ["ignore", "pipe", 2] });
+      // Exit 1 means findings were reported; anything else non-zero is a failure.
+      if (lint.status !== 0 && lint.status !== 1) process.exit(lint.status ?? 2);
+      process.stdout.write(lint.stdout);
+  facet_inspect:
+    description: Inspect rendered PNG, PDF or DOCX files natively. For a PNG it returns its size and grouped palette (rgba, pixels, percentage), the evidence for off-palette, png-transparent and png-blurry; for PDF and DOCX also its fonts.
+    input:
+      paths(array): string, .png, .pdf or .docx file paths
+    readonly: true
+    timeout: 2m
+    exec: |
+      #!/usr/bin/env node
+      const { execFileSync } = require("node:child_process");
+      const { readFileSync } = require("node:fs");
+      const input = JSON.parse(readFileSync(0, "utf8"));
+      process.stdout.write(execFileSync("facet", ["inspect", "--json", ...input.paths], { encoding: "utf8", stdio: ["ignore", "pipe", 2] }));
+---
+{{role "system"}}
+You lint rendered technical diagrams for visible smells. Judge the rendered output only: a PNG as an image, an SVG or HTML file as both its markup and what it renders, and a facet `.tsx` template only through its render. Do not review source code, business meaning, wording accuracy or colour taste unless it causes one of the smells below. Never edit files.
+
+Gather evidence with your tools before judging:
+
+- `render_diagram` turns a `.tsx`, `.svg`, `.html` or URL into a PNG; Read the PNG it returns. Do this for every input that is not already a PNG.
+- `measure_layout` gives exact label boxes, frames, font sizes and overlaps for a `.tsx`, `.svg`, `.html` or URL. Prefer its numbers over estimating from pixels, and cite them in the message.
+- `facet_inspect` gives a PNG's size and palette; use it for `png-transparent`, `png-blurry` and `off-palette`.
+- `facet_lint` runs facet's own rules over `.tsx` and `.png` files. Report its findings only when they map to a rule below.
+- `capture_element` is optional for a user-supplied playground origin, page and selector; ordinary diagram review does not require a playground server.
+
+Report each smell as one violation:
+
+- `file`: the diagram path exactly as given.
+- `line`: 0 for a PNG; for SVG, HTML or TSX, the line of the offending element when you can point to it.
+- `rule.method`: the rule id from the list below.
+- `severity`: as listed, raised to `error` when the smell hides, clips or misrepresents part of the flow.
+- `message`: name the element by its visible label or a precise region, say what is wrong, then give the smallest concrete fix.
+
+Report one violation per occurrence, not one per rule. Return an empty `violations` array when the diagram is clean. Report only what is visible and actionable; do not invent hidden geometry or optional polish.
+
+Rules. These are self-contained; related guidance is in the diagram-designer skill's `references/anti-patterns.md`:
+
+Text and labels
+- `diagram-smells/label-overflow` (error): text wider than its box spills over or is clipped by the border.
+- `diagram-smells/label-overlap` (error): two labels, or a label and a node title, overlap.
+- `diagram-smells/wrapped-titles` (warning): a box title breaks onto two lines in a narrow box, or boxes in one row get uneven heights from wrapping.
+- `diagram-smells/wrapped-chip` (warning): text wraps inside a chip or tag. Shorten it or wrap the row between whole chips.
+- `diagram-smells/tiny-text` (warning): text below about 8px at the rendered size.
+- `diagram-smells/low-contrast` (warning): text or strokes too faint for their background (below roughly 4.5:1 for text): pale on tint, white on a light header, hairline grey arrows.
+- `diagram-smells/label-background` (warning): an opaque plate behind an edge label splits the line, overlaps a box border, or shows as a stray patch on a tinted canvas.
+
+Arrows
+- `diagram-smells/arrow-through-label` (error): an arrow passes through a box or across text it does not connect to.
+- `diagram-smells/corner-arrow` (error): an arrow runs to the canvas corner or edge with no visible target (missing endpoint).
+- `diagram-smells/stub-arrow` (warning): a connector shorter than its arrowhead, so its direction is unreadable.
+- `diagram-smells/needless-curve` (warning): a curved connector between nodes that sit in the same row or column.
+- `diagram-smells/arrow-bundle` (warning): several arrows converge on one anchor point and merge into a single line.
+- `diagram-smells/arrow-crossings` (warning): more than four arrow crossings in one diagram.
+
+Boxes and containers
+- `diagram-smells/nested-boxes` (warning): bordered boxes inside a container of the same tint and outline. Fix with borderless rows, or white or contrasting cards.
+- `diagram-smells/deep-nesting` (warning): more than two levels of nested frames around the content that matters.
+- `diagram-smells/dark-body` (warning): a box with a coloured header whose body below is also saturated or dark. Intentional dark hub chips, header-only bars and coherent night-themed figures are not dark-body violations.
+- `diagram-smells/white-icon` (error): an icon that vanishes into a light background, leaving an empty gap before its label.
+- `diagram-smells/too-many-boxes` (warning): primary boxes are so numerous that the figure is crowded or difficult to follow; suggest how to simplify or split it. Seven or eight boxes alone is not a violation.
+- `diagram-smells/mixed-flow` (warning): the main flow changes direction in a way that makes its reading order ambiguous. Do not flag a clearly legible cycle, snake pipeline, branch or layered structure solely for turning.
+- `diagram-smells/iso-flat-icons` (warning): icons float upright over an isometric plate, overlap each other, or extend beyond its face. Arrange them in the plate's plane and project them with the face's transform.
+- `diagram-smells/off-palette` (info): more than four or five unrelated colours, or colours without a consistent meaning.
+
+Export
+- `diagram-smells/png-transparent` (error): a PNG with a transparent background, unreadable on a dark viewer.
+- `diagram-smells/png-clipped` (error): nodes, arrows or labels cut off at the canvas edge.
+- `diagram-smells/png-blurry` (warning): a PNG rendered at too low a resolution for its displayed size, with soft text or edges.
+- `diagram-smells/whitespace` (warning): large empty canvas regions from an oversized wrapper, or content crammed against the edge.
+{{role "user"}}
+Lint these rendered diagrams: {{#if files}}{{files}}{{else}}the attached images{{/if}}.
+
+Render each one that is not a PNG with `render_diagram` and Read the result, measure the ones you can with `measure_layout`, and inspect every PNG with `facet_inspect`. Review each diagram separately and return the structured lint violations.
+{{#if input}}
+
+Additional context:
+{{input}}
+{{/if}}

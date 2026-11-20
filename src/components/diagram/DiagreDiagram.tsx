@@ -2,6 +2,7 @@ import React, { useLayoutEffect, useRef, useState } from 'react';
 import dagre from 'dagre';
 import Arrow, { type ArrowProps } from './Arrow';
 import BoxNode, { type BoxNodeProps } from './BoxNode';
+import { BrandBox, type BrandBoxProps } from './BrandNodes';
 import Diagram, { type IdFn } from './Diagram';
 import type { DiagramColors } from './colors';
 
@@ -17,7 +18,7 @@ export interface DiagreDiagramProps {
   className?: string;
 }
 
-interface GraphNode { id: string; element: React.ReactElement<BoxNodeProps> }
+interface GraphNode { id: string; element: React.ReactElement<BoxNodeProps | BrandBoxProps> }
 interface GraphEdge { from: string; to: string }
 interface MeasuredNode { id: string; width: number; height: number }
 
@@ -33,8 +34,8 @@ export function collectGraph(children: React.ReactNode): {
     if (Array.isArray(child)) return child.forEach(visit);
     if (!React.isValidElement(child)) throw new Error('DiagreDiagram children must be direct BoxNode or Arrow elements');
     if (child.type === React.Fragment) return React.Children.forEach((child.props as { children: React.ReactNode }).children, visit);
-    if (child.type === BoxNode) {
-      const node = child as React.ReactElement<BoxNodeProps>;
+    if (child.type === BoxNode || child.type === BrandBox) {
+      const node = child as React.ReactElement<BoxNodeProps | BrandBoxProps>;
       if (!node.props.id) throw new Error('DiagreDiagram BoxNode requires an id');
       nodes.push({ id: node.props.id, element: node });
       return;
@@ -43,7 +44,7 @@ export function collectGraph(children: React.ReactNode): {
       arrows.push(child as React.ReactElement<ArrowProps>);
       return;
     }
-    throw new Error('DiagreDiagram requires direct BoxNode and Arrow children (fragments are allowed)');
+    throw new Error('DiagreDiagram requires direct BoxNode, BrandBox and Arrow children (fragments are allowed)');
   };
   visit(children);
 
@@ -156,8 +157,7 @@ function DiagreLayout({ graph, direction, gapX, gapY, availableWidth, availableH
       for (const node of graph.nodes) {
         const element = elements.current.get(node.id);
         if (element) {
-          const rect = element.getBoundingClientRect();
-          next[node.id] = { width: rect.width, height: rect.height };
+          next[node.id] = { width: element.offsetWidth, height: element.offsetHeight };
         }
       }
       setSizes((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next);

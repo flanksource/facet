@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { PDFDocument } from 'pdf-lib';
 import { injectDebugAnnotations, injectTypographyAnnotations, extractTypographyInfo, type FontCombo } from './debug-annotations.js';
 import { VERSION, BUILD_DATE, GIT_COMMIT } from '../version-generated.js';
-import puppeteer, { type Browser, type BrowserContext, type Page, type PuppeteerLaunchOptions } from 'puppeteer-core';
+import puppeteer, { type Browser, type BrowserContext, type Page, type LaunchOptions } from 'puppeteer-core';
 
 type PageProvider = Browser | BrowserContext;
 import { Logger } from './logger.js';
@@ -21,6 +21,9 @@ import { injectFontScale } from './font-size.js';
 import { ELEMENT_SCALE } from './type-scale.js';
 import { applySpawnedProcessPriority, buildLowPriorityCommand } from './subprocess-priority.js';
 import { resolveAutomaticTableOfContents, type TocPageRenderSpec } from './toc-pagination.js';
+import { prepareInternalLinks, restoreInternalLinks } from './pdf-internal-links.js';
+import { resolveEmbed, type EmbedFormat, type EmbedSize } from './embed.js';
+import { rasterizeEmbeds } from './pdf-embed-raster.js';
 
 function readVersion(): string {
   try {
@@ -91,11 +94,11 @@ export function resolveChromePath(): string | undefined {
   return (SYSTEM_CHROME_PATHS[process.platform] ?? []).find(existsSync);
 }
 
-export function buildBrowserLaunchOptions(options: {
+export async function buildBrowserLaunchOptions(options: {
   chromePath: string;
   platform?: NodeJS.Platform;
-}): PuppeteerLaunchOptions {
-  const chromeArgs = puppeteer.defaultArgs({
+}): Promise<LaunchOptions> {
+  const chromeArgs = await puppeteer.defaultArgs({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
@@ -249,6 +252,7 @@ async function renderMultiPass(
   // group. Previously every group parsed and laid out the entire report before
   // deleting unrelated pages, which scaled poorly for large mixed documents.
   const sourcePage = await loadAndPrepare(browser, html);
+  const internalLinkTargets = await prepareInternalLinks(sourcePage);
   const groupHtml = async (indices: number[]): Promise<string> => sourcePage.evaluate((visibleIndices) => {
     const clone = document.documentElement.cloneNode(true) as HTMLElement;
     const visible = new Set(visibleIndices);
@@ -299,7 +303,8 @@ async function renderMultiPass(
   }
 
   const { buffer, pageMap, pageSizeMap, pageMarginMap } = await assembleGroups(results, log, typeInfo);
-  const composited = await compositeHeaderFooter(Buffer.from(buffer), overlays, pageMap, typeInfo, pageSizeMap, browser, html, FACET_CREATOR);
+  const linkedBuffer = await restoreInternalLinks(buffer, internalLinkTargets);
+  const composited = await compositeHeaderFooter(Buffer.from(linkedBuffer), overlays, pageMap, typeInfo, pageSizeMap, browser, html, FACET_CREATOR);
   if (debug) {
     const debugBuffer = await drawDebugOverlay(composited, pageMap, pageSizeMap, typeInfo, pageMarginMap, buildDebugInfo());
     return Buffer.from(debugBuffer);
@@ -314,7 +319,7 @@ async function renderLegacyElementPdf(
   heightMm: number,
   widthMm: number = 210,
 ): Promise<{ buffer: Buffer; hasPlaceholders: boolean } | null> {
-  const { renderElementPdf } = await import('./pdf-multipass.js');
+  const { renderElementPdf } = await import('./pdf-overlay.js');
   const page = await browser.newPage();
   let fragment = '';
   try {
@@ -327,7 +332,7 @@ async function renderLegacyElementPdf(
     return null;
   }
   return {
-    buffer: await renderElementPdf(browser, html, selector, heightMm, widthMm),
+    buffer: (await renderElementPdf({ browser, html, selector, heightMm, widthMm })).pdf,
     hasPlaceholders: fragment.includes(PAGE_MARKER) || fragment.includes(TOTAL_MARKER),
   };
 }
@@ -404,7 +409,7 @@ async function renderSinglePass(
     })),
   });
 
-  await page.addStyleTag({ content: printableHeightCss(pdfHeight, marginTop, marginBottom) });
+  await page.addStyleTag({ content: printableHeightCss(dims.height, marginTop, marginBottom) });
 
   if (marginTop === 0 && marginBottom === 0 && marginLeft === 0 && marginRight === 0) {
     const pdf = await page.pdf({
@@ -511,6 +516,8 @@ export interface PDFOptions {
   debug?: boolean;
   debugTypography?: boolean;
   fontSize?: number;
+  embedFormat?: EmbedFormat;
+  embedSize?: EmbedSize;
   defaultPageSize?: string;
   margins?: PDFMargins;
   landscape?: boolean;
@@ -528,6 +535,8 @@ export interface BufferPDFOptions {
   debug?: boolean;
   debugTypography?: boolean;
   fontSize?: number;
+  embedFormat?: EmbedFormat;
+  embedSize?: EmbedSize;
   defaultPageSize?: string;
   margins?: PDFMargins;
   logger?: Logger;
@@ -544,15 +553,19 @@ async function renderPDF(
   // String injection, not addStyleTag: this same HTML is re-loaded into fresh
   // pages to render the header and footer overlays, which an addStyleTag on the
   // content page alone would leave unscaled.
-  const html = injectFontScale(inputHtml, options.fontSize);
+  const embed = resolveEmbed({ target: 'pdf', format: options.embedFormat, size: options.embedSize });
+  const dims = options.defaultPageSize ? resolvePageSize(options.defaultPageSize) : undefined;
+  const viewport = dims ? { width: mmToPx(dims.width), height: mmToPx(dims.height) } : undefined;
+  const scaledHtml = injectFontScale(inputHtml, options.fontSize);
+  const html = embed.format === 'png' ? await rasterizeEmbeds({ browser, html: scaledHtml, scale: embed.size, viewport }) : scaledHtml;
+  if (embed.format === 'png') log.info(`Rasterized figures and diagrams at ${embed.size}x`);
   // The same ratio the injected stylesheet carries, so the debug overlay
   // compares against the sizes actually in force rather than the unscaled ones.
   const fontScale = options.fontSize == null ? 1 : options.fontSize / ELEMENT_SCALE.body.pt;
   const context = await browser.createBrowserContext();
   const page = await context.newPage();
   try {
-    const dims = options.defaultPageSize ? resolvePageSize(options.defaultPageSize) : undefined;
-    if (dims) await page.setViewport({ width: mmToPx(dims.width), height: mmToPx(dims.height) });
+    if (viewport) await page.setViewport(viewport);
     await setPreparedContent(page, html);
     if (dims) await page.addStyleTag({ content: `body { max-width: ${dims.width}mm !important; }` });
 
@@ -601,6 +614,8 @@ export async function generatePDFFromHTML(options: PDFOptions): Promise<void> {
       debug: options.debug,
       debugTypography: options.debugTypography,
       fontSize: options.fontSize,
+      embedFormat: options.embedFormat,
+      embedSize: options.embedSize,
       defaultPageSize: options.defaultPageSize,
       margins: options.margins,
       logger: log,
@@ -619,7 +634,7 @@ export async function launchBrowser(): Promise<Browser> {
   if (!chromePath) {
     throw new Error('Chrome/Chromium executable not found; set PUPPETEER_EXECUTABLE_PATH or CHROME_PATH');
   }
-  const browser = await puppeteer.launch(buildBrowserLaunchOptions({ chromePath }));
+  const browser = await puppeteer.launch(await buildBrowserLaunchOptions({ chromePath }));
   const process = browser.process();
   if (process?.pid !== undefined) {
     applySpawnedProcessPriority({ pid: process.pid, kill: () => process.kill() });

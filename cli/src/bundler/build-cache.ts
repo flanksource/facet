@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, renameSync, statSync, rmSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { mkdirSync, readdirSync, readFileSync, renameSync, statSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
+import { runtimeCacheRoot } from '../runtime/workspace.js';
 
 // Dot-directories (.git, .facet, .tmp, .gavel, .vitest, …) are skipped wholesale
 // in the walk; this set only needs the non-dot build-output/tool dirs.
@@ -29,14 +30,14 @@ interface TreeDigestCacheEntry {
 
 const treeDigestCache = new Map<string, TreeDigestCacheEntry>();
 
-// Second-level digest memo persisted under .facet/ so CLI invocations (fresh
+// Second-level digest memo persisted in the user cache so CLI invocations (fresh
 // processes) skip re-reading unchanged source bytes. Correctness is guarded by
 // the metadata digest, so a stale or lost file only costs a re-hash.
 const PERSISTED_DIGEST_FILE = 'build-key-cache.json';
 const PERSISTED_DIGEST_LIMIT = 64;
 
 function persistedDigestPath(consumerRoot: string): string {
-  return join(consumerRoot, '.facet', PERSISTED_DIGEST_FILE);
+  return join(runtimeCacheRoot(), 'source-digests', createHash('sha256').update(consumerRoot).digest('hex'), PERSISTED_DIGEST_FILE);
 }
 
 function readPersistedDigest(consumerRoot: string, entryKey: string): TreeDigestCacheEntry | undefined {
@@ -52,10 +53,8 @@ function readPersistedDigest(consumerRoot: string, entryKey: string): TreeDigest
 }
 
 function writePersistedDigest(consumerRoot: string, entryKey: string, entry: TreeDigestCacheEntry): void {
-  // Never create .facet/ as a side effect — this also runs against pristine
-  // template source dirs (workspace keying) that must stay untouched.
-  if (!existsSync(join(consumerRoot, '.facet'))) return;
   const path = persistedDigestPath(consumerRoot);
+  mkdirSync(dirname(path), { recursive: true });
   let entries: Record<string, TreeDigestCacheEntry> = {};
   try {
     const existing = JSON.parse(readFileSync(path, 'utf-8')).entries;

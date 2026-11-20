@@ -73,17 +73,17 @@ function LayoutSettler({
       }
       onFrameRef.current();
       if (stable >= STABLE_FRAMES && !widthFrozen) {
-        root.style.width = `${root.getBoundingClientRect().width}px`;
+        root.style.width = `${root.offsetWidth}px`;
         root.style.marginLeft = 'auto';
         root.style.marginRight = 'auto';
         widthFrozen = true;
         stable = 0;
         last = '';
       } else if (stable >= STABLE_FRAMES && arrowsReady(root)) {
-        const errors = layoutErrors(measureLayout(root));
-        if (errors.length > 0) {
-          root.dataset.facetError = errors.join('\n');
-          return;
+        const warnings = layoutErrors(measureLayout(root));
+        if (warnings.length > 0) {
+          root.dataset.facetWarning = warnings.join('\n');
+          console.warn(`Diagram layout warnings:\n${root.dataset.facetWarning}`);
         }
         onSettledRef.current();
         return;

@@ -15,8 +15,7 @@ ER FK highlight: `variant="er"` + `color={COLORS.fk}` for the relationships to e
 
 ## Decision rules
 
-- **Animated dashed** = active data movement: scraping, streaming, API calls, pipelines. The animation says "data flows through here continuously". (In baked HTML/PDF output the dashes are static — animation is web-only.)
-- **Static solid** = structural relationships: entity models, schema references, FKs — things that exist permanently rather than move.
+- **Facet presets** — animated dashes can suggest active movement and the solid `er` preset can represent structural relationships. Animation is web-only; baked output has static dashes. Other catalog styles give solid, dashed and dotted strokes different meanings; define the convention in the legend instead of assuming it is universal. See `references/vocabulary.md`.
 - **Primary vs secondary** — primary is the story the reader follows first; secondary is thinner and muted to signal lower priority.
 - **Head shapes** — `arrow1` (default) for all directional connections; `circle` for bidirectional/non-directional; `showHead={false}` for undirected associations or when a label already conveys the relationship.
 - **Cardinality** — text labels (`N:1`, `1:N`) via `labels={{ middle: <RelLabel text="N:1" /> }}`, never custom arrow shapes.
@@ -25,7 +24,7 @@ ER FK highlight: `variant="er"` + `color={COLORS.fk}` for the relationships to e
 
 Default anchors for horizontal flow: `startAnchor="right" endAnchor="left"`. Vertical: `"bottom"` → `"top"`.
 
-`FlowDiagram` owns swimlane anchors and paths: it starts at the numbered badge's right edge, uses `path="grid"` with a single 90-degree bend, and lands on the target's top edge unless the target lane is above the source, in which case it lands on the bottom edge. Adjust step columns or the component's millimetre spacing props; do not patch individual journey arrows.
+`FlowDiagram` owns swimlane anchors and paths: forward connectors start at the numbered badge's right edge; cross-lane forward connectors use `path="grid"` with a single bend and land on the target's top edge unless the target lane is above the source, in which case they land on the bottom edge. Alternate and return edges route differently as described below. Adjust step columns or the component's millimetre spacing props; do not patch individual journey arrows.
 
 Each step badge sits on its lane's centre line whatever its label length; the action, detail and tag hang below the badge (or above it when a connector arrives from a lower lane or a rework loop runs underneath). Same-lane connectors therefore stay straight without `placementOffset`, so reserve offsets for deliberate nudges. Two steps may not share a lane and column; that throws.
 
@@ -132,7 +131,7 @@ ER cardinality labels use the same shape with muted text/border (`RelLabel` reci
 
 ## Constraint (forbidden) arrows
 
-A relationship that must NOT happen — e.g. "LLMs have no direct access to infrastructure" — is a thin red dashed arrow with an explanatory label. Red `#ef4444` is the one sanctioned off-palette semantic color (see `references/colors-and-typography.md`):
+A relationship that must NOT happen — e.g. "LLMs have no direct access to infrastructure" — can use a thin red dashed arrow with an explanatory label. Assign red consistently in the figure's semantic palette:
 
 ```tsx
 <Arrow from={id('llms')} to={id('infra')} color="#ef4444" strokeWidth={2} dashness

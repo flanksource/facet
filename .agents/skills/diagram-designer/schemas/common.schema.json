@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shared architecture definitions",
+  "description": "Common fields shared by the standalone architecture view schemas.",
+  "$defs": {
+    "id": {"type":"string","minLength":1,"description":"Stable identifier unique within this architecture."},
+    "extensions": {"type":"object","description":"Additional domain-specific properties not defined by this schema.","additionalProperties":true},
+    "protocol": {
+      "type": "string",
+      "description": "Protocol, interface, interaction pattern, or security mechanism used by this relationship. Suggested values are not exhaustive; use a custom value when needed.",
+      "anyOf": [
+        {"enum":["HTTP","HTTPS","HTTP/2","gRPC","GraphQL","WebSocket","SSE","Webhook","MQTT","AMQP","Kafka protocol","NATS","SQL","OpenID Connect","OAuth 2.0","OAuth 2.0 Token Exchange","SAML","mTLS","OTLP","DNS","SSH","SFTP"]},
+        {"type":"string"}
+      ]
+    },
+    "architectureBase": {
+      "type": "object",
+      "required": ["view","name","purpose","scope","elements","relationships"],
+      "properties": {
+        "view": {"type":"string","description":"Architecture view represented by this document."},
+        "name": {"type":"string","minLength":1,"description":"Name of the architecture or system."},
+        "purpose": {"type":"string","minLength":1,"description":"The outcome or question this architecture addresses."},
+        "scope": {"type":"string","minLength":1,"description":"What this view includes and its relevant boundary."},
+        "elements": {"type":"array","description":"Elements in this architecture, including optional nested elements."},
+        "relationships": {"type":"array","description":"Connections between elements in this architecture."},
+        "presentation": {"$ref":"styles.json.schema#/$defs/diagramPresentation"},
+        "extensions": {"$ref":"#/$defs/extensions"}
+      }
+    },
+    "elementBase": {
+      "type": "object",
+      "required": ["id","name"],
+      "properties": {
+        "id": {"$ref":"#/$defs/id"},
+        "name": {"type":"string","minLength":1,"description":"Human-readable name of the element."},
+        "description": {"type":"string","description":"Responsibility, purpose or relevant context."},
+        "parent": {"$ref":"#/$defs/id","description":"ID of the containing element, when applicable."},
+        "children": {"type":"array","description":"Inline nested elements; their containing element is implied and they must not also declare parent."},
+        "presentation": {"$ref":"styles.json.schema#/$defs/elementPresentation"},
+        "kindDetail": {"type":"string","minLength":1,"description":"Specific category when kind is other."},
+        "extensions": {"$ref":"#/$defs/extensions"}
+      }
+    },
+    "relationshipBase": {
+      "type": "object",
+      "required": ["id","source","target"],
+      "properties": {
+        "id": {"$ref":"#/$defs/id"},
+        "source": {"$ref":"#/$defs/id","description":"ID of the source element."},
+        "target": {"$ref":"#/$defs/id","description":"ID of the target element."},
+        "name": {"type":"string","description":"Human-readable label for the relationship."},
+        "description": {"type":"string","description":"Purpose or relevant context of the relationship."},
+        "direction": {"enum":["one_way","two_way","undirected","other"],"description":"Direction of the relationship; omitted when unspecified."},
+        "directionDetail": {"type":"string","minLength":1,"description":"Specific direction when direction is other."},
+        "kindDetail": {"type":"string","minLength":1,"description":"Specific category when kind is other."},
+        "presentation": {"$ref":"styles.json.schema#/$defs/relationshipPresentation"},
+        "extensions": {"$ref":"#/$defs/extensions"}
+      },
+      "allOf": [{"if":{"properties":{"direction":{"const":"other"}},"required":["direction"]},"then":{"required":["directionDetail"]}}]
+    }
+  }
+}

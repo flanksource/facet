@@ -1,11 +1,21 @@
 allowBuilds:
   esbuild: false
   puppeteer: false
+minimumReleaseAgeExclude:
+  - '@tsrs/darwin-arm64@0.25.0-ts7.1.0-beta'
+  - '@tsrs/darwin-x64@0.25.0-ts7.1.0-beta'
+  - '@tsrs/linux-arm64-gnu@0.25.0-ts7.1.0-beta'
+  - '@tsrs/linux-arm64-musl@0.25.0-ts7.1.0-beta'
+  - '@tsrs/linux-x64-gnu@0.25.0-ts7.1.0-beta'
+  - '@tsrs/linux-x64-musl@0.25.0-ts7.1.0-beta'
+  - '@tsrs/win32-arm64@0.25.0-ts7.1.0-beta'
+  - '@tsrs/win32-x64@0.25.0-ts7.1.0-beta'
+  - tsrs@0.25.0-ts7.1.0-beta
 overrides:
   "@babel/core": 7.29.6
-  dompurify: 3.4.12
+  dompurify: 3.4.17
   esbuild: 0.25.12
-  js-yaml: 4.3.0
-  undici: 6.27.0
+  js-yaml: 4.3.2
+  undici: 6.29.1
   uuid: 11.1.1
   ws: 8.21.0

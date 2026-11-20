@@ -6,7 +6,7 @@
  * which is the test file under a test runner, so the dispatch always loads.
  */
 import { createRequire } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const requireCjs = createRequire(import.meta.url);
@@ -20,14 +20,10 @@ export function selfExecBase(): string[] {
   // Built bundle: re-run it directly. Source: re-run cli.ts beside this dir.
   const entry = /\.(mjs|cjs|js)$/.test(here) ? here : resolve(dirname(here), '..', 'cli.ts');
   const isBun = !!process.versions.bun;
-  // A TypeScript entry under Node needs tsx to load it. Pass tsx's absolute
-  // path (not the bare specifier) so it resolves regardless of the subprocess
-  // cwd (which is the consumer project, not the CLI's node_modules). Bun runs
-  // .ts natively; a built .js/.mjs entry needs neither.
+  // Vite manages virtual module URLs itself. Source subprocesses use Oxc's
+  // importer without global hooks so Vite retains control of those URLs.
   if (entry.endsWith('.ts') && !isBun) {
-    let tsxArg = 'tsx';
-    try { tsxArg = pathToFileURL(requireCjs.resolve('tsx')).href; } catch { /* fall back to bare specifier */ }
-    return [process.execPath, '--import', tsxArg, entry];
+    return [process.execPath, resolve(dirname(here), '../loaders/source.mjs'), entry];
   }
   return [process.execPath, entry];
 }

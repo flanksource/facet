@@ -2,8 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
-// @ts-expect-error - plain .mjs shipped into .facet/, no type declarations
-import facetRedact from '../../remark/facet-redact.mjs';
+import facetRedact, { permits } from '../../remark/facet-redact.mjs';
 
 // Parsed through a real pipeline rather than a hand-built tree: the plugin's
 // whole premise is that a `<Classified>` line in plain Markdown arrives as a
@@ -131,5 +130,33 @@ Closing body.
     facetRedact({ allow: { tier: ['Public'] } })(tree);
 
     expect(tree.children).toContain(component);
+  });
+
+  // An allowed MDX region must be unwrapped like an HTML one: nothing resolves a
+  // `<Classified>` JSX element at runtime, so keeping the element breaks the render.
+  test('unwraps an allowed MDX region and drops a disallowed one', () => {
+    const body = { type: 'paragraph', children: [{ type: 'text', value: 'Internal detail.' }] };
+    const region = (tier: string) => ({ type: 'mdxJsxFlowElement', name: 'Classified',
+      attributes: [{ type: 'mdxJsxAttribute', name: 'tier', value: tier }], children: [body] });
+    const tree = { type: 'root', children: [region('Internal'), region('Restricted')] };
+
+    facetRedact({ allow: { tier: ['Internal'] } })(tree);
+
+    expect(tree.children).toEqual([body]);
+  });
+});
+
+describe('permits', () => {
+  test.each([
+    [{ tier: ['Public', 'Internal'] }, { tier: 'Internal' }, true],
+    [{ tier: ['Public'] }, { tier: 'Internal' }, false],
+    [{ tier: ['Public'], status: ['draft'] }, { tier: 'Public', status: 'published' }, false],
+    [{}, {}, true],
+  ])('allow %j permits %j: %s', (allow, attributes, expected) => {
+    expect(permits(allow, attributes, 'Classified')).toBe(expected);
+  });
+
+  test('fails closed for an attribute with no policy', () => {
+    expect(() => permits({}, { audience: 'presenter' }, 'Classified')).toThrow(/declares audience="presenter" but no policy was given for audience/);
   });
 });

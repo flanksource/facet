@@ -2,7 +2,7 @@
 
 ## The type scale is in points
 
-`tailwind.config.js` replaces Tailwind's rem-based scale with a print scale, mirrored by `TEXT_SCALE` in `cli/src/utils/type-scale.ts` (a test asserts the two agree):
+Facet's Tailwind v4 `@theme` block replaces Tailwind's rem-based scale with a print scale, generated from `TEXT_SCALE` in `cli/src/utils/type-scale.ts` (a test asserts it agrees with the built stylesheet):
 
 | Class | Size / line-height |
 | --- | --- |

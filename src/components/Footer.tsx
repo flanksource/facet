@@ -43,7 +43,7 @@ export default function Footer({
   if (height != null) dataAttrs['data-footer-height'] = height;
 
   if (children) {
-    return <div {...dataAttrs}>{children}</div>;
+    return <div style={height != null ? { height: `${height}mm`, overflow: 'hidden' } : undefined} {...dataAttrs}>{children}</div>;
   }
 
   const footerClass = `datasheet-footer datasheet-footer--${variant}`;

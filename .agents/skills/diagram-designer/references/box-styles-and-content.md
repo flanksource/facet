@@ -1,10 +1,10 @@
 # Box styles and content patterns
 
-Node types and box-body content for facet diagrams. `BoxNode`, `NodeSection`, `NodePill`, `SectionDivider`, and `COLORS` come from `@flanksource/facet`; everything labelled **recipe** is a small inline component you write in the template (facet deliberately keeps the primitive surface minimal). The one thing promoted from recipe to primitive is **ports** — a chip on the box border can be an arrow endpoint, and a local recipe cannot be.
+Node types and box-body content for facet diagrams. `BoxNode`, `ContainerNode`, `NodeSection`, `NodePill`, `SectionDivider`, and `COLORS` come from `@flanksource/facet`; items labelled **recipe** are compositions written in the template. Ports are built in and can be arrow endpoints. See `references/vocabulary.md` for box and container variants.
 
 ## BoxNode — the primary node
 
-Colored header over a light body (sub-items, icon grids, tables). Arrows target its `id` — the outer container, never inner sections.
+The default `header` variant has a colored header over a light body (sub-items, icon grids, tables). Arrows target its `id` or an identified boundary port, not inner sections.
 
 ```tsx
 <BoxNode
@@ -28,8 +28,9 @@ Colored header over a light body (sub-items, icon grids, tables). Arrows target 
 | Prop | Notes |
 | --- | --- |
 | `id` | Arrow endpoint (from the Diagram `id()` factory) |
-| `title` | String or node (icon + label span) — rendered white, `text-xs font-bold` |
-| `headerColor` / `bodyColor` / `borderColor` | COLORS tokens; border defaults to header color, body must always be light |
+| `title` | String or node; the default header uses the palette's on-accent color |
+| `variant` / `palette` / `fonts` | Box style and shared theme; see the vocabulary reference |
+| `headerColor` / `bodyColor` / `borderColor` | Color overrides; keep the body of a colored-header box light |
 | `minWidth` | e.g. `"160px"`; use wider for boxes holding sections/tables |
 | `compact` | Tighter padding for dense diagrams |
 | `shadow` | Tailwind shadow class, default `shadow-lg`. Pass `"shadow-none"` for print — a shadow makes Chromium emit a PDF soft mask that some viewers flatten to a grey block |

@@ -6,7 +6,7 @@ const child = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock('../builders/facet-directory.js', () => ({
   FacetDirectory: class {
     create() {} async generatePackageJson() {} symlinkConsumerFiles() {} copyStylesCss() {}
-    generateEntryWrapper() {} generateTsConfig() {} generateTailwindConfig() {} generateClientScaffold() {}
+    generateEntryWrapper() {} generateTsConfig() {} generateClientScaffold() {}
     getFacetRoot() { return process.cwd(); }
   },
 }));

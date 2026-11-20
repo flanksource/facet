@@ -1,0 +1,21 @@
+[
+  "react",
+  "react-dom",
+  "@tanstack/react-query",
+  "jotai",
+  "@iconify/react",
+  "vite",
+  "@vitejs/plugin-react",
+  "@mdx-js/rollup",
+  "remark-gfm",
+  "remark-frontmatter",
+  "remark-github-blockquote-alert",
+  "rehype-raw",
+  "@tailwindcss/typography",
+  "@tailwindcss/vite",
+  "tailwindcss",
+  "autoprefixer",
+  "postcss",
+  "rolldown",
+  "@oxc-node/core"
+]

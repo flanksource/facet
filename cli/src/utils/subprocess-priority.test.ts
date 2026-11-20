@@ -1,5 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
-import { getPriority } from 'node:os';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { getPriority, tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -35,6 +37,33 @@ describe('buildLowPriorityCommand', () => {
       command: '/usr/bin/nice',
       args: ['-n', '10', input.command, ...input.args],
     });
+  });
+
+  it('runs the nice PATH finds, as Alpine keeps it in /bin', () => {
+    const bin = mkdtempSync(join(tmpdir(), 'facet-nice-'));
+    const nice = join(bin, 'nice');
+    writeFileSync(nice, '#!/bin/sh\n', { mode: 0o755 });
+    vi.stubEnv('PATH', [join(bin, 'missing'), bin].join(delimiter));
+    try {
+      expect(buildLowPriorityCommand({ ...input, platform: 'linux' })).toEqual({
+        command: nice,
+        args: ['-n', '10', input.command, ...input.args],
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      rmSync(bin, { recursive: true, force: true });
+    }
+  });
+
+  it('names the missing nice and the escape hatch', () => {
+    vi.stubEnv('PATH', '/facet-no-such-dir');
+    try {
+      expect(() => buildLowPriorityCommand({ ...input, platform: 'linux' })).toThrow(
+        'nice was not found on PATH (/facet-no-such-dir); install it, or set FACET_LOW_PRIORITY=0 to run subprocesses at normal priority',
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('leaves Windows command arguments intact for native priority assignment', () => {
