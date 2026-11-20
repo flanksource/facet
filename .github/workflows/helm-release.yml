@@ -103,6 +103,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # The Dockerfile injects the SEA blob in a linux/amd64 stage on every target.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
