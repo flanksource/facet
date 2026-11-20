@@ -49,16 +49,12 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
 
       # FacetReport.tsx imports @flanksource/facet, so this covers component
-      # library resolution end to end. FACET_PACKAGE_PATH points the render at
-      # the tarball baked into the image: the image's own version is not on the
-      # npm registry yet at this point in the release, and this also fails the
-      # test when the tarball ships without its built dist/.
+      # library resolution end to end against the runtime embedded in the binary.
       - name: Generate PDF from example template
         run: |
           mkdir -p /tmp/facet-out
           docker run --rm \
             --security-opt seccomp=unconfined \
-            -e FACET_PACKAGE_PATH=/app/facet.tgz \
             -v /tmp/facet-out:/out \
             -w /app/examples \
             facet:test \
