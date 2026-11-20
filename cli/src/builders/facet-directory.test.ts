@@ -283,7 +283,13 @@ describe('FacetDirectory Tailwind integration', () => {
     dir.copyStylesCss();
     dir.generateClientScaffold({});
 
-    expect(await readFile(join(facetRoot, 'live-tailwind.css'), 'utf-8')).toBe('@tailwind utilities;\n');
+    // Theme-dependent utilities (p-8) need the theme, but only by reference: facet.css owns the scaled variables.
+    const live = await readFile(join(facetRoot, 'live-tailwind.css'), 'utf-8');
+    expect(live).toContain('@import "tailwindcss/theme.css" theme(reference);');
+    expect(live).toContain('@theme reference {');
+    expect(live).not.toContain('layer(theme)');
+    expect(live).toContain('@import "tailwindcss/utilities.css"');
+    expect(live).toContain('@source "./src/template.tsx";');
     const clientEntry = await readFile(join(facetRoot, 'entry.client.tsx'), 'utf-8');
     expect(clientEntry).toContain("import './live-tailwind.css';");
   });
