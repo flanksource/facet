@@ -35,19 +35,7 @@ COPY . .
 # Build the library and its installed runtime before embedding both in the binary.
 ENV GIT_COMMIT=${GIT_COMMIT}
 RUN pnpm run build
-RUN pnpm --dir cli run build:bundle && node cli/scripts/build-sea.cjs --blob-only
-
-# postject corrupts the binary's dynamic symbol tables when it runs under an
-# arm64 node (nodejs/node#61483), and native addons then fail to load. It only
-# edits the target as data, so inject under amd64 node for every target; arm64
-# builds run this stage in QEMU.
-FROM --platform=linux/amd64 ${NODE_IMAGE} AS sea-inject
-RUN npm install -g postject@1.0.0-alpha.6
-COPY --from=builder /usr/local/bin/node /sea/facet
-COPY --from=builder /app/cli/dist-sea/sea-prep.blob /sea/sea-prep.blob
-RUN postject /sea/facet NODE_SEA_BLOB /sea/sea-prep.blob \
-      --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 \
-    && chmod 755 /sea/facet
+RUN pnpm --dir cli run build:cli
 
 # Final stage with Chromium browser
 FROM ${NODE_IMAGE}
@@ -88,7 +76,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Copy the compiled standalone binary from builder
-COPY --from=sea-inject /sea/facet /usr/local/bin/facet
+COPY --from=builder /app/dist/facet /usr/local/bin/facet
 
 # Copy example files for demonstration
 COPY cli/examples/SimpleReport.tsx /app/examples/

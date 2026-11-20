@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build the Node SEA single-file binary from the bundled CLI: write the SEA
 // config (embedding the runtime assets), generate the blob, copy the node
-// binary, and inject the blob with postject.
+// binary, and inject the blob (postject on macOS and Windows, injectElf on Linux).
 'use strict';
 
 const { execFileSync } = require('node:child_process');
@@ -27,86 +27,81 @@ function assertSeaCapable(binary, fuse) {
   );
 }
 
-// postject (LIEF) corrupts the dynamic symbol tables, starting with .gnu.hash,
-// when it runs under a native Linux arm64 node on GitHub's arm runners and in
-// arm64 containers (https://github.com/nodejs/node/issues/61483). The binary
-// still starts, but native addons can no longer resolve napi_* symbols from
-// it. Fail the build instead of shipping it: inject under an x64 node instead,
-// which treats the arm64 binary as plain data (the Dockerfile does this).
-function elfSections(buf) {
-  if (buf.readUInt32BE(0) !== 0x7f454c46 || buf[4] !== 2 || buf[5] !== 1) return undefined;
-  const shoff = Number(buf.readBigUInt64LE(0x28));
-  const shentsize = buf.readUInt16LE(0x3a);
-  const shstr = shoff + buf.readUInt16LE(0x3e) * shentsize;
-  const strOffset = Number(buf.readBigUInt64LE(shstr + 24));
-  const sections = new Map();
-  for (let i = 0; i < buf.readUInt16LE(0x3c); i++) {
-    const header = shoff + i * shentsize;
-    const nameStart = strOffset + buf.readUInt32LE(header);
-    sections.set(buf.toString('latin1', nameStart, buf.indexOf(0, nameStart)), {
-      offset: Number(buf.readBigUInt64LE(header + 24)),
-      size: Number(buf.readBigUInt64LE(header + 32)),
-    });
+// postject (LIEF) rebuilds the dynamic symbol tables when it injects into an
+// ELF, and corrupts them for arm64 node builds (nodejs/node#61483): .gnu.hash is
+// zeroed and .dynstr offsets shift, so native addons cannot resolve napi_*
+// symbols. Node only finds the blob through a PT_NOTE named NODE_SEA_BLOB
+// (postject_find_resource), so on Linux append the note with a copy of the
+// program headers that adds a PT_LOAD mapping both, and move nothing else. The
+// new segment keeps the first PT_LOAD's address - offset, as older kernels
+// assume when they derive AT_PHDR from e_phoff.
+function injectElf(binary, blobPath, fuse) {
+  const elf = readFileSync(binary);
+  if (elf.readUInt32BE(0) !== 0x7f454c46 || elf[4] !== 2 || elf[5] !== 1) {
+    throw new Error(`${binary} is not a 64-bit little-endian ELF`);
   }
-  return sections;
-}
-
-function gnuHash(name) {
-  let h = 5381;
-  for (let i = 0; i < name.length; i++) h = (h * 33 + name.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-function gnuHashTable(buf) {
-  const sections = elfSections(buf);
-  const table = sections?.get('.gnu.hash');
-  const dynsym = sections?.get('.dynsym');
-  const dynstr = sections?.get('.dynstr');
-  if (!table || !dynsym || !dynstr) return undefined;
-  const names = [];
-  for (let i = 0; i < dynsym.size / 24; i++) {
-    const start = dynstr.offset + buf.readUInt32LE(dynsym.offset + i * 24);
-    names.push(buf.toString('latin1', start, buf.indexOf(0, start)));
+  const PT_LOAD = 1;
+  const PT_NOTE = 4;
+  const PT_PHDR = 6;
+  const PF_R = 4;
+  const align = 0x10000; // the largest page size arm64 kernels use
+  const phoff = Number(elf.readBigUInt64LE(0x20));
+  const phentsize = elf.readUInt16LE(0x36);
+  const phdrs = [];
+  for (let i = 0; i < elf.readUInt16LE(0x38); i++) {
+    phdrs.push(Buffer.from(elf.subarray(phoff + i * phentsize, phoff + (i + 1) * phentsize)));
   }
-  const o = table.offset;
-  return {
-    ...table,
-    names,
-    nbuckets: buf.readUInt32LE(o),
-    symoffset: buf.readUInt32LE(o + 4),
-    maskwords: buf.readUInt32LE(o + 8),
-    shift: buf.readUInt32LE(o + 12),
+  const loads = phdrs.filter((ph) => ph.readUInt32LE(0) === PT_LOAD);
+  // vaddr - offset of the first PT_LOAD: 0 for PIE, 0x400000 for x64 node.
+  const base = Number(loads[0].readBigUInt64LE(16) - loads[0].readBigUInt64LE(8));
+  const end = Math.max(elf.length, ...loads.map((ph) => Number(ph.readBigUInt64LE(16) + ph.readBigUInt64LE(40)) - base));
+  const start = Math.ceil(end / align) * align;
+  if (base % align) throw new Error(`${binary} has an unaligned first PT_LOAD`);
+
+  const blob = readFileSync(blobPath);
+  const name = Buffer.from('NODE_SEA_BLOB\0');
+  const note = Buffer.alloc(12 + Math.ceil(name.length / 4) * 4 + Math.ceil(blob.length / 4) * 4);
+  note.writeUInt32LE(name.length, 0);
+  note.writeUInt32LE(blob.length, 4);
+  name.copy(note, 12);
+  blob.copy(note, 12 + Math.ceil(name.length / 4) * 4);
+
+  const tableSize = (phdrs.length + 2) * phentsize;
+  const noteOffset = start + Math.ceil(tableSize / 8) * 8;
+  const header = (type, offset, size, segmentAlign) => {
+    const ph = Buffer.alloc(phentsize);
+    ph.writeUInt32LE(type, 0);
+    ph.writeUInt32LE(PF_R, 4);
+    ph.writeBigUInt64LE(BigInt(offset), 8);
+    for (const field of [16, 24]) ph.writeBigUInt64LE(BigInt(offset + base), field);
+    for (const field of [32, 40]) ph.writeBigUInt64LE(BigInt(size), field);
+    ph.writeBigUInt64LE(BigInt(segmentAlign), 48);
+    return ph;
   };
-}
-
-function gnuHashResolvesAll(buf, t) {
-  const bloom = t.offset + 16;
-  const buckets = bloom + t.maskwords * 8;
-  const chains = buckets + t.nbuckets * 4;
-  if (!t.nbuckets || !t.maskwords || chains + (t.names.length - t.symoffset) * 4 > t.offset + t.size) return false;
-  for (let i = t.symoffset; i < t.names.length; i++) {
-    const h = gnuHash(t.names[i]);
-    const word = buf.readBigUInt64LE(bloom + (Math.floor(h / 64) % t.maskwords) * 8);
-    if (!((word >> BigInt(h % 64)) & 1n) || !((word >> BigInt((h >>> t.shift) % 64)) & 1n)) return false;
-    let found = false;
-    for (let j = buf.readUInt32LE(buckets + (h % t.nbuckets) * 4); !found && j >= t.symoffset && j < t.names.length; j++) {
-      const chain = buf.readUInt32LE(chains + (j - t.symoffset) * 4);
-      found = (chain | 1) === (h | 1) && t.names[j] === t.names[i];
-      if (chain & 1) break;
-    }
-    if (!found) return false;
+  for (const ph of phdrs) {
+    if (ph.readUInt32LE(0) !== PT_PHDR) continue;
+    ph.writeBigUInt64LE(BigInt(start), 8);
+    for (const field of [16, 24]) ph.writeBigUInt64LE(BigInt(start + base), field);
+    for (const field of [32, 40]) ph.writeBigUInt64LE(BigInt(tableSize), field);
   }
-  return true;
-}
+  // Loaders size the mapping from the first and last PT_LOAD, so the new one
+  // goes after the existing ones.
+  const lastLoad = phdrs.lastIndexOf(loads[loads.length - 1]);
+  phdrs.splice(lastLoad + 1, 0, header(PT_LOAD, start, noteOffset + note.length - start, align));
+  phdrs.push(header(PT_NOTE, noteOffset, note.length, 4));
 
-function assertGnuHashResolves(binary) {
-  const buf = readFileSync(binary);
-  const table = gnuHashTable(buf);
-  if (!table || gnuHashResolvesAll(buf, table)) return;
-  throw new Error(
-    `postject corrupted the .gnu.hash table of ${binary} (nodejs/node#61483), so native\n` +
-      `addons cannot load. Inject the blob under an x64 node (see the Dockerfile).`,
-  );
+  const sentinel = Buffer.from(`${fuse}:0`);
+  const at = elf.indexOf(sentinel);
+  if (at === -1 || elf.indexOf(sentinel, at + 1) !== -1) {
+    throw new Error(`${binary} must contain exactly one ${fuse}:0 (already injected?)`);
+  }
+  elf[at + sentinel.length - 1] = '1'.charCodeAt(0);
+  elf.writeBigUInt64LE(BigInt(start), 0x20);
+  elf.writeUInt16LE(phdrs.length, 0x38);
+
+  const table = Buffer.concat(phdrs);
+  const padding = Buffer.alloc(noteOffset - start - table.length);
+  writeFileSync(binary, Buffer.concat([elf, Buffer.alloc(start - elf.length), table, padding, note]));
 }
 
 const cliRoot = join(__dirname, '..');
@@ -148,20 +143,22 @@ writeFileSync(seaConfigPath, JSON.stringify(seaConfig, null, 2));
 
 console.log('Generating SEA blob...');
 execFileSync(process.execPath, ['--experimental-sea-config', seaConfigPath], { stdio: 'inherit' });
-// --blob-only stops here so another node can inject the blob (see assertGnuHashResolves).
-if (process.argv.includes('--blob-only')) process.exit(0);
 
 mkdirSync(join(repoRoot, 'dist'), { recursive: true });
 copyFileSync(process.execPath, outBinary);
 chmodSync(outBinary, 0o755);
-
-console.log('Injecting blob with postject...');
-const postject = require.resolve('postject/dist/cli.js');
 assertSeaCapable(outBinary, fuse);
-const args = [postject, outBinary, 'NODE_SEA_BLOB', blob, '--sentinel-fuse', fuse];
-if (process.platform === 'darwin') args.push('--macho-segment-name', 'NODE_SEA');
-execFileSync(process.execPath, args, { stdio: 'inherit' });
-if (process.platform === 'linux') assertGnuHashResolves(outBinary);
+
+if (process.platform === 'linux') {
+  console.log('Injecting blob into the ELF program headers...');
+  injectElf(outBinary, blob, fuse);
+} else {
+  console.log('Injecting blob with postject...');
+  const postject = require.resolve('postject/dist/cli.js');
+  const args = [postject, outBinary, 'NODE_SEA_BLOB', blob, '--sentinel-fuse', fuse];
+  if (process.platform === 'darwin') args.push('--macho-segment-name', 'NODE_SEA');
+  execFileSync(process.execPath, args, { stdio: 'inherit' });
+}
 
 // macOS invalidates the code signature on injection; re-sign ad-hoc so the
 // binary will run (Gatekeeper still requires the user to clear quarantine).
