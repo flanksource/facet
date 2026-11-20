@@ -26,8 +26,11 @@ const SCALED_CUSTOM_PROPS = /^--(text|leading)-[\w-]+$/;
  * `em`, `ex`, `ch`, `%` and viewport units are excluded on purpose: they are
  * resolved against something that has already been scaled, so multiplying them
  * again compounds. The lookbehind keeps us out of hex colours and identifiers.
+ * The number alternation is unambiguous on purpose: `\d*\.?\d+` lets both digit
+ * runs claim the same digits, which backtracks quadratically on a long digit run
+ * with no unit after it.
  */
-const ABSOLUTE_LENGTH = /(?<![\w.#-])(\d*\.?\d+)(px|pt|pc|in|cm|mm|q|rem)\b/gi;
+const ABSOLUTE_LENGTH = /(?<![\w.#-])(\d+(?:\.\d+)?|\.\d+)(px|pt|pc|in|cm|mm|q|rem)\b/gi;
 
 const VAR = '--facet-font-scale';
 
