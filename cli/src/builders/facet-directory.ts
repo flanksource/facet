@@ -715,6 +715,8 @@ export default defineConfig(async () => {
       external: ['react', 'react-dom'],
       output: {
         exports: 'default',
+        // One bundle: the SSR loader requires a single .cjs and renders synchronously.
+        inlineDynamicImports: true,
       },
     },
     cssCodeSplit: false,

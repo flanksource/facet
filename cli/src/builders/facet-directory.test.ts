@@ -222,6 +222,17 @@ describe('FacetDirectory.generateViteConfig remark plugins', () => {
     expect(config).toContain("new RegExp('^@iconify/')");
   });
 
+  it('keeps lazy imports inside the one SSR bundle', async () => {
+    // The SSR loader requires the single .cjs it finds. A template with a
+    // reachable import() (clicky-ui's code highlighter loads its languages so)
+    // otherwise splits into chunks, and the loader required a language chunk
+    // instead of entry.cjs: "Template must export a React component function".
+    newFacetDir().generateViteConfig();
+    const config = await readFile(join(facetRoot, 'vite.config.ts'), 'utf-8');
+
+    expect(config).toMatch(/output:\s*\{[^}]*inlineDynamicImports:\s*true/);
+  });
+
   it('transforms consumer Markdown while leaving raw imports to Vite', async () => {
     const dir = newFacetDir();
     dir.generateViteConfig();
