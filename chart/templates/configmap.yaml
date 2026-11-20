@@ -10,10 +10,12 @@ data:
     {
       "enableWeakerNestedSandbox": true,
       "network": {
-        "allowedDomains": {{ .Values.sandbox.extraAllowedDomains | toJson }}
+        "allowedDomains": {{ .Values.sandbox.extraAllowedDomains | toJson }},
+        "deniedDomains": []
       },
       "filesystem": {
         "allowWrite": ["/tmp", "/workspace", "/templates"],
+        "denyWrite": [],
         "denyRead": ["/etc/shadow", "/root/.ssh"]
       }
     }
