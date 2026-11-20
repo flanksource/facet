@@ -53,7 +53,7 @@
   ],
   "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
   "scripts": {
-    "build": "oxnode node_modules/@flanksource/page-runtime/scripts/run-package-build.ts",
+    "build": "node node_modules/@flanksource/page-runtime/dist/publication/cli.mjs",
     "build:artifacts": "pnpm run build:components && pnpm run build:css && pnpm run build:runtime && pnpm run build:cli && pnpm run build:runtime-install",
     "build:runtime-install": "oxnode cli/scripts/build-default-runtime.ts",
     "build:components": "vite build --config vite.lib.config.ts",
@@ -84,7 +84,7 @@
     }
   },
   "peerDependencies": {
-    "@flanksource/clicky-ui": "^0.3.60",
+    "@flanksource/clicky-ui": "^0.3.66",
     "@tanstack/react-query": "^5.66.8",
     "jotai": "^2.20.1",
     "react": ">=18",
@@ -133,8 +133,9 @@
     "yaml": "^2.8.3"
   },
   "devDependencies": {
-    "@flanksource/clicky-ui": "^0.3.60",
-    "@flanksource/page-runtime": "^0.1.0",
+    "@flanksource/clicky-ui": "https://pkg.pr.new/flanksource/clicky-ui/@flanksource/clicky-ui@900ce7c",
+    "@flanksource/page-runtime-build": "https://pkg.pr.new/flanksource/clicky-ui/@flanksource/page-runtime-build@900ce7c",
+    "@flanksource/page-runtime": "https://pkg.pr.new/flanksource/clicky-ui/@flanksource/page-runtime@900ce7c",
     "@mdx-js/rollup": "^3.0.0",
     "@storybook/addon-docs": "^8.6.19",
     "@storybook/addon-essentials": "^8.6.19",

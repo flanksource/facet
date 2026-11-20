@@ -74,7 +74,8 @@ export async function buildDefaultRuntime(repoRoot: string): Promise<void> {
       if (!directory && name !== '@flanksource/facet') throw new Error(`Build runtime dependency ${name} is not installed`);
       const actual = name === '@flanksource/facet' ? repoRoot : realpathSync(directory!);
       dependencies[name] = JSON.parse(readFileSync(join(actual, 'package.json'), 'utf8')).version;
-      if (!actual.includes(`${join('node_modules', '')}`)) archives[name] = await packLibrary({ directory: actual, scratch, name });
+      // Local checkouts and pkg.pr.new previews are not on npm, so ship them as tarballs.
+      if (!actual.includes(`${join('node_modules', '')}`) || dependencies[name].includes('-preview-')) archives[name] = await packLibrary({ directory: actual, scratch, name });
     }
     manifest.facetLocalOverride = { fingerprint: createHash('sha256').update(JSON.stringify(Object.entries(archives).map(([name, archive]) => [name, createHash('sha256').update(readFileSync(archive)).digest('hex')]))).digest('hex') };
     const environment = await ensureEnvironment({ cacheRoot: join(repoRoot, '.tmp/runtime-build-cache'), manifest, npmrc: defaultModuleNpmrc(), logger: new Logger(false), install: async root => {
