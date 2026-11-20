@@ -1,6 +1,6 @@
 {
   "name": "@flanksource/facet",
-  "version": "0.1.74",
+  "version": "0.1.75",
   "description": "Build beautiful HTML, PDF, and PNG output from React templates",
   "type": "module",
   "sideEffects": [
@@ -162,6 +162,7 @@
     "juice": "^11.0.3",
     "mermaid": "^11.17.2",
     "ora": "^8.2.0",
+    "pkg-pr-new": "^0.0.94",
     "puppeteer": "^25.16.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
