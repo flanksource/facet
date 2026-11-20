@@ -21,7 +21,7 @@ describe('installed Office library exports', () => {
       await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'office-consumer', private: true, type: 'module', dependencies: { '@flanksource/facet': `file:${tarball}` } }));
       await cp(join(import.meta.dirname, 'fixtures/office-consumer.mjs'), join(consumer, 'render.mjs'));
       await writeFile(join(consumer, 'report.md'), '# Installed Office report\n\nEditable **native** content.\n');
-      await run('pnpm', ['install', '--ignore-scripts', '--prod'], { cwd: consumer, maxBuffer: 5 * 1024 * 1024 });
+      await run('pnpm', ['install', '--ignore-workspace', '--ignore-scripts', '--prod'], { cwd: consumer, maxBuffer: 5 * 1024 * 1024 });
       const output = join(consumer, 'output');
       await run(process.execPath, ['render.mjs', 'report.md', output], {
         cwd: consumer, env: { ...process.env, FACET_PACKAGE_PATH: tarball, FACET_LOW_PRIORITY: '0' }, maxBuffer: 5 * 1024 * 1024,

@@ -25,7 +25,7 @@ test('installed CLI inspection and lint use normal dependencies without a render
     for (const name of ['pdfjs-dist', '@napi-rs/canvas', 'sharp', 'rolldown', 'oxlint']) expect(manifest.dependencies[name]).toBe(cliManifest.dependencies[name]);
     delete manifest.optionalDependencies;
     writeFileSync(join(out, 'package.json'), JSON.stringify(manifest));
-    await run('pnpm', ['install', '--prod', '--prefer-offline', '--ignore-scripts', '--no-frozen-lockfile'], { cwd: out, maxBuffer: 4 * 1024 * 1024 });
+    await run('pnpm', ['install', '--ignore-workspace', '--prod', '--prefer-offline', '--ignore-scripts', '--no-frozen-lockfile'], { cwd: out, maxBuffer: 4 * 1024 * 1024 });
     const sharp = await loadSharp();
     writeFileSync(join(project, 'sample.png'), await sharp({ create: { width: 2, height: 3, channels: 3, background: '#ffffff' } }).png().toBuffer());
     writeFileSync(join(project, 'sample.pdf'), await pdfFixture());
