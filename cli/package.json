@@ -1,6 +1,6 @@
 {
   "name": "facet",
-  "version": "0.1.75",
+  "version": "0.1.76",
   "type": "module",
   "description": "Generate PDF, PNG, HTML, editable DOCX, PPTX and WebComponents from React templates",
   "main": "dist/index.mjs",
