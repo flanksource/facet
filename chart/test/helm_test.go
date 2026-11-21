@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flanksource/commons-test/helm"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -78,6 +79,14 @@ var _ = Describe("Facet", Ordered, FlakeAttempts(3), func() {
 			cm := chart.GetConfigMap("facet-test-srt-settings")
 			_, err := cm.Get("srt-settings.json")
 			Expect(err).To(HaveOccurred())
+
+			// helm --wait returns once the new pod is ready, while the old one is still terminating. GetPod
+			// forwards to the first matching pod and WaitReady waits on all of them, so wait for the old one to go.
+			By("Waiting for the previous pod to terminate")
+			Eventually(func() (int, error) {
+				pods, err := helm.NewNamespace(namespace).GetPods("app.kubernetes.io/name=facet")
+				return len(pods), err
+			}, 3*time.Minute, 2*time.Second).Should(Equal(1))
 
 			By("Verifying healthz still works")
 			pod := chart.GetPod("app.kubernetes.io/name=facet")

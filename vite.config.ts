@@ -30,7 +30,7 @@ export default defineConfig(async () => {
         fileName: `DatasheetApp-${variant}`,
         formats: ['cjs']
       },
-      rollupOptions: {
+      rolldownOptions: {
         external: ['react', 'react-dom'],
         output: {
           exports: 'named'

@@ -1,16 +1,48 @@
 export const PLAYGROUND_CONTROLS_SCRIPT = `
+    async function showOfficeResult(preview, url, body, format) {
+      preview.innerHTML = '';
+      const panel = document.createElement('div');
+      panel.style.cssText = 'display:flex;flex-direction:column;height:100%;gap:12px;padding:12px;box-sizing:border-box;color:#1f2937';
+      const download = document.createElement('a');
+      download.href = url;
+      download.download = 'document.' + format;
+      download.style.color = '#1d4ed8';
+      download.textContent = 'Download editable ' + format.toUpperCase();
+      panel.appendChild(download);
+      const label = document.createElement('p');
+      label.textContent = 'HTML source preview — Office layout may differ';
+      panel.appendChild(label);
+      preview.appendChild(panel);
+      const response = await fetch('/render', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({}, body, { format: 'html' })),
+      });
+      if (!response.ok) {
+        label.textContent = 'HTML source preview failed (HTTP ' + response.status + '). The Office download is ready.';
+        return;
+      }
+      const frame = document.createElement('iframe');
+      frame.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+      frame.style.cssText = 'flex:1;min-height:0;width:100%;border:0';
+      frame.srcdoc = await response.text();
+      panel.appendChild(frame);
+    }
+
     /* Render format menu */
     function setFormat(fmt) {
+      if (document.getElementById('runtime').value === 'browser' && !['html', 'pdf'].includes(fmt)) throw new Error('Browser runtime supports HTML and PDF');
       currentFormat = fmt;
       document.getElementById('renderBtn').textContent = 'Render ' + fmt.toUpperCase();
       document.getElementById('checkHtml').innerHTML = fmt === 'html' ? '&#10003;' : '&nbsp;';
       document.getElementById('checkPdf').innerHTML = fmt === 'pdf' ? '&#10003;' : '&nbsp;';
       document.getElementById('checkPng').innerHTML = fmt === 'png' ? '&#10003;' : '&nbsp;';
-      document.getElementById('pdfOptions').style.display = fmt === 'pdf' ? 'flex' : 'none';
+      document.getElementById('checkDocx').innerHTML = fmt === 'docx' ? '&#10003;' : '&nbsp;';
+      document.getElementById('checkPptx').innerHTML = fmt === 'pptx' ? '&#10003;' : '&nbsp;';
+      document.getElementById('pdfOptions').style.display = fmt === 'pdf' && document.getElementById('runtime').value !== 'browser' ? 'flex' : 'none';
       document.getElementById('pngOptions').style.display = fmt === 'png' ? 'flex' : 'none';
       closeRenderMenu();
       // A PDF render must not stay on screen under a "Render PNG" button.
-      markPreviewStale();
+      if (document.getElementById('runtime').value === 'browser') queueBrowserRender(); else markPreviewStale();
       writeUrlState();
     }
 
@@ -40,10 +72,14 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
     function writeUrlState() {
       if (!routingReady) return;
       const p = new URLSearchParams();
+      if (document.getElementById('documentTheme').value !== 'facet') p.set('theme', document.getElementById('documentTheme').value);
       if (document.body.classList.contains('mode-fill')) p.set('mode', 'fill');
       const example = document.getElementById('example').value;
       if (example && example !== 'datasheet') p.set('example', example);
       if (currentFormat !== 'html') p.set('format', currentFormat);
+      if (document.getElementById('runtime').value !== 'server') p.set('runtime', document.getElementById('runtime').value);
+      const runtimeOrigin = document.getElementById('runtimeOrigin').value.trim();
+      if (runtimeOrigin) p.set('runtimeOrigin', runtimeOrigin);
       if (currentFormat === 'png') {
         const width = document.getElementById('pngWidth').value;
         const height = document.getElementById('pngHeight').value;
@@ -83,7 +119,7 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       const example = p.get('example');
       if (example && EXAMPLES[example]) document.getElementById('example').value = example;
       const pageSize = p.get('pageSize');
-      if (pageSize) document.getElementById('pageSize').value = pageSize;
+      if (pageSize) document.getElementById('pageSize').value = pageSize.toLowerCase();
       document.getElementById('landscape').checked = p.get('landscape') === '1';
       document.getElementById('debug').checked = p.get('debug') === '1';
       for (const key in MARGIN_PARAMS) {
@@ -96,7 +132,9 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
         toggleTimestamp();
       }
       const format = p.get('format');
-      if (format === 'pdf' || format === 'png') setFormat(format);
+      if (['pdf', 'png', 'docx', 'pptx'].includes(format)) setFormat(format);
+      if (p.has('runtimeOrigin')) document.getElementById('runtimeOrigin').value = p.get('runtimeOrigin');
+      if (p.get('runtime') === 'browser') setRuntime('browser');
       if (p.has('pngWidth')) document.getElementById('pngWidth').value = p.get('pngWidth');
       if (p.has('pngHeight')) document.getElementById('pngHeight').value = p.get('pngHeight');
       if (p.has('pngSelector')) document.getElementById('pngSelector').value = p.get('pngSelector');
@@ -112,11 +150,11 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
     function bindUrlSync() {
       ['pageSize', 'landscape', 'debug', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
        'timestampUrl', 'pngWidth', 'pngHeight', 'pngSelector', 'pngViewport',
-       'pngAutocrop', 'pngAutocropPadding']
+       'pngAutocrop', 'pngAutocropPadding', 'runtimeOrigin']
         .forEach(function(id) {
           const el = document.getElementById(id);
           const ev = (el.type === 'checkbox' || el.tagName === 'SELECT') ? 'change' : 'input';
-          el.addEventListener(ev, writeUrlState);
+          el.addEventListener(ev, function() { markPreviewStale(); writeUrlState(); });
         });
     }
 
@@ -291,9 +329,8 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
 
     /* Preview banner — the pane's own status line.
 
-       The body is blanked for every state that does not have a current render
-       to show, so a stale render can never sit under changed source. 'done' and
-       'error' leave the body alone; their caller fills it first. */
+       Server renders clear their result on edits. Browser renders retain the
+       mounted page and update this banner while reconciling the next render. */
     const PREVIEW_BLANKS = { idle: 1, stale: 1, rendering: 1 };
     const PREVIEW_TEXT = {
       idle: 'Click "Render" to preview your template',
@@ -307,7 +344,11 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
       document.getElementById('previewBanner').className = 'preview-banner ' + state;
       document.getElementById('previewText').textContent = detail || PREVIEW_TEXT[state];
       document.getElementById('previewTimings').textContent = formatPreviewTimings(timings);
-      if (PREVIEW_BLANKS[state]) document.getElementById('preview').innerHTML = '';
+      if (PREVIEW_BLANKS[state]) {
+        if (document.getElementById('runtime').value === 'browser' && window.FacetPlayground && window.FacetPlayground.invalidateBrowserPage()) return;
+        if (window.FacetPlayground) window.FacetPlayground.disposeBrowserPage();
+        document.getElementById('preview').innerHTML = '';
+      }
     }
 
     function formatPreviewTimings(timings) {
@@ -321,8 +362,13 @@ export const PLAYGROUND_CONTROLS_SCRIPT = `
     // before the first render (including the example applied from the URL on
     // load) leave the idle prompt in place.
     let previewHasRender = false;
+    let previewRevision = 0;
 
     function markPreviewStale() {
+      previewRevision++;
+      if (document.getElementById('runtime').value === 'browser') {
+        previewHasRender = false; setPreviewState('stale'); queueBrowserRender(); return;
+      }
       if (!previewHasRender) return;
       previewHasRender = false;
       setPreviewState('stale');

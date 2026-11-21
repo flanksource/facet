@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Logical architecture",
+  "description": "Components, interfaces, data stores and interactions within a system.",
+  "type": "object",
+  "allOf": [
+    {"$ref":"common.schema.json#/$defs/architectureBase"},
+    {"properties":{
+      "view":{"const":"logical"},
+      "elements":{"type":"array","items":{"$ref":"#/$defs/logicalElement"}},
+      "relationships":{"type":"array","items":{"$ref":"#/$defs/logicalRelationship"}}
+    }}
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "logicalElement": {
+      "type": "object",
+      "allOf": [
+        {"$ref":"common.schema.json#/$defs/elementBase"},
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {"enum":["actor","system","external_system","component","service","interface","data_store","queue","event","data","boundary","other"],"description":"Role of the element in the logical view."},
+            "children": {"type":"array","items":{"allOf":[{"$ref":"#/$defs/logicalElement"},{"not":{"type":"object","required":["parent"]}}]}}
+          },
+          "allOf": [{"if":{"properties":{"kind":{"const":"other"}},"required":["kind"]},"then":{"required":["kindDetail"]}}]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "logicalRelationship": {
+      "type": "object",
+      "allOf": [
+        {"$ref":"common.schema.json#/$defs/relationshipBase"},
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {"enum":["calls","publishes","subscribes","stores","reads","writes","depends_on","contains","exchanges","other"],"description":"Meaning of the relationship."},
+            "protocol": {"$ref":"common.schema.json#/$defs/protocol"}
+          },
+          "allOf": [{"if":{"properties":{"kind":{"const":"other"}},"required":["kind"]},"then":{"required":["kindDetail"]}}]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

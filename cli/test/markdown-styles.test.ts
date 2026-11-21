@@ -14,13 +14,13 @@ const CSS = readFileSync(fileURLToPath(new URL('../../dist/styles.css', import.m
  * and icon". Asserting the built CSS is what stops that regressing silently:
  * nothing else in the suite renders a document and looks at it.
  */
-/** Tailwind's `-500` step per tone, as the built stylesheet writes it. */
+/** Tailwind's `-500` step per tone, as the built stylesheet references it. */
 const ALERT_ACCENTS: Record<string, string> = {
-  note: '59 130 246', // blue-500
-  tip: '16 185 129', // emerald-500
-  important: '168 85 247', // purple-500
-  warning: '245 158 11', // amber-500
-  caution: '239 68 68', // red-500
+  note: 'blue-500',
+  tip: 'emerald-500',
+  important: 'purple-500',
+  warning: 'amber-500',
+  caution: 'red-500',
 };
 
 describe('Markdown styles', () => {
@@ -34,14 +34,15 @@ describe('Markdown styles', () => {
 
   test.each(Object.entries(ALERT_ACCENTS))(
     'gives the %s alert its own accent and background',
-    (tone, rgb) => {
+    (tone, accent) => {
       const rule = [...CSS.matchAll(
         new RegExp(`blockquote\\.markdown-alert-${tone}\\s*\\{([^}]*)\\}`, 'g'),
       )].at(-1)?.[1];
 
       expect(rule, `no rule for blockquote.markdown-alert-${tone}`).toBeDefined();
-      expect(rule).toMatch(new RegExp(`border-left-color:\\s*rgb\\(${rgb}`));
-      expect(rule).toMatch(/background-color:\s*rgb\(/);
+      expect(rule).toMatch(new RegExp(`border-left-color:\\s*var\\(--color-${accent}\\)`));
+      expect(CSS).toMatch(new RegExp(`--color-${accent}:\\s*oklch\\(`));
+      expect(rule).toMatch(/background-color:\s*(color-mix|oklch)\(/);
     },
   );
 

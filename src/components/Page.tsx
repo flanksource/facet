@@ -1,6 +1,8 @@
 import React from 'react';
 import type { PageType } from './Header';
 import { useDocumentDefaults } from './Document';
+import { useFacetTheme } from './Theme';
+import { PAGE_SIZE_PRESETS } from '../utils/page-size-presets';
 
 export type PageSize = string;
 
@@ -45,7 +47,11 @@ export default function Page({
   type = 'default',
 }: PageProps) {
   const documentDefaults = useDocumentDefaults();
+  const { theme, options } = useFacetTheme();
+  const ThemePage = theme.slots?.page;
   const resolvedPageSize = pageSize ?? documentDefaults?.pageSize ?? 'a4';
+  const preset = PAGE_SIZE_PRESETS[resolvedPageSize.toLowerCase()];
+  const canvas = preset?.unit === 'px' ? preset : undefined;
   const resolvedMargins = mergeMargins(documentDefaults?.margins, margins);
   const {
     top: marginTop = 0,
@@ -64,8 +70,11 @@ export default function Page({
 
   return (
     <div id={id} data-facet-page-id={id} data-page-size={resolvedPageSize} data-page-type={type}
+      data-facet-canvas={canvas ? 'true' : undefined}
       data-margin-top={marginTop} data-margin-right={marginRight} data-margin-bottom={marginBottom} data-margin-left={marginLeft}
-      style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
+      style={{ pageBreakAfter: 'always', breakAfter: 'page', ...(canvas ? {
+        width: canvas.width, height: canvas.height, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+      } as React.CSSProperties : {}) }}>
 
       {watermark && (
         <div style={{
@@ -85,8 +94,8 @@ export default function Page({
         <h2 className={titleClassName}>{title}</h2>
       )}
 
-      <main className={className} style={mainStyle}>
-        <article>{children}</article>
+      <main className={[theme.pageClassName, className].filter(Boolean).join(' ')} style={mainStyle}>
+        <article>{ThemePage ? <ThemePage title={title} options={options}>{children}</ThemePage> : children}</article>
       </main>
     </div>
   );

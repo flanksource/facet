@@ -1,4 +1,4 @@
-import { writeFileSync } from 'fs';
+import { renderElementPdf } from './pdf-overlay.js';
 import * as zlib from 'zlib';
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRef, rgb, StandardFonts } from 'pdf-lib';
 import type { Browser, BrowserContext, Page } from 'puppeteer-core';
@@ -7,6 +7,7 @@ type PageProvider = Browser | BrowserContext;
 import type { Logger } from './logger.js';
 import { setPreparedContent } from './browser-readiness.js';
 import { ELEMENT_SCALE, TEXT_SCALE } from './type-scale.js';
+import { PAGE_SIZE_PRESETS } from './page-size-presets.js';
 
 export type PageType = 'first' | 'default' | 'last';
 
@@ -17,22 +18,12 @@ export interface PageSizeDimensions {
   height: number;
 }
 
-export const PAGE_SIZES: Record<string, PageSizeDimensions> = {
-  a4: { width: 210, height: 297 },
-  'a4-landscape': { width: 297, height: 210 },
-  a3: { width: 297, height: 420 },
-  'a3-landscape': { width: 420, height: 297 },
-  letter: { width: 215.9, height: 279.4 },
-  'letter-landscape': { width: 279.4, height: 215.9 },
-  legal: { width: 215.9, height: 355.6 },
-  'legal-landscape': { width: 355.6, height: 215.9 },
-  fhd: { width: 508, height: 285.75 },
-  qhd: { width: 677.33, height: 381 },
-  wqhd: { width: 846.67, height: 381 },
-  '4k': { width: 1016, height: 571.5 },
-  '5k': { width: 1354.67, height: 762 },
-  '16k': { width: 406.4, height: 304.8 },
-};
+export const PAGE_SIZES: Record<string, PageSizeDimensions> = Object.fromEntries(
+  Object.entries(PAGE_SIZE_PRESETS).map(([name, preset]) => [name, {
+    width: preset.unit === 'px' ? preset.width * 25.4 / 96 : preset.width,
+    height: preset.unit === 'px' ? preset.height * 25.4 / 96 : preset.height,
+  }]),
+);
 
 export function resolvePageSize(name: string): PageSizeDimensions {
   const wxh = name.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
@@ -206,63 +197,6 @@ export function areaScale(dims: PageSizeDimensions): number {
   return Math.sqrt((dims.width * dims.height) / REF_AREA);
 }
 
-export async function renderElementPdf(
-  browser: PageProvider,
-  html: string,
-  selector: string,
-  heightMm: number,
-  widthMm: number = 210,
-  debugOutputPath?: string,
-): Promise<Buffer> {
-  const page = await browser.newPage();
-  try {
-    await page.setViewport({ width: mmToPx(widthMm), height: mmToPx(heightMm) });
-    await setPreparedContent(page, html);
-
-    await page.evaluate((sel: string, hMm: number, wMm: number) => {
-      const target = document.querySelector(sel) as HTMLElement | null;
-      if (!target) return;
-
-      document.body.innerHTML = '';
-      document.body.appendChild(target);
-
-      Object.assign(document.body.style, {
-        margin: '0', padding: '0', overflow: 'hidden',
-        width: `${wMm}mm`, height: `${hMm}mm`,
-      });
-
-      Object.assign(target.style, {
-        width: '100%', height: '100%', margin: '0',
-        boxSizing: 'border-box', overflow: 'hidden',
-      });
-    }, selector, heightMm, widthMm);
-
-    if (debugOutputPath) {
-      writeFileSync(`${debugOutputPath}.html`, await page.content());
-    }
-
-    await page.addStyleTag({
-      content: `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; } body { max-width: ${widthMm}mm !important; }`,
-    });
-
-    const pdfBytes = await page.pdf({
-      width: `${widthMm}mm`,
-      height: `${heightMm}mm`,
-      margin: { top: 0, bottom: 0, left: 0, right: 0 },
-      printBackground: true,
-      displayHeaderFooter: false,
-      preferCSSPageSize: true,
-    });
-
-    if (debugOutputPath) {
-      writeFileSync(`${debugOutputPath}.pdf`, pdfBytes);
-    }
-    return Buffer.from(pdfBytes);
-  } finally {
-    await page.close();
-  }
-}
-
 export function overlayKey(type: PageType, sizeName: string): string {
   return `${type}:${sizeName}`;
 }
@@ -326,9 +260,7 @@ export async function renderHeaderFooterPdfs(
         if (headerHtml) {
           const h = scaledHeight(def.headerHeight, scale);
           const debugPath = debugBasePath ? `${debugBasePath}.debug-header-${key}` : undefined;
-          headers.set(key, await renderElementPdf(
-            browser, headerHtml, headerSelector, h, dims.width, debugPath,
-          ));
+          headers.set(key, (await renderElementPdf({ browser, html: headerHtml, selector: headerSelector, heightMm: h, widthMm: dims.width, debugOutputPath: debugPath })).pdf);
           if (headerHtml.includes(PAGE_MARKER) || headerHtml.includes(TOTAL_MARKER)) {
             headersWithPlaceholders.add(key);
           }
@@ -336,9 +268,7 @@ export async function renderHeaderFooterPdfs(
         if (footerHtml) {
           const h = scaledHeight(def.footerHeight, scale);
           const debugPath = debugBasePath ? `${debugBasePath}.debug-footer-${key}` : undefined;
-          footers.set(key, await renderElementPdf(
-            browser, footerHtml, footerSelector, h, dims.width, debugPath,
-          ));
+          footers.set(key, (await renderElementPdf({ browser, html: footerHtml, selector: footerSelector, heightMm: h, widthMm: dims.width, debugOutputPath: debugPath })).pdf);
           if (footerHtml.includes(PAGE_MARKER) || footerHtml.includes(TOTAL_MARKER)) {
             footersWithPlaceholders.add(key);
           }
@@ -607,7 +537,7 @@ export async function compositeHeaderFooter(
       if (headerHasPlaceholders.get(key) && browser && html) {
         const pageHtml = html.replaceAll(PAGE_MARKER, pageNum).replaceAll(TOTAL_MARKER, totalStr);
         const h = scaledHeight(def.headerHeight, scale);
-        const buf = await renderElementPdf(browser, pageHtml, `[data-header-type="${type}"]`, h, dims.width);
+        const { pdf: buf } = await renderElementPdf({ browser, html: pageHtml, selector: `[data-header-type="${type}"]`, heightMm: h, widthMm: dims.width });
         embedded = await embedOverlay(doc, buf);
       }
       if (!embedded) {
@@ -633,7 +563,7 @@ export async function compositeHeaderFooter(
       if (footerHasPlaceholders.get(key) && browser && html) {
         const pageHtml = html.replaceAll(PAGE_MARKER, pageNum).replaceAll(TOTAL_MARKER, totalStr);
         const h = scaledHeight(def.footerHeight, scale);
-        const buf = await renderElementPdf(browser, pageHtml, `[data-footer-type="${type}"]`, h, dims.width);
+        const { pdf: buf } = await renderElementPdf({ browser, html: pageHtml, selector: `[data-footer-type="${type}"]`, heightMm: h, widthMm: dims.width });
         embedded = await embedOverlay(doc, buf);
       }
       if (!embedded) {

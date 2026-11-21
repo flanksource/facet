@@ -50,6 +50,14 @@ describe('scaleValue', () => {
     expect(scaleValue('#12pt34')).toBe('#12pt34');
   });
 
+  it('scans a long unitless digit run in linear time', () => {
+    // An ambiguous number pattern backtracks quadratically here and would blow
+    // the test timeout long before finishing.
+    const digits = '9'.repeat(100_000);
+
+    expect(scaleValue(`${digits}x`)).toBe(`${digits}x`);
+  });
+
   it('returns a value that already mentions the variable unchanged', () => {
     const already = `calc(9pt * var(${VAR}, 1))`;
     expect(scaleValue(already)).toBe(already);

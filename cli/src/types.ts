@@ -15,7 +15,7 @@ export interface ResolvedTemplate {
   resolvedSha?: string;
 }
 
-export type RenderFormat = 'html' | 'pdf' | 'png';
+export type RenderFormat = 'html' | 'pdf' | 'png' | 'docx' | 'pptx';
 
 export interface PNGViewport {
   width: number;
@@ -38,6 +38,8 @@ export interface PNGOptions {
 
 export interface GenerateOptions {
   template: string;
+  theme?: string;
+  loadedData?: LoadedData;
   data?: string;
   dataLoader?: string;
   dataLoaderArgs?: string[];
@@ -71,12 +73,17 @@ export interface GenerateOptions {
   sandbox?: string | boolean;
   debug?: boolean;
   pageSize?: string;
+  pageSizeOverride?: string;
   landscape?: boolean;
   margins?: { top?: number; bottom?: number; left?: number; right?: number };
   header?: string;
   footer?: string;
   debugTypography?: boolean;
   fontSize?: number;
+  /** Final HTML output only: reveal <SlideNotes> as speaker-notes panels. PDF/PNG reuse generateHTML and must not set it. */
+  showSlideNotes?: boolean;
+  embedFormat?: import('./utils/embed.js').EmbedFormat;
+  embedSize?: import('./utils/embed.js').EmbedSize;
   encryption?: import('./utils/pdf-security.js').PDFEncryptionOptions;
   signature?: import('./utils/pdf-security.js').PDFSignatureOptions;
   pngOptions?: PNGOptions;

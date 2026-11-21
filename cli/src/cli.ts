@@ -14,6 +14,13 @@ import { parseRedactAllow } from './builders/remark-config.js';
 import type { GenerateOptions, PNGViewport, RenderFormat } from './types.js';
 import { parsePNGViewport } from './utils/png-generator.js';
 import { renderWithServer, resolveFacetURL } from './utils/server-render.js';
+import { registerOfficeCommands } from './commands/office.js';
+import { addEmbedOptions } from './commands/embed-options.js';
+import { resolveEmbed } from './utils/embed.js';
+import { registerInspectCommand } from './commands/inspect.js';
+import { dispatchLoader } from './loaders/dispatch.js';
+import { expandRenderSizes, renderSizes } from './utils/render-sizes.js';
+import { activateDevRuntime } from './runtime/dev.js';
 
 function numericOption(minimum: number): (value: string) => number {
   return (value: string): number => {
@@ -48,23 +55,30 @@ function booleanOption(value: string): boolean {
   throw new InvalidArgumentError('Expected true or false');
 }
 
+const LINT_OPTION_HELP = 'Lint the templates first and print the report; warnings do not stop the render, lint errors do';
+
+async function lintTemplatesBeforeRender(templates: string[], logger: Logger, verbose: boolean): Promise<void> {
+  const { lintBeforeRender } = await import('./lint/render-gate.js');
+  await lintBeforeRender({ templates, verbose, logger });
+}
+
 function parseDataLoaderArgs(): string[] {
   const dashIndex = process.argv.indexOf('--');
   return dashIndex !== -1 ? process.argv.slice(dashIndex + 1) : [];
 }
 
-// Remote rendering needs `tar`; local rendering needs pnpm and may need Chromium.
-// TypeScript data loaders need tsx in either mode.
+// Installed runtimes need tar; only a new custom dependency environment needs pnpm.
+// TypeScript data loaders need Oxc in either mode.
 function renderRequirements(command: RenderFormat, options: any): string[] {
   if (options.facetURL) {
     const ids = ['tar'];
-    if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
+    if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('oxc-node');
     return ids;
   }
-  const ids = options.skipModules ? [] : ['pnpm'];
-  if (command === 'pdf' || command === 'png' || options.live) ids.push('chromium');
+  const ids = ['tar'];
+  if (command === 'pdf' || command === 'png' || command === 'docx' || command === 'pptx' || options.live) ids.push('chromium');
   if (options.autocrop) ids.push('sharp');
-  if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('tsx');
+  if (typeof options.dataLoader === 'string' && options.dataLoader.endsWith('.ts')) ids.push('oxc-node');
   return ids;
 }
 
@@ -117,13 +131,14 @@ function buildSignature(options: any): PDFSignatureOptions | undefined {
 
 function addSharedOptions(cmd: Command): Command {
   return cmd
+    .option('--theme <name>', 'Installed document theme (default: facet)')
     .option('-d, --data <file>', 'Path to JSON or YAML data file')
     .option('-l, --data-loader <file>', 'Path to data loader module (.ts or .js)')
     .option('-o, --output <path>', 'Output file path or directory', '.')
     .option('--output-name-field <field>', 'Data field to use for output filename', 'name')
     .option('-v, --verbose', 'Increase verbosity (-v Vite progress, -vv Vite debug, -vvv plugin debug + profile)', (_value, previous: number) => previous + 1, 0)
     .option('--refresh', 'Force re-fetch of remote template (bypass cache)')
-    .option('--clear-cache', 'Delete .facet/ build cache and node_modules cache before generation')
+    .option('--clear-cache', 'Rebuild the selected compilation and custom dependency environment')
     .option('--live', 'Render in a live browser (Vite dev server) instead of SSR; required for diagram components')
     .option('--post-process-css <boolean>', 'Rebuild CSS after rendering to include data-dependent classes', booleanOption)
     .option('--font-size <pt>', 'Base font size in pt; scales the whole type scale proportionally (default: 10)', fontSizeOption)
@@ -148,13 +163,23 @@ const versionStr = formatVersion({
 
 program
   .name('facet')
-  .description('Build beautiful HTML, PDF, and PNG output from React templates')
+  .description('Build HTML, PDF, PNG, editable DOCX and widescreen PPTX output from React templates')
   .version(versionStr)
-  .option('--skip-modules', 'Use the shared Facet-only module install and ignore package.json dependencies')
-  .option('--facet-url <url>', 'Submit HTML, PDF, and PNG renders to a Facet server (or FACET_URL)')
-  .hook('preAction', () => {
+  .option('--dev', 'Use local Facet, Clicky UI and page-runtime builds without publishing')
+  .option('--skip-modules', 'Ignore package.json dependencies; use default packages (local libraries with --dev)')
+  .option('--facet-url <url>', 'Submit template renders to a Facet server (or FACET_URL)')
+  .hook('preAction', (_command, actionCommand) => {
+    if (actionCommand.optsWithGlobals().dev) {
+      if (resolveFacetURL(actionCommand.optsWithGlobals().facetUrl)) throw new Error('--dev requires local rendering; unset FACET_URL and omit --facet-url');
+      activateDevRuntime(process.cwd());
+      console.error(`Using local rendering runtime: ${process.env.FACET_DEV_ROOT}`);
+    }
+    if (['lint', 'inspect'].includes(actionCommand.name()) && actionCommand.opts().json) return;
     console.log(chalk.gray(`facet ${versionStr}`));
   });
+
+registerOfficeCommands({ program, addSharedOptions, ensureRenderReady, parseDataLoaderArgs });
+registerInspectCommand(program);
 
 // html command
 addSharedOptions(
@@ -164,11 +189,13 @@ addSharedOptions(
     .option('--css-scope <prefix>', 'CSS scope prefix for scoped HTML generation')
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
+    .option('--lint', LINT_OPTION_HELP)
 ).action(async (templates: string[], options: any, command: Command) => {
   options = { ...options, ...command.optsWithGlobals() };
   const logger = new Logger(options.verbose);
   try {
     const facetURL = resolveFacetURL(options.facetUrl);
+    if (options.lint) await lintTemplatesBeforeRender(templates, logger, options.verbose);
     await ensureRenderReady('html', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating HTML from template: ${template}`);
@@ -192,7 +219,9 @@ addSharedOptions(
         live: options.live,
         postProcessCss: options.postProcessCss,
         fontSize: options.fontSize,
+        theme: options.theme,
         sandbox: options.sandbox,
+        showSlideNotes: true,
       };
       if (facetURL) {
         await renderWithServer({ facetURL, format: 'html', options: generateOptions });
@@ -218,6 +247,7 @@ addSharedOptions(
   program
     .command('png <templates...>')
     .description('Generate PNG from one or more templates')
+    .option('--sizes <pattern>', 'Render each matching page size and append it to the filename; repeatable (quote globs)', (value: string, previous: string[]) => [...previous, value], [] as string[])
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
     .option('--width <pixels>', 'Scale the capture to this output width (default: natural size)', numericOption(1))
@@ -226,11 +256,15 @@ addSharedOptions(
     .option('--viewport <WxH>', 'Browser viewport the page is laid out against (default: 1280x800)', viewportOption)
     .option('--autocrop', 'Trim the uniform background border off the capture before scaling')
     .option('--autocrop-padding <pixels>', 'Background margin left around autocropped content (default: 0)', numericOption(0))
+    .option('--lint', LINT_OPTION_HELP)
 ).action(async (templates: string[], options: any, command: Command) => {
   options = { ...options, ...command.optsWithGlobals() };
   const logger = new Logger(options.verbose);
   try {
     const facetURL = resolveFacetURL(options.facetUrl);
+    const sizes = expandRenderSizes(options.sizes);
+    if (sizes.length && options.viewport) throw new Error('--sizes cannot be combined with --viewport');
+    if (options.lint) await lintTemplatesBeforeRender(templates, logger, options.verbose);
     await ensureRenderReady('png', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating PNG from template: ${template}`);
@@ -253,6 +287,7 @@ addSharedOptions(
         live: options.live,
         postProcessCss: options.postProcessCss,
         fontSize: options.fontSize,
+        theme: options.theme,
         sandbox: options.sandbox,
         pngOptions: {
           width: options.width,
@@ -263,12 +298,14 @@ addSharedOptions(
           autocropPadding: options.autocropPadding,
         },
       };
-      if (facetURL) {
-        await renderWithServer({ facetURL, format: 'png', options: generateOptions });
-      } else {
-        const { generatePNG } = await import('./generators/png.js');
-        await generatePNG(generateOptions);
-      }
+      await renderSizes({ sizes, options: generateOptions, render: async (variant) => {
+        if (facetURL) {
+          await renderWithServer({ facetURL, format: 'png', options: variant });
+        } else {
+          const { generatePNG } = await import('./generators/png.js');
+          await generatePNG(variant);
+        }
+      } });
     }
 
     logger.success('PNG generated!');
@@ -283,15 +320,16 @@ addSharedOptions(
 });
 
 // pdf command
-addSharedOptions(
+addSharedOptions(addEmbedOptions(
   program
     .command('pdf <templates...>')
-    .description('Generate PDF from one or more templates')
+    .description('Generate PDF from one or more templates'), 'pdf')
+    .option('--sizes <pattern>', 'Render each matching page size and append it to the filename; repeatable (quote globs)', (value: string, previous: string[]) => [...previous, value], [] as string[])
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
     .option('--debug', 'Add layout guides and font, line-height, and block-spacing annotations')
     .option('--debug-typography', 'Append a font-size reference page to the PDF')
-    .option('--page-size <size>', 'Default page size (a4, a3, letter, legal, fhd, qhd, wqhd, 4k, 5k, 16k)', 'a4')
+    .option('--page-size <size>', 'Page size override: paper/screen presets, powerpoint-wide/standard, facebook-*, linkedin-*, reddit-*, google-ads-* or WxH in mm (see docs/page-sizes.md); default: the sizes the template\'s <Document>/<Page> declare, else a4')
     .option('--landscape', 'Use landscape orientation')
     .option('--margin-top <mm>', 'Top margin in mm', parseFloat)
     .option('--margin-bottom <mm>', 'Bottom margin in mm', parseFloat)
@@ -309,11 +347,16 @@ addSharedOptions(
     .option('--sign-reason <reason>', 'Signature reason text')
     .option('--sign-name <name>', 'Signer name')
     .option('--timestamp-url <url>', 'RFC 3161 Timestamp Authority URL')
+    .option('--lint', LINT_OPTION_HELP)
 ).action(async (templates: string[], options: any, command: Command) => {
   options = { ...options, ...command.optsWithGlobals() };
   const logger = new Logger(options.verbose);
   try {
     const facetURL = resolveFacetURL(options.facetUrl);
+    const sizes = expandRenderSizes(options.sizes);
+    if (sizes.length && command.getOptionValueSource('pageSize') === 'cli') throw new Error('--sizes cannot be combined with --page-size');
+    resolveEmbed({ target: 'pdf', format: options.embedFormat, size: options.embedSize });
+    if (options.lint) await lintTemplatesBeforeRender(templates, logger, options.verbose);
     await ensureRenderReady('pdf', { ...options, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating PDF from template: ${template}`);
@@ -338,7 +381,10 @@ addSharedOptions(
         debug: options.debug,
         debugTypography: options.debugTypography,
         fontSize: options.fontSize,
-        pageSize: options.pageSize,
+        theme: options.theme,
+        embedFormat: options.embedFormat,
+        embedSize: options.embedSize,
+        pageSize: sizes.length ? undefined : options.pageSize,
         landscape: options.landscape,
         margins: buildMargins(options),
         header: options.header,
@@ -346,12 +392,14 @@ addSharedOptions(
         encryption: buildEncryption(options),
         signature: buildSignature(options),
       };
-      if (facetURL) {
-        await renderWithServer({ facetURL, format: 'pdf', options: generateOptions });
-      } else {
-        const { generatePDF } = await import('./generators/pdf.js');
-        await generatePDF(generateOptions);
-      }
+      await renderSizes({ sizes, options: generateOptions, render: async (variant) => {
+        if (facetURL) {
+          await renderWithServer({ facetURL, format: 'pdf', options: variant });
+        } else {
+          const { generatePDF } = await import('./generators/pdf.js');
+          await generatePDF(variant);
+        }
+      } });
     }
 
     logger.success('PDF generated!');
@@ -399,6 +447,7 @@ program
 // serve command
 program
   .command('serve')
+  .option('--theme <name>', 'Default installed document theme (default: facet)')
   .description('Start API server for rendering templates')
   .option('-p, --port <number>', 'Server port', '3010')
   .option('--templates-dir <dir>', 'Directory containing templates', '.')
@@ -413,7 +462,7 @@ program
   .option('--api-key <key>', 'API key for authentication')
   .option('--max-upload <bytes>', 'Max upload size in bytes', '52428800')
   .option('--cache-max-size <bytes>', 'Max render cache size in bytes', '104857600')
-  .option('--cache-dir <dir>', 'Render cache directory (default: ./.facet)')
+  .option('--cache-dir <dir>', 'Render cache directory (default: shared Facet cache)')
   .option('--s3-endpoint <url>', 'S3 endpoint URL')
   .option('--s3-bucket <name>', 'S3 bucket name')
   .option('--s3-region <region>', 'S3 region', 'us-east-1')
@@ -463,7 +512,9 @@ program
   .description('Scan TSX, MDX, and Markdown files with built-in and optional external checks')
   .option('-v, --verbose', 'Show detailed output including passing files')
   .option('--rule <name>', 'Run only a specific built-in rule')
-  .option('--severity <level>', 'Minimum severity to report: warning or error', 'warning')
+  .option('--severity <level>', 'Minimum severity to report: info, warning or error', 'info')
+  .option('--json', 'Emit ESLint-compatible JSON diagnostics')
+  .option('--embedded-images', 'Include embedded document image diagnostics')
   .option('--vale', 'Run Vale prose checks for Markdown and MDX files')
   .option('--diagrams', 'Detect and live-render diagram candidates (no AI)')
   .option('--diagrams-ai', 'Review rendered diagram PNGs through Captain (requires --diagrams)')
@@ -482,14 +533,16 @@ program
         diagramsAi: !!options.diagramsAi,
         llmModel: options.llmModel,
         logger,
+        json: options.json,
+        embeddedImages: options.embeddedImages,
       });
-      process.exit(exitCode);
+      process.exitCode = exitCode;
     } catch (error) {
       logger.error(`Lint failed: ${error instanceof Error ? error.message : String(error)}`);
       if (options.verbose && error instanceof Error && error.stack) {
-        logger.debug(error.stack);
+        process.stderr.write(error.stack + '\n');
       }
-      process.exit(1);
+      process.exitCode = options.json ? 2 : 1;
     }
   });
 
@@ -528,26 +581,7 @@ program.on('command:*', () => {
 });
 
 async function run(): Promise<void> {
-  // Loader dispatch: when re-exec'd as a render subprocess (FACET_LOADER set),
-  // run the bundled Vite loader instead of the CLI. Behind a dynamic import so
-  // Vite is only ever loaded in a render subprocess. No top-level await here so
-  // the bundle stays CommonJS-compatible for the Node SEA binary.
-  if (process.env.FACET_LOADER === 'ssr' || process.env.FACET_LOADER === 'ssr-daemon') {
-    const loader = await import('./loaders/ssr.js');
-    if (process.env.FACET_LOADER === 'ssr-daemon') await loader.runSsrDaemon();
-    else await loader.runSsrLoader();
-    return;
-  }
-  if (process.env.FACET_LOADER === 'dev') {
-    const { runDevLoader } = await import('./loaders/dev.js');
-    await runDevLoader();
-    return;
-  }
-  if (process.env.FACET_LOADER === 'css') {
-    const { runCssLoader } = await import('./loaders/css.js');
-    await runCssLoader();
-    return;
-  }
+  if (await dispatchLoader()) return;
   program.parse();
 }
 

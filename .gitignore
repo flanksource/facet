@@ -183,6 +183,7 @@ cli/src/server/playground-form-generated.ts
 cli/dist-playground/
 examples/kitchen-sink/
 cli/npm-dist/
+cli/assets/runtimes/
 .facet-*/
 
 # Claude Code plugin content ships from the repo. A global core.excludesFile
@@ -199,6 +200,7 @@ cli/npm-dist/
 !.agents/skills/facet-documents/
 !.agents/skills/facet-cli/
 !.agents/skills/diagram-designer/
+!.agents/skills/diagram-designer-schema/
 .agents/skills/*/examples/.facet/
 .agents/skills/*/examples/node_modules/
 .agents/skills/*/examples/dist/
@@ -206,3 +208,6 @@ cli/npm-dist/
 # Rendered *.html is regenerable and deliberately not shipped.
 !.agents/skills/*/examples/*.png
 examples/quickstart/node_modules
+/output/
+# The logo kit's presentation and favicon head snippet are hand-made, not render output.
+!assets/brand/**/*.html

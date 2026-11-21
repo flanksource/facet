@@ -242,8 +242,8 @@ describe('conflicting-print-css', () => {
 });
 
 describe('page-structure', () => {
-  it('skips non-template components', () => {
-    const issues = pageStructure.check(ctx('Section.tsx', [
+  it('skips non-template components', async () => {
+    const issues = await pageStructure.check(ctx('Section.tsx', [
       'export default function Section({ children }) {',
       '  return <div>{children}</div>;',
       '}',
@@ -251,8 +251,8 @@ describe('page-structure', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('skips exempt files', () => {
-    const issues = pageStructure.check(ctx('Header.tsx', [
+  it('skips exempt files', async () => {
+    const issues = await pageStructure.check(ctx('Header.tsx', [
       'import Page from "./Page";',
       'export default function Header() {',
       '  return <div>header</div>;',
@@ -261,8 +261,8 @@ describe('page-structure', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('skips Page.tsx itself', () => {
-    const issues = pageStructure.check(ctx('components/Page.tsx', [
+  it('skips Page.tsx itself', async () => {
+    const issues = await pageStructure.check(ctx('components/Page.tsx', [
       'import Page from "./Page";',
       'export default function Page() {',
       '  return <div>page</div>;',
@@ -271,8 +271,8 @@ describe('page-structure', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('flags template missing Page wrapper', () => {
-    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+  it('flags template missing Page wrapper', async () => {
+    const issues = await pageStructure.check(ctx('MyTemplate.tsx', [
       'import Page from "./Page";',
       'export default function MyTemplate() {',
       '  return (',
@@ -283,8 +283,8 @@ describe('page-structure', () => {
     expect(issues.length).toBeGreaterThan(0);
   });
 
-  it('passes template with Page wrapper', () => {
-    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+  it('passes template with Page wrapper', async () => {
+    const issues = await pageStructure.check(ctx('MyTemplate.tsx', [
       'import Page from "./Page";',
       'export default function MyTemplate() {',
       '  return (',
@@ -297,8 +297,8 @@ describe('page-structure', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('flags nested Page components', () => {
-    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+  it('flags nested Page components', async () => {
+    const issues = await pageStructure.check(ctx('MyTemplate.tsx', [
       'import Page from "./Page";',
       'export default function MyTemplate() {',
       '  return (',
@@ -314,8 +314,8 @@ describe('page-structure', () => {
     expect(nested).toHaveLength(1);
   });
 
-  it('allows Header/Footer/PageBreak siblings to Page', () => {
-    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+  it('allows Header/Footer/PageBreak siblings to Page', async () => {
+    const issues = await pageStructure.check(ctx('MyTemplate.tsx', [
       'import Page from "./Page";',
       'export default function MyTemplate() {',
       '  return (',
@@ -336,8 +336,8 @@ describe('page-structure', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('flags content outside Page', () => {
-    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+  it('flags content outside Page', async () => {
+    const issues = await pageStructure.check(ctx('MyTemplate.tsx', [
       'import Page from "./Page";',
       'export default function MyTemplate() {',
       '  return (',
@@ -354,8 +354,8 @@ describe('page-structure', () => {
     expect(orphaned).toHaveLength(1);
   });
 
-  it('allows CoverPage as sibling to Page', () => {
-    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+  it('allows CoverPage as sibling to Page', async () => {
+    const issues = await pageStructure.check(ctx('MyTemplate.tsx', [
       'import Page from "./Page";',
       'export default function MyTemplate() {',
       '  return (',
@@ -371,8 +371,8 @@ describe('page-structure', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('allows LandscapePage as sibling to Page', () => {
-    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+  it('allows LandscapePage as sibling to Page', async () => {
+    const issues = await pageStructure.check(ctx('MyTemplate.tsx', [
       'import Page from "./Page";',
       'export default function MyTemplate() {',
       '  return (',
@@ -390,8 +390,8 @@ describe('page-structure', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('flags nested CoverPage inside Page', () => {
-    const issues = pageStructure.check(ctx('MyTemplate.tsx', [
+  it('flags nested CoverPage inside Page', async () => {
+    const issues = await pageStructure.check(ctx('MyTemplate.tsx', [
       'import Page from "./Page";',
       'export default function MyTemplate() {',
       '  return (',
@@ -405,8 +405,8 @@ describe('page-structure', () => {
     expect(nested).toHaveLength(1);
   });
 
-  it('flags custom Page file that does not use facet Page', () => {
-    const issues = pageStructure.check(ctx('CoverPage.tsx', [
+  it('flags custom Page file that does not use facet Page', async () => {
+    const issues = await pageStructure.check(ctx('CoverPage.tsx', [
       'export default function CoverPage({ title }) {',
       '  return <div className="cover">{title}</div>;',
       '}',
@@ -415,8 +415,8 @@ describe('page-structure', () => {
     expect(issues[0].message).toContain('must use the facet <Page>');
   });
 
-  it('passes custom Page file that uses facet Page', () => {
-    const issues = pageStructure.check(ctx('CoverPage.tsx', [
+  it('passes custom Page file that uses facet Page', async () => {
+    const issues = await pageStructure.check(ctx('CoverPage.tsx', [
       'import { Page } from "@flanksource/facet";',
       'export default function CoverPage({ title }) {',
       '  return (',
@@ -431,8 +431,8 @@ describe('page-structure', () => {
 });
 
 describe('empty-page', () => {
-  it('flags Page with no children', () => {
-    const issues = emptyPage.check(ctx('Foo.tsx', [
+  it('flags Page with no children', async () => {
+    const issues = await emptyPage.check(ctx('Foo.tsx', [
       'export default function Foo() {',
       '  return <Page pageSize="a4"></Page>;',
       '}',
@@ -441,8 +441,8 @@ describe('empty-page', () => {
     expect(issues[0].message).toContain('Empty');
   });
 
-  it('flags Page with only whitespace', () => {
-    const issues = emptyPage.check(ctx('Foo.tsx', [
+  it('flags Page with only whitespace', async () => {
+    const issues = await emptyPage.check(ctx('Foo.tsx', [
       'export default function Foo() {',
       '  return (',
       '    <Page pageSize="a4">',
@@ -454,8 +454,8 @@ describe('empty-page', () => {
     expect(issues).toHaveLength(1);
   });
 
-  it('passes Page with element children', () => {
-    const issues = emptyPage.check(ctx('Foo.tsx', [
+  it('passes Page with element children', async () => {
+    const issues = await emptyPage.check(ctx('Foo.tsx', [
       'export default function Foo() {',
       '  return (',
       '    <Page pageSize="a4">',
@@ -467,8 +467,8 @@ describe('empty-page', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('passes Page with text content', () => {
-    const issues = emptyPage.check(ctx('Foo.tsx', [
+  it('passes Page with text content', async () => {
+    const issues = await emptyPage.check(ctx('Foo.tsx', [
       'export default function Foo() {',
       '  return <Page pageSize="a4">Hello World</Page>;',
       '}',
@@ -476,8 +476,8 @@ describe('empty-page', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('passes Page with expression children', () => {
-    const issues = emptyPage.check(ctx('Foo.tsx', [
+  it('passes Page with expression children', async () => {
+    const issues = await emptyPage.check(ctx('Foo.tsx', [
       'export default function Foo({ items }) {',
       '  return (',
       '    <Page pageSize="a4">',
@@ -489,8 +489,8 @@ describe('empty-page', () => {
     expect(issues).toHaveLength(0);
   });
 
-  it('flags empty CoverPage', () => {
-    const issues = emptyPage.check(ctx('Foo.tsx', [
+  it('flags empty CoverPage', async () => {
+    const issues = await emptyPage.check(ctx('Foo.tsx', [
       'export default function Foo() {',
       '  return <CoverPage></CoverPage>;',
       '}',
@@ -499,8 +499,8 @@ describe('empty-page', () => {
     expect(issues[0].message).toContain('CoverPage');
   });
 
-  it('flags only empty pages in multi-page template', () => {
-    const issues = emptyPage.check(ctx('Foo.tsx', [
+  it('flags only empty pages in multi-page template', async () => {
+    const issues = await emptyPage.check(ctx('Foo.tsx', [
       'export default function Foo() {',
       '  return (',
       '    <>',

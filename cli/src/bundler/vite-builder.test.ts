@@ -1,5 +1,26 @@
-import { describe, it, expect } from 'vitest';
-import { isMissingDepError } from './vite-builder.js';
+import { describe, it, expect, vi } from 'vitest';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { isMissingDepError, prepareModules } from './vite-builder.js';
+import { FacetDirectory } from '../builders/facet-directory.js';
+import { Logger } from '../utils/logger.js';
+import * as installed from '../runtime/installed.js';
+
+it('removes temporary registry credentials when installed runtime selection fails', async () => {
+  const parent = resolve('.tmp');
+  mkdirSync(parent, { recursive: true });
+  const root = mkdtempSync(join(parent, 'runtime-failure-'));
+  vi.stubEnv('FACET_PACKAGE_PATH', '');
+  const logger = new Logger(false);
+  const facet = new FacetDirectory({ consumerRoot: root, buildRoot: root, templateFile: 'Report.tsx', logger });
+  writeFileSync(join(root, 'package.json'), '{"dependencies":{"react":"18.3.1"}}');
+  writeFileSync(join(root, '.npmrc'), '//registry.npmjs.org/:_authToken=example-token');
+  vi.spyOn(installed, 'installedRuntimePayload').mockImplementation(() => { throw new Error('Missing installed payload'); });
+  try {
+    await expect(prepareModules(facet, logger)).rejects.toThrow('Missing installed payload');
+    expect(existsSync(join(root, '.npmrc'))).toBe(false);
+  } finally { vi.restoreAllMocks(); vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); }
+});
 
 describe('isMissingDepError', () => {
   describe('returns true for bare-specifier (package) resolution failures', () => {

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { runPersistentCssBuild } from '../bundler/ssr-pool.js';
 import type { Logger } from './logger.js';
 import { selfExecBase } from './self-exec.js';
@@ -13,28 +13,20 @@ export interface CachedTailwindOptions {
   html: string;
   buildCacheKey: string;
   logger?: Logger;
-  /**
-   * CSS the SSR bundle already emitted. With Tailwind v3 and no `@tailwind`
-   * directive anywhere in the post-process inputs (facet.css ships
-   * pre-expanded), the post-process pass is content-independent
-   * autoprefix-over-prebuilt CSS, so this is returned directly instead of
-   * running a second Vite build that recomputes the same stylesheet.
-   */
-  ssrCss?: string;
   /** Route cache misses through the persistent SSR daemon's warm Vite. */
   persistentLoader?: boolean;
 }
 
 const tailwindLocks = new Map<string, Promise<string>>();
+const TAILWIND_CACHE_VERSION = '2';
 
-export function resolveTailwindMajor(facetRoot: string): number {
+/** Facet supports Tailwind CSS v4 (with @tailwindcss/vite) only. */
+export function assertTailwindV4(facetRoot: string): void {
   const facetRequire = createRequire(join(facetRoot, 'package.json'));
   const version = JSON.parse(readFileSync(facetRequire.resolve('tailwindcss/package.json'), 'utf-8')).version as string;
-  const major = Number(version.split('.')[0]);
-  if (major !== 3 && major !== 4) {
-    throw new Error(`Unsupported Tailwind CSS version ${version}; expected major version 3 or 4`);
+  if (Number(version.split('.')[0]) !== 4) {
+    throw new Error(`Found tailwindcss ${version}; facet requires Tailwind CSS v4 (with @tailwindcss/vite). Upgrade tailwindcss to ^4 and install @tailwindcss/vite.`);
   }
-  return major;
 }
 
 async function pruneTailwindCache(cacheDir: string): Promise<void> {
@@ -85,7 +77,7 @@ async function runViteCssBuild(
       args,
       options: {
         cwd: facetRoot,
-        env: { ...process.env, FACET_LOADER: 'css', FACET_POST_PROCESS: '1' },
+        env: { ...process.env, FACET_LOADER: 'css' },
         stdio: ['ignore', 'ignore', 'pipe'],
       },
     });
@@ -104,35 +96,6 @@ async function runViteCssBuild(
 }
 
 /**
- * True when a v3 post-process build could depend on the rendered class set:
- * some CSS input carries a `@tailwind` directive (utilities generation scans
- * content), or an import cannot be statically inspected. Relative imports are
- * followed; URL imports never carry directives; anything else is assumed live.
- */
-export function tailwindDirectivesPresent(facetRoot: string): boolean {
-  const stack = [join(facetRoot, 'post-process.css')];
-  const seen = new Set<string>();
-  try {
-    while (stack.length > 0) {
-      const file = stack.pop()!;
-      if (seen.has(file)) continue;
-      seen.add(file);
-      const css = readFileSync(file, 'utf-8');
-      if (/@tailwind\b/.test(css)) return true;
-      for (const match of css.matchAll(/@import\s+(?:url\()?['"]([^'"]+)['"]/g)) {
-        const specifier = match[1];
-        if (/^(https?:)?\/\//.test(specifier)) continue;
-        if (!specifier.startsWith('.')) return true;
-        stack.push(resolve(dirname(file), specifier));
-      }
-    }
-    return false;
-  } catch {
-    return true;
-  }
-}
-
-/**
  * Content hash of the stylesheet inputs.
  *
  * The other two key parts do not cover them: `buildCacheKey` hashes consumer
@@ -142,25 +105,16 @@ export function tailwindDirectivesPresent(facetRoot: string): boolean {
  * which reads as the change simply not working.
  */
 export function cssInputKey(facetRoot: string): string {
-  const hash = createHash('sha256');
-  for (const name of ['facet.css', 'post-process.css', 'post-process-v4.css']) {
+  const hash = createHash('sha256').update(TAILWIND_CACHE_VERSION);
+  for (const name of ['facet.css', 'post-process-v4.css']) {
     try {
       hash.update(readFileSync(join(facetRoot, name)));
-    } catch { /* not every entry exists on every Tailwind major */ }
+    } catch { /* stylesheet not generated yet */ }
   }
   return hash.digest('hex').slice(0, 16);
 }
 
 export async function runTailwindCached(opts: CachedTailwindOptions): Promise<string> {
-  if (
-    opts.ssrCss != null
-    && resolveTailwindMajor(opts.facetRoot) === 3
-    && !tailwindDirectivesPresent(opts.facetRoot)
-  ) {
-    opts.logger?.debug('Tailwind CSS reused from SSR build (Tailwind v3, no @tailwind directives in post-process inputs)');
-    return opts.ssrCss;
-  }
-
   const classSet = renderedClassKey(opts.html);
   const cacheDir = join(opts.facetRoot, 'tailwind-cache');
   const cachePath = join(cacheDir, `${opts.buildCacheKey}-${classSet.key}-${cssInputKey(opts.facetRoot)}.css`);

@@ -1,6 +1,5 @@
 import { mkdir, writeFile } from 'fs/promises';
-import { resolve, join, basename, extname, dirname } from 'path';
-import { existsSync, rmSync } from 'fs';
+import { resolve, join } from 'path';
 import type { GenerateOptions } from '../types.js';
 import { Logger } from '../utils/logger.js';
 import { DataLoader } from '../utils/data-loader.js';
@@ -9,15 +8,20 @@ import { buildTemplate } from '../bundler/vite-builder.js';
 import { startViteServer } from '../bundler/vite-server.js';
 import { snapshotHTML } from '../bundler/live-snapshot.js';
 import { combineHTMLAndCSS } from '../bundler/renderer.js';
+import { cascadeOrder } from '@flanksource/page-runtime/styles';
 import { scopeHTML } from '../utils/css-scoper.js';
 import { injectFontScale } from '../utils/font-size.js';
+import { showSlideNotes } from '../utils/slide-notes.js';
 import { resolveTemplateSource } from '../utils/template-source.js';
 import { runTailwindCached } from '../utils/tailwind.js';
 import { shouldPostProcessTemplateCSS, shouldUseLiveRendering } from '../utils/live-template.js';
 import { RenderTimings } from '../utils/performance.js';
 import { renderBrowserHTML } from '../utils/browser-html.js';
+import type { BrowserLayout } from '../utils/render-layout.js';
+import { pageSizeLayout } from '../utils/page-size-layout.js';
 
-export async function generateHTML(options: GenerateOptions): Promise<string> {
+export async function renderTemplateHTML({ options, layout }: { options: GenerateOptions; layout?: BrowserLayout }): Promise<{ html: string; outputName: string; consumerRoot?: string }> {
+  layout ??= pageSizeLayout(options.pageSizeOverride, options.landscape);
   const logger = new Logger(options.verbose);
   const timings = options.timings ?? new RenderTimings();
   const ownsTimings = options.timings == null;
@@ -32,26 +36,16 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
   if (source.resolvedSha) logger.info(`Resolved to ${source.resolvedSha}`);
   if (consumerRoot) logger.debug(`Using project root: ${consumerRoot}`);
 
-  if (options.clearCache) {
-    const root = consumerRoot || resolve(dirname(options.template));
-    const facetDir = join(root, '.facet');
-    if (existsSync(facetDir)) {
-      rmSync(facetDir, { recursive: true, force: true });
-      logger.info(`Cleared .facet/ cache: ${facetDir}`);
-    }
-  }
 
   // Load data
   const dataLoader = new DataLoader(logger);
-  const { data } = await dataLoader.load(options);
+  const { data, outputName } = await dataLoader.load(options);
 
   // Validate data if schema provided
   if (options.validate && options.schema) {
     const validator = new DataValidator(logger);
     await validator.validate(data, options.schema);
   }
-
-  const outputName = options.outputName ?? basename(options.template, extname(options.template));
 
   // Live render path: boot a Vite dev server, render in a real browser, snapshot
   // the settled DOM. Required for DOM-measuring components (diagrams).
@@ -64,22 +58,18 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
       logger,
       timings,
       redact: options.redact,
+      theme: options.theme,
       skipModules: options.skipModules,
+      clearCache: options.clearCache,
     });
     try {
-      const snapshot = await snapshotHTML(server.url, logger, { png: options.pngOptions });
+      const snapshot = await snapshotHTML(server.url, logger, { png: options.pngOptions, layout });
       const scoped = options.cssScope ? scopeHTML(snapshot, { scopeClass: options.cssScope }) : snapshot;
       // The file is standalone, so the scale has to be in the emitted bytes.
       const html = injectFontScale(scoped, options.fontSize);
       if (options.cssScope) logger.info(`CSS scoped with class: ${options.cssScope}`);
-      const outputDir = resolve(process.cwd(), options.outputDir);
-      await mkdir(outputDir, { recursive: true });
-      const outputPath = join(outputDir, `${outputName}.html`);
-      await writeFile(outputPath, html, 'utf-8');
-      logger.success(`HTML generated: ${outputPath}`);
-      logger.info(`File size: ${(Buffer.byteLength(html, 'utf-8') / 1024).toFixed(2)} KB`);
       if (ownsTimings) timings.log(logger);
-      return outputName;
+      return { html, outputName, consumerRoot };
     } finally {
       await server.close();
     }
@@ -95,16 +85,14 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     sandbox: options.sandbox,
     timings,
     redact: options.redact,
+      theme: options.theme,
     skipModules: options.skipModules,
+    clearCache: options.clearCache,
   });
 
   logger.debug(`Using output filename: ${outputName}`);
 
   try {
-    // Ensure output directory exists
-    const outputDir = resolve(process.cwd(), options.outputDir);
-    await mkdir(outputDir, { recursive: true });
-
     const htmlWithoutCSS = buildResult.html;
     logger.info('Post-processing CSS with Vite...');
 
@@ -117,7 +105,6 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
       html: postProcessCss ? htmlWithoutCSS : '',
       buildCacheKey: buildResult.buildCacheKey,
       logger,
-      ssrCss: buildResult.css,
     }));
     logger.debug(postProcessCss
       ? 'CSS generated from source and rendered class names'
@@ -126,7 +113,8 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     // Combine generated CSS with the static HTML.
 
     const combinedHTML = await renderBrowserHTML({
-      html: combineHTMLAndCSS(htmlWithoutCSS, generatedCSS),
+      html: combineHTMLAndCSS(htmlWithoutCSS, cascadeOrder(['components', 'facet', ...(options.theme && options.theme !== 'facet' ? [options.theme] : [])]) + '\n' + generatedCSS + '\n' + buildResult.css),
+      layout,
     });
     const scopedHTML = options.cssScope
       ? scopeHTML(combinedHTML, { scopeClass: options.cssScope })
@@ -134,21 +122,20 @@ export async function generateHTML(options: GenerateOptions): Promise<string> {
     const finalHTML = injectFontScale(scopedHTML, options.fontSize);
     if (options.cssScope) logger.info(`CSS scoped with class: ${options.cssScope}`);
 
-    // Step 4: Write final HTML file
-    const outputPath = join(outputDir, `${outputName}.html`);
-    await writeFile(outputPath, finalHTML, 'utf-8');
-
-    logger.success(`HTML generated: ${outputPath}`);
-
-    // Get file size
-    const sizeKB = (Buffer.byteLength(finalHTML, 'utf-8') / 1024).toFixed(2);
-    logger.info(`File size: ${sizeKB} KB`);
-
     if (ownsTimings) timings.log(logger);
-
-    return outputName;
+    return { html: finalHTML, outputName, consumerRoot };
   } finally {
     // Cleanup Vite server
     await buildResult.cleanup();
   }
+}
+
+export async function generateHTML(options: GenerateOptions): Promise<string> {
+  const { html, outputName } = await renderTemplateHTML({ options });
+  const outputDir = resolve(process.cwd(), options.outputDir);
+  await mkdir(outputDir, { recursive: true });
+  const outputPath = join(outputDir, `${outputName}.html`);
+  await writeFile(outputPath, options.showSlideNotes ? showSlideNotes(html) : html, 'utf-8');
+  new Logger(options.verbose).success(`HTML generated: ${outputPath}`);
+  return outputName;
 }

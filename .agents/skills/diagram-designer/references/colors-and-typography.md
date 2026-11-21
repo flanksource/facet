@@ -1,8 +1,8 @@
 # Colors and typography
 
-## The restricted 5-color palette
+## Facet palette and role themes
 
-Diagrams color exclusively through the `COLORS` role tokens exported by `@flanksource/facet` — never hardcoded hexes. Do not introduce additional base colors.
+Use the `COLORS` tokens exported by `@flanksource/facet` for the standard light style. When the figure needs semantic roles or a night theme, define one named palette and reuse it across nodes, edges and legend; see `references/vocabulary.md`.
 
 | Token | Role |
 | --- | --- |
@@ -13,7 +13,7 @@ Diagrams color exclusively through the `COLORS` role tokens exported by `@flanks
 | `COLORS.outputBorder` | Output/result node headers and borders (green) |
 | `COLORS.fk` / `COLORS.pk` | Entity-model aliases only: FK badge green, PK badge amber |
 
-Box bodies are always `COLORS.background` (light) — only headers carry color.
+Keep bodies light when using a colored header. Dark hub chips and coherent night-themed figures are intentional alternatives.
 
 ### Hex divergence note
 
@@ -27,13 +27,13 @@ Two hex families exist in the wild:
 | muted | `#62758a` | `#607689` |
 | output green | `#10b981` | `#00ba85` |
 
-Always write `COLORS.*` so diagrams follow whichever hexes the installed facet ships. If brand parity with the newer website set is required, change facet's `src/components/diagram/colors.ts` (the shared seam) — do not hardcode the newer hexes per-diagram. (`Diagram`'s `colors` prop currently only feeds a CSS variable; it does not recolor `BoxNode`/`Arrow` presets.)
+Use `COLORS.*` when the intent is the installed Facet standard palette. If brand parity with the newer website set is required, change facet's `src/components/diagram/colors.ts` (the shared seam) rather than scattering replacements across diagrams. (`Diagram`'s `colors` prop currently only feeds a CSS variable; it does not recolor `BoxNode`/`Arrow` presets.)
 
-### Sanctioned off-palette exceptions
+### Semantic colors
 
 - `COLORS.pk` amber — PK badges in entity models.
-- Red `#ef4444` (+ Tailwind `red-100/300/700` for its label) — constraint/forbidden arrows only ("No Direct Access").
-- The **semantic Tailwind stage palette** in hub-and-spoke product overviews: each stage/system keeps a consistent hue via `BoxNode className/bodyClassName` pairs — `bg-blue-600`/`bg-blue-50` (discover/ingest), `bg-amber-600`/`bg-amber-50` (analyze), `bg-violet-600`/`bg-violet-50` (act/playbooks), `bg-emerald-500`/`bg-emerald-50` (Git/IaC), `bg-indigo-500`/`bg-indigo-50` (MCP/protocol), `bg-slate-500`/`bg-slate-100` (infrastructure). Use this only for the hub-and-spoke style; flow/pipeline/ER diagrams stay on the 5-color palette. Always pass literal class names — Tailwind cannot extract computed strings like `` `bg-${color}-600` ``.
+- Red `#ef4444` (+ Tailwind `red-100/300/700` for its label) is one existing constraint-arrow convention.
+- The **semantic Tailwind stage palette** in the hub-and-spoke example assigns consistent hues to stages. Use literal class names, since Tailwind cannot extract computed strings like `` `bg-${color}-600` ``. Other figures may use a shared role palette when its meanings are clear and consistent.
 
 ## Typography & sizing
 
@@ -61,6 +61,6 @@ Contrast: `text-white` on dark headers (`bg-{color}-600`), `text-{color}-700` on
 
 Sizes: `w-4 h-4` in headers/pills, `w-5 h-5` medium, `w-6 h-6` default in grids, `w-7 h-7` for hero and IconNode icons. Header icons render white (`text-white`/`fill-white` as needed); body icons take `COLORS.accent`.
 
-**White variants:** brand icons often ship in two variants — colored (`MissionControl`) and white (`MissionControlWhite`). The `*White` variant has hardcoded white fills that a `style={{ color }}` cannot recolor, so it is invisible on light backgrounds. Use `*White` only inside colored headers; everywhere else (light bodies, pills, IconNodes) use the colored variant.
+**White variants:** brand icons often ship in two variants — colored (`MissionControl`) and white (`MissionControlWhite`). The `*White` variant has hardcoded white fills that a `style={{ color }}` cannot recolor, so it is invisible on light backgrounds. Use it on sufficiently dark backgrounds and the colored variant on light bodies, pills and IconNodes.
 
 Both icon libraries are always resolvable in facet templates (facet installs them into every build workspace) — no package.json required next to the template.

@@ -8,9 +8,10 @@ Claude Code skills for [Facet](https://github.com/flanksource/facet) — buildin
 | --- | --- |
 | **facet-documents** | Authoring templates: `Document`/`Page`/`Header`/`Footer` structure, page sizes and margins, page numbers, the component library, the pt-based type scale, `Theme` tokens, Markdown/MDX |
 | **facet-cli** | Running facet: `html`/`pdf`/`png`/`fill-pdf`/`serve`/`lint`/`doctor`, render flags, data loading and schema validation, remote templates and remote rendering, troubleshooting |
-| **diagram-designer** | Node-and-arrow architecture, data-flow and ER diagrams: a four-phase workflow from brief to reviewed render, with five runnable layout examples |
+| **diagram-designer** | Node-and-arrow architecture, data-flow and ER diagrams: a workflow from brief to reviewed render, with runnable layout examples |
+| **diagram-designer-schema** | Create and update conceptual, logical, security and deployment diagrams from schema-backed architecture descriptions |
 
-Each skill keeps `SKILL.md` short and pushes depth into `references/`. `diagram-designer` also ships `examples/` with five runnable templates and their reference PNG renders.
+Each skill keeps `SKILL.md` focused and uses supporting references where needed. `diagram-designer` also ships runnable examples, reference renders and shared architecture schemas.
 
 ## Install
 
@@ -25,7 +26,7 @@ Or enable it directly in `settings.json`:
 { "enabledPlugins": { "facet-skills@flanksource-facet": true } }
 ```
 
-Skills are then invocable as `/facet-skills:facet-documents`, `/facet-skills:facet-cli` and `/facet-skills:diagram-designer`, and Claude will load them automatically when a task matches their description.
+Skills are then invocable as `/facet-skills:facet-documents`, `/facet-skills:facet-cli`, `/facet-skills:diagram-designer` and `/facet-skills:diagram-designer-schema`, and Claude will load them automatically when a task matches their description.
 
 ## Layout
 
@@ -36,7 +37,8 @@ Skills are then invocable as `/facet-skills:facet-documents`, `/facet-skills:fac
 └── skills/
     ├── facet-documents/SKILL.md + references/
     ├── facet-cli/SKILL.md + references/
-    └── diagram-designer/SKILL.md + references/ + examples/
+    ├── diagram-designer/SKILL.md + references/ + examples/ + schemas/
+    └── diagram-designer-schema/SKILL.md
 ```
 
 `plugin.json` lists the shipped skills explicitly, so unrelated vendored skills in this directory (e.g. `coss`) are not published with the plugin.

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Conceptual architecture",
+  "description": "Actors, capabilities, systems and their high-level relationships.",
+  "type": "object",
+  "allOf": [
+    {"$ref":"common.schema.json#/$defs/architectureBase"},
+    {"properties":{
+      "view":{"const":"conceptual"},
+      "elements":{"type":"array","items":{"$ref":"#/$defs/conceptualElement"}},
+      "relationships":{"type":"array","items":{"$ref":"#/$defs/conceptualRelationship"}}
+    }}
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "conceptualElement": {
+      "type": "object",
+      "allOf": [
+        {"$ref":"common.schema.json#/$defs/elementBase"},
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {"enum":["actor","system","external_system","capability","boundary","information","other"],"description":"Role of the element in the conceptual view."},
+            "children": {"type":"array","items":{"allOf":[{"$ref":"#/$defs/conceptualElement"},{"not":{"type":"object","required":["parent"]}}]}}
+          },
+          "allOf": [{"if":{"properties":{"kind":{"const":"other"}},"required":["kind"]},"then":{"required":["kindDetail"]}}]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "conceptualRelationship": {
+      "type": "object",
+      "allOf": [
+        {"$ref":"common.schema.json#/$defs/relationshipBase"},
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {"kind":{"enum":["uses","provides","interacts","depends_on","contains","exchanges","other"],"description":"Meaning of the relationship."}},
+          "allOf": [{"if":{"properties":{"kind":{"const":"other"}},"required":["kind"]},"then":{"required":["kindDetail"]}}]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}
