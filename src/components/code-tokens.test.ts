@@ -29,6 +29,8 @@ describe('tokenizeCode', () => {
     ['an anchor before its value', 'base: &base yes', [['key', 'base'], ['punctuation', ':'], ['meta', '&base '], ['keyword', 'yes']]],
     ['a block scalar indicator', 'script: |-', [['key', 'script'], ['punctuation', ':'], ['meta', '|-']]],
     ['a document marker', '---', [['meta', '---']]],
+    ['a plain key spaced from its colon', 'name  : web', [['key', 'name'], ['punctuation', ':'], ['string', 'web']]],
+    ['a quoted key spaced from its colon', '"a b" : 1', [['key', '"a b"'], ['punctuation', ':'], ['number', '1']]],
   ])('colours YAML %s', (_case, line, expected) => {
     expect(kinds(tokenizeCode(line, 'yaml'))).toEqual(expected);
   });
@@ -39,6 +41,23 @@ describe('tokenizeCode', () => {
       ['punctuation', '<'], ['tag', 'item'], ['attribute', 'id'], ['punctuation', '='], ['string', '"1"'],
       ['attribute', 'enabled'], ['punctuation', '/>'],
     ]);
+  });
+
+  it('colours an unterminated JSON block comment to the end of the source', () => {
+    expect(kinds(tokenizeCode('[1] /* open', 'json'))).toEqual([
+      ['punctuation', '['], ['number', '1'], ['punctuation', ']'], ['comment', '/* open'],
+    ]);
+  });
+
+  const REPEATS = 50_000;
+  it.each([
+    ['json', `/*${'a/*'.repeat(REPEATS)}`],
+    ['yaml', `!${' '.repeat(REPEATS)}x`],
+    ['yaml', `key: ${' '.repeat(REPEATS)}x`],
+  ])('tokenizes pathological %s input in linear time', (language, source) => {
+    const started = performance.now();
+    expect(tokenizeCode(source, language).map((token) => token.text).join('')).toBe(source);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 
   it('leaves languages it does not know as one plain token', () => {

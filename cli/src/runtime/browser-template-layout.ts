@@ -1,5 +1,6 @@
 import type { RedactPolicy } from '../builders/remark-config.js';
 import { applyBrowserLayout, type BrowserLayout } from '../utils/render-layout.js';
+import { scriptJSON } from '../utils/script-json.js';
 
 export const DEFAULT_MARKDOWN_PAGE = '<Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>';
 
@@ -23,9 +24,9 @@ ${options.footer ? "import Footer from './.facet-render-footer.tsx';" : ''}
 ${options.stylesheet ? `import ${JSON.stringify(options.stylesheet)};` : ''}
 ${options.dynamicStyles ? 'export const meta = { tailwind: "dynamic" };' : ''}
 export default function Layout({ children, data }) {
-  ${options.pageLayout ? `React.useLayoutEffect(() => (${applyBrowserLayout.toString()})(${JSON.stringify(options.pageLayout)}), []);` : ''}
+  ${options.pageLayout ? `React.useLayoutEffect(() => (${applyBrowserLayout.toString()})(${scriptJSON(options.pageLayout)}), []);` : ''}
   const props = { ...data, data };
-  return <RedactPolicyProvider policy={${JSON.stringify(options.redact ?? { allow: {} })}}><ThemeProvider theme={theme.theme ?? theme.facetTheme} options={data?.theme} overrides={${JSON.stringify({ header: !!options.header, footer: !!options.footer })}}>
+  return <RedactPolicyProvider policy={${scriptJSON(options.redact ?? { allow: {} })}}><ThemeProvider theme={theme.theme ?? theme.facetTheme} options={data?.theme} overrides={${JSON.stringify({ header: !!options.header, footer: !!options.footer })}}>
     ${options.header ? '<Header {...props} />' : ''}${content}${options.footer ? '<Footer {...props} />' : ''}
   </ThemeProvider></RedactPolicyProvider>;
 }

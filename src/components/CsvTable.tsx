@@ -49,7 +49,9 @@ const NUMERIC = /^[-+]?[\d,]*\.?\d+%?$/;
 
 /** A CSV/TSV block rendered as a table, header first, numeric columns right-aligned. */
 export default function CsvTable({ source, delimiter = ',', className = '' }: CsvTableProps) {
-  const [header = [], ...body] = parseDelimited(source.replace(/\n+$/, ''), delimiter);
+  let end = source.length;
+  while (source[end - 1] === '\n') end--;
+  const [header = [], ...body] = parseDelimited(source.slice(0, end), delimiter);
   const width = Math.max(header.length, ...body.map((row) => row.length));
   const columns = Array.from({ length: width }, (_, index) => index);
   const numeric = columns.map((index) => body.length > 0 && body.every((row) => !row[index] || NUMERIC.test(row[index]!.trim())));

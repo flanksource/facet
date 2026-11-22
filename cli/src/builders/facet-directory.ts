@@ -18,6 +18,7 @@ import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname, sep } from 'path';
 import { homedir } from 'os';
 import type { Logger } from '../utils/logger.js';
+import { scriptJSON } from '../utils/script-json.js';
 import {
   generatePluginCodegen,
   rehypePluginsArray,
@@ -276,11 +277,7 @@ export function localFacetBuildFingerprint(packageRoot: string): string {
  * `</script>` (or a JS line separator) cannot break out of the script context.
  */
 export function serializeInjectedData(data: Record<string, unknown>): string {
-  const json = JSON.stringify(data)
-    .replace(/</g, '\\u003c')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029');
-  return `window.__FACET_DATA__ = ${json};\n`;
+  return `window.__FACET_DATA__ = ${scriptJSON(data)};\n`;
 }
 
 export class FacetDirectory {
