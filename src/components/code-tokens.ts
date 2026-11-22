@@ -58,8 +58,6 @@ function merge(tokens: CodeToken[]): CodeToken[] {
 }
 
 const JSON_TOKEN = /("(?:[^"\\\n]|\\.)*"?)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(true|false|null)\b|([{}[\],:])|(\/\/[^\n]*|\/\*[\s\S]*?(?:\*\/|$))/g;
-const JSON_KEY_COLON = /\s*:/y;
-
 function tokenizeJson(code: string): CodeToken[] {
   const tokens: CodeToken[] = [];
   let at = 0;
@@ -67,8 +65,9 @@ function tokenizeJson(code: string): CodeToken[] {
     tokens.push({ kind: 'text', text: code.slice(at, match.index) });
     const [text, string, number, keyword, punctuation] = match;
     // A string is a key when the next non-space character is a colon.
-    JSON_KEY_COLON.lastIndex = match.index + text.length;
-    const isKey = string !== undefined && JSON_KEY_COLON.test(code);
+    let next = match.index + text.length;
+    while (string !== undefined && /\s/.test(code[next] ?? '')) next++;
+    const isKey = string !== undefined && code[next] === ':';
     tokens.push({
       kind: string !== undefined ? (isKey ? 'key' : 'string')
         : number !== undefined ? 'number'
