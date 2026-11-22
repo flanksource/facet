@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { playgroundHtml } from './playground-html.js';
+import { PLAYGROUND_RENDER_SCRIPT } from './playground-render-script.js';
 
 describe('playgroundHtml', () => {
   it('includes the editor runtime and renders server timing entries', () => {
@@ -27,7 +28,7 @@ describe('playgroundHtml', () => {
       showsTimingsInBanner: html.includes('function formatPreviewTimings(timings)'),
       handlesResultLoadFailure: html.includes('function onPreviewLoadError(url)'),
       // The base64/Blob path was unreachable: emitResult always sends a url.
-      hasDeadBlobBranch: html.includes('URL.createObjectURL'),
+      hasDeadBlobBranch: PLAYGROUND_RENDER_SCRIPT.includes('URL.createObjectURL'),
       hasFacetFavicon: html.includes('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg'),
     }).toEqual({
       hasEditor: true,

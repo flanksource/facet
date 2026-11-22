@@ -10,7 +10,6 @@ import {
   Theme,
 } from '@flanksource/facet';
 import type { TableSize, TypographyStyle } from '@flanksource/facet';
-import { IoCloudDone, IoPulse, IoShieldCheckmark } from 'react-icons/io5';
 import FlanksourceHeader from './FlanksourceHeader';
 import FlanksourceFooter from './FlanksourceFooter';
 import {

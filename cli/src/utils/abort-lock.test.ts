@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { AbortLock } from './abort-lock.js';
+import { AbortLock, waitForAbortable } from './abort-lock.js';
+
+it('handles the operation rejection when the signal has already aborted', async () => {
+  const cancellation = new Error('cancelled before waiting');
+  const result = waitForAbortable(Promise.reject(new Error('operation rejected')), AbortSignal.abort(cancellation));
+  await expect(result).rejects.toBe(cancellation);
+});
 
 describe('AbortLock', () => {
   it('removes a cancelled waiter without allowing later work to bypass the active owner', async () => {

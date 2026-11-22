@@ -67,6 +67,151 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /workspace/themes:
+    get:
+      operationId: listWorkspaceThemes
+      summary: List editable local theme packages
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceEditor"
+      responses:
+        "200":
+          description: Theme IDs, source directory names, settings availability, and successful build fingerprints.
+        "403":
+          description: The request did not come from the local editor.
+    post:
+      operationId: createWorkspaceTheme
+      summary: Scaffold a theme package
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceEditor"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  pattern: "^[a-z][a-z0-9-]*$"
+                  maxLength: 80
+      responses:
+        "201":
+          description: Theme package created.
+        "409":
+          description: A theme or its directory already exists.
+
+  /workspace/themes/{id}/files:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceEditor"
+      - $ref: "#/components/parameters/WorkspaceThemeID"
+    get:
+      operationId: listWorkspaceThemeFiles
+      summary: List theme source files and images
+      responses:
+        "200":
+          description: Package-relative file paths with their kind, media type, and writable status.
+
+  /workspace/themes/{id}/file:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceEditor"
+      - $ref: "#/components/parameters/WorkspaceThemeID"
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+        description: Package-relative source or image path.
+    get:
+      operationId: readWorkspaceThemeFile
+      summary: Read a theme file and its revision
+      responses:
+        "200":
+          description: Source or image bytes. The ETag is the revision for a subsequent save.
+          headers:
+            ETag:
+              schema:
+                type: string
+    put:
+      operationId: saveWorkspaceThemeFile
+      summary: Create or replace an editable theme file
+      parameters:
+        - name: If-Match
+          in: header
+          schema:
+            type: string
+          description: ETag of the version being replaced.
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+            const: "*"
+          description: Requires that the new path is unused.
+      requestBody:
+        required: true
+        content:
+          "*/*":
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: File saved. Returns the new revision.
+        "412":
+          description: The file changed or the new path already exists.
+        "428":
+          description: A save precondition is required.
+
+  /workspace/themes/{id}/settings:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceEditor"
+      - $ref: "#/components/parameters/WorkspaceThemeID"
+    get:
+      operationId: readWorkspaceThemeSettings
+      summary: Read declarative document defaults and editable colors with their revisions
+      responses:
+        "200":
+          description: Settings, or null when the package has no facet.themeEditor declaration.
+    put:
+      operationId: saveWorkspaceThemeSettings
+      summary: Save document defaults or palette colors
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, value]
+              properties:
+                kind:
+                  enum: [defaults, colors]
+                value:
+                  type: object
+      responses:
+        "200":
+          description: Settings saved to the package source. Returns the new revision.
+        "412":
+          description: The source file changed since the supplied revision.
+
+  /workspace/themes/{id}/build:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceEditor"
+      - $ref: "#/components/parameters/WorkspaceThemeID"
+    post:
+      operationId: buildWorkspaceTheme
+      summary: Build the theme and publish a local package snapshot
+      responses:
+        "200":
+          description: A successful local build. Returns the theme ID, build fingerprint, and build output.
+        "422":
+          description: The build failed. The last successful snapshot remains available.
+
   /templates:
     get:
       operationId: listTemplates
@@ -100,6 +245,15 @@ paths:
         - **JSON** with inline code or template name
         - **Multipart** with an uploaded archive
         - **Gzip** body with a tar.gz archive
+
+        The server's `--pdf-renderer page-runtime` option enables browser-compatible
+        template execution for PDF requests across these input modes. It uses the
+        same PDF output options and response shape as the default Node renderer.
+
+        HTML defaults to a rendered snapshot. `htmlMode: linked` embeds the source
+        files and input data for the browser runtime to compile and render. `htmlMode: bundle` returns
+        HTML and its sibling JavaScript as a JSON object with direct delivery.
+        Linked HTML is delivered as a download.
       security:
         - apiKey: []
         - bearerAuth: []
@@ -123,6 +277,24 @@ paths:
             type: string
             enum: [html, pdf, png, docx, pptx]
           description: Output format (gzip mode only).
+        - name: htmlMode
+          in: query
+          schema:
+            type: string
+            enum: [inline, linked, bundle]
+            default: inline
+          description: HTML export mode (gzip mode only).
+        - name: htmlRuntimeOrigin
+          in: query
+          schema:
+            type: string
+            format: uri
+          description: HTTP or HTTPS Facet server origin for linked HTML (gzip mode only).
+        - name: htmlCssScope
+          in: query
+          schema:
+            type: string
+          description: CSS scope class for HTML export (gzip mode only).
         - name: pageSizeOverride
           in: query
           schema:
@@ -208,7 +380,7 @@ paths:
       responses:
         "200":
           description: |
-            Rendered output. For HTML format, returns raw HTML. For PDF, PNG, DOCX and PPTX formats,
+            Rendered output. For HTML format, returns raw HTML or an `html` and `script` pair in bundle mode. For PDF, PNG, DOCX and PPTX formats,
             returns JSON with a `url` field pointing to `/results/{id}` where the
             cached binary result can be fetched. When `output: "s3"`, returns S3 upload details.
           headers:
@@ -226,12 +398,19 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/BinaryRenderResult"
                   - $ref: "#/components/schemas/S3UploadResult"
+                  - $ref: "#/components/schemas/BundledHTMLResult"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          description: The page runtime could not compile, link, or render the selected PDF template.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "504":
           $ref: "#/components/responses/Timeout"
 
@@ -242,6 +421,10 @@ paths:
       description: |
         Same as `/render` but returns a Server-Sent Events stream with progress
         updates followed by the final result. Used by the playground.
+
+        PDF requests use the server's configured PDF renderer.
+        HTML supports inline and linked modes. Linked HTML is returned in the
+        result's `data` field. Use `/render` for bundled HTML.
 
         **Event types:**
         - `data: {...}` — progress event with `stage`, `message`, `elapsed`, `duration`
@@ -256,6 +439,13 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/RenderRequest"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/MultipartRenderRequest"
+          application/gzip:
+            schema:
+              type: string
+              format: binary
       responses:
         "200":
           description: SSE stream of progress events and final result.
@@ -267,6 +457,51 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+
+  /runtime-assets/browser/profile.json:
+    get:
+      operationId: getHTMLPageRuntimeProfile
+      summary: Get the browser package profile for local live HTML exports
+      security: []
+      responses:
+        "200":
+          description: The selected Facet runtime's browser library and dependency configuration.
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /runtime-assets/{hash}/page-runtime.js:
+    parameters:
+      - name: hash
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        description: SHA-256 of the page runtime script emitted by this Facet build.
+    get:
+      operationId: getHTMLPageRuntime
+      summary: Download the live HTML page runtime
+      security: []
+      responses:
+        "200":
+          description: The immutable JavaScript asset for this build.
+          content:
+            text/javascript:
+              schema:
+                type: string
+        "404":
+          description: This Facet server does not have the requested build.
+    head:
+      operationId: checkHTMLPageRuntime
+      summary: Check that the live HTML runtime is available
+      security: []
+      responses:
+        "200":
+          description: The content and cache headers for the runtime script.
+        "404":
+          description: This Facet server does not have the requested build.
 
   /results/{id}:
     get:
@@ -334,6 +569,22 @@ paths:
                 type: string
 
 components:
+  parameters:
+    WorkspaceEditor:
+      name: X-Facet-Workspace
+      in: header
+      required: true
+      description: Available on a local server started with --themes-dir. Browser requests must be same-origin.
+      schema:
+        type: string
+        const: "1"
+    WorkspaceThemeID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z][a-z0-9-]*$"
   securitySchemes:
     apiKey:
       type: apiKey
@@ -377,6 +628,18 @@ components:
             dimensions; other templates reflow to 16:9. Conflicting PowerPoint presets
             in a single deck are rejected. Complex visuals
             are embedded images. PDF/PNG-specific options cannot be used with Office formats.
+        htmlMode:
+          type: string
+          enum: [inline, linked, bundle]
+          default: inline
+          description: Render a snapshot, link the live runtime, or return live HTML with a sibling runtime script. Applies only to HTML. Bundle requires direct delivery through `/render`.
+        htmlRuntimeOrigin:
+          type: string
+          format: uri
+          description: Optional HTTP or HTTPS Facet server origin for linked HTML.
+        htmlCssScope:
+          type: string
+          description: CSS scope class for HTML export.
         output:
           type: string
           enum: [direct, s3]
@@ -610,7 +873,18 @@ components:
           description: JSON string of template data.
         options:
           type: string
-          description: JSON string with `format`, `output`, `entryFile`, `pdfOptions`, `pngOptions`, `timeout`, etc.
+          description: JSON string with `format`, `output`, `entryFile`, `htmlMode`, `htmlRuntimeOrigin`, `htmlCssScope`, `pdfOptions`, `pngOptions`, `timeout`, etc.
+
+    BundledHTMLResult:
+      type: object
+      required: [html, script]
+      properties:
+        html:
+          type: string
+          description: Live document referencing a sibling JavaScript file.
+        script:
+          type: string
+          description: Page runtime and compiled template to save as the filename referenced by the document.
 
     TemplateInfo:
       type: object

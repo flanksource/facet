@@ -2,7 +2,7 @@ import { serverCacheDirectory } from '../runtime/workspace.js';
 import { cascadeOrder } from '@flanksource/page-runtime/styles';
 import { createHash } from 'node:crypto';
 import { lstatSync, rmSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -35,12 +35,27 @@ export interface ResolvedSource {
   archiveCleanup?: () => void;
 }
 
+async function addArchiveTheme(root: string, name: string, spec: string): Promise<void> {
+  const path = join(root, 'package.json');
+  let pkg;
+  try { pkg = JSON.parse(await readFile(path, 'utf8')); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    pkg = {};
+  }
+  pkg.dependencies = { ...pkg.dependencies, [name]: spec };
+  for (const field of ['devDependencies', 'optionalDependencies']) if (pkg[field]) delete pkg[field][name];
+  await writeFile(path, JSON.stringify(pkg));
+}
+
 export async function resolveTemplateSource(
   parsed: ParsedRenderRequest,
   templates: TemplateInfo[],
   config: ServerConfig,
 ): Promise<ResolvedSource> {
   const { source } = parsed;
+  const theme = config.pdfRenderer === 'page-runtime' && parsed.format === 'pdf' ? undefined : parsed.workspaceTheme;
+  const themeDependencies = theme && { [theme.package]: 'file:' + theme.root };
 
   if (source.kind === 'inline') {
     const entryFile = `Template.${source.ext ?? 'tsx'}`;
@@ -57,6 +72,10 @@ export async function resolveTemplateSource(
 
   if (source.kind === 'archive') {
     const extracted = await extractArchive(source.data, source.entryFile, config.maxUploadSize);
+    if (theme) {
+      try { await addArchiveTheme(extracted.consumerRoot, theme.package, 'file:' + theme.root); }
+      catch (error) { extracted.cleanup(); throw error; }
+    }
     return {
       consumerRoot: extracted.consumerRoot,
       entryFile: extracted.entryFile,
@@ -71,7 +90,7 @@ export async function resolveTemplateSource(
 
     const resolved = await resolveRemoteRef(ref, { verbose: config.verbose });
     const cacheDir = serverCacheDirectory(config);
-    const workspace = await acquireTemplateWorkspace(resolved.consumerRoot, resolved.templateFile, cacheDir);
+    const workspace = await acquireTemplateWorkspace(resolved.consumerRoot, resolved.templateFile, cacheDir, themeDependencies);
     return {
       consumerRoot: workspace.path,
       entryFile: resolved.templateFile,
@@ -84,7 +103,7 @@ export async function resolveTemplateSource(
   if (!info) throw new RenderError('TEMPLATE_NOT_FOUND', `Template not found: ${source.name}`, 404);
 
   const cacheDir = serverCacheDirectory(config);
-  const workspace = await acquireTemplateWorkspace(info.consumerRoot, info.entryFile, cacheDir);
+  const workspace = await acquireTemplateWorkspace(info.consumerRoot, info.entryFile, cacheDir, themeDependencies);
   return {
     consumerRoot: workspace.path,
     entryFile: info.entryFile,
@@ -378,10 +397,11 @@ export async function respondWithOutput(options: {
   logger: Logger;
 }): Promise<Response> {
   const { content, contentType, extension, templateName, parsed, s3, logger } = options;
+  const attachment = parsed.htmlMode === 'linked';
   if (parsed.output === 's3') {
     if (!s3) throw new RenderError('INVALID_REQUEST', 'S3 not configured', 400);
     const key = parsed.s3Key ?? s3.generateKey(templateName, extension);
-    const url = await s3.upload(key, content, contentType);
+    const url = await s3.upload({ key, body: content, contentType, attachment });
     const presigned = await s3.presignedUrl(key);
     logger.debug(`Uploaded to S3: ${key}`);
     return Response.json({ url, presignedUrl: presigned, key });
@@ -391,7 +411,7 @@ export async function respondWithOutput(options: {
   return new Response(typeof content === 'string' ? content : new Uint8Array(content), {
     headers: {
       'content-type': contentType,
-      'content-disposition': `inline; filename="${filename}"`,
+      'content-disposition': `${attachment ? 'attachment' : 'inline'}; filename="${filename}"`,
     },
   });
 }

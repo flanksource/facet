@@ -48,47 +48,46 @@ export async function waitForPageReady(
   page: Page,
   options: PageReadinessOptions = {},
 ): Promise<void> {
-  const timeoutMs = options.timeoutMs ?? 30_000;
-  const waitForFacet = options.waitForFacet ?? true;
+  await page.evaluate(waitForBrowserResources, { timeout: options.timeoutMs ?? 30_000, facet: options.waitForFacet ?? true });
+}
 
-  await page.evaluate(
-    async ({ timeout, facet }) => {
-      const pending: Promise<unknown>[] = [
-        document.fonts.ready,
-        Promise.all(
-          Array.from(document.images, async (image) => {
-            if (!image.complete) {
-              await new Promise<void>((resolve) => {
-                image.addEventListener('load', () => resolve(), { once: true });
-                image.addEventListener('error', () => resolve(), { once: true });
-              });
-            }
-            if (typeof image.decode === 'function') {
-              await image.decode().catch(() => undefined);
-            }
-          }),
-        ),
-      ];
-
-      if (facet) {
-        const ready = (window as typeof window & { __FACET_READY__?: Promise<unknown> }).__FACET_READY__;
-        if (ready && typeof ready.then === 'function') pending.push(ready);
-      }
-
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      try {
-        await Promise.race([
-          Promise.all(pending),
-          new Promise<void>((resolve) => {
-            timer = setTimeout(resolve, timeout);
-          }),
-        ]);
-      } finally {
-        if (timer) clearTimeout(timer);
-      }
-    },
-    { timeout: timeoutMs, facet: waitForFacet },
-  );
+async function waitForBrowserResources({ timeout, facet }: { timeout: number; facet: boolean }): Promise<void> {
+  let phase = 'the live Facet document';
+  let observer: MutationObserver | undefined;
+  const ready = async () => {
+    if (facet && document.getElementById('facet-document-status')) {
+      await new Promise<void>((resolve, reject) => {
+        const check = () => {
+          const status = document.getElementById('facet-document-status');
+          if (status?.getAttribute('role') === 'alert') reject(new Error(status.textContent?.trim() || 'Live Facet document failed'));
+          if (!status) resolve();
+        };
+        observer = new MutationObserver(check);
+        observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['role'] });
+        check();
+      });
+      observer?.disconnect();
+    }
+    phase = 'the template readiness hook';
+    if (facet) await (window as typeof window & { __FACET_READY__?: Promise<unknown> }).__FACET_READY__;
+    phase = 'page fonts and images';
+    await Promise.all([document.fonts.ready, ...Array.from(document.images, async (image) => {
+      if (!image.complete) await new Promise<void>((resolve) => {
+        image.addEventListener('load', () => resolve(), { once: true });
+        image.addEventListener('error', () => resolve(), { once: true });
+      });
+      if (typeof image.decode === 'function') await image.decode().catch(() => undefined);
+    })]);
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([ready(), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Timed out waiting for ${phase} after ${timeout}ms`)), timeout);
+    })]);
+  } finally {
+    clearTimeout(timer);
+    observer?.disconnect();
+  }
 }
 
 /** Load self-contained HTML and wait until it is stable enough to print. */
@@ -114,8 +113,8 @@ export async function setPreparedContent(
   page.on('response', trackResponseFailure);
   try {
     await page.setContent(html, { waitUntil: 'load', timeout: timeoutMs });
-    await renderMermaidInPage(page);
     await waitForPageReady(page, options);
+    if (await renderMermaidInPage(page)) await waitForPageReady(page, { ...options, waitForFacet: false });
     const failedFonts = await page.evaluate(() => {
       const families: string[] = [];
       document.fonts.forEach((font) => {

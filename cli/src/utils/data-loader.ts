@@ -7,6 +7,7 @@ import { selfExecBase } from './self-exec.js';
 import { Logger } from './logger.js';
 import { parseRemoteRef, resolveRemoteRef } from './remote-resolver.js';
 import type { LoadedData, GenerateOptions } from '../types.js';
+import { selectedRuntime } from '../runtime/named.js';
 
 export async function loadDataFile(filePath: string): Promise<Record<string, unknown>> {
   const extension = extname(filePath).toLowerCase();
@@ -70,7 +71,7 @@ export class DataLoader {
       if (ext === '.ts') {
         this.logger.debug('Executing TypeScript file with Oxc');
         const [command, ...baseArgs] = selfExecBase();
-        const result = await runLowPriority({ command, args: [...baseArgs, absolutePath, ...args], options: { env: { ...process.env, FACET_LOADER: 'data' } } });
+        const result = await runLowPriority({ command, args: [...baseArgs, absolutePath, ...args], options: { env: { ...process.env, FACET_LOADER: 'data', FACET_DATA_RUNTIME_ROOT: selectedRuntime()?.root } } });
         this.logger.debug(`Executed ${absolutePath} with args: ${args.join(' ')}`);
 
         const module = { data: JSON.parse(result.stdout.toString()) };

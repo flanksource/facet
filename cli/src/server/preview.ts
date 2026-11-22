@@ -28,6 +28,10 @@ import { assetPath } from '../utils/assets.js';
 import { installedRuntime } from '../runtime/installed.js';
 import { requestAbortSignal } from './request-abort.js';
 import { startBrowserOrigin, type BrowserOrigin } from '../runtime/browser-origin.js';
+import { startPageRuntimeHost } from './page-runtime-worker.js';
+import { documentRuntime } from '../generators/html-artifact.js';
+import { WorkspaceThemes } from './workspace-themes.js';
+import { handleWorkspaceThemes } from './workspace-theme-routes.js';
 
 const facetVersion: string = JSON.parse(readFileSync(assetPath('package.json'), 'utf-8')).version;
 const openapiSpec: string = readFileSync(assetPath('openapi.yaml'), 'utf-8');
@@ -42,6 +46,10 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   const logger = new Logger(config.verbose);
   const ssrLoaderOwner = {};
   const browserOrigins = new Map<string, Promise<BrowserOrigin>>();
+  const workspaceOrigins = new Map<string, { build: string; runtime: Promise<BrowserOrigin> }>();
+  const themeWorkspace = config.themesDir ? new WorkspaceThemes(resolve(config.themesDir)) : undefined;
+  if (themeWorkspace && config.skipModules) throw new Error('--themes-dir requires project modules; omit --skip-modules');
+  let htmlRuntime: ReturnType<typeof documentRuntime> | undefined;
 
   if (config.skipModules && !process.env.FACET_DEV_ROOT) {
     await installedRuntime();
@@ -53,14 +61,23 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
   const templates = await discoverTemplates(templatesDir);
   logger.info(`Discovered ${templates.length} templates: ${templates.map((t: TemplateInfo) => t.name).join(', ') || '(none)'}`);
 
+  if (config.pdfRenderer === 'page-runtime' && config.workers < 1) throw new Error('The page-runtime PDF renderer requires at least one worker');
+  if (config.pdfRenderer === 'page-runtime' && config.sandbox) throw new Error('--sandbox configures the Node renderer; page-runtime PDF uses the Chromium sandbox');
+  const runtimeHost = config.pdfRenderer === 'page-runtime' ? await startPageRuntimeHost() : undefined;
   const pool = new WorkerPool(config.workers, config.verbose, {
+    ...(runtimeHost ? { initializePageRuntime: runtimeHost.initialize } : {}),
     maxRendersPerWorker: config.maxRendersPerWorker,
     maxQueueDepth: config.maxQueueDepth,
     maxWorkerAgeMs: config.maxWorkerAgeMs,
     maxWorkerRssMb: config.maxWorkerRssMb,
     acquireTimeoutMs: config.workerAcquireTimeoutMs,
   });
-  await pool.start();
+  try { await pool.start(); }
+  catch (error) {
+    await pool.shutdown();
+    await runtimeHost?.close();
+    throw error;
+  }
 
   const s3 = config.s3 ? new S3Uploader(config.s3) : undefined;
   if (s3) logger.info(`S3 upload enabled: ${config.s3!.bucket}`);
@@ -71,9 +88,14 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
 
   async function handleRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    const address = httpServer.address();
+    const serverPort = typeof address === 'object' && address ? address.port : config.port;
+    if (themeWorkspace && (!['localhost', '127.0.0.1'].includes(url.hostname) || (url.port || '80') !== String(serverPort))) {
+      return new Response('Use the local Facet server address', { status: 403 });
+    }
 
     if (url.pathname === '/' && request.method === 'GET') {
-      return new Response(playgroundHtml(facetVersion), { headers: { 'content-type': 'text/html; charset=utf-8' } });
+      return new Response(playgroundHtml(facetVersion, !!themeWorkspace), { headers: { 'content-type': 'text/html; charset=utf-8' } });
     }
 
     if (url.pathname === '/types' && request.method === 'GET') {
@@ -86,6 +108,36 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
 
     if (url.pathname === '/healthz' && request.method === 'GET') {
       return handleHealthz(pool);
+    }
+
+    if (/^\/runtime-assets\/[a-f0-9]{64}\/page-runtime\.js$/.test(url.pathname) && ['GET', 'HEAD'].includes(request.method)) {
+      htmlRuntime ??= documentRuntime();
+      if (htmlRuntime.path !== url.pathname) return new Response('Facet HTML runtime build not found', { status: 404 });
+      return new Response(request.method === 'HEAD' ? null : new Uint8Array(htmlRuntime.bytes), {
+        headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=31536000, immutable', 'access-control-allow-origin': '*' },
+      });
+    }
+
+    if (url.pathname.startsWith('/runtime-assets/browser/')) {
+      const path = url.pathname.slice('/runtime-assets/browser'.length);
+      if (!/^\/(?:profile\.json|runtime-exports\.json|_packages\/.+|_generations\/.+)$/.test(path)) return new Response('Runtime package route not found', { status: 404 });
+      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, HEAD', 'access-control-allow-private-network': 'true' };
+      if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+      if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(null, { status: 405, headers: cors });
+      const key = 'document-runtime';
+      let runtime = browserOrigins.get(key);
+      if (!runtime) {
+        runtime = startBrowserOrigin({ hostOrigin: 'http://127.0.0.1', themeRoots: discoverThemes(process.cwd()).map(theme => theme.root) });
+        browserOrigins.set(key, runtime);
+        void runtime.catch(() => { browserOrigins.delete(key); });
+      }
+      const resource = await fetch((await runtime).origin + path + url.search, { method: request.method, signal: request.signal, redirect: 'error' });
+      const headers = new Headers(Object.entries(cors));
+      for (const name of ['content-type', 'cache-control']) {
+        const value = resource.headers.get(name);
+        if (value) headers.set(name, value);
+      }
+      return new Response(resource.body, { status: resource.status, headers });
     }
 
     // Fill-PDF playground assets + samples are public, like the playground HTML.
@@ -108,11 +160,40 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
     const authErr = checkAuth(request, config.apiKey);
     if (authErr) return errorResponse(authErr);
 
-    if (url.pathname === '/themes') return Response.json({ default: config.theme ?? 'facet', themes: [{ id: 'facet', module: '@flanksource/facet/Theme' }, ...discoverThemes(process.cwd()).map(({ id, module, package: name, version }) => ({ id, module, package: name, version }))] });
+    if (themeWorkspace && /^\/workspace\/themes(?:\/|$)/.test(url.pathname)) return handleWorkspaceThemes(request, themeWorkspace, serverPort);
+    if (url.pathname === '/themes' && request.method === 'GET') {
+      const local = themeWorkspace?.list() ?? [];
+      const installed = discoverThemes(process.cwd()).filter(theme => !local.some(other => other.id === theme.id));
+      const built = await Promise.all(local.map(theme => themeWorkspace!.published(theme)));
+      const themes = [{ id: 'facet', module: '@flanksource/facet/Theme' }, ...installed.map(({ id, module, package: name, version }) => ({ id, module, package: name, version })),
+        ...built.flatMap(theme => theme ? [{ id: theme.id, module: theme.module, package: theme.package, version: theme.version, build: theme.build }] : [])];
+      return Response.json({ default: config.theme ?? 'facet', themes }, { headers: { 'cache-control': 'no-store' } });
+    }
     if (url.pathname === '/playground/runtime' && request.method === 'GET') {
       try {
         const theme = url.searchParams.get('theme') ?? 'facet';
         const key = url.origin + '/' + theme;
+        const local = themeWorkspace?.list().find(item => item.id === theme);
+        if (themeWorkspace && local) {
+          const built = await themeWorkspace.published(local);
+          if (!built) throw new Error(`Build the workspace theme ${theme} in Theme editor first`);
+          let entry = workspaceOrigins.get(key);
+          if (!entry || entry.build !== built.build) {
+            const previous = entry;
+            const runtime = startBrowserOrigin({ hostOrigin: url.origin, publishedThemes: [built] });
+            entry = { build: built.build, runtime };
+            workspaceOrigins.set(key, entry);
+            void runtime.then(() => {
+              void previous?.runtime.then(value => value.close()).catch(error => logger.warn(String(error)));
+            }, () => {
+              if (workspaceOrigins.get(key)?.runtime === runtime) {
+                if (previous) workspaceOrigins.set(key, previous);
+                else workspaceOrigins.delete(key);
+              }
+            });
+          }
+          return Response.json({ runtimeOrigin: (await entry.runtime).origin }, { headers: { 'cache-control': 'no-store' } });
+        }
         const selected = discoverThemes(process.cwd()).find(item => item.id === theme);
         if (theme !== 'facet' && !selected) throw new Error('Unknown theme: ' + theme);
         let runtime = browserOrigins.get(key);
@@ -138,11 +219,11 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
     }
 
     if (url.pathname === '/render/stream' && request.method === 'POST') {
-      return handleRenderStream(request, config, pool, templates, cache, s3);
+      return handleRenderStream(request, config, pool, templates, cache, s3, themeWorkspace);
     }
 
     if (url.pathname === '/render' && request.method === 'POST') {
-      return handleRender(request, config, pool, templates, cache, s3);
+      return handleRender(request, config, pool, templates, cache, s3, themeWorkspace);
     }
 
     return Response.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 });
@@ -166,22 +247,25 @@ export async function createServer(config: ServerConfig): Promise<ServerHandle> 
     httpServer.once('error', rejectListen);
     // Bind all interfaces: Kubernetes probes and pod-network traffic reach the
     // server via the pod IP, not loopback.
-    httpServer.listen(config.port, () => {
+    httpServer.listen(config.port, themeWorkspace ? '127.0.0.1' : undefined, () => {
       const addr = httpServer.address();
       resolveListen(typeof addr === 'object' && addr ? addr.port : config.port);
     });
   });
 
-  logger.success(`Server listening on http://localhost:${port}`);
+  const origin = `http://${themeWorkspace ? '127.0.0.1' : 'localhost'}:${port}`;
+  logger.success(`Server listening on ${origin}`);
 
   return {
     port,
-    url: `http://localhost:${port}`,
+    url: origin,
     stop: async () => {
       await new Promise<void>((resolveClose) => httpServer.close(() => resolveClose()));
       await Promise.all([
         ...Array.from(browserOrigins.values(), async runtime => (await runtime).close()),
+        ...Array.from(workspaceOrigins.values(), ({ runtime }) => runtime.then(value => value.close())),
         pool.shutdown(),
+        runtimeHost?.close(),
         shutdownPersistentSsrLoaders(ssrLoaderOwner),
       ]);
     },

@@ -1,7 +1,7 @@
 import type { Browser, BoundingBox, ElementHandle, Page } from 'puppeteer-core';
 
 import type { PNGOptions, PNGViewport } from '../types.js';
-import { renderMermaidInPage, waitForPageReady } from './browser-readiness.js';
+import { setPreparedContent } from './browser-readiness.js';
 import { type CaptureBox, cropClip, measureContentBounds } from './png-trim.js';
 
 /**
@@ -93,7 +93,7 @@ export async function resolvePNGTarget(
 ): Promise<ElementHandle<Element>> {
   let targets: ElementHandle<Element>[];
   try {
-    targets = await page.$$(options.selector);
+    targets = await page.$$(options.selector === DEFAULT_PNG_SELECTOR ? ':root > body' : options.selector);
   } catch (error) {
     throw new Error(`Invalid PNG selector "${options.selector}": ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -157,9 +157,7 @@ export async function generatePNGBuffer(
   const page = await browser.newPage();
   try {
     await page.setViewport({ ...options.viewport, deviceScaleFactor: 1 });
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-    await renderMermaidInPage(page);
-    await waitForPageReady(page);
+    await setPreparedContent(page, html);
     await page.evaluate(() => new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     }));

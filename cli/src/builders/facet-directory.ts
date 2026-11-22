@@ -18,6 +18,7 @@ import { createHash } from 'crypto';
 import { join, relative, dirname, resolve, extname, sep } from 'path';
 import { homedir } from 'os';
 import type { Logger } from '../utils/logger.js';
+import { scriptJSON } from '../utils/script-json.js';
 import {
   generatePluginCodegen,
   rehypePluginsArray,
@@ -27,7 +28,7 @@ import {
   type RedactPolicy,
 } from './remark-config.js';
 
-import { themeEntry, themeFingerprint } from './themes.js';
+import { discoverThemes, themeEntry, themeFingerprint } from './themes.js';
 import { cascadeOrder } from '@flanksource/page-runtime/styles';
 import { assetPath } from '../utils/assets.js';
 import { createDefaultModulePackageJson, defaultModuleNpmrc, REQUIRED_DEPENDENCIES } from '../runtime/manifest.js';
@@ -38,6 +39,7 @@ import { pageStyles, wrapFacetStylesInLayer } from '../../../dist/page-styles/in
 export { wrapFacetStylesInLayer } from '../../../dist/page-styles/index.mjs';
 import { resolveConsumerDependencies, readWorkspaceOverrides, resolveOverrideValues } from './consumer-dependencies.js';
 import { computeTemplateBuildKey } from '../bundler/build-cache.js';
+import { DEFAULT_MARKDOWN_PAGE } from '../runtime/browser-template-layout.js';
 
 const rootPackageJson = assetPath('package.json');
 
@@ -275,11 +277,7 @@ export function localFacetBuildFingerprint(packageRoot: string): string {
  * `</script>` (or a JS line separator) cannot break out of the script context.
  */
 export function serializeInjectedData(data: Record<string, unknown>): string {
-  const json = JSON.stringify(data)
-    .replace(/</g, '\\u003c')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029');
-  return `window.__FACET_DATA__ = ${json};\n`;
+  return `window.__FACET_DATA__ = ${scriptJSON(data)};\n`;
 }
 
 export class FacetDirectory {
@@ -423,19 +421,25 @@ export class FacetDirectory {
     const templateRelPath = relative(this.consumerRoot, join(this.consumerRoot, this.templateFile));
     const ext = this.templateFile.match(/\.[^.]+$/)?.[0] ?? '';
     const isMarkdown = ext === '.md' || ext === '.mdx';
+    const markdownPage = this.theme && this.theme !== 'facet'
+      ? '<Page>'
+      : DEFAULT_MARKDOWN_PAGE;
 
     const entry = isMarkdown
       ? `import React from 'react';
 import './facet.css';
-import { Document, Page, RedactPolicyProvider } from '@flanksource/facet';
+import Document from '@flanksource/facet/Document';
+import Page from '@flanksource/facet/Page';
+import { RedactPolicyProvider } from '@flanksource/facet/Classified';
+import { mdxComponents } from '@flanksource/facet/MdxCodeBlock';
 import { Icon } from '@iconify/react';
 import Content from './src/${templateRelPath}';
 
 export default function Template({ data }) {
   return (
-    <RedactPolicyProvider policy={${JSON.stringify(this.redact ?? { allow: {} })}}><Document title={data?.title}><Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+    <RedactPolicyProvider policy={${JSON.stringify(this.redact ?? { allow: {} })}}><Document title={data?.title}>${markdownPage}
       <article className="prose">
-        <Content components={{ Icon }} {...data} />
+        <Content components={{ ...mdxComponents, Icon }} {...data} />
       </article>
     </Page></Document></RedactPolicyProvider>
   );
@@ -443,7 +447,7 @@ export default function Template({ data }) {
 `
       : `import React from 'react';
 import './facet.css';
-import { RedactPolicyProvider } from '@flanksource/facet';
+import { RedactPolicyProvider } from '@flanksource/facet/Classified';
 import Template from './src/${templateRelPath}';
 
 
@@ -456,7 +460,7 @@ export default function Entry(props) {
     const selected = themeEntry(this.facetRoot, this.theme);
     const themeCss = this.theme && this.theme !== 'facet' ? `import ${JSON.stringify(selected.slice(0, selected.lastIndexOf('/')) + '/styles.css')};` : '';
     const themed = entry.replace('export default function', 'function');
-    writeFileSync(entryPath, `${themeCss}\nimport { ThemeProvider } from '@flanksource/facet';\nimport { ${this.theme && this.theme !== 'facet' ? 'theme' : 'facetTheme'} as selectedTheme } from ${JSON.stringify(selected)};\n${themed}\nexport default function ThemedEntry(props) { return <ThemeProvider theme={selectedTheme} options={props.data?.theme} overrides={${JSON.stringify(this.themeOverrides ?? {})}}><${isMarkdown ? 'Template' : 'Entry'} {...props} /></ThemeProvider>; }`, 'utf-8');
+    writeFileSync(entryPath, `${themeCss}\nimport { ThemeProvider } from '@flanksource/facet/Theme';\nimport { ${this.theme && this.theme !== 'facet' ? 'theme' : 'facetTheme'} as selectedTheme } from ${JSON.stringify(selected)};\n${themed}\nexport default function ThemedEntry(props) { return <ThemeProvider theme={selectedTheme} options={props.data?.theme} overrides={${JSON.stringify(this.themeOverrides ?? {})}}><${isMarkdown ? 'Template' : 'Entry'} {...props} /></ThemeProvider>; }`, 'utf-8');
 
     this.logger.debug('Generated entry.tsx');
   }
@@ -575,10 +579,17 @@ export default defineConfig(async () => {
    * --live path so DOM-measuring components (diagrams/react-xarrows) render in a
    * real browser. The SSR entry.tsx is reused as the template source.
    */
-  generateClientScaffold(data: Record<string, unknown>): void {
+  generateClientScaffold(data: Record<string, unknown>, mode: 'preview' | 'export' = 'preview'): void {
     this.logger.debug('Generating live-render client scaffold');
 
-    const clientEntry = `import React from 'react';
+    const clientEntry = mode === 'export' ? `import * as React from 'react';
+import * as ReactDOMClient from 'react-dom/client';
+import * as ReactDOM from 'react-dom';
+import Template from './entry.tsx';
+import './live-tailwind.css';
+
+void globalThis.FacetDocumentRuntime.mount({ default: Template }, [React, ReactDOMClient, ReactDOM]);
+` : `import React from 'react';
 import { createRoot } from 'react-dom/client';
 import Template from './entry.tsx';
 import './live-tailwind.css';
@@ -994,7 +1005,8 @@ export default defineConfig(async () => {
 
   private async ensureLocalFacetPackageBuilt(packageRoot: string): Promise<void> {
     const isCurrent = (): boolean =>
-      !needsLocalFacetComponentsBuild(packageRoot) && !needsLocalFacetCssBuild(packageRoot);
+      !needsLocalFacetComponentsBuild(packageRoot) && !needsLocalFacetCssBuild(packageRoot) &&
+      ['importmap.json', 'barrels.json'].every(name => existsSync(join(packageRoot, 'dist/runtime', name)));
     if (isCurrent()) {
       this.logger.debug(`FACET_PACKAGE_PATH build outputs are current: ${packageRoot}`);
       return;
@@ -1013,9 +1025,7 @@ export default defineConfig(async () => {
       if (shouldBuildCss || needsLocalFacetCssBuild(packageRoot)) {
         await this.runLocalFacetBuildScript(packageRoot, 'build:css');
       }
-      if (process.env.FACET_DEV_ROOT && (rebuildComponents || !existsSync(join(packageRoot, 'dist/runtime/importmap.json')))) {
-        await this.runLocalFacetBuildScript(packageRoot, 'build:runtime');
-      }
+      await this.runLocalFacetBuildScript(packageRoot, 'build:runtime');
     });
   }
 
@@ -1146,8 +1156,10 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
         const consumerPath = relative(this.consumerRoot, resolve(templateDir, specifier)).split(sep).join('/');
         return `./src/${consumerPath}`;
       });
+    const theme = this.theme && this.theme !== 'facet' ? discoverThemes(this.facetRoot).find(theme => theme.id === this.theme) : undefined;
     const postProcessLines = [
       "@import './facet.css';",
+      ...(theme ? [`@import '${theme.package}/styles.css';`] : []),
       ...imports.map((specifier) => `@import '${specifier}';`),
     ];
     const normalizedTemplateFile = this.templateFile.replaceAll('\\', '/').replace(/^\.\//, '');
@@ -1189,7 +1201,7 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
    * folded into the build-cache key so config changes at an unchanged facet
    * version invalidate cached bundles.
    */
-  generatedConfigDigest(): string {
+  generatedConfigDigest({ pinned = false }: { pinned?: boolean } = {}): string {
     const hash = createHash('sha256');
     hash.update(themeFingerprint(this.facetRoot, this.theme) ?? 'facet');
     const generated = [
@@ -1217,6 +1229,7 @@ export default { plugins: [autoprefixer(), facetFontScale()] };
         hash.update('\0');
       } catch { /* variant-specific file not generated */ }
     }
+    if (pinned) return hash.digest('hex');
     const manifest = JSON.parse(readFileSync(join(this.facetRoot, 'package.json'), 'utf8'));
     for (const path of Object.keys(dependencyManifest(manifest).localDependencies ?? {})) {
       if (!statSync(path).isDirectory()) continue;

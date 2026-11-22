@@ -12,6 +12,7 @@ export interface EnvironmentOptions {
   logger: Logger;
   install: (root: string) => Promise<string>;
   invalidate?: boolean;
+  baseIdentity?: string;
 }
 
 function canonical(value: unknown): string {
@@ -47,7 +48,7 @@ async function lock(path: string): Promise<() => void> {
 
 export async function ensureEnvironment(options: EnvironmentOptions): Promise<RuntimeEnvironment> {
   const manifest = dependencyManifest(options.manifest);
-  const identity = createHash('sha256').update(canonical({ schema: 3, manifest, registry: registrySettings(options.npmrc), platform: process.platform, arch: process.arch, abi: process.versions.modules })).digest('hex');
+  const identity = createHash('sha256').update(canonical({ schema: 3, manifest, ...(options.baseIdentity ? { base: options.baseIdentity } : {}), registry: registrySettings(options.npmrc), platform: process.platform, arch: process.arch, abi: process.versions.modules })).digest('hex');
   const parent = join(options.cacheRoot, 'environments');
   const base = join(parent, identity);
   const dependencies = manifest.dependencies as Record<string, string>;

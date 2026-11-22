@@ -4,6 +4,19 @@ import { join } from 'node:path';
 
 export interface InstalledTheme { id: string; module: string; package: string; version: string; root: string }
 
+export function packageThemes(root: string, name: string, pkg: {
+  version?: string; exports?: Record<string, unknown>; facet?: { themes?: Record<string, unknown> };
+}): InstalledTheme[] {
+  return Object.entries(pkg.facet?.themes ?? {}).map(([id, entry]) => {
+    if (id === 'facet') throw new Error(`Duplicate or reserved theme alias: ${id}`);
+    if (!/^[a-z][a-z0-9-]*$/.test(id) || typeof entry !== 'string' || !entry.startsWith('./') || !Object.hasOwn(pkg.exports ?? {}, entry)) {
+      throw new Error(`${name}: invalid facet.themes entry ${id}`);
+    }
+    if (typeof pkg.version !== 'string' || !pkg.version) throw new Error(`${name}: theme package needs a version`);
+    return { id, module: name + entry.slice(1), package: name, version: pkg.version, root };
+  });
+}
+
 export function themeFingerprint(root: string, id?: string): string | undefined {
   const theme = discoverThemes(root).find(theme => theme.id === id);
   if (!theme) return undefined;
@@ -26,11 +39,9 @@ export function discoverThemes(root: string): InstalledTheme[] {
     const path = join(root, 'node_modules', name, 'package.json');
     if (!existsSync(path)) continue;
     const pkg = JSON.parse(readFileSync(path, 'utf8'));
-    for (const [id, entry] of Object.entries(pkg.facet?.themes ?? {})) {
-      if (id === 'facet' || themes.some(theme => theme.id === id)) throw new Error(`Duplicate or reserved theme alias: ${id}`);
-      if (!/^[a-z][a-z0-9-]*$/.test(id) || typeof entry !== 'string' || !entry.startsWith('./') || !pkg.exports?.[entry]) throw new Error(`${name}: invalid facet.themes entry ${id}`);
-      if (typeof pkg.version !== 'string') throw new Error(`${name}: theme package needs a version`);
-      themes.push({ id, module: name + entry.slice(1), package: name, version: pkg.version, root: realpathSync(join(root, 'node_modules', name)) });
+    for (const theme of packageThemes(realpathSync(join(root, 'node_modules', name)), name, pkg)) {
+      if (themes.some(existing => existing.id === theme.id)) throw new Error(`Duplicate or reserved theme alias: ${theme.id}`);
+      themes.push(theme);
     }
   }
   return themes;

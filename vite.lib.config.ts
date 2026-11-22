@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     dts({
       entryRoot: 'src',
-      include: ['src/components/**', 'src/utils/**', 'src/types/**'],
+      include: ['src/components/**', 'src/utils/**', 'src/types/**', 'src/playground/browser-runtime.tsx', 'src/playground/browser-page.ts'],
       outDir: 'dist',
       tsconfigPath: './tsconfig.lib.json',
     }),
@@ -16,7 +16,7 @@ export default defineConfig({
   build: {
     target: 'esnext',
     lib: {
-      entry: resolve(__dirname, 'src/components/index.tsx'),
+      entry: { 'components/index': resolve(__dirname, 'src/components/index.tsx'), 'playground/browser-runtime': resolve(__dirname, 'src/playground/browser-runtime.tsx') },
       formats: ['es'],
     },
     outDir: 'dist',
@@ -25,6 +25,7 @@ export default defineConfig({
       external: [
         'react',
         'react-dom',
+        'react-dom/client',
         'react/jsx-runtime',
         // Keep the dev JSX runtime external too, so a dev-mode build (jsxDEV)
         // still resolves it from the consumer's React at render time rather than

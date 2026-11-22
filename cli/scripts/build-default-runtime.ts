@@ -7,12 +7,12 @@ import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 import { createDefaultModulePackageJson, defaultModuleNpmrc } from '../src/runtime/manifest.js';
 import { installModules } from '../src/runtime/install.js';
-import { ensureEnvironment } from '../src/runtime/environment.js';
 import { runtimePlatform, runtimePlatformName } from '../src/runtime/platform.js';
-import { Logger } from '../src/utils/logger.js';
 import { runtimePackages } from './runtime-packages.cjs';
-import { buildDependencyRuntime, runtimeEntries } from '@flanksource/page-runtime/build/dependencies';
+import * as compilerApi from '@flanksource/page-runtime/build/dependencies';
 import { stageRenderingRuntime } from './runtime-files.js';
+import { buildRuntimeBase, installRuntimePeers } from '../src/runtime/build-layers.js';
+import { createRuntimeBuildProgress } from '../src/runtime/build-progress.js';
 
 const run = promisify(execFile);
 
@@ -77,24 +77,28 @@ export async function buildDefaultRuntime(repoRoot: string): Promise<void> {
       // Local checkouts and pkg.pr.new previews are not on npm, so ship them as tarballs.
       if (!actual.includes(`${join('node_modules', '')}`) || dependencies[name].includes('-preview-')) archives[name] = await packLibrary({ directory: actual, scratch, name });
     }
-    manifest.facetLocalOverride = { fingerprint: createHash('sha256').update(JSON.stringify(Object.entries(archives).map(([name, archive]) => [name, createHash('sha256').update(readFileSync(archive)).digest('hex')]))).digest('hex') };
-    const environment = await ensureEnvironment({ cacheRoot: join(repoRoot, '.tmp/runtime-build-cache'), manifest, npmrc: defaultModuleNpmrc(), logger: new Logger(false), install: async root => {
-      mkdirSync(join(root, 'packages'));
-      const installed = { ...dependencies };
-      for (const [name, archive] of Object.entries(archives)) {
-        const file = `packages/${basename(archive)}`;
-        cpSync(archive, join(root, file));
-        installed[name] = `file:./${file}`;
-      }
-      writeFileSync(join(root, 'package.json'), JSON.stringify({ ...manifest, dependencies: installed }));
-      return installModules(root);
-    } });
-    const entries = runtimeEntries({ root: environment.root, libraries: ['@flanksource/facet'] });
-    for (const target of ['node', 'browser'] as const) {
-      await buildDependencyRuntime({ root: environment.root, outDir: join(environment.root, 'page-runtime', target), entries, target });
+    const root = join(scratch, 'runtime');
+    mkdirSync(join(root, 'packages'), { recursive: true });
+    const installed = { ...dependencies };
+    for (const [name, archive] of Object.entries(archives)) {
+      const file = `packages/${basename(archive)}`;
+      cpSync(archive, join(root, file));
+      installed[name] = `file:./${file}`;
     }
+    const progress = createRuntimeBuildProgress(process.stderr);
+    const npmrc = defaultModuleNpmrc();
+    const config = { ...manifest, dependencies: installed };
+    writeFileSync(join(root, 'package.json'), JSON.stringify(config));
+    writeFileSync(join(root, '.npmrc'), npmrc);
+    progress.stage('install', 'Installing Clicky UI, Facet, and runtime tools');
+    await installModules(root, { progress: progress.output });
+    await installRuntimePeers(root, config, progress);
+    await buildRuntimeBase({ root, api: compilerApi, npmrc, progress });
+    rmSync(join(root, '.npmrc'));
     const out = join(repoRoot, 'cli/assets/runtimes', runtimePlatformName());
-    await packageRuntime({ root: environment.root, out, facetVersion: facet.version, dependencies: Object.keys(dependencies).filter(name => name !== '@flanksource/clicky-ui') });
+    progress.stage('publish', 'Packaging the installed runtime');
+    await packageRuntime({ root, out, facetVersion: facet.version, dependencies: Object.keys(dependencies) });
+    progress.done(`Prepared Facet runtime ${facet.version}`);
     console.log(`Prepared installed runtime ${out}`);
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 }

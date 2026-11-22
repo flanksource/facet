@@ -16,6 +16,7 @@ export interface ResolvedTemplate {
 }
 
 export type RenderFormat = 'html' | 'pdf' | 'png' | 'docx' | 'pptx';
+export type HTMLExportMode = 'linked' | 'inline' | 'bundle';
 
 export interface PNGViewport {
   width: number;
@@ -47,6 +48,8 @@ export interface GenerateOptions {
   outputName?: string;
   outputNameField: string;
   cssScope?: string;
+  htmlMode?: HTMLExportMode;
+  htmlRuntimeOrigin?: string;
   schema?: string;
   srcDir?: string;
   validate: boolean;

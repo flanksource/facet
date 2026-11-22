@@ -69,14 +69,15 @@ describe('pageSizesForType', () => {
 });
 
 describe('buildPageGroups', () => {
-  it('starts a new group when adjacent pages use different horizontal margins', () => {
+  it.each(['top', 'right', 'bottom', 'left'] as const)('starts a new group when adjacent pages use different %s margins', side => {
+    const defaultMargins = { top: 5, right: 7, bottom: 5, left: 7 };
     const typeInfo: PageTypeInfo = {
       types: ['default', 'default', 'default'],
       pageSizes: ['a4', 'a4', 'a4'],
       pageMargins: [
-        { top: 5, right: 7, bottom: 5, left: 7 },
-        { top: 5, right: 3, bottom: 5, left: 3 },
-        { top: 5, right: 7, bottom: 5, left: 7 },
+        defaultMargins,
+        { ...defaultMargins, [side]: 3 },
+        defaultMargins,
       ],
       definitions: new Map(),
     };

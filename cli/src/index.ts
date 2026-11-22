@@ -23,6 +23,7 @@ export type {
 export type { FillPdfOptions } from './generators/fill-pdf.js';
 export type {
   GenerateOptions,
+  HTMLExportMode,
   LoadedData,
   PNGOptions,
   RenderedTemplate,

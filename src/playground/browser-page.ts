@@ -1,5 +1,6 @@
 export function browserPageFiles(options: { code: string; ext: string; header: string; footer: string; css: string; themeModule?: string }): { page: string; files: Record<string, string> } {
-  if (!['tsx', 'mdx', 'md'].includes(options.ext)) throw new Error(`Unsupported browser template extension: ${options.ext}`);
+  if (!['tsx', 'jsx', 'mdx', 'md'].includes(options.ext)) throw new Error(`Unsupported browser template extension: ${options.ext}`);
+  const component = options.ext === 'tsx' || options.ext === 'jsx';
   const page = `report.${options.ext}`;
   return { page, files: {
     [page]: options.code,
@@ -7,7 +8,7 @@ export function browserPageFiles(options: { code: string; ext: string; header: s
     'footer.tsx': options.footer || 'export default function Footer() { return null; }',
     'custom.css': options.css,
     'layout.tsx': `import React, { useLayoutEffect, useRef } from 'react';
-import { ThemeProvider, Document, Page } from '@flanksource/facet';
+import * as facet from '@flanksource/facet';
 import * as themeModule from ${JSON.stringify(options.themeModule ?? '@flanksource/facet/Theme')};
 import Header from './header.tsx';
 import Footer from './footer.tsx';
@@ -24,8 +25,9 @@ export default function Layout({ children, data }) {
     window.addEventListener('beforeprint', size);
     return () => { observer.disconnect(); style.remove(); window.removeEventListener('beforeprint', size); };
   }, []);
-  const props = ${options.ext === 'tsx' ? '{ data }' : "data && typeof data === 'object' && !Array.isArray(data) ? { ...Object.fromEntries(Object.entries(data).filter(([name]) => !['key', 'ref', 'children'].includes(name))), data } : { data }"};
-  return <ThemeProvider theme={themeModule.theme ?? themeModule.facetTheme} options={data?.theme} overrides={${JSON.stringify({ header: !!options.header, footer: !!options.footer })}}><div ref={root} id="facet-browser-page"><Header {...props} /><div className={${JSON.stringify(options.ext === 'tsx' ? '' : 'prose max-w-none p-8')}}>{${options.ext === 'tsx' ? 'React.cloneElement(children, props)' : '<Document title={data?.title}><Page>{React.cloneElement(children, props)}</Page></Document>'}}</div><Footer {...props} /></div></ThemeProvider>;
+  const props = ${component ? '{ data }' : "data && typeof data === 'object' && !Array.isArray(data) ? { ...Object.fromEntries(Object.entries(data).filter(([name]) => !['key', 'ref', 'children'].includes(name))), data } : { data }"};
+  const { ThemeProvider, Document, Page } = facet;
+  return <ThemeProvider theme={themeModule.theme ?? themeModule.facetTheme} options={data?.theme} overrides={${JSON.stringify({ header: !!options.header, footer: !!options.footer })}}><div ref={root} id="facet-browser-page"><Header {...props} /><div className={${JSON.stringify(component ? '' : 'prose max-w-none p-8')}}>{${component ? 'React.cloneElement(children, props)' : '<Document title={data?.title}><Page>{React.cloneElement(children, { ...props, components: facet.mdxComponents })}</Page></Document>'}}</div><Footer {...props} /></div></ThemeProvider>;
 }`,
     'report.css': `html, body { margin: 0; padding: 0; background: white; }
 #facet-browser-page { display: flow-root; width: 100%; }

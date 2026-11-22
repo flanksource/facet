@@ -1,0 +1,4 @@
+edit:
+  includeIgnored:
+  - .mdx
+  - .tsx

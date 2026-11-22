@@ -2,10 +2,19 @@ import { PLAYGROUND_CONTROLS_SCRIPT } from './playground-controls-script.js';
 import { PLAYGROUND_EXAMPLES_SCRIPT } from './playground-examples-script.js';
 import { PLAYGROUND_RENDER_SCRIPT } from './playground-render-script.js';
 import { PLAYGROUND_RUNTIME_SCRIPT } from './playground-runtime-script.js';
+import { PLAYGROUND_THEME_EDITOR_HTML, PLAYGROUND_THEME_EDITOR_STYLES } from './playground-theme-editor.js';
+import { PLAYGROUND_THEME_EDITOR_SCRIPT } from './playground-theme-editor-script.js';
+import { WORKSPACE_THEME_STYLES } from './playground-workspace-theme.js';
+import { WORKSPACE_THEME_SCRIPT } from './playground-workspace-theme-script.js';
 import { pageSizeOptions } from './page-size-options.js';
 
 // assets/brand/web/favicon.svg, inlined so `facet serve` needs no icon route.
 const FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><g transform="translate(-43.01 -43.01) scale(1.336)"><path fill="#131f3b" d="M88 36H144V72H124V100H140V132H124V220H88V132H60V100H88Z"/><path fill="#3578e5" d="M160 36L196 72V116H160Z"/></g></svg>';
+
+const EDITOR_TABS = [
+  ['template', 'Template'], ['header', 'Header'], ['footer', 'Footer'], ['css', 'CSS'],
+  ['theme', 'Theme editor'], ['data', 'Data'], ['deps', 'Deps'],
+] as const;
 
 const HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -15,7 +24,7 @@ const HTML = `<!DOCTYPE html>
   <title>Facet Playground</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(FAVICON_SVG)}">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :where(:not(.theme-pickers *)) { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #1e1e1e; color: #ccc; }
     .toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #2d2d2d; border-bottom: 1px solid #404040; flex-shrink: 0; }
     .toolbar label { font-size: 13px; }
@@ -24,6 +33,13 @@ const HTML = `<!DOCTYPE html>
     .toolbar .sep { width: 1px; height: 20px; background: #555; }
     .toolbar .format-options { align-items: center; gap: 8px; }
     .toolbar input[type="url"] { width: 240px; max-width: 100%; padding: 4px 8px; border: 1px solid #555; border-radius: 4px; background: #3c3c3c; color: #ccc; }
+    .output-options { flex-shrink: 0; background: #252526; border-bottom: 1px solid #404040; font-size: 13px; }
+    .output-options summary { padding: 6px 12px; cursor: pointer; }
+    .output-options .toolbar { flex-direction: column; align-items: stretch; border-bottom: 0; }
+    .output-options .format-options:not([hidden]) { display: flex; flex-wrap: wrap; }
+    .output-options .margin-group { flex-wrap: wrap; gap: 6px; }
+    .output-options .margin-group input { width: 55px; }
+    .output-options #timestampUrl { width: 220px; }
     .browser-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 8px 12px; color: #555; font-size: 12px; }
     .browser-actions:empty { display: none; }
     .browser-actions a { color: #1d4ed8; }
@@ -46,13 +62,13 @@ const HTML = `<!DOCTYPE html>
     #pngViewport { width: 80px; }
     .margin-group { display: flex; align-items: center; gap: 2px; font-size: 12px; color: #888; }
     .margin-group span { color: #666; }
-    .main { display: flex; flex: 1; min-height: 0; }
-    .editor-panel { display: flex; flex-direction: column; width: 50%; border-right: 1px solid #404040; }
+    .main { position: relative; display: flex; flex: 1; min-height: 0; }
+    .editor-panel { display: flex; flex-direction: column; width: 50%; min-width: 0; border-right: 1px solid #404040; }
     .editor-tabs { display: flex; background: #252526; border-bottom: 1px solid #404040; flex-shrink: 0; overflow-x: auto; white-space: nowrap; }
     .editor-tabs button { padding: 6px 16px; font-size: 13px; background: none; border: none; color: #888; cursor: pointer; border-bottom: 2px solid transparent; }
-    .editor-tabs button.active { color: #fff; border-bottom-color: #2563eb; }
+    .editor-tabs button[aria-selected="true"] { color: #fff; border-bottom-color: #2563eb; }
     #template-editor, #data-editor, #deps-editor, #header-editor, #footer-editor, #css-editor { flex: 1; min-height: 0; }
-    .preview-panel { flex: 1; display: flex; flex-direction: column; background: #fff; min-height: 0; }
+    .preview-panel { flex: 1; display: flex; flex-direction: column; background: #fff; min-width: 0; min-height: 0; }
     .preview-body { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
     .render-menu [hidden] { display: none; }
     .preview-panel iframe { flex: 1; border: none; width: 100%; }
@@ -65,9 +81,12 @@ const HTML = `<!DOCTYPE html>
     .preview-banner { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 12px;
                       background: #f5f5f5; border-bottom: 1px solid #e0e0e0; color: #555; flex-shrink: 0; }
     .preview-banner .preview-dot { width: 8px; height: 8px; border-radius: 50%; background: #bbb; flex-shrink: 0; }
-    .preview-banner .preview-text { flex-shrink: 0; }
+    .preview-banner .preview-text { min-width: 0; overflow-wrap: anywhere; }
     .preview-banner .preview-timings { color: #999; font-size: 11px; margin-left: auto; text-align: right;
                                        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .preview-banner button { flex-shrink: 0; padding: 4px 8px; border: 1px solid currentColor; border-radius: 4px; background: #fff; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+    .preview-banner button:disabled { opacity: .55; cursor: wait; }
+    .preview-body > .preview-pending { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
     .preview-banner.stale { background: #fffbeb; border-bottom-color: #fde68a; color: #92400e; }
     .preview-banner.stale .preview-dot { background: #f59e0b; }
     .preview-banner.rendering { background: #eff6ff; border-bottom-color: #bfdbfe; color: #1d4ed8; }
@@ -153,29 +172,30 @@ const HTML = `<!DOCTYPE html>
     body.mode-fill .main { display: none; }
     body.mode-fill #fill-pdf-root { display: flex; }
     body.mode-fill .render-only { display: none !important; }
+${PLAYGROUND_THEME_EDITOR_STYLES}
+${WORKSPACE_THEME_STYLES}
   </style>
   <link rel="stylesheet" href="/playground-form.css">
 </head>
-<body>
+<body data-workspace-themes="__WORKSPACE_THEMES__" data-editor-tab="template">
   <div class="toolbar">
     <strong style="color:#fff;font-size:14px;">Facet Playground</strong>
     <div class="mode-toggle">
-      <button id="modeRender" class="active" onclick="setMode('render')">Render</button>
-      <button id="modeFill" onclick="setMode('fill')">Fill PDF</button>
+      <button id="modeRender" class="active" aria-pressed="true" onclick="setMode('render')">Render</button>
+      <button id="modeFill" aria-pressed="false" onclick="setMode('fill')">Fill PDF</button>
     </div>
     <div class="render-only" style="display:contents">
     <div class="sep"></div>
     <label>Theme: <select id="documentTheme" onchange="themeChanged()"><option value="facet">facet</option></select></label>
     <label>Runtime:
       <select id="runtime" onchange="setRuntime(this.value)">
-        <option value="server">Server (Node)</option>
+        <option value="server">Server</option>
         <option value="browser">Browser (Clicky UI / WASM)</option>
       </select>
     </label>
-    <label id="runtimeOriginControl" style="display:none">Runtime origin:
+    <label id="runtimeOriginControl" hidden>Runtime origin:
       <input id="runtimeOrigin" type="url" placeholder="Automatic on localhost" aria-label="Hosted browser runtime origin (optional on localhost)">
     </label>
-    <span class="status" id="browserHint" style="display:none">Live TSX / MDX · HTML or single-page PDF</span>
     <label>Example:
       <select id="example" onchange="loadExample(this.value)">
         <option value="datasheet">Datasheet</option>
@@ -184,31 +204,53 @@ const HTML = `<!DOCTYPE html>
         <option value="mdx">MDX</option>
       </select>
     </label>
-    <div class="format-options" id="pdfOptions" style="display:none">
-    <div class="sep"></div>
-    <label>Page Size:
+    <div class="spacer"></div>
+    <button class="logs-btn" id="logsBtn" onclick="openLogs()" title="View render log">
+      Logs <span class="dot" id="logsDot"></span>
+    </button>
+    <div class="render-group">
+      <button class="render-main" id="renderBtn" onclick="doRender()" disabled>Render HTML</button>
+      <button class="render-drop" id="renderDrop" onclick="toggleRenderMenu(event)" aria-label="Output format" disabled>&#9660;</button>
+      <div class="render-menu" id="renderMenu">
+        <button onclick="setFormat('html')"><span class="check" id="checkHtml">&#10003;</span>HTML</button>
+        <button onclick="setFormat('pdf')"><span class="check" id="checkPdf">&nbsp;</span>PDF</button>
+        <button data-server-format onclick="setFormat('png')"><span class="check" id="checkPng">&nbsp;</span>PNG</button>
+        <button data-server-format onclick="setFormat('docx')"><span class="check" id="checkDocx">&nbsp;</span>Word (DOCX)</button>
+        <button data-server-format onclick="setFormat('pptx')"><span class="check" id="checkPptx">&nbsp;</span>PowerPoint (PPTX)</button>
+      </div>
+    </div>
+    </div>
+  </div>
+  <details id="outputOptions" class="render-only output-options">
+    <summary>Output options</summary>
+    <div class="toolbar">
+    <div class="format-options" id="pdfOptions" hidden>
+    <strong>Server PDF</strong>
+    <label>Page size override
       <select id="pageSize">
         <option value="">Default</option>
         ${pageSizeOptions()}
       </select>
     </label>
     <label><input type="checkbox" id="landscape"> Landscape</label>
-    <label><input type="checkbox" id="debug"> Debug</label>
+    <label><input type="checkbox" id="debug"> Debug layout</label>
+    <label><input type="checkbox" id="debugTypography"> Debug typography</label>
     <div class="sep"></div>
     <div class="margin-group">
-      Margins<span>(mm):</span>
-      <input type="number" id="marginTop" placeholder="T" min="0" value="10" title="Top margin (mm)">
-      <input type="number" id="marginBottom" placeholder="B" min="0" value="10" title="Bottom margin (mm)">
-      <input type="number" id="marginLeft" placeholder="L" min="0" value="10" title="Left margin (mm)">
-      <input type="number" id="marginRight" placeholder="R" min="0" value="10" title="Right margin (mm)">
+      <span id="marginHelp">Margins (mm, blank inherits)</span>
+      <label>Top <input type="number" id="marginTop" min="0" step="any" aria-describedby="marginHelp"></label>
+      <label>Right <input type="number" id="marginRight" min="0" step="any" aria-describedby="marginHelp"></label>
+      <label>Bottom <input type="number" id="marginBottom" min="0" step="any" aria-describedby="marginHelp"></label>
+      <label>Left <input type="number" id="marginLeft" min="0" step="any" aria-describedby="marginHelp"></label>
     </div>
     <div class="sep"></div>
     <label><input type="checkbox" id="timestampEnabled" onchange="toggleTimestamp()"> Timestamp</label>
-    <input type="text" id="timestampUrl" value="http://timestamp.digicert.com"
-           style="display:none;width:220px" placeholder="TSA URL">
+    <label id="timestampUrlField" hidden>Timestamp authority URL
+      <input type="url" id="timestampUrl" value="http://timestamp.digicert.com">
+    </label>
     </div>
-    <div class="format-options" id="pngOptions" style="display:none">
-      <div class="sep"></div>
+    <div class="format-options" id="pngOptions" hidden>
+      <strong>PNG</strong>
       <label title="Scales the capture; empty captures the target at its natural size">Scale to:
         <input type="number" id="pngWidth" min="1" placeholder="W" aria-label="PNG output width in pixels">
         ×
@@ -223,44 +265,20 @@ const HTML = `<!DOCTYPE html>
              title="Background margin left around autocropped content, in capture pixels"
              aria-label="Autocrop padding in pixels">
     </div>
-    <div class="spacer"></div>
-    <button class="logs-btn" id="logsBtn" onclick="openLogs()" title="View render log">
-      Logs <span class="dot" id="logsDot"></span>
-    </button>
-    <div class="render-group">
-      <button class="render-main" id="renderBtn" onclick="doRender()" disabled>Render HTML</button>
-      <button class="render-drop" id="renderDrop" onclick="toggleRenderMenu(event)" disabled>&#9660;</button>
-      <div class="render-menu" id="renderMenu">
-        <button onclick="setFormat('html')"><span class="check" id="checkHtml">&#10003;</span>HTML</button>
-        <button onclick="setFormat('pdf')"><span class="check" id="checkPdf">&nbsp;</span>PDF</button>
-        <button data-server-format onclick="setFormat('png')"><span class="check" id="checkPng">&nbsp;</span>PNG</button>
-        <button data-server-format onclick="setFormat('docx')"><span class="check" id="checkDocx">&nbsp;</span>Word (DOCX)</button>
-        <button data-server-format onclick="setFormat('pptx')"><span class="check" id="checkPptx">&nbsp;</span>PowerPoint (PPTX)</button>
-      </div>
     </div>
-    </div>
-  </div>
+  </details>
   <div class="main">
     <div class="editor-panel">
-      <div class="editor-tabs">
-        <button class="active" onclick="switchTab('template', this)">Template</button>
-        <button onclick="switchTab('header', this)">Header</button>
-        <button onclick="switchTab('footer', this)">Footer</button>
-        <button onclick="switchTab('css', this)">CSS</button>
-        <button onclick="switchTab('data', this)">Data</button>
-        <button onclick="switchTab('deps', this)">Deps</button>
+      <div class="editor-tabs" role="tablist" aria-label="Editors" onkeydown="onEditorTabKey(event)">
+        ${EDITOR_TABS.map(([tab, label]) => `<button type="button" role="tab" id="${tab}Tab" data-tab="${tab}" aria-controls="${tab}-editor" aria-selected="${tab === 'template'}" tabindex="${tab === 'template' ? 0 : -1}" onclick="switchTab('${tab}')">${label}</button>`).join('\n        ')}
       </div>
-      <div id="template-editor"></div>
-      <div id="header-editor" style="display:none"></div>
-      <div id="footer-editor" style="display:none"></div>
-      <div id="css-editor" style="display:none"></div>
-      <div id="data-editor" style="display:none"></div>
-      <div id="deps-editor" style="display:none"></div>
+      ${EDITOR_TABS.map(([tab]) => tab === 'theme' ? PLAYGROUND_THEME_EDITOR_HTML : `<div id="${tab}-editor" role="tabpanel" aria-labelledby="${tab}Tab"${tab === 'template' ? '' : ' hidden'}></div>`).join('\n      ')}
     </div>
     <div class="preview-panel">
       <div class="preview-banner" id="previewBanner">
         <span class="preview-dot"></span>
-        <span class="preview-text" id="previewText">Click "Render" to preview your template</span>
+        <span class="preview-text" id="previewText" role="status">Click "Render" to preview your template</span>
+        <button type="button" id="refreshPreview" onclick="renderPreview(false)" hidden>Refresh preview</button>
         <span class="preview-timings" id="previewTimings"></span>
       </div>
       <div class="preview-body" id="preview"></div>
@@ -292,16 +310,39 @@ ${PLAYGROUND_RENDER_SCRIPT}
   </script>
   <script src="/playground-form.js"></script>
   <script>
+${PLAYGROUND_THEME_EDITOR_SCRIPT}
+${WORKSPACE_THEME_SCRIPT}
     var __fillMounted = false;
+    var themeEditor;
+    var workspaceThemeEditor;
+    function openPaletteEditor() {
+      themeEditor ??= initThemeEditor();
+      themeEditor.refresh();
+    }
+    function updateThemeEditor() {
+      if (document.body.dataset.editorTab !== 'theme' || document.body.classList.contains('mode-fill')) {
+        themeEditor?.cancel();
+        return;
+      }
+      if (document.body.dataset.workspaceThemes === 'true') {
+        workspaceThemeEditor ??= initWorkspaceThemeEditor();
+        workspaceThemeEditor.refresh();
+      } else openPaletteEditor();
+    }
     function setMode(mode) {
-      var fill = mode === 'fill';
+      const fill = mode === 'fill';
       document.body.classList.toggle('mode-fill', fill);
-      document.getElementById('modeRender').classList.toggle('active', !fill);
-      document.getElementById('modeFill').classList.toggle('active', fill);
+      document.querySelector('.main').inert = fill;
+      for (const [id, active] of [['modeRender', !fill], ['modeFill', fill]]) {
+        const button = document.getElementById(id);
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      }
       if (fill && !__fillMounted && window.FacetPlayground && window.FacetPlayground.mountFillPdf) {
         window.FacetPlayground.mountFillPdf('#fill-pdf-root');
         __fillMounted = true;
       }
+      updateThemeEditor();
       writeUrlState();
     }
 
@@ -313,6 +354,6 @@ ${PLAYGROUND_RENDER_SCRIPT}
 </html>
 `;
 
-export function playgroundHtml(facetVersion: string = 'latest'): string {
-  return HTML.replaceAll('__FACET_VERSION__', facetVersion);
+export function playgroundHtml(facetVersion: string = 'latest', workspaceThemes = false): string {
+  return HTML.replaceAll('__FACET_VERSION__', facetVersion).replace('__WORKSPACE_THEMES__', String(workspaceThemes));
 }

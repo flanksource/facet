@@ -20,7 +20,9 @@ import { selfExecBase } from '../utils/self-exec.js';
 import { readRemarkFrontmatter } from '../utils/frontmatter.js';
 import type { RedactPolicy } from '../builders/remark-config.js';
 import { RenderTimings } from '../utils/performance.js';
-import { spawnLowPriority } from '../utils/subprocess-priority.js';
+import { LowPriorityProcessError, runLowPriority, spawnLowPriority } from '../utils/subprocess-priority.js';
+import { selectedRuntime } from '../runtime/named.js';
+import { readFile } from 'node:fs/promises';
 
 export interface ViteServerOptions {
   theme?: string;
@@ -34,6 +36,7 @@ export interface ViteServerOptions {
   skipModules?: boolean;
   signal?: AbortSignal;
   clearCache?: boolean;
+  sandbox?: string | boolean;
 }
 
 export interface ViteServer {
@@ -46,14 +49,12 @@ export interface ViteServer {
 const HANDSHAKE_PREFIX = 'FACET_DEV_URL=';
 const STARTUP_TIMEOUT_MS = 60_000;
 
-/**
- * Start a Vite dev server serving the template. Caller MUST await `close()`.
- */
-export async function startViteServer(options: ViteServerOptions): Promise<ViteServer> {
+async function prepareClientWorkspace(options: ViteServerOptions, mode: 'preview' | 'export') {
   options.signal?.throwIfAborted();
   const { templatePath, data, consumerRoot = process.cwd(), logger } = options;
   const timings = options.timings ?? new RenderTimings();
-  const buildRoot = join(compilationWorkspace({ consumerRoot, templatePath, skipModules: options.skipModules, redact: options.redact, invalidate: options.clearCache }), 'live', randomUUID());
+  const runtime = selectedRuntime();
+  const buildRoot = join(compilationWorkspace({ consumerRoot, templatePath, skipModules: options.skipModules, redact: options.redact, invalidate: options.clearCache, runtime: runtime && `${runtime.id}:${runtime.root}` }), 'live', randomUUID());
 
   try {
     const facetDir = new FacetDirectory({
@@ -65,23 +66,32 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
       theme: options.theme,
       themeOverrides: options.themeOverrides,
       redact: options.redact,
-      skipModules: options.skipModules,
+      skipModules: options.skipModules || !!runtime,
     });
     facetDir.create();
-    await facetDir.generatePackageJson();
+    if (!runtime) await facetDir.generatePackageJson();
     facetDir.symlinkConsumerFiles();
-    facetDir.copyStylesCss();
+    if (!runtime) facetDir.copyStylesCss();
 
     facetDir.generateTsConfig();
-    facetDir.generateClientScaffold(data);
+    facetDir.generateClientScaffold(data, mode);
 
-    await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules, options.clearCache));
+    if (runtime) await prepareModules(facetDir, logger);
+    else await timings.measure('dependency-install', () => prepareModules(facetDir, logger, options.skipModules, options.clearCache));
     facetDir.copyStylesCss();
     facetDir.generateEntryWrapper();
     options.signal?.throwIfAborted();
 
-    const facetRoot = realpathSync(facetDir.getFacetRoot());
+    return { facetRoot: realpathSync(facetDir.getFacetRoot()), buildRoot };
+  } catch (error) { rmSync(buildRoot, { recursive: true, force: true }); throw error; }
+}
 
+/** Start a Vite dev server serving the template. Caller MUST await `close()`. */
+export async function startViteServer(options: ViteServerOptions): Promise<ViteServer> {
+  const { logger } = options;
+  const timings = options.timings ?? new RenderTimings();
+  const { facetRoot, buildRoot } = await prepareClientWorkspace({ ...options, timings }, 'preview');
+  try {
     logger.info('Starting Vite dev server for live render...');
     const { proc, url } = await timings.measure('vite', async () => {
       const [cmd, ...baseArgs] = selfExecBase();
@@ -120,6 +130,30 @@ export async function startViteServer(options: ViteServerOptions): Promise<ViteS
       },
     };
   } catch (error) { rmSync(buildRoot, { recursive: true, force: true }); throw error; }
+}
+
+export async function buildDocumentBundle(options: ViteServerOptions): Promise<{ program: string; css: string }> {
+  const timings = options.timings ?? new RenderTimings();
+  const { facetRoot, buildRoot } = await prepareClientWorkspace({ ...options, timings }, 'export');
+  try {
+    const [command, ...args] = selfExecBase();
+    const sandboxSettings = typeof options.sandbox === 'string' ? options.sandbox : '/etc/facet/srt-settings.json';
+    await timings.measure('vite', () => runLowPriority({
+      command: options.sandbox ? 'srt' : command,
+      args: options.sandbox ? ['--settings', sandboxSettings, command, ...args] : args,
+      options: { cwd: facetRoot, env: { ...process.env, FACET_LOADER: 'html-export' }, signal: options.signal },
+    }));
+    const [program, css] = await Promise.all([
+      readFile(join(facetRoot, 'document-program.js'), 'utf8'),
+      readFile(join(facetRoot, 'document-styles.css'), 'utf8'),
+    ]);
+    return { program, css };
+  } catch (error) {
+    if (error instanceof LowPriorityProcessError && error.stderr.length) throw new Error(error.stderr.toString().trim(), { cause: error });
+    throw error;
+  } finally {
+    rmSync(buildRoot, { recursive: true, force: true });
+  }
 }
 
 /** Read the dev server's stdout until the FACET_DEV_URL handshake line appears. */

@@ -65,6 +65,7 @@ async function writeLocalFacetPackage(options: { scripts?: Record<string, string
   await mkdir(join(root, 'cli'), { recursive: true });
   await mkdir(join(root, 'dist/components'), { recursive: true });
   await mkdir(join(root, 'dist/page-styles'), { recursive: true });
+  await mkdir(join(root, 'dist/runtime'), { recursive: true });
   await writeFile(join(root, 'package.json'), JSON.stringify({
     name: '@flanksource/facet',
     version: '9.9.9-local',
@@ -79,6 +80,7 @@ async function writeLocalFacetPackage(options: { scripts?: Record<string, string
     scripts: options.scripts ?? {
       'build:components': 'echo build-components',
       'build:css': 'echo build-css',
+      'build:runtime': 'echo build-runtime',
     },
   }, null, 2));
   await writeFile(join(root, 'src/styles.css'), '/* local facet styles */\n.local-only { color: red; }\n');
@@ -86,6 +88,9 @@ async function writeLocalFacetPackage(options: { scripts?: Record<string, string
   await writeFile(join(root, 'dist/styles.css'), '/* built local css */\n');
   await writeFile(join(root, 'dist/page-styles/index.mjs'), 'export const pageStyles = {};\n');
   await writeFile(join(root, 'dist/components/index.js'), 'export const Marker = "built";\n');
+  for (const name of ['importmap.json', 'barrels.json']) {
+    await writeFile(join(root, 'dist/runtime', name), '{}');
+  }
 
   const oldTime = new Date(Date.now() - 60_000);
   const newTime = new Date(Date.now() + 60_000);
@@ -320,6 +325,25 @@ describe('FacetDirectory Tailwind integration', () => {
 
     expect(await readFile(join(facetRoot, 'post-process-v4.css'), 'utf-8'))
       .toContain('@source "./src/src";');
+  });
+
+  it('loads the selected package stylesheet in the SSR CSS pass before template overrides', async () => {
+    const name = 'example-facet-theme';
+    const packageDir = join(facetRoot, 'node_modules', name);
+    const directory = new FacetDirectory({ consumerRoot, templateFile: 'template.tsx', logger, theme: 'example' });
+    directory.create();
+    await mkdir(packageDir, { recursive: true });
+    await writeFile(join(facetRoot, 'package.json'), JSON.stringify({ dependencies: { [name]: '1.0.0' } }));
+    await writeFile(join(packageDir, 'package.json'), JSON.stringify({
+      version: '1.0.0', exports: { './theme': './dist/theme.js', './styles.css': './dist/styles.css' },
+      facet: { themes: { example: './theme' } },
+    }));
+    await writeFile(join(consumerRoot, 'template.tsx'), "import './overrides.css';\nexport default null;");
+    directory.copyStylesCss();
+    const css = await readFile(join(facetRoot, 'post-process-v4.css'), 'utf8');
+    expect(css.split('\n').slice(0, 3)).toEqual([
+      "@import './facet.css';", `@import '${name}/styles.css';`, "@import './src/overrides.css';",
+    ]);
   });
 });
 
@@ -556,6 +580,34 @@ describe('FACET_PACKAGE_PATH local directory override', () => {
 
     expect(timerRan).toBe(true);
     expect(existsSync(lockPath)).toBe(false);
+  });
+
+  it.each([
+    { missing: 'dist/runtime/importmap.json', stale: undefined, expected: ['runtime'] },
+    { missing: 'dist/runtime/barrels.json', stale: undefined, expected: ['runtime'] },
+    { missing: undefined, stale: 'src/components/index.tsx', expected: ['components', 'css', 'runtime'] },
+    { missing: undefined, stale: 'src/styles.css', expected: ['css', 'runtime'] },
+    { missing: undefined, stale: undefined, expected: [] },
+  ])('prepares linked runtimes without dev mode: %j', async ({ missing, stale, expected }) => {
+    const script = resolve(import.meta.dirname, '../../test/fixtures/local-facet-build.cjs');
+    const localRoot = await writeLocalFacetPackage({ scripts: Object.fromEntries(
+      ['components', 'css', 'runtime'].map(name => [`build:${name}`, `node "${script}" ${name}`]),
+    ) });
+    vi.stubEnv('FACET_DEV_ROOT', '');
+    process.env.FACET_PACKAGE_PATH = localRoot;
+    if (missing) await rm(join(localRoot, missing));
+    if (stale) {
+      const future = new Date(Date.now() + 120_000);
+      utimesSync(join(localRoot, stale), future, future);
+    }
+
+    await newFacetDir().generatePackageJson();
+
+    const stepsPath = join(localRoot, 'build-steps.json');
+    expect(existsSync(stepsPath) ? JSON.parse(await readFile(stepsPath, 'utf8')) : []).toEqual(expected);
+    for (const name of ['importmap.json', 'barrels.json']) {
+      expect(existsSync(join(localRoot, 'dist/runtime', name))).toBe(true);
+    }
   });
 
 });

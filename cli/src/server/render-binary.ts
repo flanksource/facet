@@ -10,6 +10,8 @@ import type { RenderProgress } from './render-stream.js';
 import { pageSizeLayout } from '../utils/page-size-layout.js';
 import { renderBrowserHTML } from '../utils/browser-html.js';
 
+export const PDF_LAYOUT_VERSION = 1;
+
 export async function renderBinary(options: {
   browser: Browser;
   html: string;

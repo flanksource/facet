@@ -21,6 +21,8 @@ import { registerInspectCommand } from './commands/inspect.js';
 import { dispatchLoader } from './loaders/dispatch.js';
 import { expandRenderSizes, renderSizes } from './utils/render-sizes.js';
 import { activateDevRuntime } from './runtime/dev.js';
+import { selectRuntime } from './runtime/named.js';
+import { registerRuntimeCommands } from './commands/runtime.js';
 
 function numericOption(minimum: number): (value: string) => number {
   return (value: string): number => {
@@ -131,6 +133,7 @@ function buildSignature(options: any): PDFSignatureOptions | undefined {
 
 function addSharedOptions(cmd: Command): Command {
   return cmd
+    .option('--runtime <selector>', 'Use a prebuilt runtime by name, name@version, or folder')
     .option('--theme <name>', 'Installed document theme (default: facet)')
     .option('-d, --data <file>', 'Path to JSON or YAML data file')
     .option('-l, --data-loader <file>', 'Path to data loader module (.ts or .js)')
@@ -168,24 +171,36 @@ program
   .option('--dev', 'Use local Facet, Clicky UI and page-runtime builds without publishing')
   .option('--skip-modules', 'Ignore package.json dependencies; use default packages (local libraries with --dev)')
   .option('--facet-url <url>', 'Submit template renders to a Facet server (or FACET_URL)')
-  .hook('preAction', (_command, actionCommand) => {
-    if (actionCommand.optsWithGlobals().dev) {
-      if (resolveFacetURL(actionCommand.optsWithGlobals().facetUrl)) throw new Error('--dev requires local rendering; unset FACET_URL and omit --facet-url');
+  .hook('preAction', async (_command, actionCommand) => {
+    const runtimeAction = actionCommand.parent?.name() === 'runtime' ? actionCommand.name() : undefined;
+    if (runtimeAction === 'list') return;
+    const flags = actionCommand.optsWithGlobals();
+    if (flags.runtime !== undefined) {
+      if (flags.dev || process.env.FACET_DEV_ROOT) throw new Error('--runtime cannot be combined with Facet --dev');
+      if (resolveFacetURL(flags.facetUrl)) throw new Error('--runtime requires local rendering; unset FACET_URL and omit --facet-url');
+      await selectRuntime(flags.runtime);
+    }
+    if (flags.dev) {
+      if (resolveFacetURL(flags.facetUrl)) throw new Error('--dev requires local rendering; unset FACET_URL and omit --facet-url');
       activateDevRuntime(process.cwd());
       console.error(`Using local rendering runtime: ${process.env.FACET_DEV_ROOT}`);
     }
-    if (['lint', 'inspect'].includes(actionCommand.name()) && actionCommand.opts().json) return;
+    if (runtimeAction === 'build' || (actionCommand.opts().json && ['lint', 'inspect'].includes(actionCommand.name()))) return;
     console.log(chalk.gray(`facet ${versionStr}`));
   });
 
 registerOfficeCommands({ program, addSharedOptions, ensureRenderReady, parseDataLoaderArgs });
 registerInspectCommand(program);
+registerRuntimeCommands(program);
 
 // html command
 addSharedOptions(
   program
     .command('html <templates...>')
     .description('Generate HTML from one or more templates')
+    .option('--inline', 'Export a rendered HTML snapshot with inline styles')
+    .option('--bundle', 'Put the live template and runtime in a sibling JavaScript file')
+    .option('--runtime-origin <url>', 'Link the live document runtime from this Facet server')
     .option('--css-scope <prefix>', 'CSS scope prefix for scoped HTML generation')
     .option('-s, --schema <file>', 'Path to JSON Schema file for data validation')
     .option('--no-validate', 'Skip data validation')
@@ -195,8 +210,10 @@ addSharedOptions(
   const logger = new Logger(options.verbose);
   try {
     const facetURL = resolveFacetURL(options.facetUrl);
+    if (options.inline && options.bundle) throw new Error('Choose either --inline or --bundle');
+    if (options.runtimeOrigin && (options.inline || options.bundle)) throw new Error('--runtime-origin requires linked HTML');
     if (options.lint) await lintTemplatesBeforeRender(templates, logger, options.verbose);
-    await ensureRenderReady('html', { ...options, facetURL }, logger);
+    await ensureRenderReady('html', { ...options, live: options.inline && options.live, facetURL }, logger);
     for (const template of templates) {
       logger.info(`Generating HTML from template: ${template}`);
       const { outputDir, outputName } = resolveOutput(options.output);
@@ -209,6 +226,8 @@ addSharedOptions(
         outputName: templates.length === 1 ? outputName : undefined,
         outputNameField: options.outputNameField,
         cssScope: options.cssScope,
+        htmlMode: options.inline ? 'inline' : options.bundle ? 'bundle' : 'linked',
+        htmlRuntimeOrigin: options.runtimeOrigin,
         schema: options.schema,
         validate: options.validate,
         verbose: options.verbose,
@@ -447,7 +466,9 @@ program
 // serve command
 program
   .command('serve')
-  .option('--theme <name>', 'Default installed document theme (default: facet)')
+  .option('--theme <name>', 'Default document theme (default: facet)')
+  .option('--themes-dir <dir>', 'Local directory of editable theme packages (binds to loopback)')
+  .option('--pdf-renderer <renderer>', 'Server PDF template renderer: node or page-runtime (default: node)')
   .description('Start API server for rendering templates')
   .option('-p, --port <number>', 'Server port', '3010')
   .option('--templates-dir <dir>', 'Directory containing templates', '.')
@@ -476,6 +497,9 @@ program
       const { startServer } = await import('./server/preview.js');
       await startServer({
         port: options.port,
+        theme: options.theme,
+        themesDir: options.themesDir,
+        pdfRenderer: options.pdfRenderer,
         templatesDir: options.templatesDir,
         workers: options.workers,
         maxRendersPerWorker: options.maxRendersPerWorker,
@@ -582,7 +606,9 @@ program.on('command:*', () => {
 
 async function run(): Promise<void> {
   if (await dispatchLoader()) return;
-  program.parse();
+  // Runtime build has its own --version option. Other commands still accept global flags after their name.
+  if (process.argv[2] === 'runtime') program.enablePositionalOptions();
+  await program.parseAsync();
 }
 
 run().catch((error) => {

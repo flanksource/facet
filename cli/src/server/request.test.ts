@@ -3,6 +3,30 @@ import { parseRenderRequest, validateRequestModuleMode } from './request.js';
 
 const MAX_UPLOAD = 1024 * 1024;
 
+describe('HTML export requests', () => {
+  it('preserves linked export options across all request forms', async () => {
+    const options = { format: 'html', htmlMode: 'linked', htmlRuntimeOrigin: 'https://reports.example.com', htmlCssScope: 'report' };
+    for (const request of [
+      jsonRequest({ code: 'export default null', ...options }),
+      multipartRequest(options),
+      gzipRequest(`?${new URLSearchParams(options)}`),
+    ]) {
+      expect(await parseRenderRequest(request, MAX_UPLOAD)).toMatchObject(options);
+    }
+  });
+
+  it('rejects an invalid mode, a runtime origin in bundle mode, and bundled S3 delivery', async () => {
+    for (const options of [
+      { htmlMode: ['linked'] },
+      { htmlMode: 'linked', htmlRuntimeOrigin: 'https://reports.example.com/path?key=invalid' },
+      { htmlMode: 'bundle', htmlRuntimeOrigin: 'https://reports.example.com' },
+      { htmlMode: 'bundle', output: 's3' },
+    ]) {
+      await expect(parseRenderRequest(jsonRequest({ code: 'export default null', format: 'html', ...options }), MAX_UPLOAD)).rejects.toThrow(/htmlMode|runtime origin|direct delivery/i);
+    }
+  });
+});
+
 describe('custom CSS requests', () => {
   it('preserves the selected theme in JSON and multipart requests', async () => {
     for (const request of [jsonRequest({ code: 'export default null', theme: 'old-mutual' }), multipartRequest({ theme: 'old-mutual' })]) {

@@ -9,11 +9,10 @@
 import type { Browser, Page } from 'puppeteer-core';
 import { launchBrowser } from '../utils/pdf-generator.js';
 import { Logger } from '../utils/logger.js';
-import { renderMermaidInPage } from '../utils/browser-readiness.js';
+import { renderMermaidInPage, waitForPageReady } from '../utils/browser-readiness.js';
 import {
   DEFAULT_PNG_VIEWPORT,
   normalizePNGOptions,
-  resolvePNGTarget,
 } from '../utils/png-generator.js';
 import type { PNGOptions } from '../types.js';
 import { applyBrowserLayout, type BrowserLayout } from '../utils/render-layout.js';
@@ -83,8 +82,6 @@ async function loadLivePage(
   page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
 
   await page.goto(url, { waitUntil: 'networkidle0', timeout: 60_000 });
-  await renderMermaidInPage(page);
-  await page.evaluateHandle('document.fonts.ready');
 
   const overlay = await page.evaluate(() => {
     const el = document.querySelector('vite-error-overlay');
@@ -102,14 +99,18 @@ async function loadLivePage(
   // machine — so whether it has diagrams is only known once it has mounted.
   try {
     await page.waitForFunction(
-      () => (document.getElementById('facet-root')?.childElementCount ?? 0) > 0,
+      () => {
+        const root = document.getElementById('facet-root');
+        return root && (root.childElementCount > 0 || root.textContent?.trim());
+      },
       { timeout: READY_TIMEOUT_MS },
     );
   } catch {
     const errors = [...pageErrors, ...consoleErrors];
     throw new Error(`Live render produced an empty #facet-root — the template did not mount within ${READY_TIMEOUT_MS}ms${errors.length ? `; browser errors:\n${errors.join('\n')}` : ''}`);
   }
-  if (normalizedPNG) await resolvePNGTarget(page, normalizedPNG);
+  await waitForPageReady(page, { timeoutMs: READY_TIMEOUT_MS });
+  if (await renderMermaidInPage(page)) await waitForPageReady(page, { timeoutMs: READY_TIMEOUT_MS, waitForFacet: false });
 
   // A <Diagram> flips its root's data-facet-ready to "true" after react-xarrows
   // has measured and drawn. Wait for every diagram; if none is present, fall
