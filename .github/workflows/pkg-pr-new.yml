@@ -1,7 +1,7 @@
 name: Preview Packages
 
 # Publishes every pull request and main commit to https://pkg.pr.new, e.g.
-#   npm i https://pkg.pr.new/@flanksource/facet-runtime-linux-x64-glibc@<pr-number-or-sha>
+#   npm i https://pkg.pr.new/@flanksource/facet@<pr-number-or-sha>
 # Requires the pkg.pr.new GitHub App: https://github.com/apps/pkg-pr-new
 on:
   pull_request:
@@ -30,21 +30,18 @@ jobs:
         with:
           node-version: "24"
           cache: "pnpm"
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            cli/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm --dir cli install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      # Produces cli/assets/runtimes/<platform>: the @flanksource/facet-runtime-*
-      # package for this runner.
-      - name: Build runtime package
-        run: pnpm run build:artifacts
+      # Same library build as release.yml's publish-library: components,
+      # styles.css, and the browser UI runtime in dist/runtime.
+      - name: Build library
+        run: pnpm run build
 
-      # Only the facet-runtime package is previewed. --previewVersion keeps
-      # preview tarballs from colliding with npm releases of the same version.
+      # Only the @flanksource/facet component package is previewed, never the CLI
+      # or the native facet-runtime-* toolchain. --previewVersion keeps preview
+      # tarballs from colliding with npm releases of the same version.
       - name: Publish previews
-        run: pnpm exec pkg-pr-new publish --previewVersion ./cli/assets/runtimes/*
+        run: pnpm exec pkg-pr-new publish --previewVersion .
