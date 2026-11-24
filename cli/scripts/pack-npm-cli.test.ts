@@ -65,7 +65,7 @@ describe('buildPackage', () => {
     expect(pkg.version).toBe('9.9.9');
     expect(existsSync(join(outDir, 'assets/page-sizes.json'))).toBe(true);
     if (portable) {
-      expect(Object.keys(pkg.optionalDependencies)).toHaveLength(6);
+      expect(Object.keys(pkg.optionalDependencies)).toEqual(['darwin-arm64', 'linux-x64-glibc', 'linux-arm64-glibc', 'linux-x64-musl', 'linux-arm64-musl'].map(platform => `@flanksource/facet-runtime-${platform}`));
       expect(new Set(Object.values(pkg.optionalDependencies))).toEqual(new Set(['9.9.9']));
       expect(existsSync(join(outDir, 'assets/default-runtime.tgz'))).toBe(false);
     } else {

@@ -1,7 +1,7 @@
 [
-  { "platform": "darwin", "arch": "arm64" },
-  { "platform": "linux", "arch": "x64", "libc": "glibc" },
-  { "platform": "linux", "arch": "arm64", "libc": "glibc" },
-  { "platform": "linux", "arch": "x64", "libc": "musl" },
-  { "platform": "linux", "arch": "arm64", "libc": "musl" }
+  "darwin-arm64",
+  "linux-x64-glibc",
+  "linux-arm64-glibc",
+  "linux-x64-musl",
+  "linux-arm64-musl"
 ]
