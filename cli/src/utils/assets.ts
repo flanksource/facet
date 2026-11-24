@@ -11,7 +11,7 @@ import { dirname, resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { runtimePlatformName } from '../runtime/platform.js';
+import { PUBLISHED_RUNTIME_PLATFORMS, runtimePlatformName } from '../runtime/platform.js';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const requireCjs = createRequire(import.meta.url);
@@ -83,8 +83,10 @@ export function assetPath(name: AssetName): string {
     if (existsSync(candidate)) return candidate;
   }
   if (name === 'default-runtime.json' || name === 'default-runtime.tgz') {
-    try { return requireCjs.resolve(`@flanksource/facet-runtime-${runtimePlatformName()}/${name}`); }
-    catch (cause) { throw new Error(`Missing installed runtime for ${runtimePlatformName()}; reinstall Facet with optional dependencies enabled or run make build in a source checkout`, { cause }); }
+    const platform = runtimePlatformName();
+    if (!PUBLISHED_RUNTIME_PLATFORMS.includes(platform)) throw new Error(`Rendering is not supported on ${platform}: no @flanksource/facet-runtime-${platform} package is released (supported: ${PUBLISHED_RUNTIME_PLATFORMS.join(', ')}). Build a runtime with make build in a source checkout`);
+    try { return requireCjs.resolve(`@flanksource/facet-runtime-${platform}/${name}`); }
+    catch (cause) { throw new Error(`Missing installed runtime for ${platform}; reinstall Facet with optional dependencies enabled or run make build in a source checkout`, { cause }); }
   }
   throw new Error(`Could not locate asset "${name}" relative to ${moduleDir}`);
 }
