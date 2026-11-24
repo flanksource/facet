@@ -10,7 +10,6 @@ The `release.yml` workflow automatically builds and publishes the facet CLI on e
 2. **Builds standalone binaries** - Creates platform-specific executables for:
    - Linux (x64)
    - macOS (ARM64)
-   - Windows (x64)
 3. **Creates GitHub Release** - Publishes a new release with all binaries attached
 4. **Publishes to npm** - Publishes the package to npm registry
 
@@ -32,15 +31,12 @@ Download platform-specific binaries from [GitHub Releases](https://github.com/fl
 
 - **Linux**: `facet-linux` (x64)
 - **macOS**: `facet-macos` (ARM64/M1/M2)
-- **Windows**: `facet-windows.exe` (x64)
 
 Make executable and install (Linux/macOS):
 ```bash
 chmod +x facet-*
 sudo mv facet-* /usr/local/bin/facet
 ```
-
-Windows: Place `facet-windows.exe` in a directory on your PATH.
 
 **Benefits of standalone binary:**
 - No Node.js installation required
@@ -103,7 +99,7 @@ If you prefer manual releases, you can:
 The workflow consists of 4 jobs that run in sequence:
 
 1. **version-bump** - Increments version and creates git tag
-2. **build-binaries** - Builds binaries on Linux, macOS, and Windows (runs in parallel)
+2. **build-binaries** - Builds binaries on Linux and macOS (runs in parallel)
 3. **create-release** - Creates GitHub release with all binaries
 4. **publish-npm** - Publishes package to npm registry
 
