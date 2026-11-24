@@ -3,9 +3,11 @@ import { applyBrowserLayout, type BrowserLayout } from '../utils/render-layout.j
 
 export const DEFAULT_MARKDOWN_PAGE = '<Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>';
 
+const UNSAFE_EMBED_CHARS = new RegExp('[<>&\\u2028\\u2029]', 'g');
+
 /** JSON for embedding in generated source: escapes characters that could end a script/string context. */
 function embedJson(value: unknown): string {
-  return JSON.stringify(value).replace(/[<>&  ]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  return JSON.stringify(value).replace(UNSAFE_EMBED_CHARS, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
 export function browserTemplateLayout(options: {
