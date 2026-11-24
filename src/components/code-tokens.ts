@@ -57,7 +57,7 @@ function merge(tokens: CodeToken[]): CodeToken[] {
   return out;
 }
 
-const JSON_TOKEN = /("(?:[^"\\\n]|\\.)*"?)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(true|false|null)\b|([{}[\],:])|(\/\/[^\n]*|\/\*[\s\S]*?(?:\*\/|$))/g;
+const JSON_TOKEN = /("(?:[^"\\\n]|\\.)*"?)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(true|false|null)\b|([{}[\],:])|(\/\/[^\n]*|\/\*(?:[^*]|\*(?!\/))*(?:\*\/)?)/g;
 
 function tokenizeJson(code: string): CodeToken[] {
   const tokens: CodeToken[] = [];
