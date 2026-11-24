@@ -57,7 +57,7 @@ function merge(tokens: CodeToken[]): CodeToken[] {
   return out;
 }
 
-const JSON_TOKEN = /("(?:[^"\\\n]|\\.)*"?)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(true|false|null)\b|([{}[\],:])|(\/\/[^\n]*|\/\*[\s\S]*?\*\/)/g;
+const JSON_TOKEN = /("(?:[^"\\\n]|\\.)*"?)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(true|false|null)\b|([{}[\],:])|(\/\/[^\n]*|\/\*[\s\S]*?(?:\*\/|$))/g;
 
 function tokenizeJson(code: string): CodeToken[] {
   const tokens: CodeToken[] = [];
@@ -103,7 +103,7 @@ function tokenizeYamlLine(line: string): CodeToken[] {
   tokens.push({ kind: 'text', text: head[1]! }, { kind: 'punctuation', text: head[2]! });
   let rest = line.slice(head[0].length);
   if (rest.startsWith('#')) return [...tokens, { kind: 'comment', text: rest }];
-  const key = /^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^\s#'"{[][^:#]*?)(\s*)(:)(?=\s|$)/.exec(rest);
+  const key = /^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^\s#'"{[][^:#\s]*(?:\s+[^:#\s]+)*)(\s*)(:)(?=\s|$)/.exec(rest);
   if (key) {
     tokens.push({ kind: 'key', text: key[1]! }, { kind: 'text', text: key[2]! }, { kind: 'punctuation', text: key[3]! });
     rest = rest.slice(key[0].length);
@@ -129,7 +129,8 @@ function yamlValue(value: string): CodeToken[] {
   }
   const body = comment === -1 ? value : value.slice(0, comment);
   const lead = /^\s*/.exec(body)![0];
-  const trail = /\s*$/.exec(body.slice(lead.length))![0];
+  const afterLead = body.slice(lead.length);
+  const trail = afterLead.slice(afterLead.trimEnd().length);
   const scalar = body.slice(lead.length, body.length - trail.length);
   tokens.push({ kind: 'text', text: lead });
   // Anchors, aliases and tags prefix the scalar: `&base`, `*base`, `!!str`.

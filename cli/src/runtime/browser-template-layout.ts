@@ -3,6 +3,11 @@ import { applyBrowserLayout, type BrowserLayout } from '../utils/render-layout.j
 
 export const DEFAULT_MARKDOWN_PAGE = '<Page pageSize="a4" margins={{ top: 10, right: 10, bottom: 10, left: 10 }}>';
 
+/** JSON for embedding in generated source: escapes characters that could end a script/string context. */
+function embedJson(value: unknown): string {
+  return JSON.stringify(value).replace(/[<>&  ]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}
+
 export function browserTemplateLayout(options: {
   page: string; themeModule: string; redact?: RedactPolicy;
   header?: boolean; footer?: boolean; stylesheet?: string; dynamicStyles?: boolean; prose?: boolean; pageLayout?: BrowserLayout;
@@ -23,7 +28,7 @@ ${options.footer ? "import Footer from './.facet-render-footer.tsx';" : ''}
 ${options.stylesheet ? `import ${JSON.stringify(options.stylesheet)};` : ''}
 ${options.dynamicStyles ? 'export const meta = { tailwind: "dynamic" };' : ''}
 export default function Layout({ children, data }) {
-  ${options.pageLayout ? `React.useLayoutEffect(() => (${applyBrowserLayout.toString()})(${JSON.stringify(options.pageLayout)}), []);` : ''}
+  ${options.pageLayout ? `React.useLayoutEffect(() => (${applyBrowserLayout.toString()})(${embedJson(options.pageLayout)}), []);` : ''}
   const props = { ...data, data };
   return <RedactPolicyProvider policy={${JSON.stringify(options.redact ?? { allow: {} })}}><ThemeProvider theme={theme.theme ?? theme.facetTheme} options={data?.theme} overrides={${JSON.stringify({ header: !!options.header, footer: !!options.footer })}}>
     ${options.header ? '<Header {...props} />' : ''}${content}${options.footer ? '<Footer {...props} />' : ''}

@@ -4,7 +4,7 @@ import config from '../../vite.lib.config';
 
 describe('Facet library build', () => {
   it('keeps Markdown and Day.js plugin imports portable across installs', () => {
-    expect(config.build?.rollupOptions?.external).toEqual(expect.arrayContaining([
+    expect(config.build?.rolldownOptions?.external).toEqual(expect.arrayContaining([
       'marked',
       /^dayjs\//,
     ]));
