@@ -1,6 +1,6 @@
 {
   "name": "@flanksource/facet",
-  "version": "0.1.77",
+  "version": "0.1.78",
   "description": "Build beautiful HTML, PDF, and PNG output from React templates",
   "type": "module",
   "sideEffects": [
