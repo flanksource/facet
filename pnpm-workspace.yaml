@@ -11,6 +11,8 @@ minimumReleaseAgeExclude:
   - '@tsrs/win32-arm64@0.25.0-ts7.1.0-beta'
   - '@tsrs/win32-x64@0.25.0-ts7.1.0-beta'
   - tsrs@0.25.0-ts7.1.0-beta
+  - '@flanksource/clicky-ui@0.3.74'
+  - '@flanksource/page-runtime@0.1.0'
 overrides:
   "@babel/core": 7.29.6
   dompurify: 3.4.17
