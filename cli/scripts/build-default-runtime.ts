@@ -74,8 +74,8 @@ export async function buildDefaultRuntime(repoRoot: string): Promise<void> {
       if (!directory && name !== '@flanksource/facet') throw new Error(`Build runtime dependency ${name} is not installed`);
       const actual = name === '@flanksource/facet' ? repoRoot : realpathSync(directory!);
       dependencies[name] = JSON.parse(readFileSync(join(actual, 'package.json'), 'utf8')).version;
-      // Local checkouts and pkg.pr.new previews are not on npm, so ship them as tarballs.
-      if (!actual.includes(`${join('node_modules', '')}`) || dependencies[name].includes('-preview-')) archives[name] = await packLibrary({ directory: actual, scratch, name });
+      // Local checkouts, pkg.pr.new previews and the not-yet-published page-runtime-build are not on npm, so ship them as tarballs.
+      if (!actual.includes(`${join('node_modules', '')}`) || dependencies[name].includes('-preview-') || name === '@flanksource/page-runtime-build') archives[name] = await packLibrary({ directory: actual, scratch, name });
     }
     const root = join(scratch, 'runtime');
     mkdirSync(join(root, 'packages'), { recursive: true });
