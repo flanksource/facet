@@ -39,7 +39,6 @@ Download the binary for your platform from [GitHub Releases](https://github.com/
 - **Linux (x64)**: `facet-linux-x64`
 - **Linux (arm64)**: `facet-linux-arm64`
 - **macOS (Apple Silicon)**: `facet-macos-arm64`
-- **Windows (x64)**: `facet-windows-x64.exe`
 
 Make it executable and put it on your `PATH` (substitute the file you downloaded):
 ```bash

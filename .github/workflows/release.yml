@@ -77,10 +77,6 @@ jobs:
             platform: macos
             arch: arm64
             ext: ""
-          - os: windows-latest
-            platform: windows
-            arch: x64
-            ext: ".exe"
 
     steps:
       - name: Checkout code
@@ -204,8 +200,7 @@ jobs:
             --notes "Release ${{ needs.version-bump.outputs.new_version }}" \
             binaries/facet-linux-x64/facet-linux-x64 \
             binaries/facet-linux-arm64/facet-linux-arm64 \
-            binaries/facet-macos-arm64/facet-macos-arm64 \
-            binaries/facet-windows-x64/facet-windows-x64.exe
+            binaries/facet-macos-arm64/facet-macos-arm64
 
   build-image-and-chart:
     name: Build Image and Publish Chart

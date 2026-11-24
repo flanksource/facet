@@ -10,7 +10,7 @@ npm installations select an optional `@flanksource/facet-runtime-<platform>-<arc
 
 PDF.js, native canvas, Sharp, Rolldown and oxlint are normal dependencies of `@flanksource/facet-cli` for inspection and static lint. These commands do not extract a rendering archive. Sharp also remains in the rendering archive for PNG cropping and Office figure export. `lint --diagrams` uses the renderer and therefore requires the rendering runtime. Use the npm CLI for inspection/lint, or install their normal dependencies beside a standalone executable; they are resolved relative to the CLI, never from the rendering archive.
 
-Install optional dependencies normally. Omitting them removes the rendering runtime and causes an explicit error. Supported release targets are macOS arm64, Windows x64, and Linux x64/arm64 with glibc or musl. Chrome is supplied separately.
+Install optional dependencies normally. Omitting them removes the rendering runtime and causes an explicit error. Supported release targets are macOS arm64 and Linux x64/arm64 with glibc or musl. Chrome is supplied separately.
 
 ```sh
 npm install --global @flanksource/facet-cli
