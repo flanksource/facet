@@ -88,15 +88,17 @@
     }
   },
   "peerDependencies": {
+    "@flanksource/clicky-ui": "0.3.74",
     "@flanksource/page-runtime": "^0.1.0",
-    "@flanksource/clicky-ui": "^0.3.66",
     "@tanstack/react-query": "^5.66.8",
     "jotai": "^2.20.1",
     "react": ">=18",
     "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
-    "@flanksource/page-runtime": { "optional": true }
+    "@flanksource/page-runtime": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -105,7 +107,7 @@
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/state": "^6.7.0",
     "@codemirror/view": "^6.43.4",
-    "@flanksource/icons": "^1.0.53",
+    "@flanksource/icons": "^1.0.66",
     "@floating-ui/react": "^0.27.19",
     "@iconify/react": "^5.1.0",
     "@monaco-editor/react": "^4.7.0",
@@ -141,10 +143,12 @@
     "yaml": "^2.8.3"
   },
   "devDependencies": {
-    "@flanksource/clicky-ui": "https://pkg.pr.new/flanksource/clicky-ui/@flanksource/clicky-ui@039d3ed",
+    "@flanksource/clicky-ui": "0.3.74",
+    "@flanksource/page-runtime": "0.1.0",
     "@flanksource/page-runtime-build": "https://pkg.pr.new/flanksource/clicky-ui/@flanksource/page-runtime-build@039d3ed",
-    "@flanksource/page-runtime": "https://pkg.pr.new/flanksource/clicky-ui/@flanksource/page-runtime@039d3ed",
     "@mdx-js/rollup": "^3.0.0",
+    "@oxc-node/cli": "1.0.1",
+    "@oxc-node/core": "1.0.1",
     "@storybook/addon-docs": "^8.6.19",
     "@storybook/addon-essentials": "^8.6.19",
     "@storybook/react": "^8.6.19",
@@ -178,16 +182,14 @@
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.0",
     "remark-github-blockquote-alert": "^2.1.0",
+    "rolldown": "1.2.18",
     "storybook": "^8.6.19",
     "tailwindcss": "^4.1.17",
+    "tsrs": "0.25.0-ts7.1.0-beta",
     "typescript": "^5.3.0",
     "vite": "8.3.8",
     "vite-plugin-dts": "^4.5.0",
-    "vitest": "^4.1.12",
-    "@oxc-node/cli": "1.0.1",
-    "@oxc-node/core": "1.0.1",
-    "rolldown": "1.2.18",
-    "tsrs": "0.25.0-ts7.1.0-beta"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=24"

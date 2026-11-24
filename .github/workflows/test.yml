@@ -33,7 +33,7 @@ jobs:
             cli/pnpm-lock.yaml
 
       - name: Setup tools
-        uses: flanksource/deps@8b6fb04ac832c347c03ef97ceb804ccc2de5bd15 # v1.0.36
+        uses: flanksource/deps@92d640aba10afe1f8c384f42b0a356a0502cd7ce # v1.0.51
         with:
           tools: task@v3.39.2
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
