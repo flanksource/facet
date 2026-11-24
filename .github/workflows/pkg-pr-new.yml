@@ -1,8 +1,7 @@
 name: Preview Packages
 
 # Publishes every pull request and main commit to https://pkg.pr.new, e.g.
-#   npm i https://pkg.pr.new/@flanksource/facet@<pr-number-or-sha>
-#   npx https://pkg.pr.new/@flanksource/facet-cli@<pr-number-or-sha>
+#   npm i https://pkg.pr.new/@flanksource/facet-runtime-linux-x64-glibc@<pr-number-or-sha>
 # Requires the pkg.pr.new GitHub App: https://github.com/apps/pkg-pr-new
 on:
   pull_request:
@@ -29,7 +28,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "pnpm"
           cache-dependency-path: |
             pnpm-lock.yaml
@@ -40,18 +39,12 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm --dir cli install --frozen-lockfile
 
-      # Same output the npm release packs: components, styles.css, and cli/dist.
-      - name: Build library
-        run: pnpm run build
+      # Produces cli/assets/runtimes/<platform>: the @flanksource/facet-runtime-*
+      # package for this runner.
+      - name: Build runtime package
+        run: pnpm run build:artifacts
 
-      # Same steps as release.yml's publish-cli: the CLI runtime bundle plus the
-      # assets it reads at render time.
-      - name: Build CLI runtime
-        run: |
-          pnpm --dir cli run build:bundle
-          node cli/scripts/pack-npm-cli.cjs "$(node -p "require('./package.json').version")" npm-dist
-
-      # --previewVersion keeps preview tarballs from colliding with npm releases
-      # of the same version.
+      # Only the facet-runtime package is previewed. --previewVersion keeps
+      # preview tarballs from colliding with npm releases of the same version.
       - name: Publish previews
-        run: pnpm exec pkg-pr-new publish --previewVersion --bin '.' './npm-dist'
+        run: pnpm exec pkg-pr-new publish --previewVersion ./cli/assets/runtimes/*
