@@ -30,13 +30,19 @@ jobs:
         with:
           node-version: "24"
           cache: "pnpm"
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            cli/pnpm-lock.yaml
 
+      # cli is not a workspace package; the root build reaches build:cli,
+      # which needs cli's own devDependencies (tsdown).
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir cli install --frozen-lockfile
 
       # Same library build as release.yml's publish-library: components,
-      # styles.css, and the browser UI runtime in dist/runtime.
+      # styles.css, cli/dist, and the browser UI runtime in dist/runtime.
       - name: Build library
         run: pnpm run build
 
