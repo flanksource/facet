@@ -16,8 +16,15 @@ import { createRuntimeBuildProgress } from '../src/runtime/build-progress.js';
 
 const run = promisify(execFile);
 
-export async function packageRuntime(options: { root: string; out: string; facetVersion: string; dependencies: string[] }): Promise<void> {
+export async function packageRuntime(options: {
+  root: string;
+  out: string;
+  facet: { version: string; repository: { type: string; url: string } };
+  dependencies: string[];
+}): Promise<void> {
   if (existsSync(join(options.root, '.npmrc'))) throw new Error('Runtime environment still contains installation credentials');
+  const { version, repository } = options.facet;
+  const repositoryUrl = repository.url.replace(/^git\+/, '').replace(/\.git$/, '');
   const versions = Object.fromEntries(options.dependencies.map(name => [name, JSON.parse(readFileSync(join(options.root, 'node_modules', name, 'package.json'), 'utf8')).version as string]));
   mkdirSync(options.out, { recursive: true });
   const archive = join(options.out, 'default-runtime.tgz');
@@ -27,8 +34,18 @@ export async function packageRuntime(options: { root: string; out: string; facet
     await run('tar', ['-czf', archive, '-C', projection, '.'], { maxBuffer: 16 * 1024 * 1024 });
   } finally { rmSync(projection, { recursive: true, force: true }); }
   const target = runtimePlatform();
-  writeFileSync(join(options.out, 'default-runtime.json'), JSON.stringify({ schema: 1, facetVersion: options.facetVersion, target, versions, sha256: createHash('sha256').update(readFileSync(archive)).digest('hex') }, null, 2));
-  writeFileSync(join(options.out, 'package.json'), JSON.stringify({ name: `@flanksource/facet-runtime-${runtimePlatformName()}`, version: options.facetVersion, description: 'Precompiled Facet rendering runtime and toolchain', license: 'Apache-2.0', os: [target.platform], cpu: [target.arch], ...(target.libc ? { libc: [target.libc] } : {}), files: ['default-runtime.json', 'default-runtime.tgz'] }, null, 2));
+  writeFileSync(join(options.out, 'default-runtime.json'), JSON.stringify({ schema: 1, facetVersion: version, target, versions, sha256: createHash('sha256').update(readFileSync(archive)).digest('hex') }, null, 2));
+  writeFileSync(join(options.out, 'package.json'), JSON.stringify({
+    name: `@flanksource/facet-runtime-${runtimePlatformName()}`,
+    version,
+    description: 'Precompiled Facet rendering runtime and toolchain',
+    license: 'Apache-2.0',
+    repository: { type: repository.type, url: repositoryUrl },
+    os: [target.platform],
+    cpu: [target.arch],
+    ...(target.libc ? { libc: [target.libc] } : {}),
+    files: ['default-runtime.json', 'default-runtime.tgz'],
+  }, null, 2));
 }
 
 export async function packLibrary(options: { directory: string; scratch: string; name: string; includeRuntimePackages?: boolean }): Promise<string> {
@@ -97,7 +114,7 @@ export async function buildDefaultRuntime(repoRoot: string): Promise<void> {
     rmSync(join(root, '.npmrc'));
     const out = join(repoRoot, 'cli/assets/runtimes', runtimePlatformName());
     progress.stage('publish', 'Packaging the installed runtime');
-    await packageRuntime({ root, out, facetVersion: facet.version, dependencies: Object.keys(dependencies) });
+    await packageRuntime({ root, out, facet, dependencies: Object.keys(dependencies) });
     progress.done(`Prepared Facet runtime ${facet.version}`);
     console.log(`Prepared installed runtime ${out}`);
   } finally { rmSync(scratch, { recursive: true, force: true }); }
