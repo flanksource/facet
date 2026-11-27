@@ -26,7 +26,7 @@ it('ships a dependency environment with its exact versions and platform metadata
     rmSync(join(root, '.npmrc'));
     await packageRuntime({ root, out, facetVersion: '1.2.3', dependencies: ['react'] });
     expect(JSON.parse(readFileSync(join(out, 'default-runtime.json'), 'utf8'))).toMatchObject({ facetVersion: '1.2.3', target: runtimePlatform(), versions: { react: '18.3.1' } });
-    expect(JSON.parse(readFileSync(join(out, 'package.json'), 'utf8'))).toMatchObject({ name: `@flanksource/facet-runtime-${runtimePlatformName()}`, version: '1.2.3', os: [process.platform], cpu: [process.arch] });
+    expect(JSON.parse(readFileSync(join(out, 'package.json'), 'utf8'))).toMatchObject({ name: `@flanksource/facet-runtime-${runtimePlatformName()}`, version: '1.2.3', os: [process.platform], cpu: [process.arch], repository: { type: 'git', url: 'https://github.com/flanksource/facet.git' } });
     expect(execFileSync('tar', ['-tzf', join(out, 'default-runtime.tgz')], { encoding: 'utf8' })).toContain('node_modules/react/package.json');
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 });

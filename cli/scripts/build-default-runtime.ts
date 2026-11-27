@@ -28,7 +28,7 @@ export async function packageRuntime(options: { root: string; out: string; facet
   } finally { rmSync(projection, { recursive: true, force: true }); }
   const target = runtimePlatform();
   writeFileSync(join(options.out, 'default-runtime.json'), JSON.stringify({ schema: 1, facetVersion: options.facetVersion, target, versions, sha256: createHash('sha256').update(readFileSync(archive)).digest('hex') }, null, 2));
-  writeFileSync(join(options.out, 'package.json'), JSON.stringify({ name: `@flanksource/facet-runtime-${runtimePlatformName()}`, version: options.facetVersion, description: 'Precompiled Facet rendering runtime and toolchain', license: 'Apache-2.0', os: [target.platform], cpu: [target.arch], ...(target.libc ? { libc: [target.libc] } : {}), files: ['default-runtime.json', 'default-runtime.tgz'] }, null, 2));
+  writeFileSync(join(options.out, 'package.json'), JSON.stringify({ name: `@flanksource/facet-runtime-${runtimePlatformName()}`, version: options.facetVersion, description: 'Precompiled Facet rendering runtime and toolchain', license: 'Apache-2.0', repository: { type: 'git', url: 'https://github.com/flanksource/facet.git' }, os: [target.platform], cpu: [target.arch], ...(target.libc ? { libc: [target.libc] } : {}), files: ['default-runtime.json', 'default-runtime.tgz'] }, null, 2));
 }
 
 export async function packLibrary(options: { directory: string; scratch: string; name: string; includeRuntimePackages?: boolean }): Promise<string> {
